@@ -16,6 +16,7 @@ function App() {
           <Link to="/search">Search</Link>
           <Link to="/login">Login</Link>
           <Link to="/my-shows">My Shows</Link>
+          <Link to="/airing-next">Airing Next</Link>
         </nav>
 
         <Routes>
