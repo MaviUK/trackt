@@ -6,6 +6,8 @@ export default function ShowDetails() {
 
   const [show, setShow] = useState(null)
   const [episodes, setEpisodes] = useState([])
+  const [openSeasons, setOpenSeasons] = useState({})
+  const [watchedEpisodes, setWatchedEpisodes] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
@@ -29,6 +31,13 @@ export default function ShowDetails() {
     }
 
     loadData()
+  }, [id])
+
+  useEffect(() => {
+    const savedWatched = JSON.parse(
+      localStorage.getItem(`watchedEpisodes_${id}`) || "{}"
+    )
+    setWatchedEpisodes(savedWatched)
   }, [id])
 
   const saveShow = () => {
@@ -62,11 +71,36 @@ export default function ShowDetails() {
     setSaving(false)
   }
 
+  const toggleSeason = (season) => {
+    setOpenSeasons((prev) => ({
+      ...prev,
+      [season]: !prev[season]
+    }))
+  }
+
+  const toggleWatched = (episodeId) => {
+    const updated = {
+      ...watchedEpisodes,
+      [episodeId]: !watchedEpisodes[episodeId]
+    }
+
+    if (!updated[episodeId]) {
+      delete updated[episodeId]
+    }
+
+    setWatchedEpisodes(updated)
+    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated))
+  }
+
   const episodesBySeason = useMemo(() => {
     const grouped = {}
 
     episodes.forEach((episode) => {
-      const season = episode.seasonNumber ?? 0
+      const season = episode.seasonNumber
+
+      if (!season || season === 0) {
+        return
+      }
 
       if (!grouped[season]) {
         grouped[season] = []
@@ -81,6 +115,11 @@ export default function ShowDetails() {
 
     return Object.entries(grouped).sort((a, b) => Number(a[0]) - Number(b[0]))
   }, [episodes])
+
+  const isSeasonFullyWatched = (seasonEpisodes) => {
+    if (!seasonEpisodes.length) return false
+    return seasonEpisodes.every((episode) => watchedEpisodes[episode.id])
+  }
 
   if (loading) {
     return <div className="page">Loading...</div>
@@ -119,35 +158,84 @@ export default function ShowDetails() {
 
       {episodesBySeason.length === 0 && <p>No episodes found.</p>}
 
-      {episodesBySeason.map(([season, seasonEpisodes]) => (
-        <div key={season} style={{ marginBottom: "24px" }}>
-          <h3>Season {season}</h3>
+      {episodesBySeason.map(([season, seasonEpisodes]) => {
+        const isOpen = !!openSeasons[season]
+        const fullyWatched = isSeasonFullyWatched(seasonEpisodes)
 
-          <div className="show-list">
-            {seasonEpisodes.map((episode) => (
-              <div className="show-card" key={episode.id}>
-                <strong>
-                  E{episode.number ?? "?"} - {episode.name}
-                </strong>
+        return (
+          <div
+            key={season}
+            style={{
+              marginBottom: "20px",
+              borderRadius: "12px",
+              padding: "12px",
+              background: fullyWatched ? "#dcfce7" : "#f8fafc",
+              border: fullyWatched ? "1px solid #86efac" : "1px solid #e5e7eb"
+            }}
+          >
+            <button
+              onClick={() => toggleSeason(season)}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                background: "transparent",
+                border: "none",
+                padding: "0",
+                fontSize: "20px",
+                fontWeight: "700",
+                cursor: "pointer"
+              }}
+            >
+              Season {season} {isOpen ? "−" : "+"}
+              {fullyWatched ? " ✓" : ""}
+            </button>
 
-                {episode.aired && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    Air date: {episode.aired}
-                  </p>
-                )}
+            {isOpen && (
+              <div className="show-list" style={{ marginTop: "12px" }}>
+                {seasonEpisodes.map((episode) => {
+                  const watched = !!watchedEpisodes[episode.id]
 
-                {episode.overview && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    {episode.overview.length > 180
-                      ? `${episode.overview.slice(0, 180)}...`
-                      : episode.overview}
-                  </p>
-                )}
+                  return (
+                    <div
+                      className="show-card"
+                      key={episode.id}
+                      style={{
+                        background: watched ? "#ecfdf5" : "white",
+                        border: watched ? "1px solid #86efac" : "1px solid #e5e7eb"
+                      }}
+                    >
+                      <strong>
+                        E{episode.number ?? "?"} - {episode.name}
+                      </strong>
+
+                      {episode.aired && (
+                        <p style={{ margin: "8px 0 0 0" }}>
+                          Air date: {episode.aired}
+                        </p>
+                      )}
+
+                      {episode.overview && (
+                        <p style={{ margin: "8px 0 0 0" }}>
+                          {episode.overview.length > 180
+                            ? `${episode.overview.slice(0, 180)}...`
+                            : episode.overview}
+                        </p>
+                      )}
+
+                      <button
+                        onClick={() => toggleWatched(episode.id)}
+                        style={{ marginTop: "10px" }}
+                      >
+                        {watched ? "Watched" : "Mark as Watched"}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
