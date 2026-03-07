@@ -36,11 +36,16 @@ export default function Search() {
     <div className="page">
       <h1>Search Shows</h1>
 
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search for a show"
-      />
+     <input
+  value={query}
+  onChange={(e) => setQuery(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      search()
+    }
+  }}
+  placeholder="Search for a show"
+/>
 
       <button onClick={search} disabled={loading}>
         {loading ? "Searching..." : "Search"}
