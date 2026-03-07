@@ -2,8 +2,8 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
 import Home from "./pages/Home"
 import Search from "./pages/Search"
 import Login from "./pages/Login"
-import MyShows from "./pages/MyShows"
 import ShowDetails from "./pages/ShowDetails"
+import MyShows from "./pages/MyShows"
 
 function App() {
   return (
@@ -13,14 +13,15 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/search">Search</Link>
           <Link to="/login">Login</Link>
+          <Link to="/my-shows">My Shows</Link>
         </nav>
 
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/my-shows" element={<MyShows />} />
           <Route path="/show/:id" element={<ShowDetails />} />
+          <Route path="/my-shows" element={<MyShows />} />
         </Routes>
       </div>
     </BrowserRouter>
