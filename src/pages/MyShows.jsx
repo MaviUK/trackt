@@ -10,6 +10,13 @@ export default function MyShows() {
     setLoading(false)
   }, [])
 
+  const removeShow = (tvdb_id) => {
+    const updatedShows = shows.filter((show) => show.tvdb_id !== tvdb_id)
+
+    localStorage.setItem("myShows", JSON.stringify(updatedShows))
+    setShows(updatedShows)
+  }
+
   if (loading) {
     return <div className="page">Loading...</div>
   }
@@ -33,7 +40,7 @@ export default function MyShows() {
                 />
               )}
 
-              <div>
+              <div style={{ flex: 1 }}>
                 <strong>{show.show_name}</strong>
 
                 {show.first_aired && (
@@ -49,6 +56,13 @@ export default function MyShows() {
                       : show.overview}
                   </p>
                 )}
+
+                <button
+                  style={{ marginTop: "10px" }}
+                  onClick={() => removeShow(show.tvdb_id)}
+                >
+                  Remove
+                </button>
               </div>
             </div>
           </div>
