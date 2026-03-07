@@ -1,4 +1,57 @@
-body{
+:root {
   font-family: Arial, sans-serif;
-  padding: 40px;
+  color: #111827;
+  background: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  padding: 32px;
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.nav a {
+  text-decoration: none;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.page {
+  max-width: 720px;
+}
+
+input {
+  padding: 10px 12px;
+  margin-right: 12px;
+  margin-bottom: 12px;
+}
+
+button {
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.show-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.show-card {
+  background: white;
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
