@@ -1,5 +1,4 @@
 import { useState } from "react"
-import axios from "axios"
 
 export default function Search() {
   const [query, setQuery] = useState("")
@@ -14,12 +13,16 @@ export default function Search() {
     setError("")
 
     try {
-      const res = await axios.get("/.netlify/functions/searchShows", {
-        params: { q: query }
-      })
-      setShows(res.data || [])
+      const res = await fetch(`/.netlify/functions/searchShows?q=${encodeURIComponent(query)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Search failed")
+      }
+
+      setShows(data || [])
     } catch (err) {
-      setError("Search failed. This is expected locally unless you run with Netlify functions or deploy to Netlify.")
+      setError(err.message)
       setShows([])
     } finally {
       setLoading(false)
