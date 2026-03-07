@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 
 export default function Search() {
   const [query, setQuery] = useState("")
@@ -49,39 +50,45 @@ export default function Search() {
 
       <div className="show-list">
         {shows.map((show) => (
-          <div className="show-card" key={show.tvdb_id || show.id}>
-            <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-              {show.image_url && (
-                <img
-                  src={show.image_url}
-                  alt={show.name}
-                  width="80"
-                  style={{
-                    borderRadius: "8px",
-                    objectFit: "cover"
-                  }}
-                />
-              )}
+          <Link
+  to={`/show/${show.tvdb_id || show.id}`}
+  key={show.tvdb_id || show.id}
+  style={{ textDecoration: "none", color: "inherit" }}
+>
+  <div className="show-card">
+    <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+      {show.image_url && (
+        <img
+          src={show.image_url}
+          alt={show.name}
+          width="80"
+          style={{
+            borderRadius: "8px",
+            objectFit: "cover"
+          }}
+        />
+      )}
 
-              <div>
-                <strong>{show.name}</strong>
+      <div>
+        <strong>{show.name}</strong>
 
-                {show.first_air_time && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    First aired: {show.first_air_time}
-                  </p>
-                )}
+        {show.first_air_time && (
+          <p style={{ margin: "8px 0 0 0" }}>
+            First aired: {show.first_air_time}
+          </p>
+        )}
 
-                {show.overview && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    {show.overview.length > 160
-                      ? `${show.overview.slice(0, 160)}...`
-                      : show.overview}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+        {show.overview && (
+          <p style={{ margin: "8px 0 0 0" }}>
+            {show.overview.length > 160
+              ? `${show.overview.slice(0, 160)}...`
+              : show.overview}
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+</Link>
         ))}
       </div>
     </div>
