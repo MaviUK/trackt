@@ -9,6 +9,11 @@ export default function Login() {
   const login = async () => {
     setError("")
 
+    if (!supabase) {
+      setError("Supabase environment variables are missing.")
+      return
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
