@@ -40,6 +40,11 @@ export default function ShowDetails() {
     setWatchedEpisodes(savedWatched)
   }, [id])
 
+  const saveWatchedEpisodes = (updated) => {
+    setWatchedEpisodes(updated)
+    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated))
+  }
+
   const saveShow = () => {
     if (!show) return
 
@@ -88,8 +93,21 @@ export default function ShowDetails() {
       delete updated[episodeId]
     }
 
-    setWatchedEpisodes(updated)
-    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated))
+    saveWatchedEpisodes(updated)
+  }
+
+  const markUpToEpisodeWatched = (seasonEpisodes, currentEpisodeNumber) => {
+    const updated = { ...watchedEpisodes }
+
+    seasonEpisodes.forEach((episode) => {
+      const epNumber = episode.number ?? 0
+
+      if (epNumber <= currentEpisodeNumber) {
+        updated[episode.id] = true
+      }
+    })
+
+    saveWatchedEpisodes(updated)
   }
 
   const episodesBySeason = useMemo(() => {
@@ -222,12 +240,22 @@ export default function ShowDetails() {
                         </p>
                       )}
 
-                      <button
-                        onClick={() => toggleWatched(episode.id)}
-                        style={{ marginTop: "10px" }}
-                      >
-                        {watched ? "Watched" : "Mark as Watched"}
-                      </button>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+                        <button onClick={() => toggleWatched(episode.id)}>
+                          {watched ? "Watched" : "Mark as Watched"}
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            markUpToEpisodeWatched(
+                              seasonEpisodes,
+                              episode.number ?? 0
+                            )
+                          }
+                        >
+                          Watch up to here
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
