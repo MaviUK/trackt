@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
 import Home from "./pages/Home"
 import Search from "./pages/Search"
 import Login from "./pages/Login"
+import MyShows from "./pages/MyShows"
 import ShowDetails from "./pages/ShowDetails"
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/my-shows" element={<MyShows />} />
           <Route path="/show/:id" element={<ShowDetails />} />
         </Routes>
       </div>
