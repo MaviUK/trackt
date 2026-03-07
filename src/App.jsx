@@ -5,6 +5,7 @@ import Login from "./pages/Login"
 import ShowDetails from "./pages/ShowDetails"
 import MyShows from "./pages/MyShows"
 import MyShowDetails from "./pages/MyShowDetails"
+import AiringNextPage from "./pages/AiringNextPage";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/show/:id" element={<ShowDetails />} />
           <Route path="/my-shows" element={<MyShows />} />
           <Route path="/my-shows/:id" element={<MyShowDetails />} />
+          <Route path="/airing-next" element={<AiringNextPage />} />
         </Routes>
       </div>
     </BrowserRouter>
