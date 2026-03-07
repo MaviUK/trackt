@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 
 export default function MyShows() {
   const [shows, setShows] = useState([])
@@ -12,7 +13,6 @@ export default function MyShows() {
 
   const removeShow = (tvdb_id) => {
     const updatedShows = shows.filter((show) => show.tvdb_id !== tvdb_id)
-
     localStorage.setItem("myShows", JSON.stringify(updatedShows))
     setShows(updatedShows)
   }
@@ -30,41 +30,46 @@ export default function MyShows() {
       <div className="show-list">
         {shows.map((show) => (
           <div className="show-card" key={show.tvdb_id}>
-            <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-              {show.poster_url && (
-                <img
-                  src={show.poster_url}
-                  alt={show.show_name}
-                  width="80"
-                  style={{ borderRadius: "8px", objectFit: "cover" }}
-                />
-              )}
-
-              <div style={{ flex: 1 }}>
-                <strong>{show.show_name}</strong>
-
-                {show.first_aired && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    First aired: {show.first_aired}
-                  </p>
+            <Link
+              to={`/my-shows/${show.tvdb_id}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+                {show.poster_url && (
+                  <img
+                    src={show.poster_url}
+                    alt={show.show_name}
+                    width="80"
+                    style={{ borderRadius: "8px", objectFit: "cover" }}
+                  />
                 )}
 
-                {show.overview && (
-                  <p style={{ margin: "8px 0 0 0" }}>
-                    {show.overview.length > 160
-                      ? `${show.overview.slice(0, 160)}...`
-                      : show.overview}
-                  </p>
-                )}
+                <div style={{ flex: 1 }}>
+                  <strong>{show.show_name}</strong>
 
-                <button
-                  style={{ marginTop: "10px" }}
-                  onClick={() => removeShow(show.tvdb_id)}
-                >
-                  Remove
-                </button>
+                  {show.first_aired && (
+                    <p style={{ margin: "8px 0 0 0" }}>
+                      First aired: {show.first_aired}
+                    </p>
+                  )}
+
+                  {show.overview && (
+                    <p style={{ margin: "8px 0 0 0" }}>
+                      {show.overview.length > 160
+                        ? `${show.overview.slice(0, 160)}...`
+                        : show.overview}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            </Link>
+
+            <button
+              style={{ marginTop: "10px" }}
+              onClick={() => removeShow(show.tvdb_id)}
+            >
+              Remove
+            </button>
           </div>
         ))}
       </div>
