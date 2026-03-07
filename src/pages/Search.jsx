@@ -13,7 +13,9 @@ export default function Search() {
     setError("")
 
     try {
-      const res = await fetch(`/.netlify/functions/searchShows?q=${encodeURIComponent(query)}`)
+      const res = await fetch(
+        `/.netlify/functions/searchShows?q=${encodeURIComponent(query)}`
+      )
       const data = await res.json()
 
       if (!res.ok) {
@@ -48,7 +50,37 @@ export default function Search() {
       <div className="show-list">
         {shows.map((show) => (
           <div className="show-card" key={show.tvdb_id || show.id}>
-            <strong>{show.name}</strong>
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+              {show.image_url && (
+                <img
+                  src={show.image_url}
+                  alt={show.name}
+                  width="80"
+                  style={{
+                    borderRadius: "8px",
+                    objectFit: "cover"
+                  }}
+                />
+              )}
+
+              <div>
+                <strong>{show.name}</strong>
+
+                {show.first_air_time && (
+                  <p style={{ margin: "8px 0 0 0" }}>
+                    First aired: {show.first_air_time}
+                  </p>
+                )}
+
+                {show.overview && (
+                  <p style={{ margin: "8px 0 0 0" }}>
+                    {show.overview.length > 160
+                      ? `${show.overview.slice(0, 160)}...`
+                      : show.overview}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </div>
