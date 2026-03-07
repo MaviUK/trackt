@@ -4,6 +4,7 @@ import Search from "./pages/Search"
 import Login from "./pages/Login"
 import ShowDetails from "./pages/ShowDetails"
 import MyShows from "./pages/MyShows"
+import MyShowDetails from "./pages/MyShowDetails"
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/show/:id" element={<ShowDetails />} />
           <Route path="/my-shows" element={<MyShows />} />
+          <Route path="/my-shows/:id" element={<MyShowDetails />} />
         </Routes>
       </div>
     </BrowserRouter>
