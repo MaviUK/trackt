@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 export default function ShowDetails() {
   const { id } = useParams()
@@ -58,10 +58,29 @@ export default function ShowDetails() {
     }
 
     localStorage.setItem("myShows", JSON.stringify([newShow, ...existingShows]))
-
     setMessage("Show added to My Shows")
     setSaving(false)
   }
+
+  const episodesBySeason = useMemo(() => {
+    const grouped = {}
+
+    episodes.forEach((episode) => {
+      const season = episode.seasonNumber ?? 0
+
+      if (!grouped[season]) {
+        grouped[season] = []
+      }
+
+      grouped[season].push(episode)
+    })
+
+    Object.keys(grouped).forEach((season) => {
+      grouped[season].sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+    })
+
+    return Object.entries(grouped).sort((a, b) => Number(a[0]) - Number(b[0]))
+  }, [episodes])
 
   if (loading) {
     return <div className="page">Loading...</div>
@@ -98,31 +117,37 @@ export default function ShowDetails() {
 
       <h2>Episodes</h2>
 
-      {episodes.length === 0 && <p>No episodes found.</p>}
+      {episodesBySeason.length === 0 && <p>No episodes found.</p>}
 
-      <div className="show-list">
-        {episodes.map((episode) => (
-          <div className="show-card" key={episode.id}>
-            <strong>
-              S{episode.seasonNumber ?? "?"} E{episode.number ?? "?"} - {episode.name}
-            </strong>
+      {episodesBySeason.map(([season, seasonEpisodes]) => (
+        <div key={season} style={{ marginBottom: "24px" }}>
+          <h3>Season {season}</h3>
 
-            {episode.aired && (
-              <p style={{ margin: "8px 0 0 0" }}>
-                Air date: {episode.aired}
-              </p>
-            )}
+          <div className="show-list">
+            {seasonEpisodes.map((episode) => (
+              <div className="show-card" key={episode.id}>
+                <strong>
+                  E{episode.number ?? "?"} - {episode.name}
+                </strong>
 
-            {episode.overview && (
-              <p style={{ margin: "8px 0 0 0" }}>
-                {episode.overview.length > 180
-                  ? `${episode.overview.slice(0, 180)}...`
-                  : episode.overview}
-              </p>
-            )}
+                {episode.aired && (
+                  <p style={{ margin: "8px 0 0 0" }}>
+                    Air date: {episode.aired}
+                  </p>
+                )}
+
+                {episode.overview && (
+                  <p style={{ margin: "8px 0 0 0" }}>
+                    {episode.overview.length > 180
+                      ? `${episode.overview.slice(0, 180)}...`
+                      : episode.overview}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
