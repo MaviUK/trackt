@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { supabase } from "../lib/supabase"
 
 export default function ShowDetails() {
   const { id } = useParams()
@@ -26,37 +25,35 @@ export default function ShowDetails() {
     loadShow()
   }, [id])
 
-  const saveShow = async () => {
-    if (!supabase) {
-      setMessage("Supabase is not set up")
-      return
-    }
-
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setMessage("You need to log in first")
-      return
-    }
+  const saveShow = () => {
+    if (!show) return
 
     setSaving(true)
     setMessage("")
 
-    const { error } = await supabase.from("saved_shows").insert({
-      user_id: user.id,
-      tvdb_id: String(show.id),
-      show_name: show.name,
-      poster_url: show.image || ""
-    })
+    const existingShows = JSON.parse(localStorage.getItem("myShows") || "[]")
 
-    if (error) {
-      setMessage(error.message)
-    } else {
-      setMessage("Show added to My Shows")
+    const alreadySaved = existingShows.some(
+      (savedShow) => String(savedShow.tvdb_id) === String(show.id)
+    )
+
+    if (alreadySaved) {
+      setMessage("Show already in My Shows")
+      setSaving(false)
+      return
     }
 
+    const newShow = {
+      tvdb_id: String(show.id),
+      show_name: show.name,
+      poster_url: show.image || "",
+      overview: show.overview || "",
+      first_aired: show.firstAired || ""
+    }
+
+    localStorage.setItem("myShows", JSON.stringify([newShow, ...existingShows]))
+
+    setMessage("Show added to My Shows")
     setSaving(false)
   }
 
