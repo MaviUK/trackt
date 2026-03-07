@@ -96,13 +96,20 @@ export default function ShowDetails() {
     saveWatchedEpisodes(updated)
   }
 
-  const markUpToEpisodeWatched = (seasonEpisodes, currentEpisodeNumber) => {
+  const markUpToEpisodeWatched = (targetSeason, targetEpisodeNumber) => {
     const updated = { ...watchedEpisodes }
 
-    seasonEpisodes.forEach((episode) => {
-      const epNumber = episode.number ?? 0
+    episodes.forEach((episode) => {
+      const seasonNumber = episode.seasonNumber ?? 0
+      const episodeNumber = episode.number ?? 0
 
-      if (epNumber <= currentEpisodeNumber) {
+      if (!seasonNumber || seasonNumber === 0) return
+
+      const isEarlierSeason = seasonNumber < targetSeason
+      const isSameSeasonUpToEpisode =
+        seasonNumber === targetSeason && episodeNumber <= targetEpisodeNumber
+
+      if (isEarlierSeason || isSameSeasonUpToEpisode) {
         updated[episode.id] = true
       }
     })
@@ -177,6 +184,7 @@ export default function ShowDetails() {
       {episodesBySeason.length === 0 && <p>No episodes found.</p>}
 
       {episodesBySeason.map(([season, seasonEpisodes]) => {
+        const seasonNumber = Number(season)
         const isOpen = !!openSeasons[season]
         const fullyWatched = isSeasonFullyWatched(seasonEpisodes)
 
@@ -240,7 +248,14 @@ export default function ShowDetails() {
                         </p>
                       )}
 
-                      <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          marginTop: "10px",
+                          flexWrap: "wrap"
+                        }}
+                      >
                         <button onClick={() => toggleWatched(episode.id)}>
                           {watched ? "Watched" : "Mark as Watched"}
                         </button>
@@ -248,7 +263,7 @@ export default function ShowDetails() {
                         <button
                           onClick={() =>
                             markUpToEpisodeWatched(
-                              seasonEpisodes,
+                              seasonNumber,
                               episode.number ?? 0
                             )
                           }
