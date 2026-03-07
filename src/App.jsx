@@ -5,7 +5,7 @@ import Login from "./pages/Login"
 import ShowDetails from "./pages/ShowDetails"
 import MyShows from "./pages/MyShows"
 import MyShowDetails from "./pages/MyShowDetails"
-import AiringNextPage from "./pages/AiringNextPage";
+import AiringNextPage from "./pages/airingnext";
 
 function App() {
   return (
