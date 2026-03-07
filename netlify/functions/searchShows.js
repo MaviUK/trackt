@@ -24,7 +24,7 @@ export async function handler(event) {
       }
     }
 
-    const token = loginData.data.token
+    const token = loginData?.data?.token
 
     const searchRes = await fetch(
       `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(query)}`,
@@ -37,11 +37,27 @@ export async function handler(event) {
 
     const searchData = await searchRes.json()
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(searchData.data || [])
+    if (!searchRes.ok) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: "TVDB search failed",
+          details: searchData
+        })
+      }
     }
 
+    const allResults = searchData.data || []
+
+    const tvShowsOnly = allResults.filter((item) => {
+      const type = String(item.type || "").toLowerCase()
+      return type === "series"
+    })
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(tvShowsOnly)
+    }
   } catch (error) {
     return {
       statusCode: 500,
