@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { formatDate } from "../lib/date";
+import { formatDate, getDaysUntil } from "../lib/date";
+
 
 export default function MyShowDetails() {
   const { id } = useParams();
@@ -163,7 +164,8 @@ export default function MyShowDetails() {
 
 {nextEpisode && (
   <p>
-    Next episode: {formatDate(nextEpisode.airDate || nextEpisode.aired)}
+    Next episode: {formatDate(nextEpisode.airDate || nextEpisode.aired)}{" "}
+    ({getDaysUntil(nextEpisode.airDate || nextEpisode.aired)})
   </p>
 )}
 
