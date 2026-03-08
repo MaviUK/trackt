@@ -1,25 +1,78 @@
 import { useEffect, useState } from "react";
 
 export default function AiringNextPage() {
-  const [myShows, setMyShows] = useState([]);
+  const [items, setItems] = useState([]);
 
   useEffect(() => {
-    const savedShows = JSON.parse(localStorage.getItem("myShows")) || [];
-    setMyShows(savedShows);
+    async function loadAiringNext() {
+      const savedShows = JSON.parse(localStorage.getItem("myShows")) || [];
+      const results = [];
+
+      for (const show of savedShows) {
+        try {
+          const res = await fetch(
+            `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
+          );
+          const episodes = await res.json();
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const upcomingEpisodes = episodes
+            .filter((ep) => ep.airDate)
+            .filter((ep) => {
+              const airDate = new Date(ep.airDate);
+              airDate.setHours(0, 0, 0, 0);
+              return airDate >= today;
+            })
+            .sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
+
+          const nextEpisode = upcomingEpisodes[0];
+
+          if (nextEpisode) {
+            results.push({
+              tvdb_id: show.tvdb_id,
+              show_name: show.show_name,
+              poster_url: show.poster_url,
+              nextEpisode,
+            });
+          }
+        } catch (error) {
+          console.error("Error loading episodes for show:", show.show_name, error);
+        }
+      }
+
+      results.sort(
+        (a, b) =>
+          new Date(a.nextEpisode.airDate) - new Date(b.nextEpisode.airDate)
+      );
+
+      setItems(results);
+    }
+
+    loadAiringNext();
   }, []);
 
   return (
     <div>
       <h1>Airing Next</h1>
 
-      {myShows.length === 0 ? (
-        <p>No shows saved yet.</p>
+      {items.length === 0 ? (
+        <p>No upcoming episodes.</p>
       ) : (
         <div>
-          {myShows.map((show) => (
-            <div key={show.tvdb_id}>
-              <h3>{show.show_name}</h3>
-<p>Next episode will go here</p>
+          {items.map((item) => (
+            <div key={item.tvdb_id}>
+              <img
+                src={item.poster_url}
+                alt={item.show_name}
+                style={{ width: "120px", borderRadius: "8px" }}
+              />
+              <h3>{item.show_name}</h3>
+              <p>
+                S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber}
+              </p>
+              <p>{item.nextEpisode.airDate}</p>
             </div>
           ))}
         </div>
