@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate, getDaysUntil } from "../lib/date";
-
+import { supabase } from "../lib/supabase";
 
 export default function MyShowDetails() {
   const { id } = useParams();
@@ -15,52 +15,72 @@ export default function MyShowDetails() {
   const [nextEpisode, setNextEpisode] = useState(null);
 
   useEffect(() => {
-    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]");
-    const matchedShow = savedShows.find(
-      (savedShow) => String(savedShow.tvdb_id) === String(id)
-    );
+    const loadPage = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-    if (matchedShow) {
-      setShow(matchedShow);
-    }
+        if (!user) {
+          setMessage("You need to log in");
+          setLoading(false);
+          return;
+        }
 
-    const savedWatched = JSON.parse(
-      localStorage.getItem(`watchedEpisodes_${id}`) || "{}"
-    );
-    setWatchedEpisodes(savedWatched);
+        const { data: matchedShow, error: showError } = await supabase
+          .from("user_shows")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("tvdb_id", String(id))
+          .maybeSingle();
 
-    const loadEpisodes = async () => {
-  try {
-    const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
-    const data = await res.json();
+        if (showError || !matchedShow) {
+          setShow(null);
+          setLoading(false);
+          return;
+        }
 
-    setEpisodes(data || []);
+        setShow(matchedShow);
 
-    // FIND NEXT UPCOMING EPISODE
-    const today = new Date();
-    today.setHours(0,0,0,0);
+        const savedWatched = JSON.parse(
+          localStorage.getItem(`watchedEpisodes_${id}`) || "{}"
+        );
+        setWatchedEpisodes(savedWatched);
 
-    const upcoming = (data || [])
-      .filter(ep => ep.airDate || ep.aired)
-      .filter(ep => {
-        const d = new Date(ep.airDate || ep.aired);
-        d.setHours(0,0,0,0);
-        return d >= today;
-      })
-      .sort((a,b) => new Date(a.airDate || a.aired) - new Date(b.airDate || b.aired));
+        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
+        const data = await res.json();
+        const episodeList = data || [];
 
-    if (upcoming.length > 0) {
-      setNextEpisode(upcoming[0]);
-    }
+        setEpisodes(episodeList);
 
-  } catch (error) {
-    setMessage("Failed to load episodes");
-  } finally {
-    setLoading(false);
-  }
-};
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-    loadEpisodes();
+        const upcoming = episodeList
+          .filter((ep) => (ep.seasonNumber ?? 0) > 0)
+          .filter((ep) => ep.airDate || ep.aired)
+          .filter((ep) => {
+            const d = new Date(ep.airDate || ep.aired);
+            d.setHours(0, 0, 0, 0);
+            return d >= today;
+          })
+          .sort(
+            (a, b) =>
+              new Date(a.airDate || a.aired) -
+              new Date(b.airDate || b.aired)
+          );
+
+        if (upcoming.length > 0) {
+          setNextEpisode(upcoming[0]);
+        }
+      } catch (error) {
+        setMessage("Failed to load show");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPage();
   }, [id]);
 
   const saveWatchedEpisodes = (updated) => {
@@ -115,9 +135,7 @@ export default function MyShowDetails() {
     episodes.forEach((episode) => {
       const season = episode.seasonNumber;
 
-      if (!season || season === 0) {
-        return;
-      }
+      if (!season || season === 0) return;
 
       if (!grouped[season]) {
         grouped[season] = [];
@@ -162,12 +180,12 @@ export default function MyShowDetails() {
       {show.overview && <p>{show.overview}</p>}
       {show.first_aired && <p>First aired: {formatDate(show.first_aired)}</p>}
 
-{nextEpisode && (
-  <p>
-    Next episode: {formatDate(nextEpisode.airDate || nextEpisode.aired)}{" "}
-    ({getDaysUntil(nextEpisode.airDate || nextEpisode.aired)})
-  </p>
-)}
+      {nextEpisode && (
+        <p>
+          Next episode: {formatDate(nextEpisode.airDate || nextEpisode.aired)} (
+          {getDaysUntil(nextEpisode.airDate || nextEpisode.aired)})
+        </p>
+      )}
 
       <hr style={{ margin: "24px 0" }} />
 
