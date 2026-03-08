@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
 export default function AiringNextPage() {
   const [items, setItems] = useState([]);
 
@@ -96,7 +105,9 @@ export default function AiringNextPage() {
       S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber || item.nextEpisode.number}
     </p>
     <p style={{ margin: "0 0 6px 0" }}>{item.nextEpisode.name}</p>
-    <p style={{ margin: 0 }}>{item.nextEpisode.airDate || item.nextEpisode.aired}</p>
+    <p style={{ margin: 0 }}>
+  {formatDate(item.nextEpisode.airDate || item.nextEpisode.aired)}
+</p>
   </div>
 </Link>
 ))}
