@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function AiringNextPage() {
   const [items, setItems] = useState([]);
@@ -61,20 +62,27 @@ export default function AiringNextPage() {
         <p>No upcoming episodes.</p>
       ) : (
         <div>
-          {items.map((item) => (
-            <div key={item.tvdb_id}>
-              <img
-                src={item.poster_url}
-                alt={item.show_name}
-                style={{ width: "120px", borderRadius: "8px" }}
-              />
-              <h3>{item.show_name}</h3>
-              <p>
-                S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber || item.nextEpisode.number}
-              </p>
-              <p>{item.nextEpisode.airDate || item.nextEpisode.aired}</p>
-            </div>
-          ))}
+         {items.map((item) => (
+  <Link
+    key={item.tvdb_id}
+    to={`/my-shows/${item.tvdb_id}`}
+    style={{ display: "block", textDecoration: "none", color: "inherit", marginBottom: "20px" }}
+  >
+    <div>
+      <img
+        src={item.poster_url}
+        alt={item.show_name}
+        style={{ width: "120px", borderRadius: "8px" }}
+      />
+      <h3>{item.show_name}</h3>
+      <p>
+        S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber || item.nextEpisode.number}
+      </p>
+      <p>{item.nextEpisode.name}</p>
+      <p>{item.nextEpisode.airDate || item.nextEpisode.aired}</p>
+    </div>
+  </Link>
+))}
         </div>
       )}
     </div>
