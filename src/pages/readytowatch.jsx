@@ -66,7 +66,7 @@ export default function ReadyToWatchPage() {
           {items.map((item) => (
             <Link
               key={item.tvdb_id}
-              to={`/my-shows/${item.tvdb_id}`}
+              to={`/ready/${item.tvdb_id}`}
               style={{
                 textDecoration: "none",
                 color: "inherit",
