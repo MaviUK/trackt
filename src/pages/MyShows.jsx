@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { formatDate } from "../lib/date";
 
 export default function MyShows() {
   const [shows, setShows] = useState([])
@@ -49,7 +50,7 @@ export default function MyShows() {
 
                   {show.first_aired && (
                     <p style={{ margin: "8px 0 0 0" }}>
-                      First aired: {show.first_aired}
+                      First aired: {formatDate(show.first_aired)}
                     </p>
                   )}
 
