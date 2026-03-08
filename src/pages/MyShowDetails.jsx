@@ -200,7 +200,7 @@ export default function MyShowDetails() {
 
                       {episode.aired && (
                         <p style={{ margin: "8px 0 0 0" }}>
-                          Air date: {episode.aired}
+                          Air date: {formatDate(ep.airDate || ep.aired)}
                         </p>
                       )}
 
