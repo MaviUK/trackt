@@ -28,7 +28,7 @@ export default function MyShowDetails() {
 
     const loadEpisodes = async () => {
       try {
-        const res = await fetch(`/.netlify/functions/getEpisodes?id=${id}`)
+        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`)
         const data = await res.json()
         setEpisodes(data || [])
       } catch (error) {
