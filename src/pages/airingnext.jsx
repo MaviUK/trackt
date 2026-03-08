@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { formatDate } from "../lib/date";
 
 function formatDate(dateStr) {
   const date = new Date(dateStr);
