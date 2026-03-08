@@ -1,61 +1,93 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../lib/date";
+import { supabase } from "../lib/supabase";
 
 export default function ReadyToWatchPage() {
   const [items, setItems] = useState([]);
   const [openShows, setOpenShows] = useState({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadReadyToWatch() {
-      const savedShows = JSON.parse(localStorage.getItem("myShows")) || [];
-      const results = [];
+      setLoading(true);
 
-      for (const show of savedShows) {
-        try {
-          const res = await fetch(
-            `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
-          );
-          const episodes = await res.json();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-          const watchedEpisodes = JSON.parse(
-            localStorage.getItem(`watchedEpisodes_${show.tvdb_id}`) || "{}"
-          );
+        if (!user) {
+          setItems([]);
+          setLoading(false);
+          return;
+        }
 
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+        const { data: savedShows, error } = await supabase
+          .from("user_shows")
+          .select("*")
+          .eq("user_id", user.id);
 
-          const readyEpisodes = episodes
-            .filter((ep) => (ep.seasonNumber ?? 0) > 0)
-            .filter((ep) => ep.airDate || ep.aired)
-            .filter((ep) => {
-              const airDate = new Date(ep.airDate || ep.aired);
-              airDate.setHours(0, 0, 0, 0);
-              return airDate <= today;
-            })
-            .filter((ep) => !watchedEpisodes[ep.id])
-            .sort(
-              (a, b) =>
-                new Date(a.airDate || a.aired) -
-                new Date(b.airDate || b.aired)
+        if (error) {
+          console.error("Error loading saved shows:", error);
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const results = [];
+
+        for (const show of savedShows || []) {
+          try {
+            const res = await fetch(
+              `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
+            );
+            const episodes = await res.json();
+
+            const watchedEpisodes = JSON.parse(
+              localStorage.getItem(`watchedEpisodes_${show.tvdb_id}`) || "{}"
             );
 
-          if (readyEpisodes.length > 0) {
-            results.push({
-              tvdb_id: show.tvdb_id,
-              show_name: show.show_name,
-              poster_url: show.poster_url,
-              overview: show.overview,
-              readyCount: readyEpisodes.length,
-              readyEpisodes,
-            });
-          }
-        } catch (error) {
-          console.error("Error loading ready episodes for", show.show_name, error);
-        }
-      }
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-      results.sort((a, b) => b.readyCount - a.readyCount);
-      setItems(results);
+            const readyEpisodes = episodes
+              .filter((ep) => (ep.seasonNumber ?? 0) > 0)
+              .filter((ep) => ep.airDate || ep.aired)
+              .filter((ep) => {
+                const airDate = new Date(ep.airDate || ep.aired);
+                airDate.setHours(0, 0, 0, 0);
+                return airDate <= today;
+              })
+              .filter((ep) => !watchedEpisodes[ep.id])
+              .sort(
+                (a, b) =>
+                  new Date(a.airDate || a.aired) -
+                  new Date(b.airDate || b.aired)
+              );
+
+            if (readyEpisodes.length > 0) {
+              results.push({
+                tvdb_id: show.tvdb_id,
+                show_name: show.show_name,
+                poster_url: show.poster_url,
+                overview: show.overview,
+                readyCount: readyEpisodes.length,
+                readyEpisodes,
+              });
+            }
+          } catch (error) {
+            console.error("Error loading ready episodes for", show.show_name, error);
+          }
+        }
+
+        results.sort((a, b) => b.readyCount - a.readyCount);
+        setItems(results);
+      } catch (error) {
+        console.error("Error loading Ready to Watch:", error);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadReadyToWatch();
@@ -94,8 +126,12 @@ export default function ReadyToWatchPage() {
     );
   }
 
+  if (loading) {
+    return <div className="page">Loading...</div>;
+  }
+
   return (
-    <div>
+    <div className="page">
       <h1>Ready to Watch</h1>
 
       {items.length === 0 ? (
@@ -109,9 +145,7 @@ export default function ReadyToWatchPage() {
               <div
                 key={item.tvdb_id}
                 className="show-card"
-                style={{
-                  marginBottom: "20px",
-                }}
+                style={{ marginBottom: "20px" }}
               >
                 <div
                   onClick={() => toggleShow(item.tvdb_id)}
