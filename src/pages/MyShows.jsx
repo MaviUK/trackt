@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
+import { supabase } from "../lib/supabase";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
@@ -8,15 +9,56 @@ export default function MyShows() {
   const [sortBy, setSortBy] = useState("alphabetical");
 
   useEffect(() => {
-    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]");
-    setShows(savedShows);
-    setLoading(false);
+    async function loadShows() {
+      setLoading(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setShows([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_shows")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Failed to load shows:", error);
+        setShows([]);
+      } else {
+        setShows(data || []);
+      }
+
+      setLoading(false);
+    }
+
+    loadShows();
   }, []);
 
-  const removeShow = (tvdb_id) => {
-    const updatedShows = shows.filter((show) => show.tvdb_id !== tvdb_id);
-    localStorage.setItem("myShows", JSON.stringify(updatedShows));
-    setShows(updatedShows);
+  const removeShow = async (tvdb_id) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("user_shows")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("tvdb_id", String(tvdb_id));
+
+    if (error) {
+      console.error("Failed to remove show:", error);
+      return;
+    }
+
+    setShows((prev) => prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id)));
   };
 
   const sortedShows = [...shows].sort((a, b) => {
@@ -25,7 +67,7 @@ export default function MyShows() {
     }
 
     if (sortBy === "recent") {
-      return new Date(b.addedAt || 0) - new Date(a.addedAt || 0);
+      return new Date(b.added_at || 0) - new Date(a.added_at || 0);
     }
 
     if (sortBy === "firstaired") {
