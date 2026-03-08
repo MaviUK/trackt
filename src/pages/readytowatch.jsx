@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { formatDate } from "../lib/date";
 
 export default function ReadyToWatchPage() {
   const [items, setItems] = useState([]);
+  const [openShows, setOpenShows] = useState({});
 
   useEffect(() => {
     async function loadReadyToWatch() {
@@ -31,7 +32,12 @@ export default function ReadyToWatchPage() {
               airDate.setHours(0, 0, 0, 0);
               return airDate <= today;
             })
-            .filter((ep) => !watchedEpisodes[ep.id]);
+            .filter((ep) => !watchedEpisodes[ep.id])
+            .sort(
+              (a, b) =>
+                new Date(a.airDate || a.aired) -
+                new Date(b.airDate || b.aired)
+            );
 
           if (readyEpisodes.length > 0) {
             results.push({
@@ -40,6 +46,7 @@ export default function ReadyToWatchPage() {
               poster_url: show.poster_url,
               overview: show.overview,
               readyCount: readyEpisodes.length,
+              readyEpisodes,
             });
           }
         } catch (error) {
@@ -48,12 +55,44 @@ export default function ReadyToWatchPage() {
       }
 
       results.sort((a, b) => b.readyCount - a.readyCount);
-
       setItems(results);
     }
 
     loadReadyToWatch();
   }, []);
+
+  function toggleShow(tvdbId) {
+    setOpenShows((prev) => ({
+      ...prev,
+      [tvdbId]: !prev[tvdbId],
+    }));
+  }
+
+  function markEpisodeWatched(showId, episodeId) {
+    const watchedKey = `watchedEpisodes_${showId}`;
+    const watchedEpisodes = JSON.parse(localStorage.getItem(watchedKey) || "{}");
+
+    watchedEpisodes[episodeId] = true;
+    localStorage.setItem(watchedKey, JSON.stringify(watchedEpisodes));
+
+    setItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.tvdb_id !== showId) return item;
+
+          const updatedEpisodes = item.readyEpisodes.filter(
+            (ep) => ep.id !== episodeId
+          );
+
+          return {
+            ...item,
+            readyCount: updatedEpisodes.length,
+            readyEpisodes: updatedEpisodes,
+          };
+        })
+        .filter((item) => item.readyCount > 0)
+    );
+  }
 
   return (
     <div>
@@ -63,54 +102,105 @@ export default function ReadyToWatchPage() {
         <p>No aired unwatched episodes.</p>
       ) : (
         <div className="show-list">
-          {items.map((item) => (
-            <Link
-              key={item.tvdb_id}
-              to={`/ready/${item.tvdb_id}`}
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
+          {items.map((item) => {
+            const isOpen = !!openShows[item.tvdb_id];
+
+            return (
               <div
+                key={item.tvdb_id}
                 className="show-card"
                 style={{
-                  display: "flex",
-                  gap: "16px",
-                  alignItems: "flex-start",
+                  marginBottom: "20px",
                 }}
               >
-                {item.poster_url && (
-                  <img
-                    src={item.poster_url}
-                    alt={item.show_name}
-                    style={{
-                      width: "80px",
-                      borderRadius: "8px",
-                      objectFit: "cover",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: "0 0 8px 0" }}>{item.show_name}</h3>
-
-                  <p style={{ margin: "0 0 8px 0", fontWeight: "600" }}>
-                    {item.readyCount} episode{item.readyCount !== 1 ? "s" : ""} ready to watch
-                  </p>
-
-                  {item.overview && (
-                    <p style={{ margin: 0 }}>
-                      {item.overview.length > 140
-                        ? `${item.overview.slice(0, 140)}...`
-                        : item.overview}
-                    </p>
+                <div
+                  onClick={() => toggleShow(item.tvdb_id)}
+                  style={{
+                    display: "flex",
+                    gap: "16px",
+                    alignItems: "flex-start",
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.poster_url && (
+                    <img
+                      src={item.poster_url}
+                      alt={item.show_name}
+                      style={{
+                        width: "80px",
+                        borderRadius: "8px",
+                        objectFit: "cover",
+                        flexShrink: 0,
+                      }}
+                    />
                   )}
+
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ margin: "0 0 8px 0" }}>{item.show_name}</h3>
+
+                    <p style={{ margin: "0 0 8px 0", fontWeight: "600" }}>
+                      {item.readyCount} episode{item.readyCount !== 1 ? "s" : ""} ready to watch
+                    </p>
+
+                    {item.overview && (
+                      <p style={{ margin: "0 0 8px 0" }}>
+                        {item.overview.length > 140
+                          ? `${item.overview.slice(0, 140)}...`
+                          : item.overview}
+                      </p>
+                    )}
+
+                    <p style={{ margin: 0, fontWeight: "600" }}>
+                      {isOpen ? "Hide episodes ▲" : "Show episodes ▼"}
+                    </p>
+                  </div>
                 </div>
+
+                {isOpen && (
+                  <div style={{ marginTop: "16px" }}>
+                    {item.readyEpisodes.map((ep) => (
+                      <div
+                        key={ep.id}
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "10px",
+                          padding: "12px",
+                          marginBottom: "12px",
+                          background: "#fff",
+                        }}
+                      >
+                        <strong>
+                          S{ep.seasonNumber}E{ep.number ?? "?"} - {ep.name}
+                        </strong>
+
+                        <p style={{ margin: "8px 0 0 0" }}>
+                          Air date: {formatDate(ep.airDate || ep.aired)}
+                        </p>
+
+                        {ep.overview && (
+                          <p style={{ margin: "8px 0 0 0" }}>
+                            {ep.overview.length > 180
+                              ? `${ep.overview.slice(0, 180)}...`
+                              : ep.overview}
+                          </p>
+                        )}
+
+                        <div style={{ marginTop: "10px" }}>
+                          <button
+                            onClick={() =>
+                              markEpisodeWatched(item.tvdb_id, ep.id)
+                            }
+                          >
+                            Mark Watched
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
