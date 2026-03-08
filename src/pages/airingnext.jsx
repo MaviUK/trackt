@@ -20,14 +20,13 @@ export default function AiringNextPage() {
           today.setHours(0, 0, 0, 0);
 
           const upcomingEpisodes = episodes
-            .filter((ep) => ep.airDate)
             .filter((ep) => {
-              const airDate = new Date(ep.airDate);
-              airDate.setHours(0, 0, 0, 0);
-              return airDate >= today;
-            })
-            .sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
-
+  const dateValue = ep.airDate || ep.aired;
+  const airDate = new Date(dateValue);
+  airDate.setHours(0, 0, 0, 0);
+  return airDate >= today;
+})
+.sort((a, b) => new Date(a.airDate || a.aired) - new Date(b.airDate || b.aired));
           const nextEpisode = upcomingEpisodes[0];
 
           if (nextEpisode) {
@@ -73,7 +72,7 @@ export default function AiringNextPage() {
               <p>
                 S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber}
               </p>
-              <p>{item.nextEpisode.airDate}</p>
+              <p>{item.nextEpisode.airDate || item.nextEpisode.aired}</p>
             </div>
           ))}
         </div>
