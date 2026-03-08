@@ -23,14 +23,15 @@ export default function ReadyToWatchPage() {
           today.setHours(0, 0, 0, 0);
 
           const readyEpisodes = episodes
-            .filter((ep) => ep.airDate || ep.aired)
-            .filter((ep) => {
-              const airDate = new Date(ep.airDate || ep.aired);
-              airDate.setHours(0, 0, 0, 0);
-              return airDate <= today;
-            })
-            .filter((ep) => !watchedEpisodes[ep.id]);
-
+  .filter((ep) => (ep.seasonNumber ?? 0) > 0)
+  .filter((ep) => ep.airDate || ep.aired)
+  .filter((ep) => {
+    const airDate = new Date(ep.airDate || ep.aired);
+    airDate.setHours(0, 0, 0, 0);
+    return airDate <= today;
+  })
+  .filter((ep) => !watchedEpisodes[ep.id]);
+          
           if (readyEpisodes.length > 0) {
             results.push({
               tvdb_id: show.tvdb_id,
