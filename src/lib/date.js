@@ -21,9 +21,9 @@ export function getDaysUntil(dateStr) {
 
   const diff = Math.round((target - today) / (1000 * 60 * 60 * 24));
 
-  if (diff === 0) return "today";
-  if (diff === 1) return "tomorrow";
-  if (diff > 1) return `in ${diff} days`;
+  if (diff === 0) return "TODAY";
+  if (diff === 1) return "TOMORROW";
+  if (diff > 1) return `IN ${diff} DAYS`;
 
   return "";
 }
