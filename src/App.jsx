@@ -7,6 +7,7 @@ import MyShows from "./pages/MyShows"
 import MyShowDetails from "./pages/MyShowDetails"
 import AiringNextPage from "./pages/airingnext";
 import ReadyToWatchPage from "./pages/readytowatch";
+import ReadyShowPage from "./pages/readyShow";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
           <Route path="/my-shows/:id" element={<MyShowDetails />} />
           <Route path="/airing-next" element={<AiringNextPage />} />
           <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
+          <Route path="/ready/:id" element={<ReadyShowPage />} />
         </Routes>
       </div>
     </BrowserRouter>
