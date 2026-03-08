@@ -1,6 +1,6 @@
 export async function handler(event) {
   try {
-    const id = event.queryStringParameters?.id
+    const id = event.queryStringParameters?.tvdb_id
 
     const loginRes = await fetch("https://api4.thetvdb.com/v4/login", {
       method: "POST",
