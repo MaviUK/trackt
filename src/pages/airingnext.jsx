@@ -70,7 +70,7 @@ export default function AiringNextPage() {
               />
               <h3>{item.show_name}</h3>
               <p>
-                S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber}
+                S{item.nextEpisode.seasonNumber}E{item.nextEpisode.episodeNumber || item.nextEpisode.number}
               </p>
               <p>{item.nextEpisode.airDate || item.nextEpisode.aired}</p>
             </div>
