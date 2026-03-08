@@ -1,127 +1,128 @@
-import { useParams } from "react-router-dom"
-import { useEffect, useMemo, useState } from "react"
+import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { formatDate } from "../lib/date";
 
 export default function MyShowDetails() {
-  const { id } = useParams()
+  const { id } = useParams();
 
-  const [show, setShow] = useState(null)
-  const [episodes, setEpisodes] = useState([])
-  const [openSeasons, setOpenSeasons] = useState({})
-  const [watchedEpisodes, setWatchedEpisodes] = useState({})
-  const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState("")
+  const [show, setShow] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [openSeasons, setOpenSeasons] = useState({});
+  const [watchedEpisodes, setWatchedEpisodes] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]")
+    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]");
     const matchedShow = savedShows.find(
       (savedShow) => String(savedShow.tvdb_id) === String(id)
-    )
+    );
 
     if (matchedShow) {
-      setShow(matchedShow)
+      setShow(matchedShow);
     }
 
     const savedWatched = JSON.parse(
       localStorage.getItem(`watchedEpisodes_${id}`) || "{}"
-    )
-    setWatchedEpisodes(savedWatched)
+    );
+    setWatchedEpisodes(savedWatched);
 
     const loadEpisodes = async () => {
       try {
-        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`)
-        const data = await res.json()
-        setEpisodes(data || [])
+        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
+        const data = await res.json();
+        setEpisodes(data || []);
       } catch (error) {
-        setMessage("Failed to load episodes")
+        setMessage("Failed to load episodes");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    loadEpisodes()
-  }, [id])
+    loadEpisodes();
+  }, [id]);
 
   const saveWatchedEpisodes = (updated) => {
-    setWatchedEpisodes(updated)
-    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated))
-  }
+    setWatchedEpisodes(updated);
+    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated));
+  };
 
   const toggleSeason = (season) => {
     setOpenSeasons((prev) => ({
       ...prev,
-      [season]: !prev[season]
-    }))
-  }
+      [season]: !prev[season],
+    }));
+  };
 
   const toggleWatched = (episodeId) => {
     const updated = {
       ...watchedEpisodes,
-      [episodeId]: !watchedEpisodes[episodeId]
-    }
+      [episodeId]: !watchedEpisodes[episodeId],
+    };
 
     if (!updated[episodeId]) {
-      delete updated[episodeId]
+      delete updated[episodeId];
     }
 
-    saveWatchedEpisodes(updated)
-  }
+    saveWatchedEpisodes(updated);
+  };
 
   const markUpToEpisodeWatched = (targetSeason, targetEpisodeNumber) => {
-    const updated = { ...watchedEpisodes }
+    const updated = { ...watchedEpisodes };
 
     episodes.forEach((episode) => {
-      const seasonNumber = episode.seasonNumber ?? 0
-      const episodeNumber = episode.number ?? 0
+      const seasonNumber = episode.seasonNumber ?? 0;
+      const episodeNumber = episode.number ?? 0;
 
-      if (!seasonNumber || seasonNumber === 0) return
+      if (!seasonNumber || seasonNumber === 0) return;
 
-      const isEarlierSeason = seasonNumber < targetSeason
+      const isEarlierSeason = seasonNumber < targetSeason;
       const isSameSeasonUpToEpisode =
-        seasonNumber === targetSeason && episodeNumber <= targetEpisodeNumber
+        seasonNumber === targetSeason && episodeNumber <= targetEpisodeNumber;
 
       if (isEarlierSeason || isSameSeasonUpToEpisode) {
-        updated[episode.id] = true
+        updated[episode.id] = true;
       }
-    })
+    });
 
-    saveWatchedEpisodes(updated)
-  }
+    saveWatchedEpisodes(updated);
+  };
 
   const episodesBySeason = useMemo(() => {
-    const grouped = {}
+    const grouped = {};
 
     episodes.forEach((episode) => {
-      const season = episode.seasonNumber
+      const season = episode.seasonNumber;
 
       if (!season || season === 0) {
-        return
+        return;
       }
 
       if (!grouped[season]) {
-        grouped[season] = []
+        grouped[season] = [];
       }
 
-      grouped[season].push(episode)
-    })
+      grouped[season].push(episode);
+    });
 
     Object.keys(grouped).forEach((season) => {
-      grouped[season].sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
-    })
+      grouped[season].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+    });
 
-    return Object.entries(grouped).sort((a, b) => Number(a[0]) - Number(b[0]))
-  }, [episodes])
+    return Object.entries(grouped).sort((a, b) => Number(a[0]) - Number(b[0]));
+  }, [episodes]);
 
   const isSeasonFullyWatched = (seasonEpisodes) => {
-    if (!seasonEpisodes.length) return false
-    return seasonEpisodes.every((episode) => watchedEpisodes[episode.id])
-  }
+    if (!seasonEpisodes.length) return false;
+    return seasonEpisodes.every((episode) => watchedEpisodes[episode.id]);
+  };
 
   if (loading) {
-    return <div className="page">Loading...</div>
+    return <div className="page">Loading...</div>;
   }
 
   if (!show) {
-    return <div className="page">Show not found in My Shows</div>
+    return <div className="page">Show not found in My Shows</div>;
   }
 
   return (
@@ -138,7 +139,7 @@ export default function MyShowDetails() {
       )}
 
       {show.overview && <p>{show.overview}</p>}
-      {show.first_aired && <p>First aired: {show.first_aired}</p>}
+      {show.first_aired && <p>First aired: {formatDate(show.first_aired)}</p>}
 
       <hr style={{ margin: "24px 0" }} />
 
@@ -148,9 +149,9 @@ export default function MyShowDetails() {
       {episodesBySeason.length === 0 && <p>No episodes found.</p>}
 
       {episodesBySeason.map(([season, seasonEpisodes]) => {
-        const seasonNumber = Number(season)
-        const isOpen = !!openSeasons[season]
-        const fullyWatched = isSeasonFullyWatched(seasonEpisodes)
+        const seasonNumber = Number(season);
+        const isOpen = !!openSeasons[season];
+        const fullyWatched = isSeasonFullyWatched(seasonEpisodes);
 
         return (
           <div
@@ -160,7 +161,7 @@ export default function MyShowDetails() {
               borderRadius: "12px",
               padding: "12px",
               background: fullyWatched ? "#dcfce7" : "#f8fafc",
-              border: fullyWatched ? "1px solid #86efac" : "1px solid #e5e7eb"
+              border: fullyWatched ? "1px solid #86efac" : "1px solid #e5e7eb",
             }}
           >
             <button
@@ -173,7 +174,7 @@ export default function MyShowDetails() {
                 padding: "0",
                 fontSize: "20px",
                 fontWeight: "700",
-                cursor: "pointer"
+                cursor: "pointer",
               }}
             >
               Season {season} {isOpen ? "−" : "+"}
@@ -183,7 +184,7 @@ export default function MyShowDetails() {
             {isOpen && (
               <div className="show-list" style={{ marginTop: "12px" }}>
                 {seasonEpisodes.map((episode) => {
-                  const watched = !!watchedEpisodes[episode.id]
+                  const watched = !!watchedEpisodes[episode.id];
 
                   return (
                     <div
@@ -191,16 +192,16 @@ export default function MyShowDetails() {
                       key={episode.id}
                       style={{
                         background: watched ? "#ecfdf5" : "white",
-                        border: watched ? "1px solid #86efac" : "1px solid #e5e7eb"
+                        border: watched ? "1px solid #86efac" : "1px solid #e5e7eb",
                       }}
                     >
                       <strong>
                         E{episode.number ?? "?"} - {episode.name}
                       </strong>
 
-                      {episode.aired && (
+                      {(episode.airDate || episode.aired) && (
                         <p style={{ margin: "8px 0 0 0" }}>
-                          Air date: {formatDate(ep.airDate || ep.aired)}
+                          Air date: {formatDate(episode.airDate || episode.aired)}
                         </p>
                       )}
 
@@ -217,7 +218,7 @@ export default function MyShowDetails() {
                           display: "flex",
                           gap: "10px",
                           marginTop: "10px",
-                          flexWrap: "wrap"
+                          flexWrap: "wrap",
                         }}
                       >
                         <button onClick={() => toggleWatched(episode.id)}>
@@ -236,13 +237,13 @@ export default function MyShowDetails() {
                         </button>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
