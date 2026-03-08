@@ -1,25 +1,42 @@
-import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 
 export default function MyShows() {
-  const [shows, setShows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [shows, setShows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("alphabetical");
 
   useEffect(() => {
-    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]")
-    setShows(savedShows)
-    setLoading(false)
-  }, [])
+    const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]");
+    setShows(savedShows);
+    setLoading(false);
+  }, []);
 
   const removeShow = (tvdb_id) => {
-    const updatedShows = shows.filter((show) => show.tvdb_id !== tvdb_id)
-    localStorage.setItem("myShows", JSON.stringify(updatedShows))
-    setShows(updatedShows)
-  }
+    const updatedShows = shows.filter((show) => show.tvdb_id !== tvdb_id);
+    localStorage.setItem("myShows", JSON.stringify(updatedShows));
+    setShows(updatedShows);
+  };
+
+  const sortedShows = [...shows].sort((a, b) => {
+    if (sortBy === "alphabetical") {
+      return (a.show_name || "").localeCompare(b.show_name || "");
+    }
+
+    if (sortBy === "recent") {
+      return new Date(b.addedAt || 0) - new Date(a.addedAt || 0);
+    }
+
+    if (sortBy === "firstaired") {
+      return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
+    }
+
+    return 0;
+  });
 
   if (loading) {
-    return <div className="page">Loading...</div>
+    return <div className="page">Loading...</div>;
   }
 
   return (
@@ -28,14 +45,32 @@ export default function MyShows() {
 
       {shows.length === 0 && <p>No saved shows yet.</p>}
 
+      {shows.length > 0 && (
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{ marginRight: "10px" }}>Sort by:</label>
+
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="alphabetical">Alphabetical</option>
+            <option value="recent">Recently Added</option>
+            <option value="firstaired">First Aired</option>
+          </select>
+        </div>
+      )}
+
       <div className="show-list">
-        {shows.map((show) => (
+        {sortedShows.map((show) => (
           <div className="show-card" key={show.tvdb_id}>
             <Link
               to={`/my-shows/${show.tvdb_id}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
-              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "16px",
+                  alignItems: "flex-start",
+                }}
+              >
                 {show.poster_url && (
                   <img
                     src={show.poster_url}
@@ -75,5 +110,5 @@ export default function MyShows() {
         ))}
       </div>
     </div>
-  )
+  );
 }
