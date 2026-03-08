@@ -6,6 +6,7 @@ import ShowDetails from "./pages/ShowDetails"
 import MyShows from "./pages/MyShows"
 import MyShowDetails from "./pages/MyShowDetails"
 import AiringNextPage from "./pages/airingnext";
+import ReadyToWatchPage from "./pages/readytowatch";
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
           <Link to="/login">Login</Link>
           <Link to="/my-shows">My Shows</Link>
           <Link to="/airing-next">Airing Next</Link>
+          <Link to="/ready-to-watch">Ready to Watch</Link>
+          
         </nav>
 
         <Routes>
@@ -27,6 +30,7 @@ function App() {
           <Route path="/my-shows" element={<MyShows />} />
           <Route path="/my-shows/:id" element={<MyShowDetails />} />
           <Route path="/airing-next" element={<AiringNextPage />} />
+          <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
         </Routes>
       </div>
     </BrowserRouter>
