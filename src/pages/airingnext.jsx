@@ -14,6 +14,7 @@ export default function AiringNextPage() {
             `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
           );
           const episodes = await res.json();
+          console.log("EPISODES FOR", show.show_name, episodes);
 
           const today = new Date();
           today.setHours(0, 0, 0, 0);
