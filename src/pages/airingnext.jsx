@@ -17,8 +17,8 @@ export default function AiringNextPage() {
       ) : (
         <div>
           {myShows.map((show) => (
-            <div key={show.id}>
-              <pre>{JSON.stringify(show, null, 2)}</pre>
+            <div key={show.tvdb_id}>
+              <h3>{show.show_name}</h3>
 <p>Next episode will go here</p>
             </div>
           ))}
