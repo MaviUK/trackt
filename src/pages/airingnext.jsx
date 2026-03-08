@@ -2,15 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 
-function formatDate(dateStr) {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-}
-
 export default function AiringNextPage() {
   const [items, setItems] = useState([]);
 
