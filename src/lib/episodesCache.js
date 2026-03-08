@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "episodes_cache_";
-const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
 export async function getCachedEpisodes(tvdbId) {
   const cacheKey = `${CACHE_PREFIX}${tvdbId}`;
