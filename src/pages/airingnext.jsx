@@ -1,68 +1,105 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate, getDaysUntil } from "../lib/date";
+import { supabase } from "../lib/supabase";
 
 export default function AiringNextPage() {
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadAiringNext() {
-      const savedShows = JSON.parse(localStorage.getItem("myShows")) || [];
-      const results = [];
+      setLoading(true);
 
-      for (const show of savedShows) {
-        try {
-          const res = await fetch(
-            `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
-          );
-          const episodes = await res.json();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          const upcomingEpisodes = episodes
-            .filter((ep) => ep.airDate || ep.aired)
-            .filter((ep) => {
-              const dateValue = ep.airDate || ep.aired;
-              const airDate = new Date(dateValue);
-              airDate.setHours(0, 0, 0, 0);
-              return airDate >= today;
-            })
-            .sort(
-              (a, b) =>
-                new Date(a.airDate || a.aired) -
-                new Date(b.airDate || b.aired)
-            );
-
-          const nextEpisode = upcomingEpisodes[0];
-
-          if (nextEpisode) {
-            results.push({
-              tvdb_id: show.tvdb_id,
-              show_name: show.show_name,
-              poster_url: show.poster_url,
-              nextEpisode,
-            });
-          }
-        } catch (error) {
-          console.error("Error loading episodes for show:", show.show_name, error);
+        if (!user) {
+          setItems([]);
+          setLoading(false);
+          return;
         }
+
+        const { data: savedShows, error } = await supabase
+          .from("user_shows")
+          .select("*")
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error("Error loading saved shows:", error);
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const results = [];
+
+        for (const show of savedShows || []) {
+          try {
+            const res = await fetch(
+              `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
+            );
+            const episodes = await res.json();
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const upcomingEpisodes = episodes
+              .filter((ep) => (ep.seasonNumber ?? 0) > 0)
+              .filter((ep) => ep.airDate || ep.aired)
+              .filter((ep) => {
+                const dateValue = ep.airDate || ep.aired;
+                const airDate = new Date(dateValue);
+                airDate.setHours(0, 0, 0, 0);
+                return airDate >= today;
+              })
+              .sort(
+                (a, b) =>
+                  new Date(a.airDate || a.aired) -
+                  new Date(b.airDate || b.aired)
+              );
+
+            const nextEpisode = upcomingEpisodes[0];
+
+            if (nextEpisode) {
+              results.push({
+                tvdb_id: show.tvdb_id,
+                show_name: show.show_name,
+                poster_url: show.poster_url,
+                nextEpisode,
+              });
+            }
+          } catch (error) {
+            console.error("Error loading episodes for show:", show.show_name, error);
+          }
+        }
+
+        results.sort(
+          (a, b) =>
+            new Date(a.nextEpisode.airDate || a.nextEpisode.aired) -
+            new Date(b.nextEpisode.airDate || b.nextEpisode.aired)
+        );
+
+        setItems(results);
+      } catch (error) {
+        console.error("Error loading Airing Next:", error);
+        setItems([]);
+      } finally {
+        setLoading(false);
       }
-
-      results.sort(
-        (a, b) =>
-          new Date(a.nextEpisode.airDate || a.nextEpisode.aired) -
-          new Date(b.nextEpisode.airDate || b.nextEpisode.aired)
-      );
-
-      setItems(results);
     }
 
     loadAiringNext();
   }, []);
 
+  if (loading) {
+    return <div className="page">Loading...</div>;
+  }
+
   return (
-    <div>
+    <div className="page">
       <h1>Airing Next</h1>
 
       {items.length === 0 ? (
