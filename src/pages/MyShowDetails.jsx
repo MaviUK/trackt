@@ -61,8 +61,7 @@ export default function MyShowDetails() {
           setWatchedEpisodes(watchedMap);
         }
 
-        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
-        const data = await res.json();
+        const data = await getCachedEpisodes(id);
         const episodeList = data || [];
 
         setEpisodes(episodeList);
