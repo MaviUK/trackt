@@ -13,6 +13,7 @@ export default function MyShowDetails() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [nextEpisode, setNextEpisode] = useState(null);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -26,6 +27,8 @@ export default function MyShowDetails() {
           setLoading(false);
           return;
         }
+
+        setUserId(user.id);
 
         const { data: matchedShow, error: showError } = await supabase
           .from("user_shows")
@@ -42,10 +45,21 @@ export default function MyShowDetails() {
 
         setShow(matchedShow);
 
-        const savedWatched = JSON.parse(
-          localStorage.getItem(`watchedEpisodes_${id}`) || "{}"
-        );
-        setWatchedEpisodes(savedWatched);
+        const { data: watchedRows, error: watchedError } = await supabase
+          .from("watched_episodes")
+          .select("episode_id")
+          .eq("user_id", user.id)
+          .eq("show_tvdb_id", String(id));
+
+        if (watchedError) {
+          setMessage("Failed to load watched episodes");
+        } else {
+          const watchedMap = {};
+          (watchedRows || []).forEach((row) => {
+            watchedMap[row.episode_id] = true;
+          });
+          setWatchedEpisodes(watchedMap);
+        }
 
         const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
         const data = await res.json();
@@ -83,11 +97,6 @@ export default function MyShowDetails() {
     loadPage();
   }, [id]);
 
-  const saveWatchedEpisodes = (updated) => {
-    setWatchedEpisodes(updated);
-    localStorage.setItem(`watchedEpisodes_${id}`, JSON.stringify(updated));
-  };
-
   const toggleSeason = (season) => {
     setOpenSeasons((prev) => ({
       ...prev,
@@ -95,38 +104,90 @@ export default function MyShowDetails() {
     }));
   };
 
-  const toggleWatched = (episodeId) => {
-    const updated = {
-      ...watchedEpisodes,
-      [episodeId]: !watchedEpisodes[episodeId],
-    };
+  const toggleWatched = async (episodeId) => {
+    if (!userId) return;
 
-    if (!updated[episodeId]) {
-      delete updated[episodeId];
+    const episodeKey = String(episodeId);
+    const isWatched = !!watchedEpisodes[episodeKey];
+
+    if (isWatched) {
+      const { error } = await supabase
+        .from("watched_episodes")
+        .delete()
+        .eq("user_id", userId)
+        .eq("episode_id", episodeKey);
+
+      if (error) {
+        setMessage("Failed to update watched episode");
+        return;
+      }
+
+      setWatchedEpisodes((prev) => {
+        const updated = { ...prev };
+        delete updated[episodeKey];
+        return updated;
+      });
+    } else {
+      const { error } = await supabase.from("watched_episodes").insert({
+        user_id: userId,
+        show_tvdb_id: String(id),
+        episode_id: episodeKey,
+      });
+
+      if (error) {
+        setMessage("Failed to update watched episode");
+        return;
+      }
+
+      setWatchedEpisodes((prev) => ({
+        ...prev,
+        [episodeKey]: true,
+      }));
     }
-
-    saveWatchedEpisodes(updated);
   };
 
-  const markUpToEpisodeWatched = (targetSeason, targetEpisodeNumber) => {
-    const updated = { ...watchedEpisodes };
+  const markUpToEpisodeWatched = async (targetSeason, targetEpisodeNumber) => {
+    if (!userId) return;
 
-    episodes.forEach((episode) => {
+    const episodesToWatch = episodes.filter((episode) => {
       const seasonNumber = episode.seasonNumber ?? 0;
       const episodeNumber = episode.number ?? 0;
 
-      if (!seasonNumber || seasonNumber === 0) return;
+      if (!seasonNumber || seasonNumber === 0) return false;
 
       const isEarlierSeason = seasonNumber < targetSeason;
       const isSameSeasonUpToEpisode =
         seasonNumber === targetSeason && episodeNumber <= targetEpisodeNumber;
 
-      if (isEarlierSeason || isSameSeasonUpToEpisode) {
-        updated[episode.id] = true;
-      }
+      return isEarlierSeason || isSameSeasonUpToEpisode;
     });
 
-    saveWatchedEpisodes(updated);
+    const rowsToInsert = episodesToWatch
+      .filter((episode) => !watchedEpisodes[String(episode.id)])
+      .map((episode) => ({
+        user_id: userId,
+        show_tvdb_id: String(id),
+        episode_id: String(episode.id),
+      }));
+
+    if (rowsToInsert.length > 0) {
+      const { error } = await supabase
+        .from("watched_episodes")
+        .upsert(rowsToInsert, { onConflict: "user_id,episode_id" });
+
+      if (error) {
+        setMessage("Failed to mark episodes watched");
+        return;
+      }
+    }
+
+    setWatchedEpisodes((prev) => {
+      const updated = { ...prev };
+      episodesToWatch.forEach((episode) => {
+        updated[String(episode.id)] = true;
+      });
+      return updated;
+    });
   };
 
   const episodesBySeason = useMemo(() => {
@@ -153,7 +214,7 @@ export default function MyShowDetails() {
 
   const isSeasonFullyWatched = (seasonEpisodes) => {
     if (!seasonEpisodes.length) return false;
-    return seasonEpisodes.every((episode) => watchedEpisodes[episode.id]);
+    return seasonEpisodes.every((episode) => watchedEpisodes[String(episode.id)]);
   };
 
   if (loading) {
@@ -230,7 +291,7 @@ export default function MyShowDetails() {
             {isOpen && (
               <div className="show-list" style={{ marginTop: "12px" }}>
                 {seasonEpisodes.map((episode) => {
-                  const watched = !!watchedEpisodes[episode.id];
+                  const watched = !!watchedEpisodes[String(episode.id)];
 
                   return (
                     <div
