@@ -11,6 +11,7 @@ export default function MyShowDetails() {
   const [watchedEpisodes, setWatchedEpisodes] = useState({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [nextEpisode, setNextEpisode] = useState(null);
 
   useEffect(() => {
     const savedShows = JSON.parse(localStorage.getItem("myShows") || "[]");
@@ -28,16 +29,35 @@ export default function MyShowDetails() {
     setWatchedEpisodes(savedWatched);
 
     const loadEpisodes = async () => {
-      try {
-        const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
-        const data = await res.json();
-        setEpisodes(data || []);
-      } catch (error) {
-        setMessage("Failed to load episodes");
-      } finally {
-        setLoading(false);
-      }
-    };
+  try {
+    const res = await fetch(`/.netlify/functions/getEpisodes?tvdb_id=${id}`);
+    const data = await res.json();
+
+    setEpisodes(data || []);
+
+    // FIND NEXT UPCOMING EPISODE
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const upcoming = (data || [])
+      .filter(ep => ep.airDate || ep.aired)
+      .filter(ep => {
+        const d = new Date(ep.airDate || ep.aired);
+        d.setHours(0,0,0,0);
+        return d >= today;
+      })
+      .sort((a,b) => new Date(a.airDate || a.aired) - new Date(b.airDate || b.aired));
+
+    if (upcoming.length > 0) {
+      setNextEpisode(upcoming[0]);
+    }
+
+  } catch (error) {
+    setMessage("Failed to load episodes");
+  } finally {
+    setLoading(false);
+  }
+};
 
     loadEpisodes();
   }, [id]);
@@ -140,6 +160,12 @@ export default function MyShowDetails() {
 
       {show.overview && <p>{show.overview}</p>}
       {show.first_aired && <p>First aired: {formatDate(show.first_aired)}</p>}
+
+{nextEpisode && (
+  <p>
+    Next episode: {formatDate(nextEpisode.airDate || nextEpisode.aired)}
+  </p>
+)}
 
       <hr style={{ margin: "24px 0" }} />
 
