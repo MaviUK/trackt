@@ -34,6 +34,15 @@ export default function ReadyToWatchPage() {
           return;
         }
 
+        const { data: watchedRows } = await supabase
+          .from("watched_episodes")
+          .select("episode_id");
+
+        const watchedMap = {};
+        (watchedRows || []).forEach((row) => {
+          watchedMap[row.episode_id] = true;
+        });
+
         const results = [];
 
         for (const show of savedShows || []) {
@@ -42,10 +51,6 @@ export default function ReadyToWatchPage() {
               `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
             );
             const episodes = await res.json();
-
-            const watchedEpisodes = JSON.parse(
-              localStorage.getItem(`watchedEpisodes_${show.tvdb_id}`) || "{}"
-            );
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -58,7 +63,7 @@ export default function ReadyToWatchPage() {
                 airDate.setHours(0, 0, 0, 0);
                 return airDate <= today;
               })
-              .filter((ep) => !watchedEpisodes[ep.id])
+              .filter((ep) => !watchedMap[String(ep.id)])
               .sort(
                 (a, b) =>
                   new Date(a.airDate || a.aired) -
@@ -70,17 +75,21 @@ export default function ReadyToWatchPage() {
                 tvdb_id: show.tvdb_id,
                 show_name: show.show_name,
                 poster_url: show.poster_url,
-                overview: show.overview,
                 readyCount: readyEpisodes.length,
                 readyEpisodes,
               });
             }
           } catch (error) {
-            console.error("Error loading ready episodes for", show.show_name, error);
+            console.error(
+              "Error loading ready episodes for",
+              show.show_name,
+              error
+            );
           }
         }
 
         results.sort((a, b) => b.readyCount - a.readyCount);
+
         setItems(results);
       } catch (error) {
         console.error("Error loading Ready to Watch:", error);
@@ -100,12 +109,23 @@ export default function ReadyToWatchPage() {
     }));
   }
 
-  function markEpisodeWatched(showId, episodeId) {
-    const watchedKey = `watchedEpisodes_${showId}`;
-    const watchedEpisodes = JSON.parse(localStorage.getItem(watchedKey) || "{}");
+  const markEpisodeWatched = async (showId, episodeId) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    watchedEpisodes[episodeId] = true;
-    localStorage.setItem(watchedKey, JSON.stringify(watchedEpisodes));
+    if (!user) return;
+
+    const { error } = await supabase.from("watched_episodes").insert({
+      user_id: user.id,
+      show_tvdb_id: String(showId),
+      episode_id: String(episodeId),
+    });
+
+    if (error) {
+      console.error("Failed to mark watched:", error);
+      return;
+    }
 
     setItems((prev) =>
       prev
@@ -113,7 +133,7 @@ export default function ReadyToWatchPage() {
           if (item.tvdb_id !== showId) return item;
 
           const updatedEpisodes = item.readyEpisodes.filter(
-            (ep) => ep.id !== episodeId
+            (ep) => String(ep.id) !== String(episodeId)
           );
 
           return {
@@ -124,7 +144,7 @@ export default function ReadyToWatchPage() {
         })
         .filter((item) => item.readyCount > 0)
     );
-  }
+  };
 
   if (loading) {
     return <div className="page">Loading...</div>;
@@ -173,16 +193,9 @@ export default function ReadyToWatchPage() {
                     <h3 style={{ margin: "0 0 8px 0" }}>{item.show_name}</h3>
 
                     <p style={{ margin: "0 0 8px 0", fontWeight: "600" }}>
-                      {item.readyCount} episode{item.readyCount !== 1 ? "s" : ""} ready to watch
+                      {item.readyCount} episode
+                      {item.readyCount !== 1 ? "s" : ""} ready to watch
                     </p>
-
-                    {item.overview && (
-                      <p style={{ margin: "0 0 8px 0" }}>
-                        {item.overview.length > 140
-                          ? `${item.overview.slice(0, 140)}...`
-                          : item.overview}
-                      </p>
-                    )}
 
                     <p style={{ margin: 0, fontWeight: "600" }}>
                       {isOpen ? "Hide episodes ▲" : "Show episodes ▼"}
@@ -211,23 +224,14 @@ export default function ReadyToWatchPage() {
                           Air date: {formatDate(ep.airDate || ep.aired)}
                         </p>
 
-                        {ep.overview && (
-                          <p style={{ margin: "8px 0 0 0" }}>
-                            {ep.overview.length > 180
-                              ? `${ep.overview.slice(0, 180)}...`
-                              : ep.overview}
-                          </p>
-                        )}
-
-                        <div style={{ marginTop: "10px" }}>
-                          <button
-                            onClick={() =>
-                              markEpisodeWatched(item.tvdb_id, ep.id)
-                            }
-                          >
-                            Mark Watched
-                          </button>
-                        </div>
+                        <button
+                          style={{ marginTop: "10px" }}
+                          onClick={() =>
+                            markEpisodeWatched(item.tvdb_id, ep.id)
+                          }
+                        >
+                          Mark Watched
+                        </button>
                       </div>
                     ))}
                   </div>
