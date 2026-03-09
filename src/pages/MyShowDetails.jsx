@@ -62,7 +62,7 @@ export default function MyShowDetails() {
           setWatchedEpisodes(watchedMap);
         }
 
-        const data = await getCachedEpisodes(id);
+        const data = await getCachedEpisodes(show.tvdb_id);
         const episodeList = data || [];
 
         setEpisodes(episodeList);
