@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate, getDaysUntil } from "../lib/date";
 import { supabase } from "../lib/supabase";
+import { getCachedEpisodes } from "../lib/episodesCache";
 
 export default function MyShowDetails() {
   const { id } = useParams();
