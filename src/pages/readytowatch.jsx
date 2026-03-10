@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
+import { getCachedEpisodes } from "../lib/episodesCache";
 
 export default function ReadyToWatchPage() {
   const [items, setItems] = useState([]);
@@ -34,23 +35,25 @@ export default function ReadyToWatchPage() {
           return;
         }
 
-        const { data: watchedRows } = await supabase
+        const { data: watchedRows, error: watchedError } = await supabase
           .from("watched_episodes")
-          .select("episode_id");
+          .select("episode_id")
+          .eq("user_id", user.id);
+
+        if (watchedError) {
+          console.error("Error loading watched episodes:", watchedError);
+        }
 
         const watchedMap = {};
         (watchedRows || []).forEach((row) => {
-          watchedMap[row.episode_id] = true;
+          watchedMap[String(row.episode_id)] = true;
         });
 
         const results = [];
 
         for (const show of savedShows || []) {
           try {
-            const res = await fetch(
-              `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
-            );
-            const episodes = await res.json();
+            const episodes = await getCachedEpisodes(show.tvdb_id);
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -89,7 +92,6 @@ export default function ReadyToWatchPage() {
         }
 
         results.sort((a, b) => b.readyCount - a.readyCount);
-
         setItems(results);
       } catch (error) {
         console.error("Error loading Ready to Watch:", error);
@@ -130,7 +132,7 @@ export default function ReadyToWatchPage() {
     setItems((prev) =>
       prev
         .map((item) => {
-          if (item.tvdb_id !== showId) return item;
+          if (String(item.tvdb_id) !== String(showId)) return item;
 
           const updatedEpisodes = item.readyEpisodes.filter(
             (ep) => String(ep.id) !== String(episodeId)
