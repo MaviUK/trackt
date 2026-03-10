@@ -31,3 +31,8 @@ export async function getCachedEpisodes(tvdbId) {
 
   return episodes || [];
 }
+
+export function clearEpisodesCache(tvdbId) {
+  const cacheKey = `${CACHE_PREFIX}${tvdbId}`;
+  localStorage.removeItem(cacheKey);
+}
