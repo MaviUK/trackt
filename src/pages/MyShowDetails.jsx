@@ -57,12 +57,12 @@ export default function MyShowDetails() {
         } else {
           const watchedMap = {};
           (watchedRows || []).forEach((row) => {
-            watchedMap[row.episode_id] = true;
+            watchedMap[String(row.episode_id)] = true;
           });
           setWatchedEpisodes(watchedMap);
         }
 
-        const data = await getCachedEpisodes(show.tvdb_id);
+        const data = await getCachedEpisodes(id);
         const episodeList = data || [];
 
         setEpisodes(episodeList);
@@ -84,9 +84,7 @@ export default function MyShowDetails() {
               new Date(b.airDate || b.aired)
           );
 
-        if (upcoming.length > 0) {
-          setNextEpisode(upcoming[0]);
-        }
+        setNextEpisode(upcoming[0] || null);
       } catch (error) {
         setMessage("Failed to load show");
       } finally {
