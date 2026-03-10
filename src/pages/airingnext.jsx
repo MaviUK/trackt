@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate, getDaysUntil } from "../lib/date";
 import { supabase } from "../lib/supabase";
+import { getCachedEpisodes } from "../lib/episodesCache";
 
 export default function AiringNextPage() {
   const [items, setItems] = useState([]);
@@ -38,10 +39,7 @@ export default function AiringNextPage() {
 
         for (const show of savedShows || []) {
           try {
-            const res = await fetch(
-              `/.netlify/functions/getEpisodes?tvdb_id=${show.tvdb_id}`
-            );
-            const episodes = await res.json();
+            const episodes = await getCachedEpisodes(show.tvdb_id);
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
