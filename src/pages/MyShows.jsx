@@ -30,10 +30,37 @@ export default function MyShows() {
       if (error) {
         console.error("Failed to load shows:", error);
         setShows([]);
-      } else {
-        setShows(data || []);
+        setLoading(false);
+        return;
       }
 
+      const { data: watchedRows, error: watchedError } = await supabase
+        .from("watched_episodes")
+        .select("show_tvdb_id, episode_id")
+        .eq("user_id", user.id);
+
+      if (watchedError) {
+        console.error("Failed to load watched episodes:", watchedError);
+      }
+
+      const watchedByShow = {};
+
+      (watchedRows || []).forEach((row) => {
+        const showId = String(row.show_tvdb_id);
+
+        if (!watchedByShow[showId]) {
+          watchedByShow[showId] = 0;
+        }
+
+        watchedByShow[showId]++;
+      });
+
+      const updatedShows = (data || []).map((show) => ({
+        ...show,
+        watchedCount: watchedByShow[String(show.tvdb_id)] || 0,
+      }));
+
+      setShows(updatedShows);
       setLoading(false);
     }
 
@@ -58,7 +85,9 @@ export default function MyShows() {
       return;
     }
 
-    setShows((prev) => prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id)));
+    setShows((prev) =>
+      prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id))
+    );
   };
 
   const sortedShows = [...shows].sort((a, b) => {
@@ -130,6 +159,10 @@ export default function MyShows() {
                       First aired: {formatDate(show.first_aired)}
                     </p>
                   )}
+
+                  <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
+                    {show.watchedCount || 0} watched
+                  </p>
 
                   {show.overview && (
                     <p style={{ margin: "8px 0 0 0" }}>
