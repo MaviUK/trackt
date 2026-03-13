@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
+import { getCachedEpisodes } from "../lib/episodesCache";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
@@ -55,10 +56,26 @@ export default function MyShows() {
         watchedByShow[showId]++;
       });
 
-      const updatedShows = (data || []).map((show) => ({
-        ...show,
-        watchedCount: watchedByShow[String(show.tvdb_id)] || 0,
-      }));
+      const updatedShows = await Promise.all(
+        (data || []).map(async (show) => {
+          let totalEpisodes = 0;
+
+          try {
+            const episodes = await getCachedEpisodes(show.tvdb_id);
+            totalEpisodes = (episodes || []).filter(
+              (ep) => (ep.seasonNumber ?? 0) > 0
+            ).length;
+          } catch (error) {
+            console.error("Failed to load episode count for", show.show_name, error);
+          }
+
+          return {
+            ...show,
+            watchedCount: watchedByShow[String(show.tvdb_id)] || 0,
+            totalEpisodes,
+          };
+        })
+      );
 
       setShows(updatedShows);
       setLoading(false);
@@ -161,7 +178,7 @@ export default function MyShows() {
                   )}
 
                   <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                    {show.watchedCount || 0} watched
+                    {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
                   </p>
 
                   {show.overview && (
