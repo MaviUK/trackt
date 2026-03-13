@@ -8,6 +8,7 @@ import MyShowDetails from "./pages/MyShowDetails"
 import AiringNextPage from "./pages/airingnext";
 import ReadyToWatchPage from "./pages/readytowatch";
 import ReadyShowPage from "./pages/readyShow";
+import Dashboard from "./pages/Dashboard";
 
 function App() {
   return (
@@ -24,7 +25,7 @@ function App() {
         </nav>
 
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/search" element={<Search />} />
           <Route path="/login" element={<Login />} />
           <Route path="/show/:id" element={<ShowDetails />} />
