@@ -10,19 +10,29 @@ import ReadyToWatchPage from "./pages/readytowatch";
 import ReadyShowPage from "./pages/readyShow";
 import Dashboard from "./pages/Dashboard";
 
-function App() {
+function AppNav() {
   return (
-    <BrowserRouter>
-      <div className="app-shell">
-        <nav className="nav">
-          <Link to="/">Dashboard</Link>
-          <Link to="/search">Search</Link>
-          <Link to="/login">Login</Link>
-          <Link to="/my-shows">My Shows</Link>
-          <Link to="/airing-next">Airing Next</Link>
-          <Link to="/ready-to-watch">Ready to Watch</Link>
-          
-        </nav>
+    <nav className="top-tabs">
+      <NavLink to="/" end className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
+        Dashboard
+      </NavLink>
+      <NavLink to="/search" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
+        Search
+      </NavLink>
+      <NavLink to="/my-shows" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
+        My Shows
+      </NavLink>
+      <NavLink to="/airing-next" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
+        Airing Next
+      </NavLink>
+      <NavLink to="/ready-to-watch" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
+        Ready To Watch
+      </NavLink>
+    </nav>
+  );
+}
+
+export default AppNav;
 
         <Routes>
           <Route path="/" element={<Dashboard />} />
