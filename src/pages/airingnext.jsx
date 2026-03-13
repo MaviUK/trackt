@@ -1,173 +1,189 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { formatDate, getDaysUntil } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
+import { formatDate } from "../lib/date";
+import "./AiringNextPage.css";
+
+function getDaysUntil(dateString) {
+  if (!dateString) return null;
+
+  const now = new Date();
+  const target = new Date(dateString);
+
+  if (Number.isNaN(target.getTime())) return null;
+
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  );
+
+  const diffMs = targetStart.getTime() - nowStart.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function getEpisodeCode(ep) {
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
+}
 
 export default function AiringNextPage() {
-  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [shows, setShows] = useState([]);
+  const [episodesByShow, setEpisodesByShow] = useState({});
 
   useEffect(() => {
-    async function loadAiringNext() {
+    async function loadData() {
       setLoading(true);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        if (!user) {
-          setItems([]);
-          setLoading(false);
-          return;
-        }
+      if (!user) {
+        setShows([]);
+        setEpisodesByShow({});
+        setLoading(false);
+        return;
+      }
 
-        const { data: savedShows, error } = await supabase
-          .from("user_shows")
-          .select("*")
-          .eq("user_id", user.id);
+      const { data, error } = await supabase
+        .from("user_shows")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("show_name", { ascending: true });
 
-        if (error) {
-          console.error("Error loading saved shows:", error);
-          setItems([]);
-          setLoading(false);
-          return;
-        }
+      if (error) {
+        console.error("Failed to load user shows:", error);
+        setShows([]);
+        setEpisodesByShow({});
+        setLoading(false);
+        return;
+      }
 
-        const results = [];
+      const userShows = data || [];
+      const lookup = {};
 
-        for (const show of savedShows || []) {
+      await Promise.all(
+        userShows.map(async (show) => {
           try {
             const episodes = await getCachedEpisodes(show.tvdb_id);
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const upcomingEpisodes = episodes
-              .filter((ep) => (ep.seasonNumber ?? 0) > 0)
-              .filter((ep) => ep.airDate || ep.aired)
-              .filter((ep) => {
-                const dateValue = ep.airDate || ep.aired;
-                const airDate = new Date(dateValue);
-                airDate.setHours(0, 0, 0, 0);
-                return airDate >= today;
-              })
-              .sort(
-                (a, b) =>
-                  new Date(a.airDate || a.aired) -
-                  new Date(b.airDate || b.aired)
-              );
-
-            const nextEpisode = upcomingEpisodes[0];
-
-            if (nextEpisode) {
-              results.push({
-                tvdb_id: show.tvdb_id,
-                show_name: show.show_name,
-                poster_url: show.poster_url,
-                nextEpisode,
-              });
-            }
-          } catch (error) {
-            console.error("Error loading episodes for show:", show.show_name, error);
+            lookup[show.tvdb_id] = (episodes || []).filter(
+              (ep) => ep.seasonNumber > 0
+            );
+          } catch (err) {
+            console.error(
+              `Failed to load episodes for ${show.show_name}:`,
+              err
+            );
+            lookup[show.tvdb_id] = [];
           }
-        }
+        })
+      );
 
-        results.sort(
-          (a, b) =>
-            new Date(a.nextEpisode.airDate || a.nextEpisode.aired) -
-            new Date(b.nextEpisode.airDate || b.nextEpisode.aired)
-        );
+      setShows(userShows);
+      setEpisodesByShow(lookup);
+      setLoading(false);
+    }
 
-        setItems(results);
-      } catch (error) {
-        console.error("Error loading Airing Next:", error);
-        setItems([]);
-      } finally {
-        setLoading(false);
+    loadData();
+  }, []);
+
+  const upcomingEpisodes = useMemo(() => {
+    const now = new Date();
+    const items = [];
+
+    for (const show of shows) {
+      const episodes = episodesByShow[show.tvdb_id] || [];
+
+      const futureEpisodes = episodes
+        .filter((ep) => {
+          if (!ep?.aired) return false;
+          const airDate = new Date(ep.aired);
+          return !Number.isNaN(airDate.getTime()) && airDate > now;
+        })
+        .sort((a, b) => new Date(a.aired) - new Date(b.aired));
+
+      if (futureEpisodes.length > 0) {
+        const nextEpisode = futureEpisodes[0];
+        const daysUntil = getDaysUntil(nextEpisode.aired);
+
+        items.push({
+          show,
+          episode: nextEpisode,
+          daysUntil,
+        });
       }
     }
 
-    loadAiringNext();
-  }, []);
+    return items.sort((a, b) => new Date(a.episode.aired) - new Date(b.episode.aired));
+  }, [shows, episodesByShow]);
 
   if (loading) {
-    return <div className="page">Loading...</div>;
+    return (
+      <div className="airing-page">
+        <div className="airing-shell">
+          <div className="airing-header">
+            <h1>Airing Next</h1>
+            <p>Loading upcoming episodes...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="page">
-      <h1>Airing Next</h1>
-
-      {items.length === 0 ? (
-        <p>No upcoming episodes.</p>
-      ) : (
-        <div>
-          {items.map((item) => (
-            <Link
-              key={item.tvdb_id}
-              to={`/my-shows/${item.tvdb_id}`}
-              style={{
-                display: "flex",
-                gap: "16px",
-                alignItems: "flex-start",
-                textDecoration: "none",
-                color: "inherit",
-                marginBottom: "20px",
-                padding: "16px",
-                border: "1px solid #ddd",
-                borderRadius: "12px",
-                background: "#fff",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-              }}
-            >
-              <img
-                src={item.poster_url}
-                alt={item.show_name}
-                style={{
-                  width: "90px",
-                  borderRadius: "8px",
-                  objectFit: "cover",
-                }}
-              />
-
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "20px",
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: "0 0 8px 0" }}>{item.show_name}</h3>
-                  <p style={{ margin: "0 0 6px 0" }}>
-                    S{item.nextEpisode.seasonNumber}E
-                    {item.nextEpisode.episodeNumber || item.nextEpisode.number}
-                  </p>
-                  <p style={{ margin: "0 0 6px 0" }}>{item.nextEpisode.name}</p>
-                  <p style={{ margin: 0 }}>
-                    {formatDate(item.nextEpisode.airDate || item.nextEpisode.aired)}
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "28px",
-                    fontWeight: "700",
-                    whiteSpace: "nowrap",
-                    textAlign: "right",
-                  }}
-                >
-                  {getDaysUntil(item.nextEpisode.airDate || item.nextEpisode.aired)}
-                </div>
-              </div>
-            </Link>
-          ))}
+    <div className="airing-page">
+      <div className="airing-shell">
+        <div className="airing-header">
+          <h1>Airing Next</h1>
+          <p>The next upcoming episode for each show in My Shows.</p>
         </div>
-      )}
+
+        {upcomingEpisodes.length === 0 ? (
+          <div className="airing-empty">
+            <p>No upcoming episodes found.</p>
+          </div>
+        ) : (
+          <div className="airing-list">
+            {upcomingEpisodes.map(({ show, episode, daysUntil }) => (
+              <Link
+                key={`${show.tvdb_id}-${episode.id}`}
+                to={`/my-shows/${show.tvdb_id}`}
+                className="airing-card"
+              >
+                <img
+                  src={show.poster_url}
+                  alt={show.show_name}
+                  className="airing-poster"
+                />
+
+                <div className="airing-main">
+                  <h2 className="airing-show-title">{show.show_name}</h2>
+                  <div className="airing-episode-code">
+                    {getEpisodeCode(episode)}
+                  </div>
+                  <div className="airing-episode-name">{episode.name}</div>
+                  <div className="airing-date">{formatDate(episode.aired)}</div>
+                </div>
+
+                <div className="airing-badge-wrap">
+                  <div className="airing-badge">
+                    {daysUntil === 0
+                      ? "TODAY"
+                      : daysUntil === 1
+                      ? "IN 1 DAY"
+                      : `IN ${daysUntil} DAYS`}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
