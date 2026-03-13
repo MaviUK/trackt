@@ -7,7 +7,7 @@ import { getCachedEpisodes } from "../lib/episodesCache";
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState("alphabetical");
+  const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
 
   useEffect(() => {
@@ -138,6 +138,20 @@ export default function MyShows() {
   };
 
   const sortedShows = [...shows].sort((a, b) => {
+if (sortBy === "airingnext") {
+  const aHasDate = !!a.nextEpisodeDate;
+  const bHasDate = !!b.nextEpisodeDate;
+
+  if (aHasDate && bHasDate) {
+    return new Date(a.nextEpisodeDate) - new Date(b.nextEpisodeDate);
+  }
+
+  if (aHasDate) return -1;
+  if (bHasDate) return 1;
+
+  return (a.show_name || "").localeCompare(b.show_name || "");
+}
+    
     if (sortBy === "alphabetical") {
       return (a.show_name || "").localeCompare(b.show_name || "");
     }
@@ -230,10 +244,11 @@ export default function MyShows() {
             <div>
               <label style={{ marginRight: "10px" }}>Sort by:</label>
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="alphabetical">Alphabetical</option>
-                <option value="recent">Recently Added</option>
-                <option value="firstaired">First Aired</option>
-              </select>
+  <option value="airingnext">Airing Next</option>
+  <option value="alphabetical">Alphabetical</option>
+  <option value="recent">Recently Added</option>
+  <option value="firstaired">First Aired</option>
+</select>
             </div>
           </div>
         </>
