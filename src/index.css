@@ -18,6 +18,21 @@ body {
   color: var(--text);
 }
 
+.top-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 0 auto 24px;
+  max-width: 1400px;
+  padding: 0 16px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+
+.top-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .page {
   padding: 28px;
   min-height: 100vh;
@@ -180,4 +195,23 @@ body {
   margin: 0;
   color: var(--text-muted);
   padding: 10px 2px 2px;
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-label {
+    font-size: 0.78rem;
+  }
+
+  .stat-value {
+    font-size: 1.6rem;
+  }
 }
