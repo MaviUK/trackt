@@ -1,0 +1,266 @@
+.rtw-page {
+  min-height: 100vh;
+  background: #0b1020;
+  color: #f8fafc;
+  padding: 20px 16px 28px;
+}
+
+.rtw-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.rtw-header {
+  margin-bottom: 24px;
+}
+
+.rtw-header h1 {
+  margin: 0 0 8px;
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: #f8fafc;
+  font-weight: 800;
+}
+
+.rtw-header p {
+  margin: 0;
+  font-size: 1rem;
+  color: #a5b4cc;
+}
+
+.rtw-empty {
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.rtw-empty p {
+  margin: 0;
+  color: #a5b4cc;
+}
+
+.rtw-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rtw-group-card {
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.rtw-show-row {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.rtw-show-link {
+  flex-shrink: 0;
+}
+
+.rtw-poster {
+  width: 116px;
+  height: 168px;
+  object-fit: cover;
+  border-radius: 18px;
+  background: #111827;
+  display: block;
+}
+
+.rtw-show-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.rtw-show-title-link {
+  text-decoration: none;
+}
+
+.rtw-show-title {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 2rem;
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+.rtw-show-count {
+  color: #dbe4f3;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.rtw-toggle-btn {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: #c4b5fd;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rtw-toggle-btn:hover {
+  color: #ddd6fe;
+}
+
+.rtw-episode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.rtw-episode-card {
+  background: #182235;
+  border: 1px solid #2b3954;
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.rtw-episode-title {
+  color: #f8fafc;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+
+.rtw-episode-date {
+  color: #a5b4cc;
+  font-size: 0.96rem;
+  margin-bottom: 10px;
+}
+
+.rtw-episode-overview {
+  margin: 0 0 14px;
+  color: #dbe4f3;
+  line-height: 1.55;
+  font-size: 0.96rem;
+}
+
+.rtw-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rtw-mark-btn {
+  border: 1px solid #8b5cf6;
+  background: #8b5cf6;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.rtw-mark-btn:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .rtw-header h1 {
+    font-size: 2.5rem;
+  }
+
+  .rtw-poster {
+    width: 100px;
+    height: 146px;
+    border-radius: 16px;
+  }
+
+  .rtw-show-title {
+    font-size: 1.6rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .rtw-page {
+    padding: 16px 12px 24px;
+  }
+
+  .rtw-header {
+    margin-bottom: 18px;
+  }
+
+  .rtw-header h1 {
+    font-size: 2rem;
+  }
+
+  .rtw-header p {
+    font-size: 0.95rem;
+  }
+
+  .rtw-groups {
+    gap: 14px;
+  }
+
+  .rtw-group-card {
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .rtw-show-row {
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .rtw-poster {
+    width: 84px;
+    height: 122px;
+    border-radius: 14px;
+  }
+
+  .rtw-show-title {
+    font-size: 1.3rem;
+  }
+
+  .rtw-show-count {
+    font-size: 0.98rem;
+  }
+
+  .rtw-toggle-btn {
+    font-size: 0.95rem;
+  }
+
+  .rtw-episode-list {
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .rtw-episode-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .rtw-episode-title {
+    font-size: 1rem;
+  }
+
+  .rtw-episode-date,
+  .rtw-episode-overview {
+    font-size: 0.93rem;
+  }
+
+  .rtw-mark-btn {
+    padding: 9px 12px;
+    font-size: 0.92rem;
+    border-radius: 10px;
+  }
+}
