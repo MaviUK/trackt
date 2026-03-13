@@ -207,8 +207,32 @@ export default function MyShows() {
                   )}
 
                   <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                    {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
-                  </p>
+  {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
+</p>
+
+<div
+  style={{
+    marginTop: "8px",
+    width: "100%",
+    height: "10px",
+    background: "#e5e7eb",
+    borderRadius: "999px",
+    overflow: "hidden",
+  }}
+>
+  <div
+    style={{
+      width: `${
+        show.totalEpisodes > 0
+          ? (show.watchedCount / show.totalEpisodes) * 100
+          : 0
+      }%`,
+      height: "100%",
+      background: "#22c55e",
+      borderRadius: "999px",
+    }}
+  />
+</div>
 
                   {show.nextEpisodeDate && (
                     <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
