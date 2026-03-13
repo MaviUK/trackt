@@ -8,6 +8,7 @@ export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("alphabetical");
+  const [filterBy, setFilterBy] = useState("all");
 
   useEffect(() => {
     async function loadShows() {
@@ -152,6 +153,16 @@ export default function MyShows() {
     return 0;
   });
 
+  const filteredShows = sortedShows.filter((show) => {
+    const isCompleted =
+      show.totalEpisodes > 0 && show.watchedCount >= show.totalEpisodes;
+
+    if (filterBy === "completed") return isCompleted;
+    if (filterBy === "inprogress") return !isCompleted;
+
+    return true;
+  });
+
   if (loading) {
     return <div className="page">Loading...</div>;
   }
@@ -163,112 +174,145 @@ export default function MyShows() {
       {shows.length === 0 && <p>No saved shows yet.</p>}
 
       {shows.length > 0 && (
-        <div style={{ marginBottom: "20px" }}>
-          <label style={{ marginRight: "10px" }}>Sort by:</label>
+        <div
+          style={{
+            marginBottom: "20px",
+            display: "flex",
+            gap: "16px",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <label style={{ marginRight: "10px" }}>Sort by:</label>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="alphabetical">Alphabetical</option>
+              <option value="recent">Recently Added</option>
+              <option value="firstaired">First Aired</option>
+            </select>
+          </div>
 
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="alphabetical">Alphabetical</option>
-            <option value="recent">Recently Added</option>
-            <option value="firstaired">First Aired</option>
-          </select>
+          <div>
+            <label style={{ marginRight: "10px" }}>Filter:</label>
+            <select
+              value={filterBy}
+              onChange={(e) => setFilterBy(e.target.value)}
+            >
+              <option value="all">All Shows</option>
+              <option value="inprogress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
         </div>
       )}
 
-      <div className="show-list">
-        {sortedShows.map((show) => (
-          <div className="show-card" key={show.tvdb_id}>
-            <Link
-              to={`/my-shows/${show.tvdb_id}`}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: "16px",
-                  alignItems: "flex-start",
-                }}
+      {filteredShows.length === 0 ? (
+        <p>No shows match this filter.</p>
+      ) : (
+        <div className="show-list">
+          {filteredShows.map((show) => (
+            <div className="show-card" key={show.tvdb_id}>
+              <Link
+                to={`/my-shows/${show.tvdb_id}`}
+                style={{ textDecoration: "none", color: "inherit" }}
               >
-                {show.poster_url && (
-                  <img
-                    src={show.poster_url}
-                    alt={show.show_name}
-                    width="80"
-                    style={{ borderRadius: "8px", objectFit: "cover" }}
-                  />
-                )}
-
-                <div style={{ flex: 1 }}>
-                  <strong>{show.show_name}</strong>
-
-                  {show.first_aired && (
-                    <p style={{ margin: "8px 0 0 0" }}>
-                      First aired: {formatDate(show.first_aired)}
-                    </p>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "16px",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {show.poster_url && (
+                    <img
+                      src={show.poster_url}
+                      alt={show.show_name}
+                      width="80"
+                      style={{ borderRadius: "8px", objectFit: "cover" }}
+                    />
                   )}
 
-                 <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-  {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
-</p>
+                  <div style={{ flex: 1 }}>
+                    <strong>{show.show_name}</strong>
 
-{show.totalEpisodes > 0 && show.watchedCount >= show.totalEpisodes && (
-  <p style={{ margin: "8px 0 0 0", color: "#16a34a", fontWeight: "700" }}>
-    Completed
-  </p>
-)}
+                    {show.first_aired && (
+                      <p style={{ margin: "8px 0 0 0" }}>
+                        First aired: {formatDate(show.first_aired)}
+                      </p>
+                    )}
 
-<div
-  style={{
-    marginTop: "8px",
-    width: "100%",
-    height: "10px",
-    background: "#e5e7eb",
-    borderRadius: "999px",
-    overflow: "hidden",
-  }}
->
-  <div
-    style={{
-      width: `${
-        show.totalEpisodes > 0
-          ? (show.watchedCount / show.totalEpisodes) * 100
-          : 0
-      }%`,
-      height: "100%",
-      background:
-        show.totalEpisodes > 0 && show.watchedCount >= show.totalEpisodes
-          ? "#16a34a"
-          : "#22c55e",
-      borderRadius: "999px",
-    }}
-  />
-</div>
-
-                  {show.nextEpisodeDate && (
                     <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                      Next episode: {formatDate(show.nextEpisodeDate)}
+                      {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
                     </p>
-                  )}
 
-                  {show.overview && (
-                    <p style={{ margin: "8px 0 0 0" }}>
-                      {show.overview.length > 160
-                        ? `${show.overview.slice(0, 160)}...`
-                        : show.overview}
-                    </p>
-                  )}
+                    {show.totalEpisodes > 0 &&
+                      show.watchedCount >= show.totalEpisodes && (
+                        <p
+                          style={{
+                            margin: "8px 0 0 0",
+                            color: "#16a34a",
+                            fontWeight: "700",
+                          }}
+                        >
+                          Completed
+                        </p>
+                      )}
+
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        width: "100%",
+                        height: "10px",
+                        background: "#e5e7eb",
+                        borderRadius: "999px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${
+                            show.totalEpisodes > 0
+                              ? (show.watchedCount / show.totalEpisodes) * 100
+                              : 0
+                          }%`,
+                          height: "100%",
+                          background:
+                            show.totalEpisodes > 0 &&
+                            show.watchedCount >= show.totalEpisodes
+                              ? "#16a34a"
+                              : "#22c55e",
+                          borderRadius: "999px",
+                        }}
+                      />
+                    </div>
+
+                    {show.nextEpisodeDate && (
+                      <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
+                        Next episode: {formatDate(show.nextEpisodeDate)}
+                      </p>
+                    )}
+
+                    {show.overview && (
+                      <p style={{ margin: "8px 0 0 0" }}>
+                        {show.overview.length > 160
+                          ? `${show.overview.slice(0, 160)}...`
+                          : show.overview}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
 
-            <button
-              style={{ marginTop: "10px" }}
-              onClick={() => removeShow(show.tvdb_id)}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
+              <button
+                style={{ marginTop: "10px" }}
+                onClick={() => removeShow(show.tvdb_id)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
