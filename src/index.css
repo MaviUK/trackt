@@ -1,115 +1,87 @@
 :root {
-  font-family: Arial, sans-serif;
-  color: #111827;
-  background: #f8fafc;
-}
-
-* {
-  box-sizing: border-box;
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-hover: #1d212b;
+  --panel-soft: #202532;
+  --border: #2a3140;
+  --text: #f3f4f6;
+  --text-muted: #9ca3af;
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 
 body {
-  margin: 0;
-}
-
-.app-shell {
-  padding: 32px;
-}
-
-.nav {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.nav a {
-  text-decoration: none;
-  color: #2563eb;
-  font-weight: 600;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .page {
-  max-width: 720px;
-}
-
-input {
-  padding: 10px 12px;
-  margin-right: 12px;
-  margin-bottom: 12px;
-}
-
-button {
-  padding: 10px 14px;
-  cursor: pointer;
-}
-
-.show-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.show-card {
-  background: white;
-  padding: 14px;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-.page {
-  padding: 24px;
+  padding: 28px;
+  min-height: 100vh;
+  background: var(--bg);
 }
 
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .page-header h1 {
   margin: 0 0 8px;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
 .page-header p {
   margin: 0;
-  color: #888;
+  color: var(--text-muted);
+  font-size: 1rem;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
 }
 
 .stat-card {
-  background: #151515;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
-  padding: 18px;
+  background: linear-gradient(180deg, var(--panel) 0%, #141821 100%);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
 }
 
 .stat-label {
   display: block;
-  font-size: 0.9rem;
-  color: #aaa;
-  margin-bottom: 8px;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
 }
 
 .stat-value {
-  font-size: 1.8rem;
-  line-height: 1;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 20px;
 }
 
 .dashboard-card {
-  background: #151515;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
+  background: linear-gradient(180deg, var(--panel) 0%, #141821 100%);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   padding: 18px;
+  box-shadow: var(--shadow);
 }
 
 .card-header {
@@ -122,12 +94,21 @@ button {
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.08rem;
+  font-weight: 650;
+  color: var(--text);
 }
 
 .card-header a {
-  font-size: 0.9rem;
+  color: var(--accent);
   text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.card-header a:hover {
+  color: var(--accent-hover);
 }
 
 .dashboard-list {
@@ -142,22 +123,26 @@ button {
   align-items: center;
   text-decoration: none;
   color: inherit;
-  background: #1c1c1c;
-  border-radius: 12px;
-  padding: 10px;
-  transition: background 0.2s ease;
+  background: var(--panel-soft);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  padding: 12px;
+  transition: all 0.2s ease;
 }
 
 .dashboard-item:hover {
-  background: #252525;
+  background: var(--panel-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
 }
 
 .dashboard-poster {
-  width: 48px;
-  height: 72px;
+  width: 50px;
+  height: 74px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 10px;
   flex-shrink: 0;
+  background: #111;
 }
 
 .dashboard-item-info {
@@ -165,6 +150,22 @@ button {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.dashboard-item-info strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.dashboard-item-info span {
+  color: #d1d5db;
+  font-size: 0.92rem;
+}
+
+.dashboard-item-info small {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .dashboard-item-info strong,
@@ -175,11 +176,8 @@ button {
   white-space: nowrap;
 }
 
-.dashboard-item-info small {
-  color: #999;
-}
-
 .empty-state {
-  color: #888;
   margin: 0;
+  color: var(--text-muted);
+  padding: 10px 2px 2px;
 }
