@@ -163,6 +163,16 @@ export default function MyShows() {
     return true;
   });
 
+  const tabButtonStyle = (isActive) => ({
+    padding: "10px 16px",
+    borderRadius: "999px",
+    border: isActive ? "1px solid #111827" : "1px solid #d1d5db",
+    background: isActive ? "#111827" : "#fff",
+    color: isActive ? "#fff" : "#111827",
+    fontWeight: "600",
+    cursor: "pointer",
+  });
+
   if (loading) {
     return <div className="page">Loading...</div>;
   }
@@ -174,36 +184,59 @@ export default function MyShows() {
       {shows.length === 0 && <p>No saved shows yet.</p>}
 
       {shows.length > 0 && (
-        <div
-          style={{
-            marginBottom: "20px",
-            display: "flex",
-            gap: "16px",
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <label style={{ marginRight: "10px" }}>Sort by:</label>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="alphabetical">Alphabetical</option>
-              <option value="recent">Recently Added</option>
-              <option value="firstaired">First Aired</option>
-            </select>
+        <>
+          <div
+            style={{
+              marginBottom: "16px",
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setFilterBy("all")}
+              style={tabButtonStyle(filterBy === "all")}
+            >
+              All
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterBy("inprogress")}
+              style={tabButtonStyle(filterBy === "inprogress")}
+            >
+              In Progress
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterBy("completed")}
+              style={tabButtonStyle(filterBy === "completed")}
+            >
+              Completed
+            </button>
           </div>
 
-          <div>
-            <label style={{ marginRight: "10px" }}>Filter:</label>
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value)}
-            >
-              <option value="all">All Shows</option>
-              <option value="inprogress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
+          <div
+            style={{
+              marginBottom: "20px",
+              display: "flex",
+              gap: "16px",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <label style={{ marginRight: "10px" }}>Sort by:</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="alphabetical">Alphabetical</option>
+                <option value="recent">Recently Added</option>
+                <option value="firstaired">First Aired</option>
+              </select>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {filteredShows.length === 0 ? (
