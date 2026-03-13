@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import "./index.css";
+
 import Search from "./pages/Search";
 import Login from "./pages/Login";
 import ShowDetails from "./pages/ShowDetails";
@@ -11,31 +13,52 @@ import Dashboard from "./pages/Dashboard";
 
 function AppNav() {
   return (
-    <nav className="top-tabs">
-      <NavLink to="/" end className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        Dashboard
-      </NavLink>
+    <div className="nav-wrap">
+      <nav className="top-tabs">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Dashboard
+        </NavLink>
 
-      <NavLink to="/search" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        Search
-      </NavLink>
+        <NavLink
+          to="/search"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Search
+        </NavLink>
 
-      <NavLink to="/my-shows" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        My Shows
-      </NavLink>
+        <NavLink
+          to="/my-shows"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          My Shows
+        </NavLink>
 
-      <NavLink to="/airing-next" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        Airing Next
-      </NavLink>
+        <NavLink
+          to="/airing-next"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Airing Next
+        </NavLink>
 
-      <NavLink to="/ready-to-watch" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        Ready To Watch
-      </NavLink>
+        <NavLink
+          to="/ready-to-watch"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Ready To Watch
+        </NavLink>
 
-      <NavLink to="/login" className={({ isActive }) => `top-tab ${isActive ? "active" : ""}`}>
-        Login
-      </NavLink>
-    </nav>
+        <NavLink
+          to="/login"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Login
+        </NavLink>
+      </nav>
+    </div>
   );
 }
 
