@@ -206,9 +206,15 @@ export default function MyShows() {
                     </p>
                   )}
 
-                  <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
+                 <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
   {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
 </p>
+
+{show.totalEpisodes > 0 && show.watchedCount >= show.totalEpisodes && (
+  <p style={{ margin: "8px 0 0 0", color: "#16a34a", fontWeight: "700" }}>
+    Completed
+  </p>
+)}
 
 <div
   style={{
@@ -228,7 +234,10 @@ export default function MyShows() {
           : 0
       }%`,
       height: "100%",
-      background: "#22c55e",
+      background:
+        show.totalEpisodes > 0 && show.watchedCount >= show.totalEpisodes
+          ? "#16a34a"
+          : "#22c55e",
       borderRadius: "999px",
     }}
   />
