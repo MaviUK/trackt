@@ -15,7 +15,7 @@ function App() {
     <BrowserRouter>
       <div className="app-shell">
         <nav className="nav">
-          <Link to="/">Home</Link>
+          <Link to="/">Dashboard</Link>
           <Link to="/search">Search</Link>
           <Link to="/login">Login</Link>
           <Link to="/my-shows">My Shows</Link>
