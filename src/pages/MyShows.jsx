@@ -59,20 +59,49 @@ export default function MyShows() {
       const updatedShows = await Promise.all(
         (data || []).map(async (show) => {
           let totalEpisodes = 0;
+          let nextEpisodeDate = null;
 
           try {
             const episodes = await getCachedEpisodes(show.tvdb_id);
-            totalEpisodes = (episodes || []).filter(
+            const normalEpisodes = (episodes || []).filter(
               (ep) => (ep.seasonNumber ?? 0) > 0
-            ).length;
+            );
+
+            totalEpisodes = normalEpisodes.length;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const upcomingEpisodes = normalEpisodes
+              .filter((ep) => ep.airDate || ep.aired)
+              .filter((ep) => {
+                const airDate = new Date(ep.airDate || ep.aired);
+                airDate.setHours(0, 0, 0, 0);
+                return airDate >= today;
+              })
+              .sort(
+                (a, b) =>
+                  new Date(a.airDate || a.aired) -
+                  new Date(b.airDate || b.aired)
+              );
+
+            if (upcomingEpisodes.length > 0) {
+              nextEpisodeDate =
+                upcomingEpisodes[0].airDate || upcomingEpisodes[0].aired;
+            }
           } catch (error) {
-            console.error("Failed to load episode count for", show.show_name, error);
+            console.error(
+              "Failed to load show episode info for",
+              show.show_name,
+              error
+            );
           }
 
           return {
             ...show,
             watchedCount: watchedByShow[String(show.tvdb_id)] || 0,
             totalEpisodes,
+            nextEpisodeDate,
           };
         })
       );
@@ -180,6 +209,12 @@ export default function MyShows() {
                   <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
                     {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
                   </p>
+
+                  {show.nextEpisodeDate && (
+                    <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
+                      Next episode: {formatDate(show.nextEpisodeDate)}
+                    </p>
+                  )}
 
                   {show.overview && (
                     <p style={{ margin: "8px 0 0 0" }}>
