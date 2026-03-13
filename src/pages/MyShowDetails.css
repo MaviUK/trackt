@@ -1,0 +1,428 @@
+.msd-page {
+  min-height: 100vh;
+  background: #0b1020;
+  color: #f8fafc;
+  padding: 20px 16px 28px;
+}
+
+.msd-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.msd-back-link {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: #c4b5fd;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.msd-back-link:hover {
+  color: #ddd6fe;
+}
+
+.msd-empty {
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 24px;
+  padding: 20px;
+}
+
+.msd-empty p {
+  margin: 0 0 12px;
+  color: #a5b4cc;
+}
+
+.msd-hero {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 28px;
+  padding: 22px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  margin-bottom: 24px;
+}
+
+.msd-poster {
+  width: 220px;
+  height: 320px;
+  object-fit: cover;
+  border-radius: 22px;
+  background: #111827;
+  display: block;
+}
+
+.msd-title {
+  margin: 0 0 12px;
+  font-size: 2.5rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: #f8fafc;
+  font-weight: 800;
+}
+
+.msd-overview {
+  margin: 0 0 18px;
+  color: #dbe4f3;
+  font-size: 1.04rem;
+  line-height: 1.6;
+}
+
+.msd-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #cbd5e1;
+  font-size: 1rem;
+  margin-bottom: 18px;
+}
+
+.msd-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.msd-stat-box {
+  background: #182235;
+  border: 1px solid #2b3954;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.msd-stat-label {
+  display: block;
+  color: #a5b4cc;
+  font-size: 0.88rem;
+  margin-bottom: 6px;
+}
+
+.msd-stat-value {
+  color: #f8fafc;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.msd-progress {
+  width: 100%;
+  height: 12px;
+  background: #182235;
+  border: 1px solid #2b3954;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.msd-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
+  border-radius: 999px;
+}
+
+.msd-episodes-section {
+  margin-top: 12px;
+}
+
+.msd-section-title {
+  margin: 0 0 18px;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.msd-seasons {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.msd-season-card {
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.msd-season-complete {
+  border-color: rgba(34, 197, 94, 0.45);
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.08);
+}
+
+.msd-season-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.msd-season-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.msd-season-subtitle {
+  margin-top: 6px;
+  color: #a5b4cc;
+  font-size: 0.95rem;
+}
+
+.msd-season-toggle-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.msd-season-badge {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #bbf7d0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.msd-season-chevron {
+  color: #c4b5fd;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.msd-episode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.msd-episode-card {
+  background: #182235;
+  border: 1px solid #2b3954;
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.msd-episode-watched {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(180deg, #182235 0%, #162534 100%);
+}
+
+.msd-episode-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.msd-episode-title {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.msd-episode-date {
+  color: #a5b4cc;
+  font-size: 0.95rem;
+}
+
+.msd-watched-pill {
+  white-space: nowrap;
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #bbf7d0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.msd-episode-overview {
+  margin: 14px 0;
+  color: #dbe4f3;
+  font-size: 0.96rem;
+  line-height: 1.55;
+}
+
+.msd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.msd-btn {
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.msd-btn:hover {
+  transform: translateY(-1px);
+}
+
+.msd-btn:disabled {
+  opacity: 0.95;
+  cursor: default;
+  transform: none;
+}
+
+.msd-btn-primary {
+  border: 1px solid #8b5cf6;
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.msd-btn-primary:hover {
+  background: #7c3aed;
+}
+
+.msd-btn-secondary {
+  border: 1px solid #2b3954;
+  background: #22304a;
+  color: #f8fafc;
+}
+
+.msd-btn-secondary:hover {
+  background: #2a3a58;
+}
+
+.msd-btn-success {
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.18);
+  color: #bbf7d0;
+}
+
+@media (max-width: 900px) {
+  .msd-hero {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+
+  .msd-poster {
+    width: 160px;
+    height: 232px;
+    border-radius: 18px;
+  }
+
+  .msd-title {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .msd-page {
+    padding: 16px 12px 24px;
+  }
+
+  .msd-hero {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    border-radius: 22px;
+    gap: 16px;
+  }
+
+  .msd-poster {
+    width: 120px;
+    height: 174px;
+    border-radius: 16px;
+  }
+
+  .msd-title {
+    font-size: 1.9rem;
+  }
+
+  .msd-overview {
+    font-size: 0.98rem;
+  }
+
+  .msd-meta {
+    font-size: 0.95rem;
+  }
+
+  .msd-stats-row {
+    gap: 8px;
+  }
+
+  .msd-stat-box {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .msd-stat-label {
+    font-size: 0.78rem;
+  }
+
+  .msd-stat-value {
+    font-size: 1.15rem;
+  }
+
+  .msd-section-title {
+    font-size: 1.8rem;
+  }
+
+  .msd-season-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .msd-season-title {
+    font-size: 1.2rem;
+  }
+
+  .msd-season-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .msd-season-toggle-right {
+    gap: 8px;
+  }
+
+  .msd-season-badge {
+    padding: 6px 10px;
+    font-size: 0.74rem;
+  }
+
+  .msd-episode-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .msd-episode-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .msd-episode-title {
+    font-size: 1rem;
+  }
+
+  .msd-episode-date,
+  .msd-episode-overview {
+    font-size: 0.93rem;
+  }
+
+  .msd-actions {
+    gap: 8px;
+  }
+
+  .msd-btn {
+    padding: 9px 12px;
+    font-size: 0.9rem;
+    border-radius: 10px;
+  }
+}
