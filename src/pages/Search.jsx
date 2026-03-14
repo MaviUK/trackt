@@ -65,21 +65,44 @@ export default function Search() {
     setSavedIds(new Set((data || []).map((row) => String(row.tvdb_id))));
   };
 
-  const handleAddShow = async (event, show) => {
-    event.preventDefault();
-    event.stopPropagation();
+const handleAddShow = async (event, show) => {
+  event.preventDefault();
+  event.stopPropagation();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user) {
-      setError("Please log in to add shows.");
-      return;
+  if (!user) {
+    setError("Please log in to add shows.");
+    return;
+  }
+
+  const tvdbId = String(show.tvdb_id || show.id);
+  setAddingId(tvdbId);
+  setError("");
+
+  try {
+    const { data: existing, error: existingError } = await supabase
+      .from("user_shows")
+      .select("tvdb_id")
+      .eq("user_id", user.id)
+      .eq("tvdb_id", tvdbId)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
     }
 
-    const tvdbId = String(show.tvdb_id || show.id);
-    setAddingId(tvdbId);
+    if (existing) {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.add(tvdbId);
+        return next;
+      });
+      setAddingId(null);
+      return;
+    }
 
     const payload = {
       user_id: user.id,
@@ -92,14 +115,10 @@ export default function Search() {
 
     const { error: insertError } = await supabase
       .from("user_shows")
-      .upsert(payload, { onConflict: "user_id,tvdb_id" });
-
-    setAddingId(null);
+      .insert(payload);
 
     if (insertError) {
-      console.error("Failed to add show:", insertError);
-      setError("Failed to add show.");
-      return;
+      throw insertError;
     }
 
     setSavedIds((prev) => {
@@ -107,7 +126,13 @@ export default function Search() {
       next.add(tvdbId);
       return next;
     });
-  };
+  } catch (err) {
+    console.error("Failed to add show:", err);
+    setError(err.message || "Failed to add show.");
+  } finally {
+    setAddingId(null);
+  }
+};
 
   return (
     <div className="page">
