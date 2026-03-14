@@ -155,12 +155,11 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  margin-top: 14px;
 }
 
-.rtw-mark-btn {
-  border: 1px solid #8b5cf6;
-  background: #8b5cf6;
-  color: #ffffff;
+.rtw-mark-btn,
+.rtw-secondary-btn {
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 0.95rem;
@@ -169,98 +168,24 @@
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
+.rtw-mark-btn {
+  border: 1px solid #8b5cf6;
+  background: #8b5cf6;
+  color: #ffffff;
+}
+
 .rtw-mark-btn:hover {
   background: #7c3aed;
   transform: translateY(-1px);
 }
 
-@media (max-width: 900px) {
-  .rtw-header h1 {
-    font-size: 2.5rem;
-  }
-
-  .rtw-poster {
-    width: 100px;
-    height: 146px;
-    border-radius: 16px;
-  }
-
-  .rtw-show-title {
-    font-size: 1.6rem;
-  }
+.rtw-secondary-btn {
+  border: 1px solid #2b3954;
+  background: #22304a;
+  color: #f8fafc;
 }
 
-@media (max-width: 640px) {
-  .rtw-page {
-    padding: 16px 12px 24px;
-  }
-
-  .rtw-header {
-    margin-bottom: 18px;
-  }
-
-  .rtw-header h1 {
-    font-size: 2rem;
-  }
-
-  .rtw-header p {
-    font-size: 0.95rem;
-  }
-
-  .rtw-groups {
-    gap: 14px;
-  }
-
-  .rtw-group-card {
-    border-radius: 20px;
-    padding: 14px;
-  }
-
-  .rtw-show-row {
-    gap: 14px;
-    align-items: flex-start;
-  }
-
-  .rtw-poster {
-    width: 84px;
-    height: 122px;
-    border-radius: 14px;
-  }
-
-  .rtw-show-title {
-    font-size: 1.3rem;
-  }
-
-  .rtw-show-count {
-    font-size: 0.98rem;
-  }
-
-  .rtw-toggle-btn {
-    font-size: 0.95rem;
-  }
-
-  .rtw-episode-list {
-    gap: 12px;
-    margin-top: 14px;
-  }
-
-  .rtw-episode-card {
-    border-radius: 18px;
-    padding: 14px;
-  }
-
-  .rtw-episode-title {
-    font-size: 1rem;
-  }
-
-  .rtw-episode-date,
-  .rtw-episode-overview {
-    font-size: 0.93rem;
-  }
-
-  .rtw-mark-btn {
-    padding: 9px 12px;
-    font-size: 0.92rem;
-    border-radius: 10px;
-  }
+.rtw-secondary-btn:hover {
+  background: #2a3a58;
+  transform: translateY(-1px);
 }
