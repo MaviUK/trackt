@@ -53,7 +53,7 @@ export default function ReadyToWatchPage() {
         return;
       }
 
-      const showIds = (userShows || []).map((show) => show.tvdb_id);
+      const showIds = (userShows || []).map((show) => String(show.tvdb_id));
 
       let watchedRows = [];
       if (showIds.length > 0) {
@@ -72,10 +72,11 @@ export default function ReadyToWatchPage() {
 
       const watchedLookup = {};
       for (const row of watchedRows) {
-        if (!watchedLookup[row.show_tvdb_id]) {
-          watchedLookup[row.show_tvdb_id] = new Set();
+        const showId = String(row.show_tvdb_id);
+        if (!watchedLookup[showId]) {
+          watchedLookup[showId] = new Set();
         }
-        watchedLookup[row.show_tvdb_id].add(String(row.episode_id));
+        watchedLookup[showId].add(String(row.episode_id));
       }
 
       const episodeLookup = {};
@@ -83,12 +84,12 @@ export default function ReadyToWatchPage() {
         (userShows || []).map(async (show) => {
           try {
             const episodes = await getCachedEpisodes(show.tvdb_id);
-            episodeLookup[show.tvdb_id] = (episodes || []).filter(
+            episodeLookup[String(show.tvdb_id)] = (episodes || []).filter(
               (ep) => ep.seasonNumber > 0
             );
           } catch (err) {
             console.error(`Failed to load episodes for ${show.show_name}:`, err);
-            episodeLookup[show.tvdb_id] = [];
+            episodeLookup[String(show.tvdb_id)] = [];
           }
         })
       );
@@ -105,13 +106,19 @@ export default function ReadyToWatchPage() {
   const readyGroups = useMemo(() => {
     return shows
       .map((show) => {
-        const episodes = episodesByShow[show.tvdb_id] || [];
-        const watchedSet = watchedMap[show.tvdb_id] || new Set();
+        const showId = String(show.tvdb_id);
+        const episodes = episodesByShow[showId] || [];
+        const watchedSet = watchedMap[showId] || new Set();
 
         const readyEpisodes = episodes
           .filter((ep) => isAired(ep.aired))
           .filter((ep) => !watchedSet.has(String(ep.id)))
-          .sort((a, b) => new Date(a.aired) - new Date(b.aired));
+          .sort((a, b) => {
+            if (a.seasonNumber !== b.seasonNumber) {
+              return a.seasonNumber - b.seasonNumber;
+            }
+            return a.number - b.number;
+          });
 
         return {
           show,
@@ -137,24 +144,145 @@ export default function ReadyToWatchPage() {
 
     if (!user) return;
 
-    const { error } = await supabase.from("watched_episodes").insert({
-      user_id: user.id,
-      show_tvdb_id: showTvdbId,
-      episode_id: String(episodeId),
-    });
+    try {
+      const showId = String(showTvdbId);
+      const episodeIdStr = String(episodeId);
 
-    if (error) {
+      const { data: existing, error: existingError } = await supabase
+        .from("watched_episodes")
+        .select("episode_id")
+        .eq("user_id", user.id)
+        .eq("show_tvdb_id", showId)
+        .eq("episode_id", episodeIdStr)
+        .maybeSingle();
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      if (!existing) {
+        const { error: insertError } = await supabase
+          .from("watched_episodes")
+          .insert({
+            user_id: user.id,
+            show_tvdb_id: showId,
+            episode_id: episodeIdStr,
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      setWatchedMap((prev) => {
+        const next = { ...prev };
+        const current = new Set(next[showId] || []);
+        current.add(episodeIdStr);
+        next[showId] = current;
+        return next;
+      });
+    } catch (error) {
       console.error("Failed to mark watched:", error);
-      return;
+      alert(error.message || "Failed to mark watched");
     }
+  }
 
-    setWatchedMap((prev) => {
-      const next = { ...prev };
-      const current = new Set(next[showTvdbId] || []);
-      current.add(String(episodeId));
-      next[showTvdbId] = current;
-      return next;
-    });
+  async function handleWatchUpToHere(showTvdbId, targetEpisode) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    try {
+      const showId = String(showTvdbId);
+      const allEpisodes = (episodesByShow[showId] || [])
+        .filter((ep) => ep.seasonNumber > 0)
+        .sort((a, b) => {
+          if (a.seasonNumber !== b.seasonNumber) {
+            return a.seasonNumber - b.seasonNumber;
+          }
+          return a.number - b.number;
+        });
+
+      const airedEpisodes = allEpisodes.filter((ep) => isAired(ep.aired));
+
+      const episodesToBeWatched = airedEpisodes.filter((ep) => {
+        if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
+        if (
+          ep.seasonNumber === targetEpisode.seasonNumber &&
+          ep.number <= targetEpisode.number
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      const watchedIds = new Set(
+        episodesToBeWatched.map((ep) => String(ep.id))
+      );
+
+      const allAiredEpisodeIds = airedEpisodes.map((ep) => String(ep.id));
+      const idsToDelete = allAiredEpisodeIds.filter((epId) => !watchedIds.has(epId));
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("show_tvdb_id", showId)
+          .in("episode_id", idsToDelete);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+      }
+
+      const watchedIdArray = Array.from(watchedIds);
+      if (watchedIdArray.length > 0) {
+        const { data: existingRows, error: existingError } = await supabase
+          .from("watched_episodes")
+          .select("episode_id")
+          .eq("user_id", user.id)
+          .eq("show_tvdb_id", showId)
+          .in("episode_id", watchedIdArray);
+
+        if (existingError) {
+          throw existingError;
+        }
+
+        const existingIds = new Set(
+          (existingRows || []).map((row) => String(row.episode_id))
+        );
+
+        const rowsToInsert = episodesToBeWatched
+          .filter((ep) => !existingIds.has(String(ep.id)))
+          .map((ep) => ({
+            user_id: user.id,
+            show_tvdb_id: showId,
+            episode_id: String(ep.id),
+          }));
+
+        if (rowsToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from("watched_episodes")
+            .insert(rowsToInsert);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+      }
+
+      setWatchedMap((prev) => {
+        const next = { ...prev };
+        next[showId] = new Set(watchedIds);
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed watch up to here:", error);
+      alert(error.message || "Failed watch up to here");
+    }
   }
 
   if (loading) {
@@ -185,7 +313,8 @@ export default function ReadyToWatchPage() {
         ) : (
           <div className="rtw-groups">
             {readyGroups.map(({ show, episodes, readyCount }) => {
-              const isExpanded = expandedShows[show.tvdb_id] ?? true;
+              const showId = String(show.tvdb_id);
+              const isExpanded = expandedShows[showId] ?? true;
 
               return (
                 <section key={show.tvdb_id} className="rtw-group-card">
@@ -217,7 +346,7 @@ export default function ReadyToWatchPage() {
                       <button
                         type="button"
                         className="rtw-toggle-btn"
-                        onClick={() => toggleExpanded(show.tvdb_id)}
+                        onClick={() => toggleExpanded(showId)}
                       >
                         {isExpanded ? "Hide episodes ▲" : "Show episodes ▼"}
                       </button>
@@ -254,6 +383,16 @@ export default function ReadyToWatchPage() {
                               }
                             >
                               Mark Watched
+                            </button>
+
+                            <button
+                              type="button"
+                              className="rtw-secondary-btn"
+                              onClick={() =>
+                                handleWatchUpToHere(show.tvdb_id, episode)
+                              }
+                            >
+                              Watch up to here
                             </button>
                           </div>
                         </div>
