@@ -46,16 +46,19 @@ export default function MyShows() {
         console.error("Failed to load watched episodes:", watchedError);
       }
 
-      const watchedByShow = {};
+      const watchedIdsByShow = {};
       (watchedRows || []).forEach((row) => {
         const showId = String(row.show_tvdb_id);
-        if (!watchedByShow[showId]) watchedByShow[showId] = 0;
-        watchedByShow[showId] += 1;
+        if (!watchedIdsByShow[showId]) {
+          watchedIdsByShow[showId] = new Set();
+        }
+        watchedIdsByShow[showId].add(String(row.episode_id));
       });
 
       const updatedShows = await Promise.all(
         (data || []).map(async (show) => {
           let totalEpisodes = 0;
+          let watchedCount = 0;
           let nextEpisodeDate = null;
           let status = "Ended";
 
@@ -68,6 +71,13 @@ export default function MyShows() {
 
             totalEpisodes = filteredEpisodes.length;
             status = getShowStatus(show, filteredEpisodes);
+
+            const watchedSet =
+              watchedIdsByShow[String(show.tvdb_id)] || new Set();
+
+            watchedCount = filteredEpisodes.filter((ep) =>
+              watchedSet.has(String(ep.id))
+            ).length;
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -97,7 +107,6 @@ export default function MyShows() {
             );
           }
 
-          const watchedCount = watchedByShow[String(show.tvdb_id)] || 0;
           const isCompleted =
             totalEpisodes > 0 && watchedCount >= totalEpisodes;
           const progress =
@@ -280,51 +289,22 @@ export default function MyShows() {
                 flexWrap: "wrap",
               }}
             >
-              <button
-                type="button"
-                onClick={() => setFilterBy("all")}
-                style={tabButtonStyle(filterBy === "all")}
-              >
+              <button type="button" onClick={() => setFilterBy("all")} style={tabButtonStyle(filterBy === "all")}>
                 All ({counts.all})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterBy("inprogress")}
-                style={tabButtonStyle(filterBy === "inprogress")}
-              >
+              <button type="button" onClick={() => setFilterBy("inprogress")} style={tabButtonStyle(filterBy === "inprogress")}>
                 In Progress ({counts.inprogress})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterBy("completed")}
-                style={tabButtonStyle(filterBy === "completed")}
-              >
+              <button type="button" onClick={() => setFilterBy("completed")} style={tabButtonStyle(filterBy === "completed")}>
                 Completed ({counts.completed})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterBy("airing")}
-                style={tabButtonStyle(filterBy === "airing")}
-              >
+              <button type="button" onClick={() => setFilterBy("airing")} style={tabButtonStyle(filterBy === "airing")}>
                 Airing ({counts.airing})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterBy("ended")}
-                style={tabButtonStyle(filterBy === "ended")}
-              >
+              <button type="button" onClick={() => setFilterBy("ended")} style={tabButtonStyle(filterBy === "ended")}>
                 Ended ({counts.ended})
               </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterBy("upcoming")}
-                style={tabButtonStyle(filterBy === "upcoming")}
-              >
+              <button type="button" onClick={() => setFilterBy("upcoming")} style={tabButtonStyle(filterBy === "upcoming")}>
                 Upcoming ({counts.upcoming})
               </button>
             </div>
