@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
+import { getShowStatus } from "../lib/showStatus";
+import { getCachedEpisodes } from "../lib/episodesCache";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
