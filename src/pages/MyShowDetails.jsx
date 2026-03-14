@@ -138,11 +138,9 @@ export default function MyShowDetails() {
 
       el.classList.add("episode-highlight");
 
-      const removeTimer = setTimeout(() => {
+      setTimeout(() => {
         el.classList.remove("episode-highlight");
       }, 2500);
-
-      return () => clearTimeout(removeTimer);
     }, 300);
 
     return () => clearTimeout(timer);
@@ -249,85 +247,89 @@ export default function MyShowDetails() {
   }
 
   async function handleWatchUpToHere(targetEpisode) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return;
+    if (!user) return;
 
-  try {
-    const showTvdbId = String(id);
+    try {
+      const showTvdbId = String(id);
 
-    const episodesToBeWatched = episodes.filter((ep) => {
-      if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
-      if (
-        ep.seasonNumber === targetEpisode.seasonNumber &&
-        ep.number <= targetEpisode.number
-      ) {
-        return true;
+      const episodesToBeWatched = episodes.filter((ep) => {
+        if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
+        if (
+          ep.seasonNumber === targetEpisode.seasonNumber &&
+          ep.number <= targetEpisode.number
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      const watchedIds = new Set(
+        episodesToBeWatched.map((ep) => String(ep.id))
+      );
+
+      const allEpisodeIds = episodes.map((ep) => String(ep.id));
+      const idsToDelete = allEpisodeIds.filter((epId) => !watchedIds.has(epId));
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("show_tvdb_id", showTvdbId)
+          .in("episode_id", idsToDelete);
+
+        if (deleteError) {
+          throw deleteError;
+        }
       }
-      return false;
-    });
 
-    const watchedIds = new Set(
-      episodesToBeWatched.map((ep) => String(ep.id))
-    );
+      const watchedIdArray = Array.from(watchedIds);
 
-    const allEpisodeIds = episodes.map((ep) => String(ep.id));
-    const idsToDelete = allEpisodeIds.filter((epId) => !watchedIds.has(epId));
+      if (watchedIdArray.length > 0) {
+        const { data: existingRows, error: existingError } = await supabase
+          .from("watched_episodes")
+          .select("episode_id")
+          .eq("user_id", user.id)
+          .eq("show_tvdb_id", showTvdbId)
+          .in("episode_id", watchedIdArray);
 
-    if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabase
-        .from("watched_episodes")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("show_tvdb_id", showTvdbId)
-        .in("episode_id", idsToDelete);
+        if (existingError) {
+          throw existingError;
+        }
 
-      if (deleteError) {
-        throw deleteError;
+        const existingIds = new Set(
+          (existingRows || []).map((row) => String(row.episode_id))
+        );
+
+        const rowsToInsert = episodesToBeWatched
+          .filter((ep) => !existingIds.has(String(ep.id)))
+          .map((ep) => ({
+            user_id: user.id,
+            show_tvdb_id: showTvdbId,
+            episode_id: String(ep.id),
+          }));
+
+        if (rowsToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from("watched_episodes")
+            .insert(rowsToInsert);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
       }
+
+      setWatchedSet(watchedIds);
+    } catch (error) {
+      console.error("Failed watch up to here:", error);
+      alert(error.message || "Failed watch up to here");
     }
-
-    const { data: existingRows, error: existingError } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", user.id)
-      .eq("show_tvdb_id", showTvdbId)
-      .in("episode_id", Array.from(watchedIds));
-
-    if (existingError) {
-      throw existingError;
-    }
-
-    const existingIds = new Set(
-      (existingRows || []).map((row) => String(row.episode_id))
-    );
-
-    const rowsToInsert = episodesToBeWatched
-      .filter((ep) => !existingIds.has(String(ep.id)))
-      .map((ep) => ({
-        user_id: user.id,
-        show_tvdb_id: showTvdbId,
-        episode_id: String(ep.id),
-      }));
-
-    if (rowsToInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .from("watched_episodes")
-        .insert(rowsToInsert);
-
-      if (insertError) {
-        throw insertError;
-      }
-    }
-
-    setWatchedSet(watchedIds);
-  } catch (error) {
-    console.error("Failed watch up to here:", error);
-    alert(error.message || "Failed watch up to here");
   }
-}
 
   if (loading) {
     return (
