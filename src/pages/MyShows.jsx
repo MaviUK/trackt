@@ -60,22 +60,19 @@ export default function MyShows() {
           let status = "Ended";
 
           try {
-            const episodes = await getCachedEpisodes(show.tvdb_id)
+            const episodes = await getCachedEpisodes(show.tvdb_id);
 
-const filteredEpisodes = (episodes || []).filter(
-  ep => ep.seasonNumber > 0
-)
+            const filteredEpisodes = (episodes || []).filter(
+              (ep) => (ep.seasonNumber ?? 0) > 0
+            );
 
-const totalEpisodes = filteredEpisodes.length
-
-const watchedCount = watchedRows.filter(
-  r => r.show_tvdb_id === show.tvdb_id
-).length
+            totalEpisodes = filteredEpisodes.length;
+            status = getShowStatus(show, filteredEpisodes);
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            const upcomingEpisodes = normalEpisodes
+            const upcomingEpisodes = filteredEpisodes
               .filter((ep) => ep.airDate || ep.aired)
               .filter((ep) => {
                 const airDate = new Date(ep.airDate || ep.aired);
@@ -104,9 +101,9 @@ const watchedCount = watchedRows.filter(
           const isCompleted =
             totalEpisodes > 0 && watchedCount >= totalEpisodes;
           const progress =
-  totalEpisodes > 0
-    ? Math.round((watchedCount / totalEpisodes) * 100)
-    : 0
+            totalEpisodes > 0
+              ? Math.round((watchedCount / totalEpisodes) * 100)
+              : 0;
 
           return {
             ...show,
@@ -403,8 +400,7 @@ const watchedCount = watchedRows.filter(
                       )}
 
                       <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                        {show.watchedCount || 0} / {show.totalEpisodes || 0}{" "}
-                        watched
+                        {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
                       </p>
 
                       {show.isCompleted && (
