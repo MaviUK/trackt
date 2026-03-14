@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
@@ -38,6 +38,8 @@ function getDaysUntil(dateString) {
 
 export default function MyShowDetails() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const targetEpisodeId = searchParams.get("episode");
 
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(null);
@@ -91,7 +93,9 @@ export default function MyShowDetails() {
         console.error("Failed loading watched episodes:", watchedError);
       }
 
-      const watchedIds = new Set((watchedRows || []).map((r) => String(r.episode_id)));
+      const watchedIds = new Set(
+        (watchedRows || []).map((r) => String(r.episode_id))
+      );
 
       const seasonMap = {};
       filteredEpisodes.forEach((ep) => {
@@ -99,6 +103,16 @@ export default function MyShowDetails() {
           seasonMap[ep.seasonNumber] = false;
         }
       });
+
+      if (targetEpisodeId) {
+        const targetEpisode = filteredEpisodes.find(
+          (ep) => String(ep.id) === String(targetEpisodeId)
+        );
+
+        if (targetEpisode) {
+          seasonMap[targetEpisode.seasonNumber] = true;
+        }
+      }
 
       setShow(showData);
       setEpisodes(filteredEpisodes);
@@ -108,7 +122,31 @@ export default function MyShowDetails() {
     }
 
     loadShow();
-  }, [id]);
+  }, [id, targetEpisodeId]);
+
+  useEffect(() => {
+    if (!targetEpisodeId || loading) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`episode-${targetEpisodeId}`);
+      if (!el) return;
+
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      el.classList.add("episode-highlight");
+
+      const removeTimer = setTimeout(() => {
+        el.classList.remove("episode-highlight");
+      }, 2500);
+
+      return () => clearTimeout(removeTimer);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
@@ -138,7 +176,9 @@ export default function MyShowDetails() {
 
   const stats = useMemo(() => {
     const total = episodes.length;
-    const watched = episodes.filter((ep) => watchedSet.has(String(ep.id))).length;
+    const watched = episodes.filter((ep) =>
+      watchedSet.has(String(ep.id))
+    ).length;
     const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
 
     const nextEpisode = episodes.find(
@@ -197,7 +237,10 @@ export default function MyShowDetails() {
 
     const episodesToMark = episodes.filter((ep) => {
       if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
-      if (ep.seasonNumber === targetEpisode.seasonNumber && ep.number <= targetEpisode.number) {
+      if (
+        ep.seasonNumber === targetEpisode.seasonNumber &&
+        ep.number <= targetEpisode.number
+      ) {
         return true;
       }
       return false;
@@ -267,7 +310,9 @@ export default function MyShowDetails() {
           <div className="msd-hero-main">
             <h1 className="msd-title">{show.show_name}</h1>
 
-            {show.overview ? <p className="msd-overview">{show.overview}</p> : null}
+            {show.overview ? (
+              <p className="msd-overview">{show.overview}</p>
+            ) : null}
 
             <div className="msd-meta">
               {show.first_aired ? (
@@ -353,6 +398,7 @@ export default function MyShowDetails() {
 
                       return (
                         <article
+                          id={`episode-${ep.id}`}
                           key={ep.id}
                           className={`msd-episode-card ${
                             watched ? "msd-episode-watched" : ""
