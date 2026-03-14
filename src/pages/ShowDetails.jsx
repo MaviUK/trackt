@@ -144,41 +144,64 @@ export default function ShowDetails() {
     }));
   }
 
-  async function handleAddShow() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+async function handleAddShow() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user || !show) {
-      navigate("/login");
+  if (!user || !show) {
+    navigate("/login");
+    return;
+  }
+
+  setAdding(true);
+
+  try {
+    const tvdbId = String(show.tvdb_id);
+
+    const { data: existing, error: existingError } = await supabase
+      .from("user_shows")
+      .select("tvdb_id")
+      .eq("user_id", user.id)
+      .eq("tvdb_id", tvdbId)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (existing) {
+      setAlreadySaved(true);
+      navigate(`/my-shows/${tvdbId}`);
       return;
     }
 
-    setAdding(true);
-
     const payload = {
       user_id: user.id,
-      tvdb_id: String(show.tvdb_id),
+      tvdb_id: tvdbId,
       show_name: show.show_name,
       poster_url: show.poster_url || null,
       overview: show.overview || null,
       first_aired: show.first_aired || null,
     };
 
-    const { error } = await supabase
+    const { error: insertError } = await supabase
       .from("user_shows")
-      .upsert(payload, { onConflict: "user_id,tvdb_id" });
+      .insert(payload);
 
-    setAdding(false);
-
-    if (error) {
-      console.error("Failed to add show:", error);
-      return;
+    if (insertError) {
+      throw insertError;
     }
 
     setAlreadySaved(true);
-    navigate(`/my-shows/${show.tvdb_id}`);
+    navigate(`/my-shows/${tvdbId}`);
+  } catch (error) {
+    console.error("Failed to add show:", error);
+    alert(error.message || "Failed to add show");
+  } finally {
+    setAdding(false);
   }
+}
 
   if (loading) {
     return (
