@@ -985,3 +985,27 @@ textarea:focus {
     font-size: 1.8rem;
   }
 }
+
+.show-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.show-status:contains("Airing") {
+  background: #14532d;
+  color: #4ade80;
+}
+
+.show-status:contains("Ended") {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.show-status:contains("Upcoming") {
+  background: #312e81;
+  color: #a78bfa;
+}
