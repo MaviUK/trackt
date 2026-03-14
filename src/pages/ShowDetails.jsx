@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
@@ -36,75 +36,82 @@ function getDaysUntil(dateString) {
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
-export default function MyShowDetails() {
+export default function ShowDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [show, setShow] = useState(null);
   const [episodes, setEpisodes] = useState([]);
-  const [watchedSet, setWatchedSet] = useState(new Set());
   const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [alreadySaved, setAlreadySaved] = useState(false);
 
   useEffect(() => {
     async function loadShow() {
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+        if (user) {
+          const { data: savedShow } = await supabase
+            .from("user_shows")
+            .select("tvdb_id")
+            .eq("user_id", user.id)
+            .eq("tvdb_id", id)
+            .maybeSingle();
 
-      const { data: showData, error: showError } = await supabase
-        .from("user_shows")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("tvdb_id", id)
-        .single();
+          setAlreadySaved(!!savedShow);
+        } else {
+          setAlreadySaved(false);
+        }
 
-      if (showError) {
-        console.error("Failed loading show:", showError);
-        setLoading(false);
-        return;
-      }
+        const res = await fetch(
+          `/.netlify/functions/getShowById?id=${encodeURIComponent(id)}`
+        );
+        const data = await res.json();
 
-      const eps = await getCachedEpisodes(id);
-      const filteredEpisodes = (eps || [])
-        .filter((ep) => ep.seasonNumber > 0)
-        .sort((a, b) => {
-          if (a.seasonNumber !== b.seasonNumber) {
-            return a.seasonNumber - b.seasonNumber;
+        if (!res.ok) {
+          throw new Error(data?.message || "Failed to load show");
+        }
+
+        const normalizedShow = {
+          tvdb_id: String(data.tvdb_id || data.id || id),
+          show_name: data.show_name || data.name || "Unknown Show",
+          poster_url: data.poster_url || data.image_url || data.image || "",
+          overview: data.overview || "",
+          first_aired: data.first_aired || data.first_air_time || data.aired || null,
+        };
+
+        const eps = await getCachedEpisodes(id);
+        const filteredEpisodes = (eps || [])
+          .filter((ep) => ep.seasonNumber > 0)
+          .sort((a, b) => {
+            if (a.seasonNumber !== b.seasonNumber) {
+              return a.seasonNumber - b.seasonNumber;
+            }
+            return a.number - b.number;
+          });
+
+        const seasonMap = {};
+        filteredEpisodes.forEach((ep) => {
+          if (!(ep.seasonNumber in seasonMap)) {
+            seasonMap[ep.seasonNumber] = false;
           }
-          return a.number - b.number;
         });
 
-      const { data: watchedRows, error: watchedError } = await supabase
-        .from("watched_episodes")
-        .select("episode_id")
-        .eq("user_id", user.id)
-        .eq("show_tvdb_id", id);
-
-      if (watchedError) {
-        console.error("Failed loading watched episodes:", watchedError);
+        setShow(normalizedShow);
+        setEpisodes(filteredEpisodes);
+        setExpandedSeasons(seasonMap);
+      } catch (error) {
+        console.error("Failed loading show:", error);
+        setShow(null);
+      } finally {
+        setLoading(false);
       }
-
-      const watchedIds = new Set((watchedRows || []).map((r) => String(r.episode_id)));
-
-      const seasonMap = {};
-      filteredEpisodes.forEach((ep) => {
-        if (!(ep.seasonNumber in seasonMap)) {
-          seasonMap[ep.seasonNumber] = false;
-        }
-      });
-
-      setShow(showData);
-      setEpisodes(filteredEpisodes);
-      setWatchedSet(watchedIds);
-      setExpandedSeasons(seasonMap);
-      setLoading(false);
     }
 
     loadShow();
@@ -120,38 +127,15 @@ export default function MyShowDetails() {
 
     return Object.entries(grouped)
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([seasonNumber, seasonEpisodes]) => {
-        const watchedCount = seasonEpisodes.filter((ep) =>
-          watchedSet.has(String(ep.id))
-        ).length;
+      .map(([seasonNumber, seasonEpisodes]) => ({
+        seasonNumber: Number(seasonNumber),
+        episodes: seasonEpisodes,
+      }));
+  }, [episodes]);
 
-        return {
-          seasonNumber: Number(seasonNumber),
-          episodes: seasonEpisodes,
-          watchedCount,
-          totalCount: seasonEpisodes.length,
-          complete:
-            seasonEpisodes.length > 0 && watchedCount === seasonEpisodes.length,
-        };
-      });
-  }, [episodes, watchedSet]);
-
-  const stats = useMemo(() => {
-    const total = episodes.length;
-    const watched = episodes.filter((ep) => watchedSet.has(String(ep.id))).length;
-    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
-
-    const nextEpisode = episodes.find(
-      (ep) => !watchedSet.has(String(ep.id)) && isFuture(ep.aired)
-    );
-
-    return {
-      total,
-      watched,
-      pct,
-      nextEpisode,
-    };
-  }, [episodes, watchedSet]);
+  const nextEpisode = useMemo(() => {
+    return episodes.find((ep) => isFuture(ep.aired));
+  }, [episodes]);
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -160,77 +144,47 @@ export default function MyShowDetails() {
     }));
   }
 
-  async function handleMarkWatched(episodeId) {
+  async function handleAddShow() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
-
-    const { error } = await supabase.from("watched_episodes").upsert(
-      {
-        user_id: user.id,
-        show_tvdb_id: id,
-        episode_id: String(episodeId),
-      },
-      { onConflict: "user_id,show_tvdb_id,episode_id" }
-    );
-
-    if (error) {
-      console.error("Failed marking watched:", error);
+    if (!user || !show) {
+      navigate("/login");
       return;
     }
 
-    setWatchedSet((prev) => {
-      const next = new Set(prev);
-      next.add(String(episodeId));
-      return next;
-    });
-  }
+    setAdding(true);
 
-  async function handleWatchUpToHere(targetEpisode) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const episodesToMark = episodes.filter((ep) => {
-      if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
-      if (ep.seasonNumber === targetEpisode.seasonNumber && ep.number <= targetEpisode.number)
-        return true;
-      return false;
-    });
-
-    const rows = episodesToMark.map((ep) => ({
+    const payload = {
       user_id: user.id,
-      show_tvdb_id: id,
-      episode_id: String(ep.id),
-    }));
+      tvdb_id: String(show.tvdb_id),
+      show_name: show.show_name,
+      poster_url: show.poster_url || null,
+      overview: show.overview || null,
+      first_aired: show.first_aired || null,
+    };
 
     const { error } = await supabase
-      .from("watched_episodes")
-      .upsert(rows, { onConflict: "user_id,show_tvdb_id,episode_id" });
+      .from("user_shows")
+      .upsert(payload, { onConflict: "user_id,tvdb_id" });
+
+    setAdding(false);
 
     if (error) {
-      console.error("Failed watch up to here:", error);
+      console.error("Failed to add show:", error);
       return;
     }
 
-    setWatchedSet((prev) => {
-      const next = new Set(prev);
-      episodesToMark.forEach((ep) => next.add(String(ep.id)));
-      return next;
-    });
+    setAlreadySaved(true);
+    navigate(`/my-shows/${show.tvdb_id}`);
   }
 
   if (loading) {
     return (
       <div className="msd-page">
         <div className="msd-shell">
-          <div className="msd-header">
-            <h1>Loading show...</h1>
-          </div>
+          <div className="msd-loading">Loading show...</div>
         </div>
       </div>
     );
@@ -242,8 +196,8 @@ export default function MyShowDetails() {
         <div className="msd-shell">
           <div className="msd-empty">
             <p>Show not found.</p>
-            <Link to="/my-shows" className="msd-back-link">
-              Back to My Shows
+            <Link to="/search" className="msd-back-link">
+              Back to Search
             </Link>
           </div>
         </div>
@@ -254,8 +208,8 @@ export default function MyShowDetails() {
   return (
     <div className="msd-page">
       <div className="msd-shell">
-        <Link to="/my-shows" className="msd-back-link">
-          ← Back to My Shows
+        <Link to="/search" className="msd-back-link">
+          ← Back to Search
         </Link>
 
         <section className="msd-hero">
@@ -277,90 +231,77 @@ export default function MyShowDetails() {
                 <div>First aired: {formatDate(show.first_aired)}</div>
               ) : null}
 
-              {stats.nextEpisode ? (
+              {nextEpisode ? (
                 <div>
-                  Next episode: {formatDate(stats.nextEpisode.aired)} (
-                  {getDaysUntil(stats.nextEpisode.aired) === 0
+                  Next episode: {formatDate(nextEpisode.aired)} (
+                  {getDaysUntil(nextEpisode.aired) === 0
                     ? "TODAY"
-                    : getDaysUntil(stats.nextEpisode.aired) === 1
+                    : getDaysUntil(nextEpisode.aired) === 1
                     ? "IN 1 DAY"
-                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
+                    : `IN ${getDaysUntil(nextEpisode.aired)} DAYS`}
                   )
                 </div>
               ) : null}
             </div>
 
-            <div className="msd-stats-row">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Watched</span>
-                <strong className="msd-stat-value">{stats.watched}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Total</span>
-                <strong className="msd-stat-value">{stats.total}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Progress</span>
-                <strong className="msd-stat-value">{stats.pct}%</strong>
-              </div>
-            </div>
-
-            <div className="msd-progress">
-              <div
-                className="msd-progress-fill"
-                style={{ width: `${stats.pct}%` }}
-              />
+            <div className="msd-actions" style={{ marginTop: '16px' }}>
+              {alreadySaved ? (
+                <Link
+                  to={`/my-shows/${show.tvdb_id}`}
+                  className="msd-btn msd-btn-secondary"
+                  style={{ textDecoration: "none" }}
+                >
+                  View in My Shows
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="msd-btn msd-btn-primary"
+                  onClick={handleAddShow}
+                  disabled={adding}
+                >
+                  {adding ? "Adding..." : "Add to My Shows"}
+                </button>
+              )}
             </div>
           </div>
         </section>
 
-        <section className="msd-episodes-section">
-          <h2 className="msd-section-title">Episodes</h2>
+        {groupedSeasons.length > 0 && (
+          <section className="msd-episodes-section">
+            <h2 className="msd-section-title">Episodes</h2>
 
-          <div className="msd-seasons">
-            {groupedSeasons.map((season) => (
-              <section
-                key={season.seasonNumber}
-                className={`msd-season-card ${
-                  season.complete ? "msd-season-complete" : ""
-                }`}
-              >
-                <button
-                  type="button"
-                  className="msd-season-toggle"
-                  onClick={() => toggleSeason(season.seasonNumber)}
+            <div className="msd-seasons">
+              {groupedSeasons.map((season) => (
+                <section
+                  key={season.seasonNumber}
+                  className="msd-season-card"
                 >
-                  <div>
-                    <div className="msd-season-title">
-                      Season {season.seasonNumber}
+                  <button
+                    type="button"
+                    className="msd-season-toggle"
+                    onClick={() => toggleSeason(season.seasonNumber)}
+                  >
+                    <div>
+                      <div className="msd-season-title">
+                        Season {season.seasonNumber}
+                      </div>
+                      <div className="msd-season-subtitle">
+                        {season.episodes.length} episodes
+                      </div>
                     </div>
-                    <div className="msd-season-subtitle">
-                      {season.watchedCount}/{season.totalCount} watched
+
+                    <div className="msd-season-toggle-right">
+                      <span className="msd-season-chevron">
+                        {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                      </span>
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="msd-season-toggle-right">
-                    {season.complete ? (
-                      <span className="msd-season-badge">Completed</span>
-                    ) : null}
-                    <span className="msd-season-chevron">
-                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
-                    </span>
-                  </div>
-                </button>
-
-                {expandedSeasons[season.seasonNumber] && (
-                  <div className="msd-episode-list">
-                    {season.episodes.map((ep) => {
-                      const watched = watchedSet.has(String(ep.id));
-
-                      return (
-                        <article
-                          key={ep.id}
-                          className={`msd-episode-card ${
-                            watched ? "msd-episode-watched" : ""
-                          }`}
-                        >
+                  {expandedSeasons[season.seasonNumber] && (
+                    <div className="msd-episode-list">
+                      {season.episodes.map((ep) => (
+                        <article key={ep.id} className="msd-episode-card">
                           <div className="msd-episode-top">
                             <div>
                               <h3 className="msd-episode-title">
@@ -370,45 +311,20 @@ export default function MyShowDetails() {
                                 Air date: {formatDate(ep.aired)}
                               </div>
                             </div>
-
-                            {watched ? (
-                              <span className="msd-watched-pill">Watched</span>
-                            ) : null}
                           </div>
 
                           {ep.overview ? (
                             <p className="msd-episode-overview">{ep.overview}</p>
                           ) : null}
-
-                          <div className="msd-actions">
-                            <button
-                              type="button"
-                              className={`msd-btn ${
-                                watched ? "msd-btn-success" : "msd-btn-primary"
-                              }`}
-                              onClick={() => handleMarkWatched(ep.id)}
-                              disabled={watched}
-                            >
-                              {watched ? "Watched" : "Mark Watched"}
-                            </button>
-
-                            <button
-                              type="button"
-                              className="msd-btn msd-btn-secondary"
-                              onClick={() => handleWatchUpToHere(ep)}
-                            >
-                              Watch up to here
-                            </button>
-                          </div>
                         </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-        </section>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
