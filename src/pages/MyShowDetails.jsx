@@ -47,6 +47,20 @@ export default function MyShowDetails() {
   const [watchedSet, setWatchedSet] = useState(new Set());
   const [expandedSeasons, setExpandedSeasons] = useState({});
 
+  async function fetchWatchedSet(userId, showId) {
+    const { data: watchedRows, error: watchedError } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", userId)
+      .eq("show_tvdb_id", showId);
+
+    if (watchedError) {
+      throw watchedError;
+    }
+
+    return new Set((watchedRows || []).map((r) => String(r.episode_id)));
+  }
+
   useEffect(() => {
     async function loadShow() {
       setLoading(true);
@@ -83,19 +97,12 @@ export default function MyShowDetails() {
           return a.number - b.number;
         });
 
-      const { data: watchedRows, error: watchedError } = await supabase
-        .from("watched_episodes")
-        .select("episode_id")
-        .eq("user_id", user.id)
-        .eq("show_tvdb_id", id);
-
-      if (watchedError) {
-        console.error("Failed loading watched episodes:", watchedError);
+      let watchedIds = new Set();
+      try {
+        watchedIds = await fetchWatchedSet(user.id, id);
+      } catch (error) {
+        console.error("Failed loading watched episodes:", error);
       }
-
-      const watchedIds = new Set(
-        (watchedRows || []).map((r) => String(r.episode_id))
-      );
 
       const seasonMap = {};
       filteredEpisodes.forEach((ep) => {
@@ -235,11 +242,8 @@ export default function MyShowDetails() {
         }
       }
 
-      setWatchedSet((prev) => {
-        const next = new Set(prev);
-        next.add(episodeIdStr);
-        return next;
-      });
+      const freshWatchedSet = await fetchWatchedSet(user.id, showTvdbId);
+      setWatchedSet(freshWatchedSet);
     } catch (error) {
       console.error("Failed marking watched:", error);
       alert(error.message || "Failed marking watched");
@@ -324,7 +328,8 @@ export default function MyShowDetails() {
         }
       }
 
-      setWatchedSet(watchedIds);
+      const freshWatchedSet = await fetchWatchedSet(user.id, showTvdbId);
+      setWatchedSet(freshWatchedSet);
     } catch (error) {
       console.error("Failed watch up to here:", error);
       alert(error.message || "Failed watch up to here");
