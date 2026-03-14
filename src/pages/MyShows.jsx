@@ -60,13 +60,17 @@ export default function MyShows() {
           let status = "Ended";
 
           try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
-            const normalEpisodes = (episodes || []).filter(
-              (ep) => (ep.seasonNumber ?? 0) > 0
-            );
+            const episodes = await getCachedEpisodes(show.tvdb_id)
 
-            totalEpisodes = normalEpisodes.length;
-            status = getShowStatus(show, normalEpisodes);
+const filteredEpisodes = (episodes || []).filter(
+  ep => ep.seasonNumber > 0
+)
+
+const totalEpisodes = filteredEpisodes.length
+
+const watchedCount = watchedRows.filter(
+  r => r.show_tvdb_id === show.tvdb_id
+).length
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -100,9 +104,9 @@ export default function MyShows() {
           const isCompleted =
             totalEpisodes > 0 && watchedCount >= totalEpisodes;
           const progress =
-            totalEpisodes > 0
-              ? Math.min((watchedCount / totalEpisodes) * 100, 100)
-              : 0;
+  totalEpisodes > 0
+    ? Math.round((watchedCount / totalEpisodes) * 100)
+    : 0
 
           return {
             ...show,
