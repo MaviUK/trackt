@@ -10,6 +10,7 @@ import AiringNextPage from "./pages/airingnext";
 import ReadyToWatchPage from "./pages/readytowatch";
 import ReadyShowPage from "./pages/readyShow";
 import Dashboard from "./pages/Dashboard";
+import CalendarPage from "./pages/CalendarPage";
 
 function AppNav() {
   return (
@@ -57,6 +58,12 @@ function AppNav() {
         >
           Login
         </NavLink>
+        <NavLink
+  to="/calendar"
+  className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+>
+  Calendar
+</NavLink>
       </nav>
     </div>
   );
@@ -77,6 +84,7 @@ function App() {
         <Route path="/airing-next" element={<AiringNextPage />} />
         <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
         <Route path="/ready/:id" element={<ReadyShowPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
       </Routes>
     </BrowserRouter>
   );
