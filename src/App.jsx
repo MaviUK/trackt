@@ -58,12 +58,13 @@ function AppNav() {
         >
           Login
         </NavLink>
+
         <NavLink
-  to="/calendar"
-  className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
->
-  Calendar
-</NavLink>
+          to="/calendar"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Calendar
+        </NavLink>
       </nav>
     </div>
   );
