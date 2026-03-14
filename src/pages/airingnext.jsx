@@ -71,7 +71,7 @@ export default function AiringNextPage() {
         userShows.map(async (show) => {
           try {
             const episodes = await getCachedEpisodes(show.tvdb_id);
-            lookup[show.tvdb_id] = (episodes || []).filter(
+            lookup[String(show.tvdb_id)] = (episodes || []).filter(
               (ep) => ep.seasonNumber > 0
             );
           } catch (err) {
@@ -79,7 +79,7 @@ export default function AiringNextPage() {
               `Failed to load episodes for ${show.show_name}:`,
               err
             );
-            lookup[show.tvdb_id] = [];
+            lookup[String(show.tvdb_id)] = [];
           }
         })
       );
@@ -97,7 +97,7 @@ export default function AiringNextPage() {
     const items = [];
 
     for (const show of shows) {
-      const episodes = episodesByShow[show.tvdb_id] || [];
+      const episodes = episodesByShow[String(show.tvdb_id)] || [];
 
       const futureEpisodes = episodes
         .filter((ep) => {
@@ -119,7 +119,9 @@ export default function AiringNextPage() {
       }
     }
 
-    return items.sort((a, b) => new Date(a.episode.aired) - new Date(b.episode.aired));
+    return items.sort(
+      (a, b) => new Date(a.episode.aired) - new Date(b.episode.aired)
+    );
   }, [shows, episodesByShow]);
 
   if (loading) {
@@ -152,7 +154,7 @@ export default function AiringNextPage() {
             {upcomingEpisodes.map(({ show, episode, daysUntil }) => (
               <Link
                 key={`${show.tvdb_id}-${episode.id}`}
-                to={`/my-shows/${show.tvdb_id}`}
+                to={`/my-shows/${show.tvdb_id}?episode=${episode.id}`}
                 className="airing-card"
               >
                 <img
