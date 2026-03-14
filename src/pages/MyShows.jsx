@@ -28,7 +28,8 @@ export default function MyShows() {
       const { data: userShows, error: showsError } = await supabase
         .from("user_shows")
         .select("*")
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .order("show_name", { ascending: true });
 
       if (showsError) {
         console.error("Failed to load shows:", showsError);
@@ -75,7 +76,6 @@ export default function MyShows() {
             const watchedSet =
               watchedIdsByShow[String(show.tvdb_id)] || new Set();
 
-            // Count only watched IDs that exist in the filtered episode list
             watchedCount = filteredEpisodes.filter((ep) =>
               watchedSet.has(String(ep.id))
             ).length;
