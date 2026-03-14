@@ -230,7 +230,7 @@ export default function CalendarPage() {
                   {group.episodes.map((item) => (
                     <Link
                       key={`${item.showTvdbId}-${item.episodeId}`}
-                      to={`/my-shows/${item.showTvdbId}`}
+                      to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
                       className="calendar-item"
                     >
                       {item.posterUrl ? (
