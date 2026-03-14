@@ -9,7 +9,7 @@ export async function handler(event) {
       };
     }
 
-    const tokenRes = await fetch("https://api4.thetvdb.com/v4/login", {
+    const loginRes = await fetch("https://api4.thetvdb.com/v4/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -20,26 +20,29 @@ export async function handler(event) {
       }),
     });
 
-    const tokenData = await tokenRes.json();
+    const loginData = await loginRes.json();
 
-    if (!tokenRes.ok || !tokenData?.data?.token) {
+    if (!loginRes.ok || !loginData?.data?.token) {
       return {
         statusCode: 500,
         body: JSON.stringify({
           message: "Failed to authenticate with TVDB",
-          details: tokenData,
+          details: loginData,
         }),
       };
     }
 
-    const token = tokenData.data.token;
+    const token = loginData.data.token;
 
-    const showRes = await fetch(`https://api4.thetvdb.com/v4/series/${id}/extended`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
+    const showRes = await fetch(
+      `https://api4.thetvdb.com/v4/series/${encodeURIComponent(id)}/extended`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      }
+    );
 
     const showData = await showRes.json();
 
@@ -62,23 +65,20 @@ export async function handler(event) {
       };
     }
 
-    const artwork =
+    const image =
       series.image ||
-      series.artworks?.find((a) => a.type === 2)?.image ||
-      series.artworks?.[0]?.image ||
+      series.artworks?.find((a) => a.image)?.image ||
       "";
-
-    const payload = {
-      tvdb_id: String(series.id),
-      name: series.name || "",
-      overview: series.overview || "",
-      first_aired: series.firstAired || null,
-      image_url: artwork,
-    };
 
     return {
       statusCode: 200,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        tvdb_id: String(series.id),
+        name: series.name || "",
+        overview: series.overview || "",
+        first_aired: series.firstAired || null,
+        image_url: image,
+      }),
     };
   } catch (error) {
     return {
