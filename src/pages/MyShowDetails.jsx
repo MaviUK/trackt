@@ -200,33 +200,120 @@ export default function MyShowDetails() {
     }));
   }
 
-  async function handleMarkWatched(episodeId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+async function handleMarkWatched(episodeId) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user) return;
+  if (!user) return;
 
-    const { error } = await supabase.from("watched_episodes").upsert(
-      {
-        user_id: user.id,
-        show_tvdb_id: id,
-        episode_id: String(episodeId),
-      },
-      { onConflict: "user_id,show_tvdb_id,episode_id" }
-    );
+  try {
+    const showTvdbId = Number(id);
+    const episodeIdStr = Number(episodeId);
 
-    if (error) {
-      console.error("Failed marking watched:", error);
-      return;
+    const { data: existing, error: existingError } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", user.id)
+      .eq("show_tvdb_id", showTvdbId)
+      .eq("episode_id", episodeIdStr)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (!existing) {
+      const { error: insertError } = await supabase
+        .from("watched_episodes")
+        .insert({
+          user_id: user.id,
+          show_tvdb_id: showTvdbId,
+          episode_id: episodeIdStr,
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
     }
 
     setWatchedSet((prev) => {
       const next = new Set(prev);
-      next.add(String(episodeId));
+      next.add(episodeIdStr);
       return next;
     });
+  } catch (error) {
+    console.error("Failed marking watched:", error);
+    alert(error.message || "Failed marking watched");
   }
+}
+
+async function handleWatchUpToHere(targetEpisode) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  try {
+    const showTvdbId = String(id);
+
+    const episodesToMark = episodes.filter((ep) => {
+      if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
+      if (
+        ep.seasonNumber === targetEpisode.seasonNumber &&
+        ep.number <= targetEpisode.number
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    const episodeIdsToMark = episodesToMark.map((ep) => String(ep.id));
+
+    const { data: existingRows, error: existingError } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", user.id)
+      .eq("show_tvdb_id", showTvdbId)
+      .in("episode_id", episodeIdsToMark);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    const existingIds = new Set(
+      (existingRows || []).map((row) => String(row.episode_id))
+    );
+
+    const rowsToInsert = episodesToMark
+      .filter((ep) => !existingIds.has(String(ep.id)))
+      .map((ep) => ({
+        user_id: user.id,
+        show_tvdb_id: showTvdbId,
+        episode_id: String(ep.id),
+      }));
+
+    if (rowsToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from("watched_episodes")
+        .insert(rowsToInsert);
+
+      if (insertError) {
+        throw insertError;
+      }
+    }
+
+    setWatchedSet((prev) => {
+      const next = new Set(prev);
+      episodesToMark.forEach((ep) => next.add(String(ep.id)));
+      return next;
+    });
+  } catch (error) {
+    console.error("Failed watch up to here:", error);
+    alert(error.message || "Failed watch up to here");
+  }
+}
 
   async function handleWatchUpToHere(targetEpisode) {
     const {
