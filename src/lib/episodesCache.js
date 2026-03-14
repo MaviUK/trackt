@@ -1,4 +1,4 @@
-const CACHE_PREFIX = "episodes_cache_";
+const CACHE_PREFIX = "episodes_cache_v2_";
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 
 export async function getCachedEpisodes(tvdbId) {
@@ -35,4 +35,10 @@ export async function getCachedEpisodes(tvdbId) {
 export function clearEpisodesCache(tvdbId) {
   const cacheKey = `${CACHE_PREFIX}${tvdbId}`;
   localStorage.removeItem(cacheKey);
+}
+
+export function clearAllEpisodesCache() {
+  Object.keys(localStorage)
+    .filter((key) => key.startsWith(CACHE_PREFIX))
+    .forEach((key) => localStorage.removeItem(key));
 }
