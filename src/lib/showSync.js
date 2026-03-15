@@ -108,20 +108,15 @@ export async function replaceShowEpisodes(showTvdbId, episodes = []) {
     .map((ep) => normalizeEpisodePayload(showTvdbId, ep))
     .filter(Boolean);
 
-  const { error: deleteError } = await supabase
-    .from("show_episodes")
-    .delete()
-    .eq("show_tvdb_id", String(showTvdbId));
-
-  if (deleteError) throw deleteError;
-
   if (normalized.length === 0) return [];
 
-  const { error: insertError } = await supabase
+  const { error } = await supabase
     .from("show_episodes")
-    .insert(normalized);
+    .upsert(normalized, {
+      onConflict: "show_tvdb_id,episode_code",
+    });
 
-  if (insertError) throw insertError;
+  if (error) throw error;
 
   return normalized;
 }
