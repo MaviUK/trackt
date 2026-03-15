@@ -11,6 +11,18 @@ function getEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function getEpisodeCodeKey(ep) {
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
+}
+
+function isEpisodeWatched(ep, watchedSet) {
+  return (
+    watchedSet.has(getEpisodeCodeKey(ep)) || watchedSet.has(String(ep.id))
+  );
+}
+
 function isFuture(dateString) {
   if (!dateString) return false;
   const d = new Date(dateString);
@@ -50,7 +62,7 @@ export default function MyShowDetails() {
   async function fetchWatchedSet(userId, showId) {
     const { data: watchedRows, error: watchedError } = await supabase
       .from("watched_episodes")
-      .select("episode_id")
+      .select("episode_id, episode_code")
       .eq("user_id", userId)
       .eq("show_tvdb_id", showId);
 
@@ -58,7 +70,14 @@ export default function MyShowDetails() {
       throw watchedError;
     }
 
-    return new Set((watchedRows || []).map((r) => String(r.episode_id)));
+    return new Set(
+      (watchedRows || []).flatMap((row) => {
+        const keys = [];
+        if (row.episode_code) keys.push(String(row.episode_code));
+        if (row.episode_id) keys.push(String(row.episode_id));
+        return keys;
+      })
+    );
   }
 
   useEffect(() => {
@@ -165,7 +184,7 @@ export default function MyShowDetails() {
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       .map(([seasonNumber, seasonEpisodes]) => {
         const watchedCount = seasonEpisodes.filter((ep) =>
-          watchedSet.has(String(ep.id))
+          isEpisodeWatched(ep, watchedSet)
         ).length;
 
         return {
@@ -182,12 +201,12 @@ export default function MyShowDetails() {
   const stats = useMemo(() => {
     const total = episodes.length;
     const watched = episodes.filter((ep) =>
-      watchedSet.has(String(ep.id))
+      isEpisodeWatched(ep, watchedSet)
     ).length;
     const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
 
     const nextEpisode = episodes.find(
-      (ep) => !watchedSet.has(String(ep.id)) && isFuture(ep.aired)
+      (ep) => !isEpisodeWatched(ep, watchedSet) && isFuture(ep.aired)
     );
 
     return {
@@ -205,7 +224,7 @@ export default function MyShowDetails() {
     }));
   }
 
-  async function handleMarkWatched(episodeId) {
+  async function handleMarkWatched(ep) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -214,14 +233,15 @@ export default function MyShowDetails() {
 
     try {
       const showTvdbId = String(id);
-      const episodeIdStr = String(episodeId);
+      const episodeIdStr = String(ep.id);
+      const episodeCode = getEpisodeCodeKey(ep);
 
       const { data: existing, error: existingError } = await supabase
         .from("watched_episodes")
-        .select("episode_id")
+        .select("episode_id, episode_code")
         .eq("user_id", user.id)
         .eq("show_tvdb_id", showTvdbId)
-        .eq("episode_id", episodeIdStr)
+        .or(`episode_id.eq.${episodeIdStr},episode_code.eq.${episodeCode}`)
         .maybeSingle();
 
       if (existingError) {
@@ -235,6 +255,7 @@ export default function MyShowDetails() {
             user_id: user.id,
             show_tvdb_id: showTvdbId,
             episode_id: episodeIdStr,
+            episode_code: episodeCode,
           });
 
         if (insertError) {
@@ -271,50 +292,53 @@ export default function MyShowDetails() {
         return false;
       });
 
-      const watchedIds = new Set(
-        episodesToBeWatched.map((ep) => String(ep.id))
+      const watchedCodes = new Set(
+        episodesToBeWatched.map((ep) => getEpisodeCodeKey(ep))
       );
 
-      const allEpisodeIds = episodes.map((ep) => String(ep.id));
-      const idsToDelete = allEpisodeIds.filter((epId) => !watchedIds.has(epId));
+      const allEpisodeCodes = episodes.map((ep) => getEpisodeCodeKey(ep));
+      const codesToDelete = allEpisodeCodes.filter(
+        (code) => !watchedCodes.has(code)
+      );
 
-      if (idsToDelete.length > 0) {
+      if (codesToDelete.length > 0) {
         const { error: deleteError } = await supabase
           .from("watched_episodes")
           .delete()
           .eq("user_id", user.id)
           .eq("show_tvdb_id", showTvdbId)
-          .in("episode_id", idsToDelete);
+          .in("episode_code", codesToDelete);
 
         if (deleteError) {
           throw deleteError;
         }
       }
 
-      const watchedIdArray = Array.from(watchedIds);
+      const watchedCodeArray = Array.from(watchedCodes);
 
-      if (watchedIdArray.length > 0) {
+      if (watchedCodeArray.length > 0) {
         const { data: existingRows, error: existingError } = await supabase
           .from("watched_episodes")
-          .select("episode_id")
+          .select("episode_code")
           .eq("user_id", user.id)
           .eq("show_tvdb_id", showTvdbId)
-          .in("episode_id", watchedIdArray);
+          .in("episode_code", watchedCodeArray);
 
         if (existingError) {
           throw existingError;
         }
 
-        const existingIds = new Set(
-          (existingRows || []).map((row) => String(row.episode_id))
+        const existingCodes = new Set(
+          (existingRows || []).map((row) => String(row.episode_code))
         );
 
         const rowsToInsert = episodesToBeWatched
-          .filter((ep) => !existingIds.has(String(ep.id)))
+          .filter((ep) => !existingCodes.has(getEpisodeCodeKey(ep)))
           .map((ep) => ({
             user_id: user.id,
             show_tvdb_id: showTvdbId,
             episode_id: String(ep.id),
+            episode_code: getEpisodeCodeKey(ep),
           }));
 
         if (rowsToInsert.length > 0) {
@@ -462,7 +486,7 @@ export default function MyShowDetails() {
                 {expandedSeasons[season.seasonNumber] && (
                   <div className="msd-episode-list">
                     {season.episodes.map((ep) => {
-                      const watched = watchedSet.has(String(ep.id));
+                      const watched = isEpisodeWatched(ep, watchedSet);
 
                       return (
                         <article
@@ -497,7 +521,7 @@ export default function MyShowDetails() {
                               className={`msd-btn ${
                                 watched ? "msd-btn-success" : "msd-btn-primary"
                               }`}
-                              onClick={() => handleMarkWatched(ep.id)}
+                              onClick={() => handleMarkWatched(ep)}
                               disabled={watched}
                             >
                               {watched ? "Watched" : "Mark Watched"}
