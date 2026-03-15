@@ -5,6 +5,18 @@ import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { getShowStatus } from "../lib/showStatus";
 
+function getEpisodeCodeKey(ep) {
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
+}
+
+function isEpisodeWatched(ep, watchedSet) {
+  return (
+    watchedSet.has(getEpisodeCodeKey(ep)) || watchedSet.has(String(ep.id))
+  );
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +52,7 @@ export default function MyShows() {
 
       const { data: watchedRows, error: watchedError } = await supabase
         .from("watched_episodes")
-        .select("show_tvdb_id, episode_id")
+        .select("show_tvdb_id, episode_id, episode_code")
         .eq("user_id", user.id);
 
       if (watchedError) {
@@ -53,7 +65,14 @@ export default function MyShows() {
         if (!watchedIdsByShow[showId]) {
           watchedIdsByShow[showId] = new Set();
         }
-        watchedIdsByShow[showId].add(String(row.episode_id));
+
+        if (row.episode_code) {
+          watchedIdsByShow[showId].add(String(row.episode_code));
+        }
+
+        if (row.episode_id) {
+          watchedIdsByShow[showId].add(String(row.episode_id));
+        }
       });
 
       const updatedShows = await Promise.all(
@@ -77,7 +96,7 @@ export default function MyShows() {
               watchedIdsByShow[String(show.tvdb_id)] || new Set();
 
             watchedCount = filteredEpisodes.filter((ep) =>
-              watchedSet.has(String(ep.id))
+              isEpisodeWatched(ep, watchedSet)
             ).length;
 
             const today = new Date();
