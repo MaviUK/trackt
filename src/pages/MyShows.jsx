@@ -5,9 +5,11 @@ import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { getShowStatus } from "../lib/showStatus";
 import { buildWatchedSets, isEpisodeWatched } from "../lib/episodeHelpers";
+import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
+  const [backfilling, setBackfilling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
@@ -175,6 +177,20 @@ export default function MyShows() {
     loadShows();
   }, []);
 
+async function handleBackfillStoredShows() {
+  try {
+    setBackfilling(true);
+    const results = await backfillStoredShowsForCurrentUser();
+    console.log("BACKFILL RESULTS", results);
+    alert("Backfill complete. Check console for results.");
+  } catch (error) {
+    console.error("Backfill failed:", error);
+    alert(error.message || "Backfill failed");
+  } finally {
+    setBackfilling(false);
+  }
+}
+  
   const removeShow = async (tvdb_id) => {
     const {
       data: { user },
