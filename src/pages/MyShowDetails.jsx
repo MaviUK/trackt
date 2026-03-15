@@ -8,6 +8,7 @@ import {
   makeEpisodeCode,
   buildWatchedSets,
   isEpisodeWatched,
+  normalizeEpisodes,
 } from "../lib/episodeHelpers";
 
 function isFuture(dateString) {
@@ -89,14 +90,7 @@ export default function MyShowDetails() {
       }
 
       const eps = await getCachedEpisodes(id);
-      const filteredEpisodes = (eps || [])
-        .filter((ep) => ep.seasonNumber > 0)
-        .sort((a, b) => {
-          if (a.seasonNumber !== b.seasonNumber) {
-            return a.seasonNumber - b.seasonNumber;
-          }
-          return a.number - b.number;
-        });
+const filteredEpisodes = normalizeEpisodes(eps || []);
 
       let watchedRowsData = [];
       try {
