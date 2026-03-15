@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
 import { buildWatchedSets } from "../lib/episodeHelpers";
 import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
-import { getStoredEpisodesForShows } from "../lib/showStore";
 
 function isStoredEpisodeWatched(ep, watchedSets) {
   if (!ep || !watchedSets) return false;
@@ -83,11 +82,29 @@ export default function MyShows() {
         watchedRowsByShow[showId].push(row);
       }
 
-      const showIds = (userShows || []).map((show) => String(show.tvdb_id));
+            const showIds = (userShows || []).map((show) => String(show.tvdb_id));
+
       let allStoredEpisodes = [];
 
       try {
-        allStoredEpisodes = await getStoredEpisodesForShows(showIds);
+        const { data: storedEpisodes, error: storedEpisodesError } = await supabase
+          .from("show_episodes")
+          .select(
+            "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+          )
+          .in("show_tvdb_id", showIds)
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true });
+
+        if (storedEpisodesError) {
+          throw storedEpisodesError;
+        }
+
+        allStoredEpisodes = storedEpisodes || [];
+
+        console.log("MYSHOWS stored showIds:", showIds);
+        console.log("MYSHOWS stored episodes count:", allStoredEpisodes.length);
+        console.log("MYSHOWS sample stored episodes:", allStoredEpisodes.slice(0, 5));
       } catch (error) {
         console.error("Failed to load stored episodes:", error);
       }
