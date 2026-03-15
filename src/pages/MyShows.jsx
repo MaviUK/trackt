@@ -82,32 +82,29 @@ export default function MyShows() {
         watchedRowsByShow[showId].push(row);
       }
 
-            const showIds = (userShows || []).map((show) => String(show.tvdb_id));
+           const showIds = (userShows || []).map((show) => String(show.tvdb_id));
 
-      let allStoredEpisodes = [];
+let allStoredEpisodes = [];
 
-      try {
-        const { data: storedEpisodes, error: storedEpisodesError } = await supabase
-          .from("show_episodes")
-          .select(
-            "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
-          )
-          .in("show_tvdb_id", showIds)
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true });
+try {
+  if (showIds.length > 0) {
+    const { data, error } = await supabase
+      .from("show_episodes")
+      .select(
+        "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+      )
+      .in("show_tvdb_id", showIds);
 
-        if (storedEpisodesError) {
-          throw storedEpisodesError;
-        }
+    if (error) throw error;
 
-        allStoredEpisodes = storedEpisodes || [];
+    allStoredEpisodes = data || [];
 
-        console.log("MYSHOWS stored showIds:", showIds);
-        console.log("MYSHOWS stored episodes count:", allStoredEpisodes.length);
-        console.log("MYSHOWS sample stored episodes:", allStoredEpisodes.slice(0, 5));
-      } catch (error) {
-        console.error("Failed to load stored episodes:", error);
-      }
+    console.log("SHOW IDS", showIds);
+    console.log("EPISODES RETURNED", allStoredEpisodes.length);
+  }
+} catch (error) {
+  console.error("Failed loading stored episodes", error);
+}
 
       const episodesByShow = {};
       for (const ep of allStoredEpisodes || []) {
