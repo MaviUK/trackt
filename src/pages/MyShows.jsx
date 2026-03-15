@@ -83,6 +83,23 @@ export default function MyShows() {
               watchedRowsByShow[String(show.tvdb_id)] || []
             );
 
+if (String(show.show_name) === "Breaking Bad") {
+  console.log("MYSHOWS DEBUG");
+  console.log("show.tvdb_id =", show.tvdb_id);
+  console.log("rows for show =", watchedRowsByShow[String(show.tvdb_id)] || []);
+  console.log("watchedCodes size =", watchedSets.watchedCodes.size);
+  console.log("watchedIds size =", watchedSets.watchedIds.size);
+  console.log(
+    "sample episode codes =",
+    (filteredEpisodes || []).slice(0, 5).map((ep) => ({
+      id: ep.id,
+      seasonNumber: ep.seasonNumber,
+      number: ep.number,
+      code: `${String(ep.seasonNumber).padStart(2, "0")}x${String(ep.number).padStart(2, "0")}`,
+    }))
+  );
+}
+            
             watchedCount = filteredEpisodes.filter((ep) =>
               isEpisodeWatched(ep, watchedSets)
             ).length;
