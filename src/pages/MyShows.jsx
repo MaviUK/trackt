@@ -4,18 +4,10 @@ import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { getShowStatus } from "../lib/showStatus";
-
-function getEpisodeCodeKey(ep) {
-  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
-    ep.number
-  ).padStart(2, "0")}`;
-}
-
-function isEpisodeWatched(ep, watchedSet) {
-  return (
-    watchedSet.has(getEpisodeCodeKey(ep)) || watchedSet.has(String(ep.id))
-  );
-}
+import {
+  buildWatchedSets,
+  isEpisodeWatched,
+} from "../lib/episodeHelpers";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
@@ -40,11 +32,10 @@ export default function MyShows() {
       const { data: userShows, error: showsError } = await supabase
         .from("user_shows")
         .select("*")
-        .eq("user_id", user.id)
-        .order("show_name", { ascending: true });
+        .eq("user_id", user.id);
 
       if (showsError) {
-        console.error("Failed to load shows:", showsError);
+        console.error("Failed loading shows:", showsError);
         setShows([]);
         setLoading(false);
         return;
@@ -56,104 +47,66 @@ export default function MyShows() {
         .eq("user_id", user.id);
 
       if (watchedError) {
-        console.error("Failed to load watched episodes:", watchedError);
+        console.error("Failed loading watched rows:", watchedError);
       }
 
-      const watchedIdsByShow = {};
-      (watchedRows || []).forEach((row) => {
-        const showId = String(row.show_tvdb_id);
-        if (!watchedIdsByShow[showId]) {
-          watchedIdsByShow[showId] = new Set();
-        }
+      const watchedByShow = {};
+      for (const row of watchedRows || []) {
+        const key = String(row.show_tvdb_id);
+        if (!watchedByShow[key]) watchedByShow[key] = [];
+        watchedByShow[key].push(row);
+      }
 
-        if (row.episode_code) {
-          watchedIdsByShow[showId].add(String(row.episode_code));
-        }
-
-        if (row.episode_id) {
-          watchedIdsByShow[showId].add(String(row.episode_id));
-        }
-      });
-
-      const updatedShows = await Promise.all(
+      const enrichedShows = await Promise.all(
         (userShows || []).map(async (show) => {
-          let totalEpisodes = 0;
-          let watchedCount = 0;
-          let nextEpisodeDate = null;
-          let status = "Ended";
+          const showId = String(show.tvdb_id);
+          const episodes = (await getCachedEpisodes(showId)) || [];
 
-          try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
+          const filteredEpisodes = episodes
+            .filter((ep) => ep.seasonNumber > 0)
+            .sort((a, b) => {
+              if (a.seasonNumber !== b.seasonNumber) {
+                return a.seasonNumber - b.seasonNumber;
+              }
+              return a.number - b.number;
+            });
 
-            const filteredEpisodes = (episodes || []).filter(
-              (ep) => (ep.seasonNumber ?? 0) > 0
-            );
+          const watchedSets = buildWatchedSets(watchedByShow[showId] || []);
 
-            totalEpisodes = filteredEpisodes.length;
-            status = getShowStatus(show, filteredEpisodes);
+          const watchedCount = filteredEpisodes.filter((ep) =>
+            isEpisodeWatched(ep, watchedSets)
+          ).length;
 
-            const watchedSet =
-              watchedIdsByShow[String(show.tvdb_id)] || new Set();
+          const totalEpisodes = filteredEpisodes.length;
 
-            watchedCount = filteredEpisodes.filter((ep) =>
-              isEpisodeWatched(ep, watchedSet)
-            ).length;
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const upcomingEpisodes = filteredEpisodes
-              .filter((ep) => ep.airDate || ep.aired)
-              .filter((ep) => {
-                const airDate = new Date(ep.airDate || ep.aired);
-                airDate.setHours(0, 0, 0, 0);
-                return airDate >= today;
-              })
-              .sort(
-                (a, b) =>
-                  new Date(a.airDate || a.aired) -
-                  new Date(b.airDate || b.aired)
-              );
-
-            if (upcomingEpisodes.length > 0) {
-              nextEpisodeDate =
-                upcomingEpisodes[0].airDate || upcomingEpisodes[0].aired;
-            }
-          } catch (episodeError) {
-            console.error(
-              "Failed to load show episode info for",
-              show.show_name,
-              episodeError
-            );
-          }
-
-          const isCompleted =
-            totalEpisodes > 0 && watchedCount >= totalEpisodes;
-          const progress =
-            totalEpisodes > 0
-              ? Math.round((watchedCount / totalEpisodes) * 100)
-              : 0;
+          const nextEpisode = filteredEpisodes.find(
+            (ep) => !isEpisodeWatched(ep, watchedSets)
+          );
 
           return {
             ...show,
             watchedCount,
             totalEpisodes,
-            nextEpisodeDate,
-            status,
-            isCompleted,
-            progress,
+            nextEpisode,
+            status: getShowStatus(show),
           };
         })
       );
 
-      setShows(updatedShows);
+      setShows(enrichedShows);
       setLoading(false);
     }
 
     loadShows();
   }, []);
 
-  const removeShow = async (tvdb_id) => {
+  async function handleRemoveShow(tvdbId) {
+    const confirmed = window.confirm(
+      "Remove this show from My Shows?"
+    );
+
+    if (!confirmed) return;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -164,330 +117,184 @@ export default function MyShows() {
       .from("user_shows")
       .delete()
       .eq("user_id", user.id)
-      .eq("tvdb_id", String(tvdb_id));
+      .eq("tvdb_id", tvdbId);
 
     if (error) {
-      console.error("Failed to remove show:", error);
+      console.error("Failed removing show:", error);
+      alert("Failed to remove show.");
       return;
     }
 
-    setShows((prev) =>
-      prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id))
-    );
-  };
+    setShows((prev) => prev.filter((show) => String(show.tvdb_id) !== String(tvdbId)));
+  }
 
-  const filteredShows = useMemo(() => {
-    return shows.filter((show) => {
-      if (filterBy === "all") return true;
-      if (filterBy === "completed") return show.isCompleted;
-      if (filterBy === "inprogress") return !show.isCompleted;
-      if (filterBy === "airing") return show.status === "Airing";
-      if (filterBy === "ended") return show.status === "Ended";
-      if (filterBy === "upcoming") return show.status === "Upcoming";
-      return true;
-    });
-  }, [shows, filterBy]);
+  const filteredAndSortedShows = useMemo(() => {
+    let result = [...shows];
 
-  const sortedShows = useMemo(() => {
-    const result = [...filteredShows].sort((a, b) => {
-      if (sortBy === "airingnext") {
-        const aHasDate = !!a.nextEpisodeDate;
-        const bHasDate = !!b.nextEpisodeDate;
+    if (filterBy === "completed") {
+      result = result.filter(
+        (show) => show.totalEpisodes > 0 && show.watchedCount === show.totalEpisodes
+      );
+    } else if (filterBy === "watching") {
+      result = result.filter(
+        (show) => show.watchedCount > 0 && show.watchedCount < show.totalEpisodes
+      );
+    } else if (filterBy === "notstarted") {
+      result = result.filter((show) => show.watchedCount === 0);
+    }
 
-        if (aHasDate && bHasDate) {
-          return new Date(a.nextEpisodeDate) - new Date(b.nextEpisodeDate);
-        }
-
-        if (aHasDate) return -1;
-        if (bHasDate) return 1;
-
-        return (a.show_name || "").localeCompare(b.show_name || "");
-      }
-
+    result.sort((a, b) => {
       if (sortBy === "alphabetical") {
         return (a.show_name || "").localeCompare(b.show_name || "");
       }
 
-      if (sortBy === "recent") {
-        return new Date(b.added_at || 0) - new Date(a.added_at || 0);
+      if (sortBy === "progress") {
+        const aPct =
+          a.totalEpisodes > 0 ? a.watchedCount / a.totalEpisodes : 0;
+        const bPct =
+          b.totalEpisodes > 0 ? b.watchedCount / b.totalEpisodes : 0;
+        return bPct - aPct;
       }
 
-      if (sortBy === "firstaired") {
-        return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
+      if (sortBy === "airingnext") {
+        const aDate = a.nextEpisode?.aired ? new Date(a.nextEpisode.aired).getTime() : Infinity;
+        const bDate = b.nextEpisode?.aired ? new Date(b.nextEpisode.aired).getTime() : Infinity;
+        return aDate - bDate;
       }
 
       return 0;
     });
 
     return result;
-  }, [filteredShows, sortBy]);
-
-  const counts = useMemo(() => {
-    return {
-      all: shows.length,
-      inprogress: shows.filter((show) => !show.isCompleted).length,
-      completed: shows.filter((show) => show.isCompleted).length,
-      airing: shows.filter((show) => show.status === "Airing").length,
-      ended: shows.filter((show) => show.status === "Ended").length,
-      upcoming: shows.filter((show) => show.status === "Upcoming").length,
-    };
-  }, [shows]);
-
-  const tabButtonStyle = (isActive) => ({
-    padding: "10px 16px",
-    borderRadius: "999px",
-    border: isActive ? "1px solid #8b5cf6" : "1px solid #26324a",
-    background: isActive ? "#8b5cf6" : "#121a2b",
-    color: "#fff",
-    fontWeight: "700",
-    cursor: "pointer",
-  });
-
-  const getStatusStyle = (status) => {
-    if (status === "Airing") {
-      return {
-        display: "inline-block",
-        marginTop: "8px",
-        padding: "4px 10px",
-        borderRadius: "999px",
-        fontSize: "12px",
-        fontWeight: "700",
-        background: "rgba(34, 197, 94, 0.16)",
-        border: "1px solid rgba(34, 197, 94, 0.35)",
-        color: "#86efac",
-      };
-    }
-
-    if (status === "Upcoming") {
-      return {
-        display: "inline-block",
-        marginTop: "8px",
-        padding: "4px 10px",
-        borderRadius: "999px",
-        fontSize: "12px",
-        fontWeight: "700",
-        background: "rgba(139, 92, 246, 0.16)",
-        border: "1px solid rgba(139, 92, 246, 0.35)",
-        color: "#c4b5fd",
-      };
-    }
-
-    return {
-      display: "inline-block",
-      marginTop: "8px",
-      padding: "4px 10px",
-      borderRadius: "999px",
-      fontSize: "12px",
-      fontWeight: "700",
-      background: "rgba(148, 163, 184, 0.14)",
-      border: "1px solid rgba(148, 163, 184, 0.3)",
-      color: "#cbd5e1",
-    };
-  };
+  }, [shows, sortBy, filterBy]);
 
   if (loading) {
-    return <div className="page">Loading...</div>;
+    return (
+      <div className="page-shell">
+        <div className="card">
+          <p>Loading your shows...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="page">
-      <div className="page-shell">
-        <div className="page-header">
-          <h1>My Shows</h1>
-          <p>Your saved shows and watch progress.</p>
+    <div className="page-shell">
+      <div className="page-header">
+        <h1>My Shows</h1>
+      </div>
+
+      <div className="toolbar">
+        <div className="tabs">
+          <button
+            className={filterBy === "all" ? "active" : ""}
+            onClick={() => setFilterBy("all")}
+          >
+            All
+          </button>
+          <button
+            className={filterBy === "watching" ? "active" : ""}
+            onClick={() => setFilterBy("watching")}
+          >
+            Watching
+          </button>
+          <button
+            className={filterBy === "completed" ? "active" : ""}
+            onClick={() => setFilterBy("completed")}
+          >
+            Completed
+          </button>
+          <button
+            className={filterBy === "notstarted" ? "active" : ""}
+            onClick={() => setFilterBy("notstarted")}
+          >
+            Not Started
+          </button>
         </div>
 
-        {shows.length === 0 && <p>No saved shows yet.</p>}
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="airingnext">Airing Next</option>
+          <option value="alphabetical">Alphabetical</option>
+          <option value="progress">Progress</option>
+        </select>
+      </div>
 
-        {shows.length > 0 && (
-          <>
-            <div
-              style={{
-                marginBottom: "16px",
-                display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setFilterBy("all")}
-                style={tabButtonStyle(filterBy === "all")}
-              >
-                All ({counts.all})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterBy("inprogress")}
-                style={tabButtonStyle(filterBy === "inprogress")}
-              >
-                In Progress ({counts.inprogress})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterBy("completed")}
-                style={tabButtonStyle(filterBy === "completed")}
-              >
-                Completed ({counts.completed})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterBy("airing")}
-                style={tabButtonStyle(filterBy === "airing")}
-              >
-                Airing ({counts.airing})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterBy("ended")}
-                style={tabButtonStyle(filterBy === "ended")}
-              >
-                Ended ({counts.ended})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterBy("upcoming")}
-                style={tabButtonStyle(filterBy === "upcoming")}
-              >
-                Upcoming ({counts.upcoming})
-              </button>
-            </div>
-
-            <div
-              style={{
-                marginBottom: "20px",
-                display: "flex",
-                gap: "16px",
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <label style={{ marginRight: "10px" }}>Sort by:</label>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                >
-                  <option value="airingnext">Airing Next</option>
-                  <option value="alphabetical">Alphabetical</option>
-                  <option value="recent">Recently Added</option>
-                  <option value="firstaired">First Aired</option>
-                </select>
-              </div>
-            </div>
-          </>
-        )}
-
-        {sortedShows.length === 0 ? (
-          <p>No shows match this filter.</p>
+      <div className="shows-list">
+        {filteredAndSortedShows.length === 0 ? (
+          <div className="card">
+            <p>No shows found.</p>
+          </div>
         ) : (
-          <div className="show-list">
-            {sortedShows.map((show) => (
-              <div className="show-card" key={show.tvdb_id}>
-                <Link
-                  to={`/my-shows/${show.tvdb_id}`}
-                  style={{ textDecoration: "none", color: "inherit" }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "16px",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    {show.poster_url && (
-                      <img
-                        src={show.poster_url}
-                        alt={show.show_name}
-                        width="80"
-                        style={{
-                          borderRadius: "8px",
-                          objectFit: "cover",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
+          filteredAndSortedShows.map((show) => {
+            const completed =
+              show.totalEpisodes > 0 && show.watchedCount === show.totalEpisodes;
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ fontSize: "1.1rem" }}>
-                        {show.show_name}
-                      </strong>
+            const progressPct =
+              show.totalEpisodes > 0
+                ? Math.round((show.watchedCount / show.totalEpisodes) * 100)
+                : 0;
 
-                      <div style={getStatusStyle(show.status)}>
-                        {show.status}
-                      </div>
-
-                      {show.first_aired && (
-                        <p style={{ margin: "8px 0 0 0" }}>
-                          First aired: {formatDate(show.first_aired)}
-                        </p>
-                      )}
-
-                      <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                        {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
-                      </p>
-
-                      {show.isCompleted && (
-                        <p
-                          style={{
-                            margin: "8px 0 0 0",
-                            color: "#22c55e",
-                            fontWeight: "700",
-                          }}
-                        >
-                          Completed
-                        </p>
-                      )}
-
-                      <div
-                        style={{
-                          marginTop: "8px",
-                          width: "100%",
-                          height: "10px",
-                          background: "#1f2937",
-                          borderRadius: "999px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${show.progress || 0}%`,
-                            height: "100%",
-                            background: show.isCompleted
-                              ? "#16a34a"
-                              : "#8b5cf6",
-                            borderRadius: "999px",
-                          }}
-                        />
-                      </div>
-
-                      {show.nextEpisodeDate && (
-                        <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
-                          Next episode: {formatDate(show.nextEpisodeDate)}
-                        </p>
-                      )}
-
-                      {show.overview && (
-                        <p style={{ margin: "8px 0 0 0" }}>
-                          {show.overview.length > 160
-                            ? `${show.overview.slice(0, 160)}...`
-                            : show.overview}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-
+            return (
+              <div key={show.tvdb_id} className="show-card">
                 <button
-                  className="msd-btn msd-btn-secondary"
-                  style={{ marginTop: "12px" }}
-                  onClick={() => removeShow(show.tvdb_id)}
+                  className="remove-btn"
+                  onClick={() => handleRemoveShow(show.tvdb_id)}
                 >
                   Remove
                 </button>
+
+                <Link to={`/my-shows/${show.tvdb_id}`} className="show-link">
+                  <div className="show-card-inner">
+                    <img
+                      src={show.poster_url}
+                      alt={show.show_name}
+                      className="show-poster"
+                    />
+
+                    <div className="show-main">
+                      <div className="show-title-row">
+                        <h2>{show.show_name}</h2>
+                        {show.status ? (
+                          <span className={`status-pill ${show.status.toLowerCase()}`}>
+                            {show.status}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {show.first_aired ? (
+                        <div className="show-meta">
+                          First aired: {formatDate(show.first_aired)}
+                        </div>
+                      ) : null}
+
+                      <div className="show-progress-text">
+                        {show.watchedCount} / {show.totalEpisodes} watched
+                      </div>
+
+                      {completed ? (
+                        <div className="completed-label">Completed</div>
+                      ) : show.nextEpisode?.aired ? (
+                        <div className="next-episode-label">
+                          Next episode: {formatDate(show.nextEpisode.aired)}
+                        </div>
+                      ) : null}
+
+                      <div className="progress-bar">
+                        <div
+                          className={`progress-fill ${completed ? "completed" : ""}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+
+                      {show.overview ? (
+                        <p className="show-overview">{show.overview}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
       </div>
     </div>
