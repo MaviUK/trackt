@@ -108,17 +108,48 @@ export async function replaceShowEpisodes(showTvdbId, episodes = []) {
     .map((ep) => normalizeEpisodePayload(showTvdbId, ep))
     .filter(Boolean);
 
-  if (normalized.length === 0) return [];
+  const dedupedMap = new Map();
+
+  for (const ep of normalized) {
+    const key = `${ep.show_tvdb_id}__${ep.episode_code}`;
+
+    if (!dedupedMap.has(key)) {
+      dedupedMap.set(key, ep);
+      continue;
+    }
+
+    const existing = dedupedMap.get(key);
+
+    const existingScore =
+      (existing.name ? 1 : 0) +
+      (existing.overview ? 1 : 0) +
+      (existing.air_date ? 1 : 0) +
+      (existing.image_url ? 1 : 0);
+
+    const nextScore =
+      (ep.name ? 1 : 0) +
+      (ep.overview ? 1 : 0) +
+      (ep.air_date ? 1 : 0) +
+      (ep.image_url ? 1 : 0);
+
+    if (nextScore >= existingScore) {
+      dedupedMap.set(key, ep);
+    }
+  }
+
+  const deduped = Array.from(dedupedMap.values());
+
+  if (deduped.length === 0) return [];
 
   const { error } = await supabase
     .from("show_episodes")
-    .upsert(normalized, {
+    .upsert(deduped, {
       onConflict: "show_tvdb_id,episode_code",
     });
 
   if (error) throw error;
 
-  return normalized;
+  return deduped;
 }
 
 export async function replaceShowCast(showTvdbId, cast = []) {
