@@ -330,10 +330,20 @@ async function handleBackfillStoredShows() {
   return (
     <div className="page">
       <div className="page-shell">
-        <div className="page-header">
-          <h1>My Shows</h1>
-          <p>Your saved shows and watch progress.</p>
-        </div>
+       <div className="page-header">
+  <h1>My Shows</h1>
+  <p>Your saved shows and watch progress.</p>
+
+  <button
+    type="button"
+    className="msd-btn msd-btn-secondary"
+    onClick={handleBackfillStoredShows}
+    disabled={backfilling}
+    style={{ marginTop: "12px" }}
+  >
+    {backfilling ? "Backfilling..." : "Backfill Stored Shows"}
+  </button>
+</div>
 
         {shows.length === 0 && <p>No saved shows yet.</p>}
 
