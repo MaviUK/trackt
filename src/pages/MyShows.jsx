@@ -91,9 +91,9 @@ try {
    const { data, error } = await supabase
   .from("show_episodes")
   .select(
-    "tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+    "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
   )
-  .in("tvdb_id", showIds);
+  .in("show_tvdb_id", showIds);
 
     if (error) throw error;
 
@@ -108,7 +108,7 @@ try {
 
       const episodesByShow = {};
       for (const ep of allStoredEpisodes || []) {
-        const showId = String(ep.tvdb_id);
+const showId = String(ep.show_tvdb_id);
         if (!episodesByShow[showId]) {
           episodesByShow[showId] = [];
         }
