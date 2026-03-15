@@ -94,13 +94,21 @@ function normalizeCastPayload(showTvdbId, castMember, index) {
 export async function upsertShowRecord(show) {
   const payload = normalizeShowPayload(show);
 
-  const { error } = await supabase.from("shows").upsert(payload, {
-    onConflict: "tvdb_id",
-  });
+  if (!payload.tvdb_id) {
+    throw new Error("Missing tvdb_id for show");
+  }
+
+  const { data, error } = await supabase
+    .from("shows")
+    .upsert(payload, {
+      onConflict: "tvdb_id",
+    })
+    .select()
+    .single();
 
   if (error) throw error;
 
-  return payload;
+  return data;
 }
 
 export async function replaceShowEpisodes(showTvdbId, episodes = []) {
