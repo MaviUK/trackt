@@ -1,0 +1,150 @@
+import { supabase } from "./supabase";
+import { makeEpisodeCode } from "./episodeHelpers";
+
+function pick(obj, keys, fallback = null) {
+  for (const key of keys) {
+    if (obj?.[key] != null) return obj[key];
+  }
+  return fallback;
+}
+
+function normalizeShowPayload(show) {
+  return {
+    tvdb_id: String(
+      pick(show, ["id", "tvdb_id", "tvdbId"], "")
+    ),
+    show_name: pick(show, ["name", "show_name"], ""),
+    slug: pick(show, ["slug"], null),
+    overview: pick(show, ["overview"], null),
+    status: pick(show, ["status"], null),
+    poster_url: pick(show, ["image", "poster_url", "poster"], null),
+    backdrop_url: pick(show, ["backdrop_url", "backdrop"], null),
+    banner_url: pick(show, ["banner_url", "banner"], null),
+    first_aired: pick(show, ["firstAired", "first_aired"], null),
+    last_aired: pick(show, ["lastAired", "last_aired"], null),
+    network: pick(show, ["network", "originalNetwork"], null),
+    original_country: pick(show, ["originalCountry", "original_country"], null),
+    original_language: pick(show, ["originalLanguage", "original_language"], null),
+    runtime_minutes: pick(show, ["averageRuntime", "runtime_minutes", "runtime"], null),
+    content_rating: pick(show, ["contentRating", "content_rating"], null),
+    genres: pick(show, ["genres"], []),
+    aliases: pick(show, ["aliases"], []),
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function normalizeEpisodePayload(showTvdbId, episode) {
+  const seasonNumber = Number(
+    pick(episode, ["seasonNumber", "season_number", "season", "airedSeason"], 0)
+  );
+  const episodeNumber = Number(
+    pick(episode, ["number", "episodeNumber", "episode_number", "airedEpisodeNumber"], 0)
+  );
+
+  const normalizedEpisode = {
+    ...episode,
+    seasonNumber,
+    number: episodeNumber,
+  };
+
+  const episodeCode = makeEpisodeCode(normalizedEpisode);
+
+  if (!seasonNumber || !episodeNumber || !episodeCode) {
+    return null;
+  }
+
+  return {
+    show_tvdb_id: String(showTvdbId),
+    tvdb_episode_id: String(
+      pick(episode, ["id", "episode_id", "tvdb_episode_id"], "")
+    ) || null,
+    season_number: seasonNumber,
+    episode_number: episodeNumber,
+    episode_code: episodeCode,
+    name: pick(episode, ["name"], ""),
+    overview: pick(episode, ["overview"], null),
+    air_date: pick(episode, ["airDate", "aired", "air_date"], null),
+    runtime_minutes: pick(episode, ["runtime", "runtime_minutes"], null),
+    image_url: pick(episode, ["image", "image_url"], null),
+    absolute_number: pick(episode, ["absoluteNumber", "absolute_number"], null),
+    is_finale: Boolean(pick(episode, ["isFinale", "is_finale"], false)),
+    is_premiere: Boolean(pick(episode, ["isPremiere", "is_premiere"], false)),
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function normalizeCastPayload(showTvdbId, castMember, index) {
+  return {
+    show_tvdb_id: String(showTvdbId),
+    person_tvdb_id: pick(castMember, ["personId", "person_tvdb_id", "id"], null)
+      ? String(pick(castMember, ["personId", "person_tvdb_id", "id"]))
+      : null,
+    person_name: pick(castMember, ["personName", "name", "person_name"], ""),
+    character_name: pick(castMember, ["characterName", "character_name"], null),
+    role_type: pick(castMember, ["role", "role_type", "type"], null),
+    sort_order: pick(castMember, ["sort", "sort_order"], index),
+    image_url: pick(castMember, ["image", "image_url"], null),
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function upsertShowRecord(show) {
+  const payload = normalizeShowPayload(show);
+
+  const { error } = await supabase.from("shows").upsert(payload, {
+    onConflict: "tvdb_id",
+  });
+
+  if (error) throw error;
+
+  return payload;
+}
+
+export async function replaceShowEpisodes(showTvdbId, episodes = []) {
+  const normalized = episodes
+    .map((ep) => normalizeEpisodePayload(showTvdbId, ep))
+    .filter(Boolean);
+
+  const { error: deleteError } = await supabase
+    .from("show_episodes")
+    .delete()
+    .eq("show_tvdb_id", String(showTvdbId));
+
+  if (deleteError) throw deleteError;
+
+  if (normalized.length === 0) return [];
+
+  const { error: insertError } = await supabase
+    .from("show_episodes")
+    .insert(normalized);
+
+  if (insertError) throw insertError;
+
+  return normalized;
+}
+
+export async function replaceShowCast(showTvdbId, cast = []) {
+  const normalized = cast
+    .map((member, index) => normalizeCastPayload(showTvdbId, member, index))
+    .filter((member) => member.person_name);
+
+  const { error: deleteError } = await supabase
+    .from("show_cast")
+    .delete()
+    .eq("show_tvdb_id", String(showTvdbId));
+
+  if (deleteError) throw deleteError;
+
+  if (normalized.length === 0) return [];
+
+  const { error: insertError } = await supabase
+    .from("show_cast")
+    .insert(normalized);
+
+  if (insertError) throw insertError;
+
+  return normalized;
+}
