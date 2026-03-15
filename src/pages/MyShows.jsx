@@ -4,7 +4,11 @@ import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { getShowStatus } from "../lib/showStatus";
-import { buildWatchedSets, isEpisodeWatched } from "../lib/episodeHelpers";
+import {
+  buildWatchedSets,
+  isEpisodeWatched,
+  normalizeEpisodes,
+} from "../lib/episodeHelpers";
 
 export default function MyShows() {
   const [shows, setShows] = useState([]);
@@ -65,16 +69,8 @@ export default function MyShows() {
           let status = "Ended";
 
           try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
-
-            const filteredEpisodes = (episodes || [])
-              .filter((ep) => (ep.seasonNumber ?? 0) > 0)
-              .sort((a, b) => {
-                if ((a.seasonNumber ?? 0) !== (b.seasonNumber ?? 0)) {
-                  return (a.seasonNumber ?? 0) - (b.seasonNumber ?? 0);
-                }
-                return (a.number ?? 0) - (b.number ?? 0);
-              });
+            const rawEpisodes = await getCachedEpisodes(show.tvdb_id);
+            const filteredEpisodes = normalizeEpisodes(rawEpisodes || []);
 
             totalEpisodes = filteredEpisodes.length;
             status = getShowStatus(show, filteredEpisodes);
@@ -83,23 +79,6 @@ export default function MyShows() {
               watchedRowsByShow[String(show.tvdb_id)] || []
             );
 
-if (String(show.show_name) === "Breaking Bad") {
-  console.log("MYSHOWS DEBUG");
-  console.log("show.tvdb_id =", show.tvdb_id);
-  console.log("rows for show =", watchedRowsByShow[String(show.tvdb_id)] || []);
-  console.log("watchedCodes size =", watchedSets.watchedCodes.size);
-  console.log("watchedIds size =", watchedSets.watchedIds.size);
-  console.log(
-    "sample episode codes =",
-    (filteredEpisodes || []).slice(0, 5).map((ep) => ({
-      id: ep.id,
-      seasonNumber: ep.seasonNumber,
-      number: ep.number,
-      code: `${String(ep.seasonNumber).padStart(2, "0")}x${String(ep.number).padStart(2, "0")}`,
-    }))
-  );
-}
-            
             watchedCount = filteredEpisodes.filter((ep) =>
               isEpisodeWatched(ep, watchedSets)
             ).length;
@@ -108,21 +87,16 @@ if (String(show.show_name) === "Breaking Bad") {
             today.setHours(0, 0, 0, 0);
 
             const upcomingEpisodes = filteredEpisodes
-              .filter((ep) => ep.airDate || ep.aired)
+              .filter((ep) => ep.airDate)
               .filter((ep) => {
-                const airDate = new Date(ep.airDate || ep.aired);
+                const airDate = new Date(ep.airDate);
                 airDate.setHours(0, 0, 0, 0);
                 return airDate >= today;
               })
-              .sort(
-                (a, b) =>
-                  new Date(a.airDate || a.aired) -
-                  new Date(b.airDate || b.aired)
-              );
+              .sort((a, b) => new Date(a.airDate) - new Date(b.airDate));
 
             if (upcomingEpisodes.length > 0) {
-              nextEpisodeDate =
-                upcomingEpisodes[0].airDate || upcomingEpisodes[0].aired;
+              nextEpisodeDate = upcomingEpisodes[0].airDate;
             }
           } catch (episodeError) {
             console.error(
