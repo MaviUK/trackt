@@ -9,24 +9,24 @@ function pick(obj, keys, fallback = null) {
 }
 
 function normalizeShowPayload(show) {
+  const rawTvdbId = pick(show, ["tvdb_id", "tvdbId", "id"], "");
+
   return {
-    tvdb_id: String(
-      pick(show, ["id", "tvdb_id", "tvdbId"], "")
-    ),
-    show_name: pick(show, ["name", "show_name"], ""),
+    tvdb_id: rawTvdbId != null ? String(rawTvdbId) : "",
+    show_name: pick(show, ["show_name", "name"], ""),
     slug: pick(show, ["slug"], null),
     overview: pick(show, ["overview"], null),
     status: pick(show, ["status"], null),
-    poster_url: pick(show, ["image", "poster_url", "poster"], null),
+    poster_url: pick(show, ["poster_url", "poster", "image"], null),
     backdrop_url: pick(show, ["backdrop_url", "backdrop"], null),
     banner_url: pick(show, ["banner_url", "banner"], null),
-    first_aired: pick(show, ["firstAired", "first_aired"], null),
-    last_aired: pick(show, ["lastAired", "last_aired"], null),
+    first_aired: pick(show, ["first_aired", "firstAired"], null),
+    last_aired: pick(show, ["last_aired", "lastAired"], null),
     network: pick(show, ["network", "originalNetwork"], null),
-    original_country: pick(show, ["originalCountry", "original_country"], null),
-    original_language: pick(show, ["originalLanguage", "original_language"], null),
-    runtime_minutes: pick(show, ["averageRuntime", "runtime_minutes", "runtime"], null),
-    content_rating: pick(show, ["contentRating", "content_rating"], null),
+    original_country: pick(show, ["original_country", "originalCountry"], null),
+    original_language: pick(show, ["original_language", "originalLanguage"], null),
+    runtime_minutes: pick(show, ["runtime_minutes", "averageRuntime", "runtime"], null),
+    content_rating: pick(show, ["content_rating", "contentRating"], null),
     genres: pick(show, ["genres"], []),
     aliases: pick(show, ["aliases"], []),
     last_synced_at: new Date().toISOString(),
@@ -36,10 +36,19 @@ function normalizeShowPayload(show) {
 
 function normalizeEpisodePayload(showTvdbId, episode) {
   const seasonNumber = Number(
-    pick(episode, ["seasonNumber", "season_number", "season", "airedSeason"], 0)
+    pick(
+      episode,
+      ["seasonNumber", "season_number", "season", "airedSeason"],
+      0
+    )
   );
+
   const episodeNumber = Number(
-    pick(episode, ["number", "episodeNumber", "episode_number", "airedEpisodeNumber"], 0)
+    pick(
+      episode,
+      ["number", "episodeNumber", "episode_number", "airedEpisodeNumber"],
+      0
+    )
   );
 
   const normalizedEpisode = {
@@ -54,11 +63,11 @@ function normalizeEpisodePayload(showTvdbId, episode) {
     return null;
   }
 
+  const rawEpisodeId = pick(episode, ["id", "episode_id", "tvdb_episode_id"], null);
+
   return {
     show_tvdb_id: String(showTvdbId),
-    tvdb_episode_id: String(
-      pick(episode, ["id", "episode_id", "tvdb_episode_id"], "")
-    ) || null,
+    tvdb_episode_id: rawEpisodeId != null ? String(rawEpisodeId) : null,
     season_number: seasonNumber,
     episode_number: episodeNumber,
     episode_code: episodeCode,
@@ -76,11 +85,15 @@ function normalizeEpisodePayload(showTvdbId, episode) {
 }
 
 function normalizeCastPayload(showTvdbId, castMember, index) {
+  const rawPersonId = pick(
+    castMember,
+    ["personId", "person_tvdb_id", "id"],
+    null
+  );
+
   return {
     show_tvdb_id: String(showTvdbId),
-    person_tvdb_id: pick(castMember, ["personId", "person_tvdb_id", "id"], null)
-      ? String(pick(castMember, ["personId", "person_tvdb_id", "id"]))
-      : null,
+    person_tvdb_id: rawPersonId != null ? String(rawPersonId) : null,
     person_name: pick(castMember, ["personName", "name", "person_name"], ""),
     character_name: pick(castMember, ["characterName", "character_name"], null),
     role_type: pick(castMember, ["role", "role_type", "type"], null),
