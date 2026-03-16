@@ -45,59 +45,160 @@ export default function MyShows() {
   const [filterBy, setFilterBy] = useState("all");
 
   useEffect(() => {
-    loadShows();
-  }, []);
+    async function loadShows() {
+      try {
+        setLoading(true);
 
-async function loadShows() {
-  try {
-    setLoading(true);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+        if (!user) {
+          setShows([]);
+          return;
+        }
 
-    if (!user) {
-      setShows([]);
-      setLoading(false);
-      return;
+        const { data: userShows, error: userShowsError } = await supabase
+          .from("user_shows")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("show_name", { ascending: true });
+
+        if (userShowsError) throw userShowsError;
+
+        const { data: watchedRows, error: watchedError } = await supabase
+          .from("watched_episodes")
+          .select("show_tvdb_id, episode_id, episode_code")
+          .eq("user_id", user.id);
+
+        if (watchedError) throw watchedError;
+
+        const { data: storedShows, error: storedShowsError } = await supabase
+          .from("shows")
+          .select("*");
+
+        if (storedShowsError) throw storedShowsError;
+
+        const { data: allStoredEpisodes, error: storedEpisodesError } =
+          await supabase
+            .from("show_episodes")
+            .select(
+              "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+            );
+
+        if (storedEpisodesError) throw storedEpisodesError;
+
+        const watchedRowsByShow = {};
+        for (const row of watchedRows || []) {
+          const showId = String(row.show_tvdb_id);
+          if (!watchedRowsByShow[showId]) {
+            watchedRowsByShow[showId] = [];
+          }
+          watchedRowsByShow[showId].push(row);
+        }
+
+        const storedShowByName = {};
+        for (const storedShow of storedShows || []) {
+          const key = normalizeName(storedShow.show_name);
+          if (key) {
+            storedShowByName[key] = storedShow;
+          }
+        }
+
+        const episodesByStoredShowId = {};
+        for (const ep of allStoredEpisodes || []) {
+          const showId = String(ep.show_tvdb_id);
+          if (!episodesByStoredShowId[showId]) {
+            episodesByStoredShowId[showId] = [];
+          }
+          episodesByStoredShowId[showId].push(ep);
+        }
+
+        Object.keys(episodesByStoredShowId).forEach((showId) => {
+          episodesByStoredShowId[showId].sort((a, b) => {
+            if ((a.season_number ?? 0) !== (b.season_number ?? 0)) {
+              return (a.season_number ?? 0) - (b.season_number ?? 0);
+            }
+            return (a.episode_number ?? 0) - (b.episode_number ?? 0);
+          });
+        });
+
+        const updatedShows = (userShows || []).map((userShow) => {
+          const realShowId = String(userShow.tvdb_id);
+          const watchedSets = buildWatchedSets(
+            watchedRowsByShow[realShowId] || []
+          );
+
+          const matchedStoredShow =
+            storedShowByName[normalizeName(userShow.show_name)] || null;
+
+          const storedShowId = matchedStoredShow
+            ? String(matchedStoredShow.tvdb_id)
+            : null;
+
+          const showEpisodes = storedShowId
+            ? episodesByStoredShowId[storedShowId] || []
+            : [];
+
+          const watchedCount = showEpisodes.filter((ep) =>
+            isStoredEpisodeWatched(ep, watchedSets)
+          ).length;
+
+          const totalEpisodes = showEpisodes.length;
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const upcomingEpisodes = showEpisodes
+            .filter((ep) => ep.air_date)
+            .filter((ep) => {
+              const airDate = new Date(ep.air_date);
+              airDate.setHours(0, 0, 0, 0);
+              return airDate >= today;
+            })
+            .sort((a, b) => new Date(a.air_date) - new Date(b.air_date));
+
+          const nextEpisodeDate =
+            upcomingEpisodes.length > 0 ? upcomingEpisodes[0].air_date : null;
+
+          const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
+          const status = getShowStatus(userShow, statusEpisodes);
+
+          const isCompleted =
+            totalEpisodes > 0 && watchedCount >= totalEpisodes;
+
+          const progress =
+            totalEpisodes > 0
+              ? Math.round((watchedCount / totalEpisodes) * 100)
+              : 0;
+
+          return {
+            ...userShow,
+            overview: userShow.overview || matchedStoredShow?.overview || "",
+            poster_url:
+              userShow.poster_url || matchedStoredShow?.poster_url || null,
+            first_aired:
+              userShow.first_aired || matchedStoredShow?.first_aired || null,
+            watchedCount,
+            totalEpisodes,
+            nextEpisodeDate,
+            status,
+            isCompleted,
+            progress,
+          };
+        });
+
+        setShows(updatedShows);
+      } catch (error) {
+        console.error("LOAD SHOWS FAILED:", error);
+        setShows([]);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    const { data: userShows, error: userShowsError } = await supabase
-      .from("user_shows")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("show_name", { ascending: true });
-
-    if (userShowsError) throw userShowsError;
-
-    const { data: watchedRows } = await supabase
-      .from("watched_episodes")
-      .select("show_tvdb_id, episode_id, episode_code")
-      .eq("user_id", user.id);
-
-    const { data: storedShows } = await supabase
-      .from("shows")
-      .select("*");
-
-    const { data: allStoredEpisodes } = await supabase
-      .from("show_episodes")
-      .select(
-        "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
-      );
-
-    console.log("USER SHOWS", userShows);
-    console.log("WATCHED", watchedRows);
-    console.log("STORED SHOWS", storedShows);
-    console.log("EPISODES", allStoredEpisodes);
-
-    // temporarily just show user shows so page renders
-    setShows(userShows || []);
-  } catch (error) {
-    console.error("LOAD SHOWS FAILED:", error);
-  } finally {
-    setLoading(false);
-  }
-}
+    loadShows();
+  }, []);
 
   async function handleBackfillStoredShows() {
     try {
@@ -114,7 +215,7 @@ async function loadShows() {
     }
   }
 
-  const removeShow = async (tvdb_id) => {
+  async function removeShow(tvdb_id) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -135,7 +236,7 @@ async function loadShows() {
     setShows((prev) =>
       prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id))
     );
-  };
+  }
 
   const filteredShows = useMemo(() => {
     return shows.filter((show) => {
@@ -463,5 +564,4 @@ async function loadShows() {
       </div>
     </div>
   );
-}
 }
