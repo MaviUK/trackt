@@ -99,27 +99,32 @@ function toStatusEpisodeShape(ep) {
   };
 }
 
-async function fetchAllWatchedRows(userId) {
-  let from = 0;
-  const pageSize = 1000;
+async function fetchAllWatchedRows(userId, showIds) {
   const allRows = [];
+  const idChunks = chunkArray(showIds, 25);
 
-  while (true) {
-    const to = from + pageSize - 1;
+  for (const ids of idChunks) {
+    let from = 0;
+    const pageSize = 1000;
 
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id, episode_code")
-      .eq("user_id", userId)
-      .range(from, to);
+    while (true) {
+      const to = from + pageSize - 1;
 
-    if (error) throw error;
+      const { data, error } = await supabase
+        .from("watched_episodes")
+        .select("show_tvdb_id, episode_id, episode_code")
+        .eq("user_id", userId)
+        .in("show_tvdb_id", ids)
+        .range(from, to);
 
-    const rows = data || [];
-    allRows.push(...rows);
+      if (error) throw error;
 
-    if (rows.length < pageSize) break;
-    from += pageSize;
+      const rows = data || [];
+      allRows.push(...rows);
+
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
   }
 
   return allRows;
