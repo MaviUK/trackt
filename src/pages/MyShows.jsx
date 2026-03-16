@@ -231,12 +231,17 @@ export default function MyShows() {
         }
 
         const [watchedRows, storedShows, storedEpisodes] = await Promise.all([
-          fetchAllWatchedRows(user.id),
-          fetchAllStoredShows(showIds),
-          fetchAllStoredEpisodes(showIds),
-        ]);
+  fetchAllWatchedRows(user.id, showIds),
+  fetchAllStoredShows(showIds),
+  fetchAllStoredEpisodes(showIds),
+]);
 
-        const watchedLookup = buildGlobalWatchedLookup(watchedRows || []);
+        const watchedRowsByShow = {};
+for (const row of watchedRows || []) {
+  const key = normalizeId(row.show_tvdb_id);
+  if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
+  watchedRowsByShow[key].push(row);
+}
 
         const storedShowById = {};
         for (const storedShow of storedShows || []) {
@@ -265,9 +270,11 @@ export default function MyShows() {
           const matchedStoredShow = storedShowById[showId] || null;
           const showEpisodes = episodesByShowId[showId] || [];
 
-          const watchedCount = showEpisodes.filter((ep) =>
-            isStoredEpisodeWatched(ep, watchedLookup)
-          ).length;
+          const watchedLookup = buildWatchedLookup(watchedRowsByShow[showId] || []);
+
+const watchedCount = showEpisodes.filter((ep) =>
+  isStoredEpisodeWatched(ep, watchedLookup)
+).length;
 
           const totalEpisodes = showEpisodes.length;
 
