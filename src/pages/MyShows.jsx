@@ -31,8 +31,8 @@ function normalizeEpisodeCode(value) {
   if (!value) return null;
 
   const str = String(value).trim().toUpperCase();
-
   const match = str.match(/^S(\d+)E(\d+)$/i);
+
   if (match) {
     return makeEpisodeNumberCode(match[1], match[2]);
   }
@@ -40,7 +40,7 @@ function normalizeEpisodeCode(value) {
   return str;
 }
 
-function buildWatchedLookup(rows = []) {
+function buildGlobalWatchedLookup(rows = []) {
   const watchedIds = new Set();
   const watchedCodes = new Set();
 
@@ -61,14 +61,18 @@ function buildWatchedLookup(rows = []) {
 function isStoredEpisodeWatched(ep, watchedLookup) {
   if (!ep || !watchedLookup) return false;
 
-  if (ep.tvdb_episode_id != null) {
-    if (watchedLookup.watchedIds.has(String(ep.tvdb_episode_id))) {
-      return true;
-    }
+  if (
+    ep.tvdb_episode_id != null &&
+    watchedLookup.watchedIds.has(String(ep.tvdb_episode_id))
+  ) {
+    return true;
   }
 
   const normalizedStoredCode = normalizeEpisodeCode(ep.episode_code);
-  if (normalizedStoredCode && watchedLookup.watchedCodes.has(normalizedStoredCode)) {
+  if (
+    normalizedStoredCode &&
+    watchedLookup.watchedCodes.has(normalizedStoredCode)
+  ) {
     return true;
   }
 
@@ -95,19 +99,27 @@ function toStatusEpisodeShape(ep) {
   };
 }
 
-async function fetchAllWatchedRows(userId, showIds) {
+async function fetchAllWatchedRows(userId) {
+  let from = 0;
+  const pageSize = 1000;
   const allRows = [];
-  const idChunks = chunkArray(showIds, 25);
 
-  for (const ids of idChunks) {
+  while (true) {
+    const to = from + pageSize - 1;
+
     const { data, error } = await supabase
       .from("watched_episodes")
-      .select("show_tvdb_id, episode_id, episode_code")
+      .select("episode_id, episode_code")
       .eq("user_id", userId)
-      .in("show_tvdb_id", ids);
+      .range(from, to);
 
     if (error) throw error;
-    allRows.push(...(data || []));
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) break;
+    from += pageSize;
   }
 
   return allRows;
@@ -157,10 +169,7 @@ async function fetchAllStoredEpisodes(showIds) {
       const rows = data || [];
       allRows.push(...rows);
 
-      if (rows.length < pageSize) {
-        break;
-      }
-
+      if (rows.length < pageSize) break;
       from += pageSize;
     }
   }
@@ -217,17 +226,12 @@ export default function MyShows() {
         }
 
         const [watchedRows, storedShows, storedEpisodes] = await Promise.all([
-          fetchAllWatchedRows(user.id, showIds),
+          fetchAllWatchedRows(user.id),
           fetchAllStoredShows(showIds),
           fetchAllStoredEpisodes(showIds),
         ]);
 
-        const watchedRowsByShow = {};
-        for (const row of watchedRows || []) {
-          const key = normalizeId(row.show_tvdb_id);
-          if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
-          watchedRowsByShow[key].push(row);
-        }
+        const watchedLookup = buildGlobalWatchedLookup(watchedRows || []);
 
         const storedShowById = {};
         for (const storedShow of storedShows || []) {
@@ -253,9 +257,6 @@ export default function MyShows() {
 
         const updatedShows = normalizedUserShows.map((userShow) => {
           const showId = normalizeId(userShow.tvdb_id);
-          const watchedLookup = buildWatchedLookup(
-            watchedRowsByShow[showId] || []
-          );
           const matchedStoredShow = storedShowById[showId] || null;
           const showEpisodes = episodesByShowId[showId] || [];
 
