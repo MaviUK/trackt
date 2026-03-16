@@ -125,7 +125,7 @@ const showId = String(ep.show_tvdb_id);
       });
 
       const updatedShows = (userShows || []).map((show) => {
-        const showId = String(show.tvdb_id);
+        const showId = String(ep.show_tvdb_id);
         const showEpisodes = episodesByShow[showId] || [];
         const watchedSets = buildWatchedSets(watchedRowsByShow[showId] || []);
 
