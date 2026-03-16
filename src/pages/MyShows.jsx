@@ -30,6 +30,13 @@ function toStatusEpisodeShape(ep) {
   };
 }
 
+function normalizeName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [backfilling, setBackfilling] = useState(false);
@@ -51,14 +58,14 @@ export default function MyShows() {
         return;
       }
 
-      const { data: userShows, error: showsError } = await supabase
+      const { data: userShows, error: userShowsError } = await supabase
         .from("user_shows")
         .select("*")
         .eq("user_id", user.id)
         .order("show_name", { ascending: true });
 
-      if (showsError) {
-        console.error("Failed to load shows:", showsError);
+      if (userShowsError) {
+        console.error("Failed to load user shows:", userShowsError);
         setShows([]);
         setLoading(false);
         return;
@@ -82,41 +89,46 @@ export default function MyShows() {
         watchedRowsByShow[showId].push(row);
       }
 
-           const showIds = (userShows || []).map((show) => String(show.tvdb_id));
+      const { data: storedShows, error: storedShowsError } = await supabase
+        .from("shows")
+        .select(
+          "tvdb_id, show_name, overview, status, poster_url, first_aired, last_aired"
+        );
 
-let allStoredEpisodes = [];
-
-try {
-  if (showIds.length > 0) {
-   const { data, error } = await supabase
-  .from("show_episodes")
-  .select(
-    "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
-  )
-  .in("show_tvdb_id", showIds);
-
-    if (error) throw error;
-
-    allStoredEpisodes = data || [];
-
-    console.log("SHOW IDS", showIds);
-    console.log("EPISODES RETURNED", allStoredEpisodes.length);
-  }
-} catch (error) {
-  console.error("Failed loading stored episodes", error);
-}
-
-      const episodesByShow = {};
-      for (const ep of allStoredEpisodes || []) {
-const showId = String(ep.show_tvdb_id);
-        if (!episodesByShow[showId]) {
-          episodesByShow[showId] = [];
-        }
-        episodesByShow[showId].push(ep);
+      if (storedShowsError) {
+        console.error("Failed to load stored shows:", storedShowsError);
       }
 
-      Object.keys(episodesByShow).forEach((showId) => {
-        episodesByShow[showId].sort((a, b) => {
+      const { data: allStoredEpisodes, error: storedEpisodesError } =
+        await supabase
+          .from("show_episodes")
+          .select(
+            "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+          );
+
+      if (storedEpisodesError) {
+        console.error("Failed to load stored episodes:", storedEpisodesError);
+      }
+
+      const storedShowByName = {};
+      for (const storedShow of storedShows || []) {
+        const key = normalizeName(storedShow.show_name);
+        if (key) {
+          storedShowByName[key] = storedShow;
+        }
+      }
+
+      const episodesByStoredShowId = {};
+      for (const ep of allStoredEpisodes || []) {
+        const showId = String(ep.show_tvdb_id);
+        if (!episodesByStoredShowId[showId]) {
+          episodesByStoredShowId[showId] = [];
+        }
+        episodesByStoredShowId[showId].push(ep);
+      }
+
+      Object.keys(episodesByStoredShowId).forEach((showId) => {
+        episodesByStoredShowId[showId].sort((a, b) => {
           if ((a.season_number ?? 0) !== (b.season_number ?? 0)) {
             return (a.season_number ?? 0) - (b.season_number ?? 0);
           }
@@ -124,10 +136,20 @@ const showId = String(ep.show_tvdb_id);
         });
       });
 
-      const updatedShows = (userShows || []).map((show) => {
-        const showId = String(ep.show_tvdb_id);
-        const showEpisodes = episodesByShow[showId] || [];
-        const watchedSets = buildWatchedSets(watchedRowsByShow[showId] || []);
+      const updatedShows = (userShows || []).map((userShow) => {
+        const realShowId = String(userShow.tvdb_id);
+        const watchedSets = buildWatchedSets(watchedRowsByShow[realShowId] || []);
+
+        const matchedStoredShow =
+          storedShowByName[normalizeName(userShow.show_name)] || null;
+
+        const storedShowId = matchedStoredShow
+          ? String(matchedStoredShow.tvdb_id)
+          : null;
+
+        const showEpisodes = storedShowId
+          ? episodesByStoredShowId[storedShowId] || []
+          : [];
 
         const watchedCount = showEpisodes.filter((ep) =>
           isStoredEpisodeWatched(ep, watchedSets)
@@ -151,7 +173,7 @@ const showId = String(ep.show_tvdb_id);
           upcomingEpisodes.length > 0 ? upcomingEpisodes[0].air_date : null;
 
         const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
-        const status = getShowStatus(show, statusEpisodes);
+        const status = getShowStatus(userShow, statusEpisodes);
 
         const isCompleted =
           totalEpisodes > 0 && watchedCount >= totalEpisodes;
@@ -162,7 +184,10 @@ const showId = String(ep.show_tvdb_id);
             : 0;
 
         return {
-          ...show,
+          ...userShow,
+          overview: userShow.overview || matchedStoredShow?.overview || "",
+          poster_url: userShow.poster_url || matchedStoredShow?.poster_url || null,
+          first_aired: userShow.first_aired || matchedStoredShow?.first_aired || null,
           watchedCount,
           totalEpisodes,
           nextEpisodeDate,
@@ -185,6 +210,7 @@ const showId = String(ep.show_tvdb_id);
       const results = await backfillStoredShowsForCurrentUser();
       console.log("BACKFILL RESULTS", results);
       alert("Backfill complete. Check console for results.");
+      window.location.reload();
     } catch (error) {
       console.error("Backfill failed:", error);
       alert(error.message || "Backfill failed");
