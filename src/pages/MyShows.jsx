@@ -37,6 +37,17 @@ function normalizeName(value) {
     .replace(/\s+/g, " ");
 }
 
+export default function MyShows() {
+  const [shows, setShows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
+  const [sortBy, setSortBy] = useState("airingnext");
+  const [filterBy, setFilterBy] = useState("all");
+
+  useEffect(() => {
+    loadShows();
+  }, []);
+
 async function loadShows() {
   try {
     setLoading(true);
@@ -452,4 +463,5 @@ async function loadShows() {
       </div>
     </div>
   );
+}
 }
