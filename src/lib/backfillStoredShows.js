@@ -20,26 +20,25 @@ export async function backfillStoredShowsForCurrentUser() {
 
   const results = [];
 
-    for (const show of userShows || []) {
+  for (const show of userShows || []) {
     try {
-      const storedShow = await upsertShowRecord(show);
+      await upsertShowRecord(show);
 
-      if (!storedShow?.tvdb_id) {
-        throw new Error(`Show row was not created for ${show.show_name}`);
-      }
+      const showTvdbId = String(show.tvdb_id);
+      const episodes = await getCachedEpisodes(showTvdbId);
 
-      const episodes = await getCachedEpisodes(show.tvdb_id);
-      await replaceShowEpisodes(storedShow.tvdb_id, episodes || []);
+      await replaceShowEpisodes(showTvdbId, episodes || []);
 
       results.push({
-        tvdb_id: show.tvdb_id,
+        tvdb_id: showTvdbId,
         show_name: show.show_name,
         ok: true,
+        episode_count: (episodes || []).length,
       });
     } catch (error) {
       console.error("Backfill failed for show:", show.show_name, error);
       results.push({
-        tvdb_id: show.tvdb_id,
+        tvdb_id: String(show.tvdb_id),
         show_name: show.show_name,
         ok: false,
         error: error.message,
