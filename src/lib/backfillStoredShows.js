@@ -46,7 +46,14 @@ export async function backfillStoredShowsForCurrentUser() {
 
       const episodes = await getCachedEpisodes(showTvdbId);
 
-      await replaceShowEpisodes(showTvdbId, episodes || []);
+console.log("BACKFILL SHOW", {
+  showTvdbId,
+  showName: show.show_name,
+  episodeCount: Array.isArray(episodes) ? episodes.length : null,
+  sampleEpisode: Array.isArray(episodes) && episodes.length > 0 ? episodes[0] : null,
+});
+
+await replaceShowEpisodes(showTvdbId, episodes || []);
 
       results.push({
         tvdb_id: showTvdbId,
