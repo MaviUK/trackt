@@ -10,6 +10,14 @@ function normalizeId(value) {
   return String(value).trim();
 }
 
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 function makeEpisodeNumberCode(seasonNumber, episodeNumber) {
   const s = Number(seasonNumber);
   const e = Number(episodeNumber);
@@ -24,25 +32,12 @@ function buildWatchedLookup(rows = []) {
   const watchedCodes = new Set();
 
   for (const row of rows) {
-    if (row.tvdb_episode_id != null) {
-      watchedIds.add(String(row.tvdb_episode_id));
-    }
-
     if (row.episode_id != null) {
       watchedIds.add(String(row.episode_id));
     }
 
     if (row.episode_code) {
       watchedCodes.add(String(row.episode_code).toUpperCase());
-    }
-
-    const derivedCode = makeEpisodeNumberCode(
-      row.season_number,
-      row.episode_number
-    );
-
-    if (derivedCode) {
-      watchedCodes.add(derivedCode);
     }
   }
 
@@ -85,6 +80,79 @@ function toStatusEpisodeShape(ep) {
     airDate: ep.air_date,
     name: ep.name,
   };
+}
+
+async function fetchAllWatchedRows(userId, showIds) {
+  const allRows = [];
+  const idChunks = chunkArray(showIds, 25);
+
+  for (const ids of idChunks) {
+    const { data, error } = await supabase
+      .from("watched_episodes")
+      .select("show_tvdb_id, episode_id, episode_code")
+      .eq("user_id", userId)
+      .in("show_tvdb_id", ids);
+
+    if (error) throw error;
+    allRows.push(...(data || []));
+  }
+
+  return allRows;
+}
+
+async function fetchAllStoredShows(showIds) {
+  const allRows = [];
+  const idChunks = chunkArray(showIds, 25);
+
+  for (const ids of idChunks) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("tvdb_id, show_name, overview, status, poster_url, first_aired")
+      .in("tvdb_id", ids);
+
+    if (error) throw error;
+    allRows.push(...(data || []));
+  }
+
+  return allRows;
+}
+
+async function fetchAllStoredEpisodes(showIds) {
+  const allRows = [];
+  const idChunks = chunkArray(showIds, 10);
+
+  for (const ids of idChunks) {
+    let from = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const to = from + pageSize - 1;
+
+      const { data, error } = await supabase
+        .from("show_episodes")
+        .select(
+          "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
+        )
+        .in("show_tvdb_id", ids)
+        .order("show_tvdb_id", { ascending: true })
+        .order("season_number", { ascending: true })
+        .order("episode_number", { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const rows = data || [];
+      allRows.push(...rows);
+
+      if (rows.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+  }
+
+  return allRows;
 }
 
 export default function MyShows() {
@@ -135,38 +203,18 @@ export default function MyShows() {
           return;
         }
 
-        const { data: watchedRows, error: watchedError } = await supabase
-  .from("watched_episodes")
-  .select(
-    "show_tvdb_id, tvdb_episode_id, episode_id, episode_code, season_number, episode_number"
-  )
-  .eq("user_id", user.id)
-  .in("show_tvdb_id", showIds);
-
-        if (watchedError) throw watchedError;
-
-        const { data: storedShows, error: storedShowsError } = await supabase
-          .from("shows")
-          .select("tvdb_id, show_name, overview, status, poster_url, first_aired")
-          .in("tvdb_id", showIds);
-
-        if (storedShowsError) throw storedShowsError;
-
-        const { data: storedEpisodes, error: storedEpisodesError } = await supabase
-          .from("show_episodes")
-          .select(
-            "show_tvdb_id, tvdb_episode_id, season_number, episode_number, episode_code, name, air_date"
-          )
-          .in("show_tvdb_id", showIds);
-
-        if (storedEpisodesError) throw storedEpisodesError;
+        const [watchedRows, storedShows, storedEpisodes] = await Promise.all([
+          fetchAllWatchedRows(user.id, showIds),
+          fetchAllStoredShows(showIds),
+          fetchAllStoredEpisodes(showIds),
+        ]);
 
         const watchedRowsByShow = {};
-for (const row of watchedRows || []) {
-  const key = normalizeId(row.show_tvdb_id);
-  if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
-  watchedRowsByShow[key].push(row);
-}
+        for (const row of watchedRows || []) {
+          const key = normalizeId(row.show_tvdb_id);
+          if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
+          watchedRowsByShow[key].push(row);
+        }
 
         const storedShowById = {};
         for (const storedShow of storedShows || []) {
@@ -192,13 +240,15 @@ for (const row of watchedRows || []) {
 
         const updatedShows = normalizedUserShows.map((userShow) => {
           const showId = normalizeId(userShow.tvdb_id);
-         const watchedLookup = buildWatchedLookup(watchedRowsByShow[showId] || []);
+          const watchedLookup = buildWatchedLookup(
+            watchedRowsByShow[showId] || []
+          );
           const matchedStoredShow = storedShowById[showId] || null;
           const showEpisodes = episodesByShowId[showId] || [];
 
           const watchedCount = showEpisodes.filter((ep) =>
-  isStoredEpisodeWatched(ep, watchedLookup)
-).length;
+            isStoredEpisodeWatched(ep, watchedLookup)
+          ).length;
 
           const totalEpisodes = showEpisodes.length;
 
