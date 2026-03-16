@@ -8,11 +8,16 @@ function pick(obj, keys, fallback = null) {
   return fallback;
 }
 
+function normalizeId(value) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
 function normalizeShowPayload(show) {
   const rawTvdbId = pick(show, ["tvdb_id", "tvdbId", "id"], "");
 
   return {
-    tvdb_id: rawTvdbId != null ? String(rawTvdbId) : "",
+    tvdb_id: normalizeId(rawTvdbId),
     show_name: pick(show, ["show_name", "name"], ""),
     slug: pick(show, ["slug"], null),
     overview: pick(show, ["overview"], null),
@@ -35,6 +40,10 @@ function normalizeShowPayload(show) {
 }
 
 function normalizeEpisodePayload(showTvdbId, episode) {
+  const canonicalShowId = normalizeId(showTvdbId);
+
+  if (!canonicalShowId) return null;
+
   const seasonNumber = Number(
     pick(
       episode,
@@ -63,11 +72,15 @@ function normalizeEpisodePayload(showTvdbId, episode) {
     return null;
   }
 
-  const rawEpisodeId = pick(episode, ["id", "episode_id", "tvdb_episode_id"], null);
+  const rawEpisodeId = pick(
+    episode,
+    ["tvdb_episode_id", "episode_id", "id"],
+    null
+  );
 
   return {
-    show_tvdb_id: String(showTvdbId),
-    tvdb_episode_id: rawEpisodeId != null ? String(rawEpisodeId) : null,
+    show_tvdb_id: canonicalShowId,
+    tvdb_episode_id: rawEpisodeId != null ? normalizeId(rawEpisodeId) : null,
     season_number: seasonNumber,
     episode_number: episodeNumber,
     episode_code: episodeCode,
@@ -85,6 +98,7 @@ function normalizeEpisodePayload(showTvdbId, episode) {
 }
 
 function normalizeCastPayload(showTvdbId, castMember, index) {
+  const canonicalShowId = normalizeId(showTvdbId);
   const rawPersonId = pick(
     castMember,
     ["personId", "person_tvdb_id", "id"],
@@ -92,8 +106,8 @@ function normalizeCastPayload(showTvdbId, castMember, index) {
   );
 
   return {
-    show_tvdb_id: String(showTvdbId),
-    person_tvdb_id: rawPersonId != null ? String(rawPersonId) : null,
+    show_tvdb_id: canonicalShowId,
+    person_tvdb_id: rawPersonId != null ? normalizeId(rawPersonId) : null,
     person_name: pick(castMember, ["personName", "name", "person_name"], ""),
     character_name: pick(castMember, ["characterName", "character_name"], null),
     role_type: pick(castMember, ["role", "role_type", "type"], null),
@@ -125,8 +139,14 @@ export async function upsertShowRecord(show) {
 }
 
 export async function replaceShowEpisodes(showTvdbId, episodes = []) {
+  const canonicalShowId = normalizeId(showTvdbId);
+
+  if (!canonicalShowId) {
+    throw new Error("replaceShowEpisodes: missing showTvdbId");
+  }
+
   const normalized = episodes
-    .map((ep) => normalizeEpisodePayload(showTvdbId, ep))
+    .map((ep) => normalizeEpisodePayload(canonicalShowId, ep))
     .filter(Boolean);
 
   const dedupedMap = new Map();
@@ -160,6 +180,13 @@ export async function replaceShowEpisodes(showTvdbId, episodes = []) {
 
   const deduped = Array.from(dedupedMap.values());
 
+  const { error: deleteError } = await supabase
+    .from("show_episodes")
+    .delete()
+    .eq("show_tvdb_id", canonicalShowId);
+
+  if (deleteError) throw deleteError;
+
   if (deduped.length === 0) return [];
 
   const { error } = await supabase
@@ -174,14 +201,20 @@ export async function replaceShowEpisodes(showTvdbId, episodes = []) {
 }
 
 export async function replaceShowCast(showTvdbId, cast = []) {
+  const canonicalShowId = normalizeId(showTvdbId);
+
+  if (!canonicalShowId) {
+    throw new Error("replaceShowCast: missing showTvdbId");
+  }
+
   const normalized = cast
-    .map((member, index) => normalizeCastPayload(showTvdbId, member, index))
+    .map((member, index) => normalizeCastPayload(canonicalShowId, member, index))
     .filter((member) => member.person_name);
 
   const { error: deleteError } = await supabase
     .from("show_cast")
     .delete()
-    .eq("show_tvdb_id", String(showTvdbId));
+    .eq("show_tvdb_id", canonicalShowId);
 
   if (deleteError) throw deleteError;
 
