@@ -27,6 +27,19 @@ function makeEpisodeNumberCode(seasonNumber, episodeNumber) {
   return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
 }
 
+function normalizeEpisodeCode(value) {
+  if (!value) return null;
+
+  const str = String(value).trim().toUpperCase();
+
+  const match = str.match(/^S(\d+)E(\d+)$/i);
+  if (match) {
+    return makeEpisodeNumberCode(match[1], match[2]);
+  }
+
+  return str;
+}
+
 function buildWatchedLookup(rows = []) {
   const watchedIds = new Set();
   const watchedCodes = new Set();
@@ -36,8 +49,9 @@ function buildWatchedLookup(rows = []) {
       watchedIds.add(String(row.episode_id));
     }
 
-    if (row.episode_code) {
-      watchedCodes.add(String(row.episode_code).toUpperCase());
+    const normalizedCode = normalizeEpisodeCode(row.episode_code);
+    if (normalizedCode) {
+      watchedCodes.add(normalizedCode);
     }
   }
 
@@ -53,10 +67,9 @@ function isStoredEpisodeWatched(ep, watchedLookup) {
     }
   }
 
-  if (ep.episode_code) {
-    if (watchedLookup.watchedCodes.has(String(ep.episode_code).toUpperCase())) {
-      return true;
-    }
+  const normalizedStoredCode = normalizeEpisodeCode(ep.episode_code);
+  if (normalizedStoredCode && watchedLookup.watchedCodes.has(normalizedStoredCode)) {
+    return true;
   }
 
   const derivedCode = makeEpisodeNumberCode(
