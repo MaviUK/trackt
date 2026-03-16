@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
-import { buildWatchedSets } from "../lib/episodeHelpers";
 import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
 
 function normalizeId(value) {
@@ -11,15 +10,68 @@ function normalizeId(value) {
   return String(value).trim();
 }
 
-function isStoredEpisodeWatched(ep, watchedSets) {
-  if (!ep || !watchedSets) return false;
+function makeEpisodeNumberCode(seasonNumber, episodeNumber) {
+  const s = Number(seasonNumber);
+  const e = Number(episodeNumber);
 
-  const code = ep.episode_code ? String(ep.episode_code).toUpperCase() : null;
-  if (code && watchedSets.watchedCodes.has(code)) return true;
+  if (!s || !e) return null;
 
-  const tvdbEpisodeId =
-    ep.tvdb_episode_id != null ? String(ep.tvdb_episode_id) : null;
-  if (tvdbEpisodeId && watchedSets.watchedIds.has(tvdbEpisodeId)) return true;
+  return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
+}
+
+function buildWatchedLookup(rows = []) {
+  const watchedIds = new Set();
+  const watchedCodes = new Set();
+
+  for (const row of rows) {
+    if (row.tvdb_episode_id != null) {
+      watchedIds.add(String(row.tvdb_episode_id));
+    }
+
+    if (row.episode_id != null) {
+      watchedIds.add(String(row.episode_id));
+    }
+
+    if (row.episode_code) {
+      watchedCodes.add(String(row.episode_code).toUpperCase());
+    }
+
+    const derivedCode = makeEpisodeNumberCode(
+      row.season_number,
+      row.episode_number
+    );
+
+    if (derivedCode) {
+      watchedCodes.add(derivedCode);
+    }
+  }
+
+  return { watchedIds, watchedCodes };
+}
+
+function isStoredEpisodeWatched(ep, watchedLookup) {
+  if (!ep || !watchedLookup) return false;
+
+  if (ep.tvdb_episode_id != null) {
+    if (watchedLookup.watchedIds.has(String(ep.tvdb_episode_id))) {
+      return true;
+    }
+  }
+
+  if (ep.episode_code) {
+    if (watchedLookup.watchedCodes.has(String(ep.episode_code).toUpperCase())) {
+      return true;
+    }
+  }
+
+  const derivedCode = makeEpisodeNumberCode(
+    ep.season_number,
+    ep.episode_number
+  );
+
+  if (derivedCode && watchedLookup.watchedCodes.has(derivedCode)) {
+    return true;
+  }
 
   return false;
 }
@@ -84,10 +136,12 @@ export default function MyShows() {
         }
 
         const { data: watchedRows, error: watchedError } = await supabase
-          .from("watched_episodes")
-          .select("show_tvdb_id, episode_id, episode_code")
-          .eq("user_id", user.id)
-          .in("show_tvdb_id", showIds);
+  .from("watched_episodes")
+  .select(
+    "show_tvdb_id, tvdb_episode_id, episode_id, episode_code, season_number, episode_number"
+  )
+  .eq("user_id", user.id)
+  .in("show_tvdb_id", showIds);
 
         if (watchedError) throw watchedError;
 
@@ -108,11 +162,11 @@ export default function MyShows() {
         if (storedEpisodesError) throw storedEpisodesError;
 
         const watchedRowsByShow = {};
-        for (const row of watchedRows || []) {
-          const key = normalizeId(row.show_tvdb_id);
-          if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
-          watchedRowsByShow[key].push(row);
-        }
+for (const row of watchedRows || []) {
+  const key = normalizeId(row.show_tvdb_id);
+  if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
+  watchedRowsByShow[key].push(row);
+}
 
         const storedShowById = {};
         for (const storedShow of storedShows || []) {
@@ -138,13 +192,13 @@ export default function MyShows() {
 
         const updatedShows = normalizedUserShows.map((userShow) => {
           const showId = normalizeId(userShow.tvdb_id);
-          const watchedSets = buildWatchedSets(watchedRowsByShow[showId] || []);
+         const watchedLookup = buildWatchedLookup(watchedRowsByShow[showId] || []);
           const matchedStoredShow = storedShowById[showId] || null;
           const showEpisodes = episodesByShowId[showId] || [];
 
           const watchedCount = showEpisodes.filter((ep) =>
-            isStoredEpisodeWatched(ep, watchedSets)
-          ).length;
+  isStoredEpisodeWatched(ep, watchedLookup)
+).length;
 
           const totalEpisodes = showEpisodes.length;
 
