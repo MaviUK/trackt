@@ -2,6 +2,11 @@ import { supabase } from "./supabase";
 import { getCachedEpisodes } from "./episodesCache";
 import { upsertShowRecord, replaceShowEpisodes } from "./showSync";
 
+function normalizeId(value) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
 export async function backfillStoredShowsForCurrentUser() {
   const {
     data: { user },
@@ -21,10 +26,24 @@ export async function backfillStoredShowsForCurrentUser() {
   const results = [];
 
   for (const show of userShows || []) {
-    try {
-      await upsertShowRecord(show);
+    const showTvdbId = normalizeId(show.tvdb_id);
 
-      const showTvdbId = String(show.tvdb_id);
+    if (!showTvdbId) {
+      results.push({
+        tvdb_id: "",
+        show_name: show.show_name,
+        ok: false,
+        error: "Missing tvdb_id on user_shows row",
+      });
+      continue;
+    }
+
+    try {
+      await upsertShowRecord({
+        ...show,
+        tvdb_id: showTvdbId,
+      });
+
       const episodes = await getCachedEpisodes(showTvdbId);
 
       await replaceShowEpisodes(showTvdbId, episodes || []);
@@ -38,7 +57,7 @@ export async function backfillStoredShowsForCurrentUser() {
     } catch (error) {
       console.error("Backfill failed for show:", show.show_name, error);
       results.push({
-        tvdb_id: String(show.tvdb_id),
+        tvdb_id: showTvdbId,
         show_name: show.show_name,
         ok: false,
         error: error.message,
