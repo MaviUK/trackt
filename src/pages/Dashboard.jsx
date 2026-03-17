@@ -7,7 +7,7 @@ import { formatDate } from "../lib/date";
 function parseDate(dateStr) {
   if (!dateStr) return null;
   const date = new Date(dateStr);
-  return isNaN(date.getTime()) ? null : date;
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function startOfDay(date) {
@@ -24,8 +24,7 @@ function endOfDay(date) {
 
 function isAired(dateStr) {
   const date = parseDate(dateStr);
-  if (!date) return false;
-  return date <= new Date();
+  return !!date && date <= new Date();
 }
 
 function isToday(dateStr) {
@@ -42,8 +41,7 @@ function isBeforeToday(dateStr) {
   const date = parseDate(dateStr);
   if (!date) return false;
 
-  const todayStart = startOfDay(new Date());
-  return date < todayStart;
+  return date < startOfDay(new Date());
 }
 
 function isWithinLastDays(dateStr, days, { includeToday = true } = {}) {
@@ -79,15 +77,25 @@ function getDisplayEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function getEpisodeSortValue(ep) {
+  return (
+    Number(ep.seasonNumber || 0) * 100000 +
+    Number(ep.number || 0) * 100 +
+    (parseDate(ep.aired)?.getTime() || 0) / 10000000000000
+  );
+}
+
+function getEpisodeUniqueKey(ep) {
+  return `${ep.id ?? "noid"}-${ep.seasonNumber ?? 0}-${ep.number ?? 0}`;
+}
+
 function sortEpisodes(episodes) {
   return [...episodes].sort((a, b) => {
-    if (a.seasonNumber !== b.seasonNumber) {
-      return a.seasonNumber - b.seasonNumber;
-    }
+    const seasonDiff = Number(a.seasonNumber || 0) - Number(b.seasonNumber || 0);
+    if (seasonDiff !== 0) return seasonDiff;
 
-    if (a.number !== b.number) {
-      return a.number - b.number;
-    }
+    const episodeDiff = Number(a.number || 0) - Number(b.number || 0);
+    if (episodeDiff !== 0) return episodeDiff;
 
     const aTime = parseDate(a.aired)?.getTime() ?? 0;
     const bTime = parseDate(b.aired)?.getTime() ?? 0;
@@ -95,12 +103,23 @@ function sortEpisodes(episodes) {
   });
 }
 
+function dedupeEpisodes(episodes) {
+  const seen = new Set();
+  const result = [];
+
+  for (const ep of episodes) {
+    const key = `${ep.seasonNumber}-${ep.number}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(ep);
+  }
+
+  return result;
+}
+
 function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
   return (
-    <Link
-      to={`/my-shows/${show.tvdb_id}`}
-      className="dashboard-item"
-    >
+    <Link to={`/my-shows/${show.tvdb_id}`} className="dashboard-item">
       <img
         src={show.poster_url}
         alt={show.show_name}
@@ -175,7 +194,7 @@ export default function Dashboard() {
         if (!watchedLookup[row.show_tvdb_id]) {
           watchedLookup[row.show_tvdb_id] = new Set();
         }
-        watchedLookup[row.show_tvdb_id].add(String(row.episode_id));
+        watchedLookup[row.show_tvdb_id].add(String(row.episode_id).trim());
       }
 
       const episodesLookup = {};
@@ -183,9 +202,18 @@ export default function Dashboard() {
         (userShows || []).map(async (show) => {
           try {
             const eps = await getCachedEpisodes(show.tvdb_id);
-            episodesLookup[show.tvdb_id] = sortEpisodes(
-              (eps || []).filter((ep) => ep.seasonNumber > 0)
+
+            const cleaned = dedupeEpisodes(
+              sortEpisodes(
+                (eps || []).filter(
+                  (ep) =>
+                    Number(ep.seasonNumber) > 0 &&
+                    Number(ep.number) > 0
+                )
+              )
             );
+
+            episodesLookup[show.tvdb_id] = cleaned;
           } catch (err) {
             console.error(`Failed to load episodes for ${show.show_name}:`, err);
             episodesLookup[show.tvdb_id] = [];
@@ -215,22 +243,16 @@ export default function Dashboard() {
       const episodes = episodesByShow[show.tvdb_id] || [];
       const watchedSet = watchedMap[show.tvdb_id] || new Set();
 
-      const validEpisodes = episodes.filter((ep) => ep.seasonNumber > 0);
+      const validEpisodes = episodes;
       const airedEpisodes = validEpisodes.filter((ep) => isAired(ep.aired));
       const airedBeforeToday = validEpisodes.filter((ep) => isBeforeToday(ep.aired));
+
       const watchedEpisodes = validEpisodes.filter((ep) =>
-        watchedSet.has(String(ep.id))
-      );
-      const watchedAiredEpisodes = airedEpisodes.filter((ep) =>
-        watchedSet.has(String(ep.id))
+        watchedSet.has(String(ep.id).trim())
       );
 
-      const unwatchedAiredEpisodes = airedEpisodes.filter(
-        (ep) => !watchedSet.has(String(ep.id))
-      );
-
-      const unwatchedAiredBeforeToday = airedBeforeToday.filter(
-        (ep) => !watchedSet.has(String(ep.id))
+      const watchedAiredBeforeToday = airedBeforeToday.filter((ep) =>
+        watchedSet.has(String(ep.id).trim())
       );
 
       const todayEpisodes = validEpisodes.filter((ep) => isToday(ep.aired));
@@ -238,13 +260,14 @@ export default function Dashboard() {
       const recentUnwatchedEpisodes = validEpisodes.filter(
         (ep) =>
           isWithinLastDays(ep.aired, 7, { includeToday: false }) &&
-          !watchedSet.has(String(ep.id))
+          !watchedSet.has(String(ep.id).trim())
       );
 
       const latestRecentUnwatchedEpisode = [...validEpisodes]
         .filter(
           (ep) =>
-            isWithinLastMonth(ep.aired) && !watchedSet.has(String(ep.id))
+            isWithinLastMonth(ep.aired) &&
+            !watchedSet.has(String(ep.id).trim())
         )
         .sort((a, b) => {
           const aTime = parseDate(a.aired)?.getTime() ?? 0;
@@ -252,14 +275,28 @@ export default function Dashboard() {
           return bTime - aTime;
         })[0];
 
-      const continueEpisode = unwatchedAiredBeforeToday[0] || null;
+      const lastWatchedAiredIndex = airedBeforeToday.reduce((lastIndex, ep, index) => {
+        if (watchedSet.has(String(ep.id).trim())) {
+          return index;
+        }
+        return lastIndex;
+      }, -1);
 
-      const isCompleted =
-        airedEpisodes.length > 0 && unwatchedAiredEpisodes.length === 0;
+      let nextContinueEpisode = null;
+      if (lastWatchedAiredIndex >= 0) {
+        nextContinueEpisode =
+          airedBeforeToday
+            .slice(lastWatchedAiredIndex + 1)
+            .find((ep) => !watchedSet.has(String(ep.id).trim())) || null;
+      }
 
-      if (isCompleted) {
+      const allAiredBeforeTodayWatched =
+        airedBeforeToday.length > 0 &&
+        airedBeforeToday.every((ep) => watchedSet.has(String(ep.id).trim()));
+
+      if (airedBeforeToday.length > 0 && allAiredBeforeTodayWatched) {
         completedCount += 1;
-      } else if (watchedEpisodes.length > 0 && continueEpisode) {
+      } else if (watchedEpisodes.length > 0) {
         inProgressCount += 1;
       }
 
@@ -272,14 +309,13 @@ export default function Dashboard() {
       }
 
       if (
-        watchedAiredEpisodes.length > 0 &&
-        unwatchedAiredBeforeToday.length > 0 &&
-        !isCompleted &&
-        continueEpisode
+        watchedAiredBeforeToday.length > 0 &&
+        nextContinueEpisode &&
+        !allAiredBeforeTodayWatched
       ) {
         continueWatching.push({
           show,
-          episode: continueEpisode,
+          episode: nextContinueEpisode,
         });
       }
 
@@ -368,7 +404,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.airingToday.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-today`}
+                  key={`${getEpisodeUniqueKey(episode)}-today`}
                   show={show}
                   episode={episode}
                   dateLabel="Airs"
@@ -391,7 +427,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.recentlyAired.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-recent`}
+                  key={`${getEpisodeUniqueKey(episode)}-recent`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
@@ -412,7 +448,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.continueWatching.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-continue`}
+                  key={`${getEpisodeUniqueKey(episode)}-continue`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
@@ -435,7 +471,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.recentlyAdded.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-added`}
+                  key={`${getEpisodeUniqueKey(episode)}-added`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
