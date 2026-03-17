@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
 import "./CalendarPage.css";
 
@@ -45,58 +44,74 @@ export default function CalendarPage() {
         return;
       }
 
-      const { data: userShows, error } = await supabase
+      const { data: userShows, error: showsError } = await supabase
         .from("user_shows")
         .select("*")
         .eq("user_id", user.id)
         .order("show_name", { ascending: true });
 
-      if (error) {
-        console.error("Failed to load shows:", error);
+      if (showsError) {
+        console.error("Failed to load shows:", showsError);
         setItems([]);
         setLoading(false);
         return;
       }
 
+      const safeShows = userShows || [];
+      const tvdbIds = safeShows.map((show) => String(show.tvdb_id));
+      const showLookup = {};
+
+      for (const show of safeShows) {
+        showLookup[String(show.tvdb_id)] = show;
+      }
+
       const today = startOfToday();
       const collected = [];
 
-      await Promise.all(
-        (userShows || []).map(async (show) => {
-          try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
-            const normalEpisodes = (episodes || []).filter(
-              (ep) => (ep.seasonNumber ?? 0) > 0
-            );
+      if (tvdbIds.length > 0) {
+        const { data: episodeRows, error: episodesError } = await supabase
+          .from("episodes")
+          .select("*")
+          .in("show_tvdb_id", tvdbIds)
+          .gte("aired", today.toISOString().slice(0, 10))
+          .order("aired", { ascending: true })
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true });
 
-            for (const ep of normalEpisodes) {
-              const airValue = ep.airDate || ep.aired;
-              if (!airValue) continue;
+        if (episodesError) {
+          console.error("Failed to load calendar episodes:", episodesError);
+          setItems([]);
+          setLoading(false);
+          return;
+        }
 
-              const airDate = new Date(airValue);
-              if (Number.isNaN(airDate.getTime())) continue;
+        for (const row of episodeRows || []) {
+          const show = showLookup[String(row.show_tvdb_id)];
+          if (!show) continue;
 
-              const airDay = new Date(airDate);
-              airDay.setHours(0, 0, 0, 0);
+          const airValue = row.aired;
+          if (!airValue) continue;
 
-              if (airDay < today) continue;
+          const airDate = new Date(airValue);
+          if (Number.isNaN(airDate.getTime())) continue;
 
-              collected.push({
-                showTvdbId: show.tvdb_id,
-                showName: show.show_name,
-                posterUrl: show.poster_url,
-                episodeId: ep.id,
-                episodeName: ep.name,
-                seasonNumber: ep.seasonNumber,
-                episodeNumber: ep.number,
-                aired: airValue,
-              });
-            }
-          } catch (err) {
-            console.error(`Failed loading calendar episodes for ${show.show_name}`, err);
-          }
-        })
-      );
+          const airDay = new Date(airDate);
+          airDay.setHours(0, 0, 0, 0);
+
+          if (airDay < today) continue;
+
+          collected.push({
+            showTvdbId: String(row.show_tvdb_id),
+            showName: show.show_name,
+            posterUrl: show.poster_url,
+            episodeId: row.id,
+            episodeName: row.episode_name,
+            seasonNumber: row.season_number,
+            episodeNumber: row.episode_number,
+            aired: row.aired,
+          });
+        }
+      }
 
       collected.sort((a, b) => new Date(a.aired) - new Date(b.aired));
       setItems(collected);
@@ -223,7 +238,10 @@ export default function CalendarPage() {
               <section key={group.date} className="calendar-group-card">
                 <div className="calendar-group-header">
                   <h2>{group.label}</h2>
-                  <span>{group.episodes.length} episode{group.episodes.length === 1 ? "" : "s"}</span>
+                  <span>
+                    {group.episodes.length} episode
+                    {group.episodes.length === 1 ? "" : "s"}
+                  </span>
                 </div>
 
                 <div className="calendar-list">
