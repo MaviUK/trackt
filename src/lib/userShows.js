@@ -1,11 +1,13 @@
 import { supabase } from "./supabase";
 
 export async function updateUserShowStatus(userId, tvdbId, watchStatus) {
+  const numericId = Number(tvdbId);
+
   const { data, error } = await supabase
     .from("user_shows")
     .update({ watch_status: watchStatus })
     .eq("user_id", userId)
-    .eq("tvdb_id", tvdbId)
+    .eq("tvdb_id", numericId)
     .select("user_id, tvdb_id, watch_status")
     .maybeSingle();
 
@@ -16,7 +18,7 @@ export async function updateUserShowStatus(userId, tvdbId, watchStatus) {
 
   if (!data) {
     throw new Error(
-      `No user_shows row was updated for tvdb_id=${tvdbId}. Check RLS policy and stored tvdb_id type/value.`
+      `No row updated. tvdb_id=${tvdbId} (numeric: ${numericId})`
     );
   }
 
