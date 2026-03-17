@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
 import "./ReadyToWatchPage.css";
 
@@ -24,10 +23,25 @@ function getEpisodeCodeKey(ep) {
   ).padStart(2, "0")}`;
 }
 
-function isEpisodeWatched(ep, watchedSet) {
-  return (
-    watchedSet.has(getEpisodeCodeKey(ep)) || watchedSet.has(String(ep.id))
+function createEmptyWatchedLookup() {
+  return {
+    episodeRowIds: new Set(),
+    episodeCodes: new Set(),
+    seasonEpisodeKeys: new Set(),
+  };
+}
+
+function isEpisodeWatched(ep, watchedLookup) {
+  const byRowId =
+    ep.id != null && watchedLookup.episodeRowIds.has(String(ep.id).trim());
+
+  const byCode = watchedLookup.episodeCodes.has(getEpisodeCodeKey(ep));
+
+  const bySeasonEpisode = watchedLookup.seasonEpisodeKeys.has(
+    `${ep.seasonNumber}-${ep.number}`
   );
+
+  return byRowId || byCode || bySeasonEpisode;
 }
 
 export default function ReadyToWatchPage() {
@@ -37,10 +51,12 @@ export default function ReadyToWatchPage() {
   const [watchedMap, setWatchedMap] = useState({});
   const [expandedShows, setExpandedShows] = useState({});
 
-  async function fetchWatchedSet(userId, showId) {
+  async function fetchWatchedLookup(userId, showId) {
     const { data: watchedRows, error: watchedError } = await supabase
       .from("watched_episodes")
-      .select("episode_id, episode_code")
+      .select(
+        "episode_row_id, season_number, episode_number, episode_code"
+      )
       .eq("user_id", userId)
       .eq("show_tvdb_id", showId);
 
@@ -48,14 +64,25 @@ export default function ReadyToWatchPage() {
       throw watchedError;
     }
 
-    return new Set(
-      (watchedRows || []).flatMap((row) => {
-        const keys = [];
-        if (row.episode_code) keys.push(String(row.episode_code));
-        if (row.episode_id) keys.push(String(row.episode_id));
-        return keys;
-      })
-    );
+    const lookup = createEmptyWatchedLookup();
+
+    for (const row of watchedRows || []) {
+      if (row.episode_row_id != null) {
+        lookup.episodeRowIds.add(String(row.episode_row_id).trim());
+      }
+
+      if (row.episode_code) {
+        lookup.episodeCodes.add(String(row.episode_code).trim());
+      }
+
+      if (row.season_number != null && row.episode_number != null) {
+        lookup.seasonEpisodeKeys.add(
+          `${row.season_number}-${row.episode_number}`
+        );
+      }
+    }
+
+    return lookup;
   }
 
   useEffect(() => {
@@ -86,13 +113,16 @@ export default function ReadyToWatchPage() {
         return;
       }
 
-      const showIds = (userShows || []).map((show) => String(show.tvdb_id));
+      const safeShows = userShows || [];
+      const showIds = safeShows.map((show) => String(show.tvdb_id));
 
       let watchedRows = [];
       if (showIds.length > 0) {
         const { data: watchedData, error: watchedError } = await supabase
           .from("watched_episodes")
-          .select("show_tvdb_id, episode_id, episode_code")
+          .select(
+            "show_tvdb_id, episode_row_id, season_number, episode_number, episode_code"
+          )
           .eq("user_id", user.id)
           .in("show_tvdb_id", showIds);
 
@@ -106,27 +136,63 @@ export default function ReadyToWatchPage() {
       const watchedLookup = {};
       for (const row of watchedRows) {
         const showId = String(row.show_tvdb_id);
-        if (!watchedLookup[showId]) watchedLookup[showId] = new Set();
-        if (row.episode_code) watchedLookup[showId].add(String(row.episode_code));
-        if (row.episode_id) watchedLookup[showId].add(String(row.episode_id));
+
+        if (!watchedLookup[showId]) {
+          watchedLookup[showId] = createEmptyWatchedLookup();
+        }
+
+        if (row.episode_row_id != null) {
+          watchedLookup[showId].episodeRowIds.add(
+            String(row.episode_row_id).trim()
+          );
+        }
+
+        if (row.episode_code) {
+          watchedLookup[showId].episodeCodes.add(String(row.episode_code).trim());
+        }
+
+        if (row.season_number != null && row.episode_number != null) {
+          watchedLookup[showId].seasonEpisodeKeys.add(
+            `${row.season_number}-${row.episode_number}`
+          );
+        }
       }
 
       const episodeLookup = {};
-      await Promise.all(
-        (userShows || []).map(async (show) => {
-          try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
-            episodeLookup[String(show.tvdb_id)] = (episodes || []).filter(
-              (ep) => ep.seasonNumber > 0
-            );
-          } catch (err) {
-            console.error(`Failed to load episodes for ${show.show_name}:`, err);
-            episodeLookup[String(show.tvdb_id)] = [];
-          }
-        })
-      );
+      if (showIds.length > 0) {
+        const { data: episodeRows, error: episodesError } = await supabase
+          .from("episodes")
+          .select("*")
+          .in("show_tvdb_id", showIds)
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true });
 
-      setShows(userShows || []);
+        if (episodesError) {
+          console.error("Failed to load episodes:", episodesError);
+        } else {
+          for (const row of episodeRows || []) {
+            const showId = String(row.show_tvdb_id);
+
+            if (!episodeLookup[showId]) {
+              episodeLookup[showId] = [];
+            }
+
+            episodeLookup[showId].push({
+              id: row.id,
+              show_tvdb_id: row.show_tvdb_id,
+              seasonNumber: row.season_number,
+              number: row.episode_number,
+              name: row.episode_name,
+              aired: row.aired,
+              overview: row.overview,
+              image: row.image_url,
+              episodeCode: row.episode_code,
+            });
+          }
+        }
+      }
+
+      setShows(safeShows);
       setEpisodesByShow(episodeLookup);
       setWatchedMap(watchedLookup);
       setLoading(false);
@@ -140,11 +206,11 @@ export default function ReadyToWatchPage() {
       .map((show) => {
         const showId = String(show.tvdb_id);
         const episodes = episodesByShow[showId] || [];
-        const watchedSet = watchedMap[showId] || new Set();
+        const watchedLookup = watchedMap[showId] || createEmptyWatchedLookup();
 
         const readyEpisodes = episodes
           .filter((ep) => isAired(ep.aired))
-          .filter((ep) => !isEpisodeWatched(ep, watchedSet))
+          .filter((ep) => !isEpisodeWatched(ep, watchedLookup))
           .sort((a, b) => {
             if (a.seasonNumber !== b.seasonNumber) {
               return a.seasonNumber - b.seasonNumber;
@@ -178,37 +244,30 @@ export default function ReadyToWatchPage() {
 
     try {
       const showId = String(showTvdbId);
-      const episodeIdStr = String(ep.id);
       const episodeCode = getEpisodeCodeKey(ep);
 
-      const { data: existing, error: existingError } = await supabase
+      const payload = {
+        user_id: user.id,
+        show_tvdb_id: showId,
+        episode_row_id: ep.id,
+        season_number: ep.seasonNumber,
+        episode_number: ep.number,
+        episode_code: episodeCode,
+      };
+
+      const { error: upsertError } = await supabase
         .from("watched_episodes")
-        .select("episode_id, episode_code")
-        .eq("user_id", user.id)
-        .eq("show_tvdb_id", showId)
-        .or(`episode_id.eq.${episodeIdStr},episode_code.eq.${episodeCode}`)
-        .maybeSingle();
+        .upsert(payload, {
+          onConflict: "user_id,show_tvdb_id,season_number,episode_number",
+        });
 
-      if (existingError) throw existingError;
+      if (upsertError) throw upsertError;
 
-      if (!existing) {
-        const { error: insertError } = await supabase
-          .from("watched_episodes")
-          .insert({
-            user_id: user.id,
-            show_tvdb_id: showId,
-            episode_id: episodeIdStr,
-            episode_code: episodeCode,
-          });
-
-        if (insertError) throw insertError;
-      }
-
-      const freshWatchedSet = await fetchWatchedSet(user.id, showId);
+      const freshWatchedLookup = await fetchWatchedLookup(user.id, showId);
 
       setWatchedMap((prev) => {
         const next = { ...prev };
-        next[showId] = freshWatchedSet;
+        next[showId] = freshWatchedLookup;
         return next;
       });
     } catch (error) {
@@ -249,65 +308,70 @@ export default function ReadyToWatchPage() {
         return false;
       });
 
-      const watchedCodes = new Set(
-        episodesToBeWatched.map((ep) => getEpisodeCodeKey(ep))
+      const watchedKeys = new Set(
+        episodesToBeWatched.map((ep) => `${ep.seasonNumber}-${ep.number}`)
       );
 
-      const allAiredCodes = airedEpisodes.map((ep) => getEpisodeCodeKey(ep));
-      const codesToDelete = allAiredCodes.filter(
-        (code) => !watchedCodes.has(code)
+      const allAiredSeasonEpisodeKeys = airedEpisodes.map(
+        (ep) => `${ep.seasonNumber}-${ep.number}`
       );
 
-      if (codesToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("watched_episodes")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("show_tvdb_id", showId)
-          .in("episode_code", codesToDelete);
+      const episodesToDelete = airedEpisodes.filter(
+        (ep) => !watchedKeys.has(`${ep.seasonNumber}-${ep.number}`)
+      );
 
-        if (deleteError) throw deleteError;
-      }
-
-      const watchedCodeArray = Array.from(watchedCodes);
-
-      if (watchedCodeArray.length > 0) {
+      if (episodesToDelete.length > 0) {
+        const seasonNumbers = [...new Set(episodesToDelete.map((ep) => ep.seasonNumber))];
         const { data: existingRows, error: existingError } = await supabase
           .from("watched_episodes")
-          .select("episode_code")
+          .select("id, season_number, episode_number")
           .eq("user_id", user.id)
           .eq("show_tvdb_id", showId)
-          .in("episode_code", watchedCodeArray);
+          .in("season_number", seasonNumbers);
 
         if (existingError) throw existingError;
 
-        const existingCodes = new Set(
-          (existingRows || []).map((row) => String(row.episode_code))
-        );
+        const idsToDelete = (existingRows || [])
+          .filter((row) => {
+            const key = `${row.season_number}-${row.episode_number}`;
+            return allAiredSeasonEpisodeKeys.includes(key) && !watchedKeys.has(key);
+          })
+          .map((row) => row.id);
 
-        const rowsToInsert = episodesToBeWatched
-          .filter((ep) => !existingCodes.has(getEpisodeCodeKey(ep)))
-          .map((ep) => ({
-            user_id: user.id,
-            show_tvdb_id: showId,
-            episode_id: String(ep.id),
-            episode_code: getEpisodeCodeKey(ep),
-          }));
-
-        if (rowsToInsert.length > 0) {
-          const { error: insertError } = await supabase
+        if (idsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
             .from("watched_episodes")
-            .insert(rowsToInsert);
+            .delete()
+            .in("id", idsToDelete);
 
-          if (insertError) throw insertError;
+          if (deleteError) throw deleteError;
         }
       }
 
-      const freshWatchedSet = await fetchWatchedSet(user.id, showId);
+      const rowsToUpsert = episodesToBeWatched.map((ep) => ({
+        user_id: user.id,
+        show_tvdb_id: showId,
+        episode_row_id: ep.id,
+        season_number: ep.seasonNumber,
+        episode_number: ep.number,
+        episode_code: getEpisodeCodeKey(ep),
+      }));
+
+      if (rowsToUpsert.length > 0) {
+        const { error: upsertError } = await supabase
+          .from("watched_episodes")
+          .upsert(rowsToUpsert, {
+            onConflict: "user_id,show_tvdb_id,season_number,episode_number",
+          });
+
+        if (upsertError) throw upsertError;
+      }
+
+      const freshWatchedLookup = await fetchWatchedLookup(user.id, showId);
 
       setWatchedMap((prev) => {
         const next = { ...prev };
-        next[showId] = freshWatchedSet;
+        next[showId] = freshWatchedLookup;
         return next;
       });
     } catch (error) {
