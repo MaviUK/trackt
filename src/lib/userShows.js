@@ -1,24 +1,27 @@
 import { supabase } from "./supabase";
+import { saveShowToDatabase } from "./saveShowToDatabase";
 
-export async function updateUserShowStatus(userId, tvdbId, watchStatus) {
-  const normalizedTvdbId = String(tvdbId).trim();
+export async function addShowToUserList(show) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
+  if (userError) throw userError;
+  if (!user) throw new Error("User not logged in");
+
+  await saveShowToDatabase(show);
+
+  const payload = {
+    user_id: user.id,
+    tvdb_id: String(show.tvdb_id),
+    show_name: show.show_name ?? show.name ?? "Unknown title",
+    poster_url: show.poster_url ?? null,
+  };
+
+  const { error } = await supabase
     .from("user_shows")
-    .update({ watch_status: watchStatus })
-    .eq("user_id", userId)
-    .eq("tvdb_id", normalizedTvdbId)
-    .select("user_id, tvdb_id, watch_status")
-    .maybeSingle();
+    .upsert(payload, { onConflict: "user_id,tvdb_id" });
 
-  if (error) {
-    console.error("updateUserShowStatus error:", error);
-    throw error;
-  }
-
-  if (!data) {
-    throw new Error(`No row updated for tvdb_id=${normalizedTvdbId}.`);
-  }
-
-  return data;
+  if (error) throw error;
 }
