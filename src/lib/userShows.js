@@ -17,9 +17,7 @@ export async function updateUserShowStatus(userId, tvdbId, watchStatus) {
   }
 
   if (!data) {
-    throw new Error(
-      `No row updated for tvdb_id=${normalizedTvdbId}.`
-    );
+    throw new Error(`No row updated for tvdb_id=${normalizedTvdbId}.`);
   }
 
   return data;
