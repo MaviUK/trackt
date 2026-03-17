@@ -141,14 +141,14 @@ export default function Dashboard() {
   (ep) => !watchedSet.has(String(ep.id))
 );
 
-if (nextAiredUnwatched && watchedCount > 0) {
-  continueWatching.push({
-    show,
-    episode: nextAiredUnwatched,
-  });
-}
-
 if (nextAiredUnwatched) {
+  if (watchedCount > 0) {
+    continueWatching.push({
+      show,
+      episode: nextAiredUnwatched,
+    });
+  }
+
   readyToWatch.push({
     show,
     episode: nextAiredUnwatched,
