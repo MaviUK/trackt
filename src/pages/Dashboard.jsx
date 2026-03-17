@@ -28,6 +28,15 @@ function getDisplayEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function sortEpisodes(episodes) {
+  return [...episodes].sort((a, b) => {
+    if (a.seasonNumber !== b.seasonNumber) {
+      return a.seasonNumber - b.seasonNumber;
+    }
+    return a.number - b.number;
+  });
+}
+
 export default function Dashboard() {
   const [shows, setShows] = useState([]);
   const [watchedMap, setWatchedMap] = useState({});
@@ -123,37 +132,59 @@ export default function Dashboard() {
       const episodes = episodesByShow[show.tvdb_id] || [];
       const watchedSet = watchedMap[show.tvdb_id] || new Set();
 
-      const validEpisodes = episodes.filter((ep) => ep.seasonNumber > 0);
+      const validEpisodes = sortEpisodes(
+        episodes.filter((ep) => ep.seasonNumber > 0)
+      );
+
       const airedEpisodes = validEpisodes.filter((ep) => isAired(ep.aired));
       const futureEpisodes = validEpisodes.filter((ep) => isFuture(ep.aired));
 
-      const watchedCount = validEpisodes.filter((ep) =>
+      const watchedAiredEpisodes = airedEpisodes.filter((ep) =>
+        watchedSet.has(String(ep.id))
+      );
+
+      const watchedValidCount = validEpisodes.filter((ep) =>
         watchedSet.has(String(ep.id))
       ).length;
 
-      if (validEpisodes.length > 0 && watchedCount === validEpisodes.length) {
+      if (validEpisodes.length > 0 && watchedValidCount === validEpisodes.length) {
         completedCount += 1;
-      } else if (watchedCount > 0 || validEpisodes.length > 0) {
+      } else if (watchedValidCount > 0) {
         inProgressCount += 1;
       }
 
-     const nextAiredUnwatched = airedEpisodes.find(
-  (ep) => !watchedSet.has(String(ep.id))
-);
+      const firstAiredUnwatched = airedEpisodes.find(
+        (ep) => !watchedSet.has(String(ep.id))
+      );
 
-if (nextAiredUnwatched) {
-  if (watchedCount > 0) {
-    continueWatching.push({
-      show,
-      episode: nextAiredUnwatched,
-    });
-  }
+      if (firstAiredUnwatched) {
+        readyToWatch.push({
+          show,
+          episode: firstAiredUnwatched,
+        });
+      }
 
-  readyToWatch.push({
-    show,
-    episode: nextAiredUnwatched,
-  });
-}
+      let nextContinueEpisode = null;
+
+      if (watchedAiredEpisodes.length > 0) {
+        const lastWatchedAired = watchedAiredEpisodes[watchedAiredEpisodes.length - 1];
+        const lastWatchedIndex = airedEpisodes.findIndex(
+          (ep) => String(ep.id) === String(lastWatchedAired.id)
+        );
+
+        const candidate = airedEpisodes[lastWatchedIndex + 1];
+
+        if (candidate && !watchedSet.has(String(candidate.id))) {
+          nextContinueEpisode = candidate;
+        }
+      }
+
+      if (nextContinueEpisode) {
+        continueWatching.push({
+          show,
+          episode: nextContinueEpisode,
+        });
+      }
 
       const nextUpcoming = futureEpisodes[0];
       if (nextUpcoming) {
@@ -194,7 +225,11 @@ if (nextAiredUnwatched) {
   }, [shows, watchedMap, episodesByShow]);
 
   if (loading) {
-    return <div className="page"><p>Loading dashboard...</p></div>;
+    return (
+      <div className="page">
+        <p>Loading dashboard...</p>
+      </div>
+    );
   }
 
   return (
