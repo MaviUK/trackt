@@ -76,36 +76,27 @@ function getDisplayEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
-function isEpisodeWatched(ep, watchedLookup) {
-  const byRowId =
-    ep.id != null && watchedLookup.episodeRowIds.has(String(ep.id).trim());
-
-  const byCode =
-    ep.seasonNumber != null &&
-    ep.number != null &&
-    watchedLookup.episodeCodes.has(
-      `S${String(ep.seasonNumber).padStart(2, "0")}E${String(ep.number).padStart(
-        2,
-        "0"
-      )}`
-    );
-
-  const bySeasonEpisode =
-    ep.seasonNumber != null &&
-    ep.number != null &&
-    watchedLookup.seasonEpisodeKeys.has(`${ep.seasonNumber}-${ep.number}`);
-
-  return byRowId || byCode || bySeasonEpisode;
+function isEpisodeWatched(ep, watchedEpisodeIds) {
+  if (!ep?.id) return false;
+  return watchedEpisodeIds.has(String(ep.id));
 }
 
 function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
   return (
-    <Link to={`/my-shows/${show.tvdb_id}`} className="dashboard-item">
-      <img
-        src={show.poster_url}
-        alt={show.show_name}
-        className="dashboard-poster"
-      />
+    <Link
+      to={`/my-shows/${show.tvdb_id}?episode=${episode.id}`}
+      className="dashboard-item"
+    >
+      {show.poster_url ? (
+        <img
+          src={show.poster_url}
+          alt={show.show_name}
+          className="dashboard-poster"
+        />
+      ) : (
+        <div className="dashboard-poster" />
+      )}
+
       <div className="dashboard-item-info">
         <strong>{show.show_name}</strong>
         <span>
@@ -121,7 +112,7 @@ function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
 
 export default function Dashboard() {
   const [shows, setShows] = useState([]);
-  const [watchedMap, setWatchedMap] = useState({});
+  const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(new Set());
   const [episodesByShow, setEpisodesByShow] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -129,120 +120,138 @@ export default function Dashboard() {
     async function loadDashboard() {
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        setShows([]);
-        setWatchedMap({});
-        setEpisodesByShow({});
-        setLoading(false);
-        return;
-      }
+        if (!user) {
+          setShows([]);
+          setWatchedEpisodeIds(new Set());
+          setEpisodesByShow({});
+          setLoading(false);
+          return;
+        }
 
-      const { data: userShows, error: showsError } = await supabase
-        .from("user_shows")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("added_at", { ascending: false });
-
-      if (showsError) {
-        console.error("Error loading user shows:", showsError);
-        setLoading(false);
-        return;
-      }
-
-      const safeShows = userShows || [];
-      const tvdbIds = safeShows.map((show) => String(show.tvdb_id));
-
-      let watchedRows = [];
-      if (tvdbIds.length > 0) {
-        const { data: watchedData, error: watchedError } = await supabase
-          .from("watched_episodes")
-          .select(
-            "show_tvdb_id, episode_row_id, season_number, episode_number, episode_code"
-          )
+        const { data: userShows, error: showsError } = await supabase
+          .from("user_shows_new")
+          .select(`
+            id,
+            user_id,
+            show_id,
+            watch_status,
+            added_at,
+            created_at,
+            shows!inner(
+              id,
+              tvdb_id,
+              name,
+              overview,
+              status,
+              poster_url,
+              first_aired
+            )
+          `)
           .eq("user_id", user.id)
-          .in("show_tvdb_id", tvdbIds);
+          .order("added_at", { ascending: false });
 
-        if (watchedError) {
-          console.error("Error loading watched episodes:", watchedError);
-        } else {
-          watchedRows = watchedData || [];
-        }
-      }
-
-      const watchedLookup = {};
-      for (const row of watchedRows) {
-        const showId = String(row.show_tvdb_id);
-
-        if (!watchedLookup[showId]) {
-          watchedLookup[showId] = {
-            episodeRowIds: new Set(),
-            episodeCodes: new Set(),
-            seasonEpisodeKeys: new Set(),
-          };
+        if (showsError) {
+          console.error("Error loading user shows:", showsError);
+          setLoading(false);
+          return;
         }
 
-        if (row.episode_row_id != null) {
-          watchedLookup[showId].episodeRowIds.add(
-            String(row.episode_row_id).trim()
-          );
+        const safeShows = (userShows || []).map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          show_id: row.show_id,
+          watch_status: row.watch_status || "watching",
+          added_at: row.added_at,
+          created_at: row.created_at,
+          tvdb_id: row.shows.tvdb_id,
+          show_name: row.shows.name || "Unknown title",
+          overview: row.shows.overview || "",
+          status: row.shows.status || null,
+          poster_url: row.shows.poster_url || null,
+          first_aired: row.shows.first_aired || null,
+        }));
+
+        const showIds = safeShows.map((show) => show.show_id).filter(Boolean);
+
+        const [watchedResp, episodesResp] = await Promise.all([
+          supabase
+            .from("watched_episodes")
+            .select("episode_id")
+            .eq("user_id", user.id),
+
+          showIds.length
+            ? supabase
+                .from("episodes")
+                .select(`
+                  id,
+                  show_id,
+                  season_number,
+                  episode_number,
+                  name,
+                  aired_date,
+                  overview,
+                  image_url,
+                  episode_code
+                `)
+                .in("show_id", showIds)
+                .order("show_id", { ascending: true })
+                .order("season_number", { ascending: true })
+                .order("episode_number", { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+
+        if (watchedResp.error) {
+          console.error("Error loading watched episodes:", watchedResp.error);
         }
 
-        if (row.episode_code) {
-          watchedLookup[showId].episodeCodes.add(String(row.episode_code).trim());
+        if (episodesResp.error) {
+          console.error("Error loading episodes:", episodesResp.error);
         }
 
-        if (
-          row.season_number != null &&
-          row.episode_number != null
-        ) {
-          watchedLookup[showId].seasonEpisodeKeys.add(
-            `${row.season_number}-${row.episode_number}`
-          );
-        }
-      }
+        const watchedIds = new Set(
+          (watchedResp.data || [])
+            .map((row) => row.episode_id)
+            .filter(Boolean)
+            .map(String)
+        );
 
-      const episodesLookup = {};
-      if (tvdbIds.length > 0) {
-        const { data: episodeRows, error: episodesError } = await supabase
-          .from("episodes")
-          .select("*")
-          .in("show_tvdb_id", tvdbIds)
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true });
+        const episodesLookup = {};
+        for (const row of episodesResp.data || []) {
+          const showId = row.show_id;
 
-        if (episodesError) {
-          console.error("Error loading episodes:", episodesError);
-        } else {
-          for (const row of episodeRows || []) {
-            const showId = String(row.show_tvdb_id);
-
-            if (!episodesLookup[showId]) {
-              episodesLookup[showId] = [];
-            }
-
-            episodesLookup[showId].push({
-              id: row.id,
-              show_tvdb_id: row.show_tvdb_id,
-              seasonNumber: row.season_number,
-              number: row.episode_number,
-              name: row.episode_name,
-              aired: row.aired,
-              overview: row.overview,
-              image: row.image_url,
-              episodeCode: row.episode_code,
-            });
+          if (!episodesLookup[showId]) {
+            episodesLookup[showId] = [];
           }
-        }
-      }
 
-      setShows(safeShows);
-      setWatchedMap(watchedLookup);
-      setEpisodesByShow(episodesLookup);
-      setLoading(false);
+          episodesLookup[showId].push({
+            id: row.id,
+            show_id: row.show_id,
+            seasonNumber: row.season_number,
+            number: row.episode_number,
+            name: row.name || "Untitled episode",
+            aired: row.aired_date,
+            overview: row.overview || "",
+            image: row.image_url || null,
+            episodeCode: row.episode_code || null,
+          });
+        }
+
+        setShows(safeShows);
+        setWatchedEpisodeIds(watchedIds);
+        setEpisodesByShow(episodesLookup);
+      } catch (error) {
+        console.error("Error loading dashboard:", error);
+        setShows([]);
+        setWatchedEpisodeIds(new Set());
+        setEpisodesByShow({});
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadDashboard();
@@ -258,26 +267,20 @@ export default function Dashboard() {
     let inProgressCount = 0;
 
     for (const show of shows) {
-      const showId = String(show.tvdb_id);
-      const episodes = episodesByShow[showId] || [];
-      const watchedLookup = watchedMap[showId] || {
-        episodeRowIds: new Set(),
-        episodeCodes: new Set(),
-        seasonEpisodeKeys: new Set(),
-      };
+      const episodes = episodesByShow[show.show_id] || [];
 
       const airedEpisodes = episodes.filter((ep) => isAired(ep.aired));
       const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
       const todayEpisodes = episodes.filter((ep) => isToday(ep.aired));
 
       const watchedAiredBeforeTodayCount = airedBeforeToday.filter((ep) =>
-        isEpisodeWatched(ep, watchedLookup)
+        isEpisodeWatched(ep, watchedEpisodeIds)
       ).length;
 
       const recentUnwatchedEpisodes = episodes.filter(
         (ep) =>
           isWithinLastDays(ep.aired, 7, { includeToday: false }) &&
-          !isEpisodeWatched(ep, watchedLookup)
+          !isEpisodeWatched(ep, watchedEpisodeIds)
       );
 
       const latestRecentUnwatchedEpisode =
@@ -285,7 +288,7 @@ export default function Dashboard() {
           .filter(
             (ep) =>
               isWithinLastMonth(ep.aired) &&
-              !isEpisodeWatched(ep, watchedLookup)
+              !isEpisodeWatched(ep, watchedEpisodeIds)
           )
           .sort((a, b) => {
             const aTime = parseDate(a.aired)?.getTime() ?? 0;
@@ -364,7 +367,7 @@ export default function Dashboard() {
       continueWatching: continueWatching.slice(0, 12),
       recentlyAdded: recentlyAdded.slice(0, 12),
     };
-  }, [shows, watchedMap, episodesByShow]);
+  }, [shows, watchedEpisodeIds, episodesByShow]);
 
   if (loading) {
     return (
