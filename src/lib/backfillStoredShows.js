@@ -1,6 +1,5 @@
 import { supabase } from "./supabase";
-import { getCachedEpisodes } from "./episodesCache";
-import { upsertShowRecord, replaceShowEpisodes } from "./showSync";
+import { saveShowToDatabase } from "./saveShowToDatabase";
 
 function normalizeId(value) {
   if (value == null) return "";
@@ -39,27 +38,11 @@ export async function backfillStoredShowsForCurrentUser() {
     }
 
     try {
-      await upsertShowRecord({
-        ...show,
-        tvdb_id: showTvdbId,
-      });
-
-      const episodes = await getCachedEpisodes(showTvdbId);
-
-console.log("BACKFILL SHOW", {
-  showTvdbId,
-  showName: show.show_name,
-  episodeCount: Array.isArray(episodes) ? episodes.length : null,
-  sampleEpisode: Array.isArray(episodes) && episodes.length > 0 ? episodes[0] : null,
-});
-
-await replaceShowEpisodes(showTvdbId, episodes || []);
-
+      await saveShowToDatabase({ ...show, tvdb_id: showTvdbId });
       results.push({
         tvdb_id: showTvdbId,
         show_name: show.show_name,
         ok: true,
-        episode_count: (episodes || []).length,
       });
     } catch (error) {
       console.error("Backfill failed for show:", show.show_name, error);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
+import { addShowToUserList } from "../lib/userShows";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
 
@@ -157,44 +158,17 @@ async function handleAddShow() {
   setAdding(true);
 
   try {
-    const tvdbId = String(show.tvdb_id);
-
-    const { data: existing, error: existingError } = await supabase
-      .from("user_shows")
-      .select("tvdb_id")
-      .eq("user_id", user.id)
-      .eq("tvdb_id", tvdbId)
-      .maybeSingle();
-
-    if (existingError) {
-      throw existingError;
-    }
-
-    if (existing) {
-      setAlreadySaved(true);
-      navigate(`/my-shows/${tvdbId}`);
-      return;
-    }
-
-    const payload = {
-      user_id: user.id,
-      tvdb_id: tvdbId,
+    await addShowToUserList({
+      tvdb_id: String(show.tvdb_id),
       show_name: show.show_name,
       poster_url: show.poster_url || null,
       overview: show.overview || null,
-      first_aired: show.first_aired || null,
-    };
-
-    const { error: insertError } = await supabase
-      .from("user_shows")
-      .insert(payload);
-
-    if (insertError) {
-      throw insertError;
-    }
+      first_air_date: show.first_aired || null,
+      status: show.status || null,
+    });
 
     setAlreadySaved(true);
-    navigate(`/my-shows/${tvdbId}`);
+    navigate(`/my-shows/${show.tvdb_id}`);
   } catch (error) {
     console.error("Failed to add show:", error);
     alert(error.message || "Failed to add show");

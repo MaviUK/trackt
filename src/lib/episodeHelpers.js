@@ -19,7 +19,7 @@ export function getEpisodeNumber(ep) {
 }
 
 export function getEpisodeAirDate(ep) {
-  return ep?.airDate ?? ep?.aired ?? null;
+  return ep?.airDate ?? ep?.air_date ?? ep?.aired ?? null;
 }
 
 export function normalizeEpisodes(episodes = []) {
@@ -53,24 +53,46 @@ export function makeEpisodeCode(ep) {
   return `S${String(season).padStart(2, "0")}E${String(episodeNum).padStart(2, "0")}`;
 }
 
+export function createEmptyWatchedLookup() {
+  return {
+    watchedCodes: new Set(),
+    watchedIds: new Set(),
+    watchedRowIds: new Set(),
+    watchedSeasonEpisodes: new Set(),
+  };
+}
+
 export function buildWatchedSets(rows = []) {
-  const watchedCodes = new Set();
-  const watchedIds = new Set();
+  const lookup = createEmptyWatchedLookup();
 
   for (const row of rows) {
-    if (row?.episode_code) watchedCodes.add(String(row.episode_code).toUpperCase());
-    if (row?.episode_id != null) watchedIds.add(String(row.episode_id));
+    if (row?.episode_code) lookup.watchedCodes.add(String(row.episode_code).toUpperCase());
+    if (row?.episode_id != null) lookup.watchedIds.add(String(row.episode_id));
+    if (row?.episode_row_id != null) lookup.watchedRowIds.add(String(row.episode_row_id));
+
+    const season = row?.season_number;
+    const episode = row?.episode_number;
+    if (season != null && episode != null) {
+      lookup.watchedSeasonEpisodes.add(`${season}-${episode}`);
+    }
   }
 
-  return { watchedCodes, watchedIds };
+  return lookup;
 }
 
 export function isEpisodeWatched(ep, watchedSets) {
   const code = makeEpisodeCode(ep);
   if (code && watchedSets.watchedCodes.has(code.toUpperCase())) return true;
 
-  const id = ep?.id != null ? String(ep.id) : null;
-  if (id && watchedSets.watchedIds.has(id)) return true;
+  const rowId = ep?.id != null ? String(ep.id) : null;
+  if (rowId && watchedSets.watchedRowIds.has(rowId)) return true;
+
+  const tvdbId = ep?.tvdb_episode_id != null ? String(ep.tvdb_episode_id) : ep?.id != null ? String(ep.id) : null;
+  if (tvdbId && watchedSets.watchedIds.has(tvdbId)) return true;
+
+  const season = getEpisodeSeason(ep);
+  const episodeNum = getEpisodeNumber(ep);
+  if (season && episodeNum && watchedSets.watchedSeasonEpisodes.has(`${season}-${episodeNum}`)) return true;
 
   return false;
 }

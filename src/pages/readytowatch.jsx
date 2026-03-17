@@ -308,45 +308,13 @@ export default function ReadyToWatchPage() {
         return false;
       });
 
-      const watchedKeys = new Set(
-        episodesToBeWatched.map((ep) => `${ep.seasonNumber}-${ep.number}`)
-      );
+      const { error: deleteError } = await supabase
+        .from("watched_episodes")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("show_tvdb_id", showId);
 
-      const allAiredSeasonEpisodeKeys = airedEpisodes.map(
-        (ep) => `${ep.seasonNumber}-${ep.number}`
-      );
-
-      const episodesToDelete = airedEpisodes.filter(
-        (ep) => !watchedKeys.has(`${ep.seasonNumber}-${ep.number}`)
-      );
-
-      if (episodesToDelete.length > 0) {
-        const seasonNumbers = [...new Set(episodesToDelete.map((ep) => ep.seasonNumber))];
-        const { data: existingRows, error: existingError } = await supabase
-          .from("watched_episodes")
-          .select("id, season_number, episode_number")
-          .eq("user_id", user.id)
-          .eq("show_tvdb_id", showId)
-          .in("season_number", seasonNumbers);
-
-        if (existingError) throw existingError;
-
-        const idsToDelete = (existingRows || [])
-          .filter((row) => {
-            const key = `${row.season_number}-${row.episode_number}`;
-            return allAiredSeasonEpisodeKeys.includes(key) && !watchedKeys.has(key);
-          })
-          .map((row) => row.id);
-
-        if (idsToDelete.length > 0) {
-          const { error: deleteError } = await supabase
-            .from("watched_episodes")
-            .delete()
-            .in("id", idsToDelete);
-
-          if (deleteError) throw deleteError;
-        }
-      }
+      if (deleteError) throw deleteError;
 
       const rowsToUpsert = episodesToBeWatched.map((ep) => ({
         user_id: user.id,

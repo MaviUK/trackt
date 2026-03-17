@@ -13,7 +13,7 @@ export async function getStoredShow(tvdbId) {
 
 export async function getStoredEpisodes(tvdbId) {
   const { data, error } = await supabase
-    .from("show_episodes")
+    .from("episodes")
     .select("*")
     .eq("show_tvdb_id", String(tvdbId))
     .order("season_number", { ascending: true })
@@ -23,15 +23,8 @@ export async function getStoredEpisodes(tvdbId) {
   return data || [];
 }
 
-export async function getStoredCast(tvdbId) {
-  const { data, error } = await supabase
-    .from("show_cast")
-    .select("*")
-    .eq("show_tvdb_id", String(tvdbId))
-    .order("sort_order", { ascending: true });
-
-  if (error) throw error;
-  return data || [];
+export async function getStoredCast() {
+  return [];
 }
 
 export async function getStoredEpisodesForShows(showIds = []) {
@@ -40,7 +33,7 @@ export async function getStoredEpisodesForShows(showIds = []) {
   const ids = showIds.map((id) => String(id));
 
   const { data, error } = await supabase
-    .from("show_episodes")
+    .from("episodes")
     .select("*")
     .in("show_tvdb_id", ids)
     .order("season_number", { ascending: true })

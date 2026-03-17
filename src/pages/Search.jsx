@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
+import { addShowToUserList } from "../lib/userShows";
 
 export default function Search() {
   const [query, setQuery] = useState("");
@@ -83,43 +84,14 @@ const handleAddShow = async (event, show) => {
   setError("");
 
   try {
-    const { data: existing, error: existingError } = await supabase
-      .from("user_shows")
-      .select("tvdb_id")
-      .eq("user_id", user.id)
-      .eq("tvdb_id", tvdbId)
-      .maybeSingle();
-
-    if (existingError) {
-      throw existingError;
-    }
-
-    if (existing) {
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        next.add(tvdbId);
-        return next;
-      });
-      setAddingId(null);
-      return;
-    }
-
-    const payload = {
-      user_id: user.id,
+    await addShowToUserList({
       tvdb_id: tvdbId,
       show_name: show.name || show.show_name || "Unknown Show",
       poster_url: show.image_url || show.poster_url || null,
       overview: show.overview || null,
-      first_aired: show.first_air_time || show.first_aired || null,
-    };
-
-    const { error: insertError } = await supabase
-      .from("user_shows")
-      .insert(payload);
-
-    if (insertError) {
-      throw insertError;
-    }
+      first_air_date: show.first_air_time || show.first_aired || null,
+      status: show.status || null,
+    });
 
     setSavedIds((prev) => {
       const next = new Set(prev);
@@ -133,7 +105,6 @@ const handleAddShow = async (event, show) => {
     setAddingId(null);
   }
 };
-
   return (
     <div className="page">
       <div className="page-shell">
