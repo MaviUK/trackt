@@ -16,8 +16,9 @@ export async function handler(event) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
+     body: JSON.stringify({
         apikey: process.env.TVDB_API_KEY,
+        pin: process.env.TVDB_PIN,
       }),
     });
 
