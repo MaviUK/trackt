@@ -137,10 +137,6 @@ export default function Dashboard() {
         inProgressCount += 1;
       }
 
-      const nextAiredUnwatched = airedEpisodes.find(
-        (ep) => !watchedSet.has(String(ep.id))
-      );
-
      const nextAiredUnwatched = airedEpisodes.find(
   (ep) => !watchedSet.has(String(ep.id))
 );
