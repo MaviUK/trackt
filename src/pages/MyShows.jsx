@@ -854,4 +854,3 @@ export default function MyShows() {
     </div>
   );
 }
-they are still showing in airing next ready to watch  etc so do i need to update all pages or is this supposed to make it automatic?
