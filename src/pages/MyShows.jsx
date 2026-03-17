@@ -4,6 +4,7 @@ import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
 import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
+import { updateUserShowStatus } from "../lib/userShows";
 
 function normalizeId(value) {
   if (value == null) return "";
@@ -189,154 +190,147 @@ export default function MyShows() {
   const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
 
-  useEffect(() => {
-    let cancelled = false;
+  async function loadShows() {
+    try {
+      setLoading(true);
 
-    async function loadShows() {
-      try {
-        setLoading(true);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+      if (userError) throw userError;
 
-        if (userError) throw userError;
-
-        if (!user) {
-          if (!cancelled) setShows([]);
-          return;
-        }
-
-        const { data: userShows, error: userShowsError } = await supabase
-          .from("user_shows")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("show_name", { ascending: true });
-
-        if (userShowsError) throw userShowsError;
-
-        const normalizedUserShows = (userShows || []).map((show) => ({
-          ...show,
-          tvdb_id: normalizeId(show.tvdb_id),
-        }));
-
-        const showIds = normalizedUserShows
-          .map((show) => show.tvdb_id)
-          .filter(Boolean);
-
-        if (showIds.length === 0) {
-          if (!cancelled) setShows([]);
-          return;
-        }
-
-        const [watchedRows, storedShows, storedEpisodes] = await Promise.all([
-          fetchAllWatchedRows(user.id, showIds),
-          fetchAllStoredShows(showIds),
-          fetchAllStoredEpisodes(showIds),
-        ]);
-
-        const watchedRowsByShow = {};
-        for (const row of watchedRows || []) {
-          const key = normalizeId(row.show_tvdb_id);
-          if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
-          watchedRowsByShow[key].push(row);
-        }
-
-        const storedShowById = {};
-        for (const storedShow of storedShows || []) {
-          const key = normalizeId(storedShow.tvdb_id);
-          if (key) storedShowById[key] = storedShow;
-        }
-
-        const episodesByShowId = {};
-        for (const ep of storedEpisodes || []) {
-          const key = normalizeId(ep.show_tvdb_id);
-          if (!episodesByShowId[key]) episodesByShowId[key] = [];
-          episodesByShowId[key].push(ep);
-        }
-
-        Object.keys(episodesByShowId).forEach((key) => {
-          episodesByShowId[key].sort((a, b) => {
-            if ((a.season_number ?? 0) !== (b.season_number ?? 0)) {
-              return (a.season_number ?? 0) - (b.season_number ?? 0);
-            }
-            return (a.episode_number ?? 0) - (b.episode_number ?? 0);
-          });
-        });
-
-        const updatedShows = normalizedUserShows.map((userShow) => {
-          const showId = normalizeId(userShow.tvdb_id);
-          const matchedStoredShow = storedShowById[showId] || null;
-          const showEpisodes = episodesByShowId[showId] || [];
-          const watchedLookup = buildWatchedLookup(
-            watchedRowsByShow[showId] || []
-          );
-
-          const watchedCount = showEpisodes.filter((ep) =>
-            isStoredEpisodeWatched(ep, watchedLookup)
-          ).length;
-
-          const totalEpisodes = showEpisodes.length;
-
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          const upcomingEpisodes = showEpisodes
-            .filter((ep) => ep.air_date)
-            .filter((ep) => {
-              const airDate = new Date(ep.air_date);
-              airDate.setHours(0, 0, 0, 0);
-              return airDate >= today;
-            })
-            .sort((a, b) => new Date(a.air_date) - new Date(b.air_date));
-
-          const nextEpisodeDate =
-            upcomingEpisodes.length > 0 ? upcomingEpisodes[0].air_date : null;
-
-          const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
-          const status = getShowStatus(userShow, statusEpisodes);
-
-          const isCompleted =
-            totalEpisodes > 0 && watchedCount >= totalEpisodes;
-
-          const progress =
-            totalEpisodes > 0
-              ? Math.round((watchedCount / totalEpisodes) * 100)
-              : 0;
-
-          return {
-            ...userShow,
-            overview: userShow.overview || matchedStoredShow?.overview || "",
-            poster_url:
-              userShow.poster_url || matchedStoredShow?.poster_url || null,
-            first_aired:
-              userShow.first_aired || matchedStoredShow?.first_aired || null,
-            watchedCount,
-            totalEpisodes,
-            nextEpisodeDate,
-            status,
-            isCompleted,
-            progress,
-          };
-        });
-
-        if (!cancelled) {
-          setShows(updatedShows);
-        }
-      } catch (error) {
-        console.error("LOAD SHOWS FAILED:", error);
-        if (!cancelled) setShows([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (!user) {
+        setShows([]);
+        return;
       }
+
+      const { data: userShows, error: userShowsError } = await supabase
+        .from("user_shows")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("show_name", { ascending: true });
+
+      if (userShowsError) throw userShowsError;
+
+      const normalizedUserShows = (userShows || []).map((show) => ({
+        ...show,
+        tvdb_id: normalizeId(show.tvdb_id),
+        watch_status: show.watch_status || "watching",
+      }));
+
+      const showIds = normalizedUserShows
+        .map((show) => show.tvdb_id)
+        .filter(Boolean);
+
+      if (showIds.length === 0) {
+        setShows([]);
+        return;
+      }
+
+      const [watchedRows, storedShows, storedEpisodes] = await Promise.all([
+        fetchAllWatchedRows(user.id, showIds),
+        fetchAllStoredShows(showIds),
+        fetchAllStoredEpisodes(showIds),
+      ]);
+
+      const watchedRowsByShow = {};
+      for (const row of watchedRows || []) {
+        const key = normalizeId(row.show_tvdb_id);
+        if (!watchedRowsByShow[key]) watchedRowsByShow[key] = [];
+        watchedRowsByShow[key].push(row);
+      }
+
+      const storedShowById = {};
+      for (const storedShow of storedShows || []) {
+        const key = normalizeId(storedShow.tvdb_id);
+        if (key) storedShowById[key] = storedShow;
+      }
+
+      const episodesByShowId = {};
+      for (const ep of storedEpisodes || []) {
+        const key = normalizeId(ep.show_tvdb_id);
+        if (!episodesByShowId[key]) episodesByShowId[key] = [];
+        episodesByShowId[key].push(ep);
+      }
+
+      Object.keys(episodesByShowId).forEach((key) => {
+        episodesByShowId[key].sort((a, b) => {
+          if ((a.season_number ?? 0) !== (b.season_number ?? 0)) {
+            return (a.season_number ?? 0) - (b.season_number ?? 0);
+          }
+          return (a.episode_number ?? 0) - (b.episode_number ?? 0);
+        });
+      });
+
+      const updatedShows = normalizedUserShows.map((userShow) => {
+        const showId = normalizeId(userShow.tvdb_id);
+        const matchedStoredShow = storedShowById[showId] || null;
+        const showEpisodes = episodesByShowId[showId] || [];
+        const watchedLookup = buildWatchedLookup(
+          watchedRowsByShow[showId] || []
+        );
+
+        const watchedCount = showEpisodes.filter((ep) =>
+          isStoredEpisodeWatched(ep, watchedLookup)
+        ).length;
+
+        const totalEpisodes = showEpisodes.length;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcomingEpisodes = showEpisodes
+          .filter((ep) => ep.air_date)
+          .filter((ep) => {
+            const airDate = new Date(ep.air_date);
+            airDate.setHours(0, 0, 0, 0);
+            return airDate >= today;
+          })
+          .sort((a, b) => new Date(a.air_date) - new Date(b.air_date));
+
+        const nextEpisodeDate =
+          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].air_date : null;
+
+        const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
+        const status = getShowStatus(userShow, statusEpisodes);
+
+        const isCompleted =
+          totalEpisodes > 0 && watchedCount >= totalEpisodes;
+
+        const progress =
+          totalEpisodes > 0
+            ? Math.round((watchedCount / totalEpisodes) * 100)
+            : 0;
+
+        return {
+          ...userShow,
+          overview: userShow.overview || matchedStoredShow?.overview || "",
+          poster_url:
+            userShow.poster_url || matchedStoredShow?.poster_url || null,
+          first_aired:
+            userShow.first_aired || matchedStoredShow?.first_aired || null,
+          watchedCount,
+          totalEpisodes,
+          nextEpisodeDate,
+          status,
+          isCompleted,
+          progress,
+        };
+      });
+
+      setShows(updatedShows);
+    } catch (error) {
+      console.error("LOAD SHOWS FAILED:", error);
+      setShows([]);
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadShows();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   async function handleBackfillStoredShows() {
@@ -377,14 +371,71 @@ export default function MyShows() {
     );
   }
 
+  async function handleStopWatching(tvdb_id) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      await updateUserShowStatus(user.id, String(tvdb_id), "stopped");
+
+      setShows((prev) =>
+        prev.map((show) =>
+          String(show.tvdb_id) === String(tvdb_id)
+            ? { ...show, watch_status: "stopped" }
+            : show
+        )
+      );
+    } catch (error) {
+      console.error("Failed to stop watching show:", error);
+    }
+  }
+
+  async function handleResumeWatching(tvdb_id) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      await updateUserShowStatus(user.id, String(tvdb_id), "watching");
+
+      setShows((prev) =>
+        prev.map((show) =>
+          String(show.tvdb_id) === String(tvdb_id)
+            ? { ...show, watch_status: "watching" }
+            : show
+        )
+      );
+    } catch (error) {
+      console.error("Failed to resume show:", error);
+    }
+  }
+
   const filteredShows = useMemo(() => {
     return shows.filter((show) => {
-      if (filterBy === "all") return true;
-      if (filterBy === "completed") return show.isCompleted;
-      if (filterBy === "inprogress") return !show.isCompleted;
-      if (filterBy === "airing") return show.status === "Airing";
-      if (filterBy === "ended") return show.status === "Ended";
-      if (filterBy === "upcoming") return show.status === "Upcoming";
+      const watchStatus = show.watch_status || "watching";
+
+      if (filterBy === "all") return watchStatus !== "stopped";
+      if (filterBy === "stopped") return watchStatus === "stopped";
+      if (filterBy === "completed") {
+        return show.isCompleted && watchStatus !== "stopped";
+      }
+      if (filterBy === "inprogress") {
+        return !show.isCompleted && watchStatus !== "stopped";
+      }
+      if (filterBy === "airing") {
+        return show.status === "Airing" && watchStatus !== "stopped";
+      }
+      if (filterBy === "ended") {
+        return show.status === "Ended" && watchStatus !== "stopped";
+      }
+      if (filterBy === "upcoming") {
+        return show.status === "Upcoming" && watchStatus !== "stopped";
+      }
       return true;
     });
   }, [shows, filterBy]);
@@ -425,12 +476,34 @@ export default function MyShows() {
 
   const counts = useMemo(() => {
     return {
-      all: shows.length,
-      inprogress: shows.filter((show) => !show.isCompleted).length,
-      completed: shows.filter((show) => show.isCompleted).length,
-      airing: shows.filter((show) => show.status === "Airing").length,
-      ended: shows.filter((show) => show.status === "Ended").length,
-      upcoming: shows.filter((show) => show.status === "Upcoming").length,
+      all: shows.filter((show) => (show.watch_status || "watching") !== "stopped")
+        .length,
+      inprogress: shows.filter(
+        (show) =>
+          !show.isCompleted && (show.watch_status || "watching") !== "stopped"
+      ).length,
+      completed: shows.filter(
+        (show) =>
+          show.isCompleted && (show.watch_status || "watching") !== "stopped"
+      ).length,
+      airing: shows.filter(
+        (show) =>
+          show.status === "Airing" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      ended: shows.filter(
+        (show) =>
+          show.status === "Ended" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      upcoming: shows.filter(
+        (show) =>
+          show.status === "Upcoming" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      stopped: shows.filter(
+        (show) => (show.watch_status || "watching") === "stopped"
+      ).length,
     };
   }, [shows]);
 
@@ -484,6 +557,25 @@ export default function MyShows() {
       border: "1px solid rgba(148, 163, 184, 0.3)",
       color: "#cbd5e1",
     };
+  };
+
+  const getWatchStatusStyle = (watchStatus) => {
+    if (watchStatus === "stopped") {
+      return {
+        display: "inline-block",
+        marginTop: "8px",
+        marginLeft: "8px",
+        padding: "4px 10px",
+        borderRadius: "999px",
+        fontSize: "12px",
+        fontWeight: "700",
+        background: "rgba(239, 68, 68, 0.16)",
+        border: "1px solid rgba(239, 68, 68, 0.35)",
+        color: "#fca5a5",
+      };
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -562,6 +654,13 @@ export default function MyShows() {
               >
                 Upcoming ({counts.upcoming})
               </button>
+              <button
+                type="button"
+                onClick={() => setFilterBy("stopped")}
+                style={tabButtonStyle(filterBy === "stopped")}
+              >
+                Stopped ({counts.stopped})
+              </button>
             </div>
 
             <div
@@ -628,6 +727,12 @@ export default function MyShows() {
                         {show.status}
                       </div>
 
+                      {show.watch_status === "stopped" && (
+                        <div style={getWatchStatusStyle(show.watch_status)}>
+                          Stopped
+                        </div>
+                      )}
+
                       {show.first_aired && (
                         <p style={{ margin: "8px 0 0 0" }}>
                           First aired: {formatDate(show.first_aired)}
@@ -638,7 +743,7 @@ export default function MyShows() {
                         {show.watchedCount || 0} / {show.totalEpisodes || 0} watched
                       </p>
 
-                      {show.isCompleted && (
+                      {show.isCompleted && show.watch_status !== "stopped" && (
                         <p
                           style={{
                             margin: "8px 0 0 0",
@@ -672,7 +777,7 @@ export default function MyShows() {
                         />
                       </div>
 
-                      {show.nextEpisodeDate && (
+                      {show.nextEpisodeDate && show.watch_status !== "stopped" && (
                         <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
                           Next episode: {formatDate(show.nextEpisodeDate)}
                         </p>
@@ -689,13 +794,37 @@ export default function MyShows() {
                   </div>
                 </Link>
 
-                <button
-                  className="msd-btn msd-btn-secondary"
-                  style={{ marginTop: "12px" }}
-                  onClick={() => removeShow(show.tvdb_id)}
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
                 >
-                  Remove
-                </button>
+                  {show.watch_status === "stopped" ? (
+                    <button
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => handleResumeWatching(show.tvdb_id)}
+                    >
+                      Resume Watching
+                    </button>
+                  ) : (
+                    <button
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => handleStopWatching(show.tvdb_id)}
+                    >
+                      Stop Watching
+                    </button>
+                  )}
+
+                  <button
+                    className="msd-btn msd-btn-secondary"
+                    onClick={() => removeShow(show.tvdb_id)}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
