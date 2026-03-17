@@ -40,7 +40,6 @@ function isToday(dateStr) {
 function isBeforeToday(dateStr) {
   const date = parseDate(dateStr);
   if (!date) return false;
-
   return date < startOfDay(new Date());
 }
 
@@ -77,18 +76,6 @@ function getDisplayEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
-function getEpisodeSortValue(ep) {
-  return (
-    Number(ep.seasonNumber || 0) * 100000 +
-    Number(ep.number || 0) * 100 +
-    (parseDate(ep.aired)?.getTime() || 0) / 10000000000000
-  );
-}
-
-function getEpisodeUniqueKey(ep) {
-  return `${ep.id ?? "noid"}-${ep.seasonNumber ?? 0}-${ep.number ?? 0}`;
-}
-
 function sortEpisodes(episodes) {
   return [...episodes].sort((a, b) => {
     const seasonDiff = Number(a.seasonNumber || 0) - Number(b.seasonNumber || 0);
@@ -115,6 +102,60 @@ function dedupeEpisodes(episodes) {
   }
 
   return result;
+}
+
+function isEpisodeWatched(ep, watchedSet) {
+  return watchedSet.has(String(ep.id).trim());
+}
+
+function getSequentialProgressInfo(episodes, watchedSet) {
+  const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
+  const watchedCount = airedBeforeToday.filter((ep) =>
+    isEpisodeWatched(ep, watchedSet)
+  ).length;
+
+  const firstUnwatchedIndex = airedBeforeToday.findIndex(
+    (ep) => !isEpisodeWatched(ep, watchedSet)
+  );
+
+  if (airedBeforeToday.length === 0) {
+    return {
+      airedBeforeToday,
+      watchedCount,
+      firstUnwatchedIndex: -1,
+      nextContinueEpisode: null,
+      isComplete: false,
+      hasWatchedAfterGap: false,
+    };
+  }
+
+  if (firstUnwatchedIndex === -1) {
+    return {
+      airedBeforeToday,
+      watchedCount,
+      firstUnwatchedIndex,
+      nextContinueEpisode: null,
+      isComplete: true,
+      hasWatchedAfterGap: false,
+    };
+  }
+
+  const hasWatchedAfterGap = airedBeforeToday
+    .slice(firstUnwatchedIndex + 1)
+    .some((ep) => isEpisodeWatched(ep, watchedSet));
+
+  const nextContinueEpisode = hasWatchedAfterGap
+    ? null
+    : airedBeforeToday[firstUnwatchedIndex];
+
+  return {
+    airedBeforeToday,
+    watchedCount,
+    firstUnwatchedIndex,
+    nextContinueEpisode,
+    isComplete: false,
+    hasWatchedAfterGap,
+  };
 }
 
 function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
@@ -202,8 +243,7 @@ export default function Dashboard() {
         (userShows || []).map(async (show) => {
           try {
             const eps = await getCachedEpisodes(show.tvdb_id);
-
-            const cleaned = dedupeEpisodes(
+            episodesLookup[show.tvdb_id] = dedupeEpisodes(
               sortEpisodes(
                 (eps || []).filter(
                   (ep) =>
@@ -212,8 +252,6 @@ export default function Dashboard() {
                 )
               )
             );
-
-            episodesLookup[show.tvdb_id] = cleaned;
           } catch (err) {
             console.error(`Failed to load episodes for ${show.show_name}:`, err);
             episodesLookup[show.tvdb_id] = [];
@@ -243,60 +281,36 @@ export default function Dashboard() {
       const episodes = episodesByShow[show.tvdb_id] || [];
       const watchedSet = watchedMap[show.tvdb_id] || new Set();
 
-      const validEpisodes = episodes;
-      const airedEpisodes = validEpisodes.filter((ep) => isAired(ep.aired));
-      const airedBeforeToday = validEpisodes.filter((ep) => isBeforeToday(ep.aired));
+      const todayEpisodes = episodes.filter((ep) => isToday(ep.aired));
 
-      const watchedEpisodes = validEpisodes.filter((ep) =>
-        watchedSet.has(String(ep.id).trim())
-      );
-
-      const watchedAiredBeforeToday = airedBeforeToday.filter((ep) =>
-        watchedSet.has(String(ep.id).trim())
-      );
-
-      const todayEpisodes = validEpisodes.filter((ep) => isToday(ep.aired));
-
-      const recentUnwatchedEpisodes = validEpisodes.filter(
+      const recentUnwatchedEpisodes = episodes.filter(
         (ep) =>
           isWithinLastDays(ep.aired, 7, { includeToday: false }) &&
-          !watchedSet.has(String(ep.id).trim())
+          !isEpisodeWatched(ep, watchedSet)
       );
 
-      const latestRecentUnwatchedEpisode = [...validEpisodes]
-        .filter(
-          (ep) =>
-            isWithinLastMonth(ep.aired) &&
-            !watchedSet.has(String(ep.id).trim())
-        )
-        .sort((a, b) => {
-          const aTime = parseDate(a.aired)?.getTime() ?? 0;
-          const bTime = parseDate(b.aired)?.getTime() ?? 0;
-          return bTime - aTime;
-        })[0];
+      const latestRecentUnwatchedEpisode =
+        [...episodes]
+          .filter(
+            (ep) =>
+              isWithinLastMonth(ep.aired) &&
+              !isEpisodeWatched(ep, watchedSet)
+          )
+          .sort((a, b) => {
+            const aTime = parseDate(a.aired)?.getTime() ?? 0;
+            const bTime = parseDate(b.aired)?.getTime() ?? 0;
+            return bTime - aTime;
+          })[0] || null;
 
-      const lastWatchedAiredIndex = airedBeforeToday.reduce((lastIndex, ep, index) => {
-        if (watchedSet.has(String(ep.id).trim())) {
-          return index;
-        }
-        return lastIndex;
-      }, -1);
+      const progress = getSequentialProgressInfo(episodes, watchedSet);
 
-      let nextContinueEpisode = null;
-      if (lastWatchedAiredIndex >= 0) {
-        nextContinueEpisode =
-          airedBeforeToday
-            .slice(lastWatchedAiredIndex + 1)
-            .find((ep) => !watchedSet.has(String(ep.id).trim())) || null;
-      }
-
-      const allAiredBeforeTodayWatched =
-        airedBeforeToday.length > 0 &&
-        airedBeforeToday.every((ep) => watchedSet.has(String(ep.id).trim()));
-
-      if (airedBeforeToday.length > 0 && allAiredBeforeTodayWatched) {
+      if (progress.isComplete) {
         completedCount += 1;
-      } else if (watchedEpisodes.length > 0) {
+      } else if (
+        progress.watchedCount > 0 &&
+        progress.nextContinueEpisode &&
+        !progress.hasWatchedAfterGap
+      ) {
         inProgressCount += 1;
       }
 
@@ -309,13 +323,14 @@ export default function Dashboard() {
       }
 
       if (
-        watchedAiredBeforeToday.length > 0 &&
-        nextContinueEpisode &&
-        !allAiredBeforeTodayWatched
+        progress.watchedCount > 0 &&
+        progress.nextContinueEpisode &&
+        !progress.isComplete &&
+        !progress.hasWatchedAfterGap
       ) {
         continueWatching.push({
           show,
-          episode: nextContinueEpisode,
+          episode: progress.nextContinueEpisode,
         });
       }
 
@@ -404,7 +419,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.airingToday.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${getEpisodeUniqueKey(episode)}-today`}
+                  key={`${show.tvdb_id}-${episode.id}-today`}
                   show={show}
                   episode={episode}
                   dateLabel="Airs"
@@ -427,7 +442,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.recentlyAired.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${getEpisodeUniqueKey(episode)}-recent`}
+                  key={`${show.tvdb_id}-${episode.id}-recent`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
@@ -448,7 +463,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.continueWatching.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${getEpisodeUniqueKey(episode)}-continue`}
+                  key={`${show.tvdb_id}-${episode.id}-continue`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
@@ -471,7 +486,7 @@ export default function Dashboard() {
             <div className="dashboard-list">
               {dashboardData.recentlyAdded.map(({ show, episode }) => (
                 <DashboardEpisodeItem
-                  key={`${getEpisodeUniqueKey(episode)}-added`}
+                  key={`${show.tvdb_id}-${episode.id}-added`}
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
