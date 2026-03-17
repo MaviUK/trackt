@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
 import "./AiringNextPage.css";
 
@@ -50,42 +49,60 @@ export default function AiringNextPage() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: userShows, error: showsError } = await supabase
         .from("user_shows")
         .select("*")
         .eq("user_id", user.id)
         .order("show_name", { ascending: true });
 
-      if (error) {
-        console.error("Failed to load user shows:", error);
+      if (showsError) {
+        console.error("Failed to load user shows:", showsError);
         setShows([]);
         setEpisodesByShow({});
         setLoading(false);
         return;
       }
 
-      const userShows = data || [];
-      const lookup = {};
+      const safeShows = userShows || [];
+      const tvdbIds = safeShows.map((show) => String(show.tvdb_id));
 
-      await Promise.all(
-        userShows.map(async (show) => {
-          try {
-            const episodes = await getCachedEpisodes(show.tvdb_id);
-            lookup[String(show.tvdb_id)] = (episodes || []).filter(
-              (ep) => ep.seasonNumber > 0
-            );
-          } catch (err) {
-            console.error(
-              `Failed to load episodes for ${show.show_name}:`,
-              err
-            );
-            lookup[String(show.tvdb_id)] = [];
+      let episodesLookup = {};
+
+      if (tvdbIds.length > 0) {
+        const { data: episodeRows, error: episodesError } = await supabase
+          .from("episodes")
+          .select("*")
+          .in("show_tvdb_id", tvdbIds)
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true });
+
+        if (episodesError) {
+          console.error("Failed to load episodes:", episodesError);
+        } else {
+          for (const row of episodeRows || []) {
+            const showId = String(row.show_tvdb_id);
+
+            if (!episodesLookup[showId]) {
+              episodesLookup[showId] = [];
+            }
+
+            episodesLookup[showId].push({
+              id: row.id,
+              tvdbEpisodeId: row.tvdb_episode_id,
+              seasonNumber: row.season_number,
+              number: row.episode_number,
+              name: row.episode_name,
+              aired: row.aired,
+              overview: row.overview,
+              image: row.image_url,
+              episodeCode: row.episode_code,
+            });
           }
-        })
-      );
+        }
+      }
 
-      setShows(userShows);
-      setEpisodesByShow(lookup);
+      setShows(safeShows);
+      setEpisodesByShow(episodesLookup);
       setLoading(false);
     }
 
