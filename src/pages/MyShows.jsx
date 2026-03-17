@@ -348,90 +348,90 @@ export default function MyShows() {
     }
   }
 
- async function removeShow(tvdb_id) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return;
-
-  const { error } = await supabase
-    .from("user_shows")
-    .delete()
-    .eq("user_id", user.id)
-    .eq("tvdb_id", normalizeId(tvdb_id));
-
-  if (error) {
-    console.error("Failed to remove show:", error);
-    return;
-  }
-
-  setShows((prev) =>
-    prev.filter((show) => normalizeId(show.tvdb_id) !== normalizeId(tvdb_id))
-  );
-}
-
-async function handleStopWatching(tvdb_id) {
-  try {
+  async function removeShow(tvdb_id) {
     const {
       data: { user },
-      error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError) throw userError;
     if (!user) return;
 
-    const updatedRow = await updateUserShowStatus(
-      user.id,
-      normalizeId(tvdb_id),
-      "stopped"
-    );
+    const { error } = await supabase
+      .from("user_shows")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("tvdb_id", normalizeId(tvdb_id));
 
-    console.log("STOP UPDATED ROW:", updatedRow);
-
-    setShows((prev) =>
-      prev.map((show) =>
-        normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
-          ? { ...show, watch_status: "stopped" }
-          : show
-      )
-    );
-  } catch (error) {
-    console.error("Failed to stop watching show:", error);
-    alert(error.message || "Failed to stop watching show");
-  }
-}
-
-async function handleResumeWatching(tvdb_id) {
-  try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) throw userError;
-    if (!user) return;
-
-    const updatedRow = await updateUserShowStatus(
-      user.id,
-      normalizeId(tvdb_id),
-      "watching"
-    );
-
-    console.log("RESUME UPDATED ROW:", updatedRow);
+    if (error) {
+      console.error("Failed to remove show:", error);
+      return;
+    }
 
     setShows((prev) =>
-      prev.map((show) =>
-        normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
-          ? { ...show, watch_status: "watching" }
-          : show
-      )
+      prev.filter((show) => normalizeId(show.tvdb_id) !== normalizeId(tvdb_id))
     );
-  } catch (error) {
-    console.error("Failed to resume show:", error);
-    alert(error.message || "Failed to resume show");
   }
-}
+
+  async function handleStopWatching(tvdb_id) {
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) return;
+
+      const updatedRow = await updateUserShowStatus(
+        user.id,
+        normalizeId(tvdb_id),
+        "stopped"
+      );
+
+      console.log("STOP UPDATED ROW:", updatedRow);
+
+      setShows((prev) =>
+        prev.map((show) =>
+          normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
+            ? { ...show, watch_status: "stopped" }
+            : show
+        )
+      );
+    } catch (error) {
+      console.error("Failed to stop watching show:", error);
+      alert(error.message || "Failed to stop watching show");
+    }
+  }
+
+  async function handleResumeWatching(tvdb_id) {
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) return;
+
+      const updatedRow = await updateUserShowStatus(
+        user.id,
+        normalizeId(tvdb_id),
+        "watching"
+      );
+
+      console.log("RESUME UPDATED ROW:", updatedRow);
+
+      setShows((prev) =>
+        prev.map((show) =>
+          normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
+            ? { ...show, watch_status: "watching" }
+            : show
+        )
+      );
+    } catch (error) {
+      console.error("Failed to resume show:", error);
+      alert(error.message || "Failed to resume show");
+    }
+  }
 
   const filteredShows = useMemo(() => {
     return shows.filter((show) => {
@@ -821,30 +821,30 @@ async function handleResumeWatching(tvdb_id) {
                   }}
                 >
                   {show.watch_status === "stopped" ? (
-                   <button
-  type="button"
-  className="msd-btn msd-btn-secondary"
-  onClick={() => handleResumeWatching(show.tvdb_id)}
->
-  Resume Watching
-</button>
+                    <button
+                      type="button"
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => handleResumeWatching(show.tvdb_id)}
+                    >
+                      Resume Watching
+                    </button>
                   ) : (
                     <button
-  type="button"
-  className="msd-btn msd-btn-secondary"
-  onClick={() => handleStopWatching(show.tvdb_id)}
->
-  Stop Watching
-</button>
+                      type="button"
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => handleStopWatching(show.tvdb_id)}
+                    >
+                      Stop Watching
+                    </button>
                   )}
 
-                 <button
-  type="button"
-  className="msd-btn msd-btn-secondary"
-  onClick={() => removeShow(show.tvdb_id)}
->
-  Remove
-</button>
+                  <button
+                    type="button"
+                    className="msd-btn msd-btn-secondary"
+                    onClick={() => removeShow(show.tvdb_id)}
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             ))}
@@ -854,3 +854,4 @@ async function handleResumeWatching(tvdb_id) {
     </div>
   );
 }
+they are still showing in airing next ready to watch  etc so do i need to update all pages or is this supposed to make it automatic?
