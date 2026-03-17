@@ -371,49 +371,67 @@ export default function MyShows() {
     );
   }
 
-  async function handleStopWatching(tvdb_id) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+async function handleStopWatching(tvdb_id) {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-      if (!user) return;
+    if (userError) throw userError;
+    if (!user) return;
 
-      await updateUserShowStatus(user.id, String(tvdb_id), "stopped");
+    const updatedRow = await updateUserShowStatus(
+      user.id,
+      normalizeId(tvdb_id),
+      "stopped"
+    );
 
-      setShows((prev) =>
-        prev.map((show) =>
-          String(show.tvdb_id) === String(tvdb_id)
-            ? { ...show, watch_status: "stopped" }
-            : show
-        )
-      );
-    } catch (error) {
-      console.error("Failed to stop watching show:", error);
-    }
+    console.log("STOP UPDATED ROW:", updatedRow);
+
+    setShows((prev) =>
+      prev.map((show) =>
+        String(show.tvdb_id) === String(tvdb_id)
+          ? { ...show, watch_status: "stopped" }
+          : show
+      )
+    );
+  } catch (error) {
+    console.error("Failed to stop watching show:", error);
+    alert(error.message || "Failed to stop watching show");
   }
+}
 
-  async function handleResumeWatching(tvdb_id) {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+async function handleResumeWatching(tvdb_id) {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-      if (!user) return;
+    if (userError) throw userError;
+    if (!user) return;
 
-      await updateUserShowStatus(user.id, String(tvdb_id), "watching");
+    const updatedRow = await updateUserShowStatus(
+      user.id,
+      normalizeId(tvdb_id),
+      "watching"
+    );
 
-      setShows((prev) =>
-        prev.map((show) =>
-          String(show.tvdb_id) === String(tvdb_id)
-            ? { ...show, watch_status: "watching" }
-            : show
-        )
-      );
-    } catch (error) {
-      console.error("Failed to resume show:", error);
-    }
+    console.log("RESUME UPDATED ROW:", updatedRow);
+
+    setShows((prev) =>
+      prev.map((show) =>
+        String(show.tvdb_id) === String(tvdb_id)
+          ? { ...show, watch_status: "watching" }
+          : show
+      )
+    );
+  } catch (error) {
+    console.error("Failed to resume show:", error);
+    alert(error.message || "Failed to resume show");
   }
+}
 
   const filteredShows = useMemo(() => {
     return shows.filter((show) => {
@@ -803,27 +821,30 @@ export default function MyShows() {
                   }}
                 >
                   {show.watch_status === "stopped" ? (
-                    <button
-                      className="msd-btn msd-btn-secondary"
-                      onClick={() => handleResumeWatching(show.tvdb_id)}
-                    >
-                      Resume Watching
-                    </button>
+                   <button
+  type="button"
+  className="msd-btn msd-btn-secondary"
+  onClick={() => handleResumeWatching(show.tvdb_id)}
+>
+  Resume Watching
+</button>
                   ) : (
                     <button
-                      className="msd-btn msd-btn-secondary"
-                      onClick={() => handleStopWatching(show.tvdb_id)}
-                    >
-                      Stop Watching
-                    </button>
+  type="button"
+  className="msd-btn msd-btn-secondary"
+  onClick={() => handleStopWatching(show.tvdb_id)}
+>
+  Stop Watching
+</button>
                   )}
 
-                  <button
-                    className="msd-btn msd-btn-secondary"
-                    onClick={() => removeShow(show.tvdb_id)}
-                  >
-                    Remove
-                  </button>
+                 <button
+  type="button"
+  className="msd-btn msd-btn-secondary"
+  onClick={() => removeShow(show.tvdb_id)}
+>
+  Remove
+</button>
                 </div>
               </div>
             ))}
