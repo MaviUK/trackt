@@ -141,17 +141,23 @@ export default function Dashboard() {
         (ep) => !watchedSet.has(String(ep.id))
       );
 
-      if (nextAiredUnwatched) {
-        continueWatching.push({
-          show,
-          episode: nextAiredUnwatched,
-        });
+     const nextAiredUnwatched = airedEpisodes.find(
+  (ep) => !watchedSet.has(String(ep.id))
+);
 
-        readyToWatch.push({
-          show,
-          episode: nextAiredUnwatched,
-        });
-      }
+if (nextAiredUnwatched && watchedCount > 0) {
+  continueWatching.push({
+    show,
+    episode: nextAiredUnwatched,
+  });
+}
+
+if (nextAiredUnwatched) {
+  readyToWatch.push({
+    show,
+    episode: nextAiredUnwatched,
+  });
+}
 
       const nextUpcoming = futureEpisodes[0];
       if (nextUpcoming) {
