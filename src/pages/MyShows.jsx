@@ -348,28 +348,28 @@ export default function MyShows() {
     }
   }
 
-  async function removeShow(tvdb_id) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+ async function removeShow(tvdb_id) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user) return;
+  if (!user) return;
 
-    const { error } = await supabase
-      .from("user_shows")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("tvdb_id", Number(tvdb_id));
+  const { error } = await supabase
+    .from("user_shows")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("tvdb_id", normalizeId(tvdb_id));
 
-    if (error) {
-      console.error("Failed to remove show:", error);
-      return;
-    }
-
-    setShows((prev) =>
-      prev.filter((show) => String(show.tvdb_id) !== Number(tvdb_id))
-    );
+  if (error) {
+    console.error("Failed to remove show:", error);
+    return;
   }
+
+  setShows((prev) =>
+    prev.filter((show) => normalizeId(show.tvdb_id) !== normalizeId(tvdb_id))
+  );
+}
 
 async function handleStopWatching(tvdb_id) {
   try {
@@ -391,7 +391,7 @@ async function handleStopWatching(tvdb_id) {
 
     setShows((prev) =>
       prev.map((show) =>
-        String(show.tvdb_id) === Number(tvdb_id)
+        normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
           ? { ...show, watch_status: "stopped" }
           : show
       )
@@ -422,7 +422,7 @@ async function handleResumeWatching(tvdb_id) {
 
     setShows((prev) =>
       prev.map((show) =>
-        String(show.tvdb_id) === Number(tvdb_id)
+        normalizeId(show.tvdb_id) === normalizeId(tvdb_id)
           ? { ...show, watch_status: "watching" }
           : show
       )
