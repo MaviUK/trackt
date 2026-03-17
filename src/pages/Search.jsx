@@ -28,8 +28,9 @@ export default function Search() {
         throw new Error(data?.message || "Search failed");
       }
 
-      setShows(data || []);
-      await markAlreadySaved(data || []);
+      const results = Array.isArray(data) ? data : [];
+      setShows(results);
+      await markAlreadySaved(results);
     } catch (err) {
       setError(err.message || "Search failed");
       setShows([]);
@@ -49,13 +50,19 @@ export default function Search() {
       return;
     }
 
-    const ids = results.map((show) => String(show.tvdb_id || show.id));
+    const tvdbIds = results
+      .map((show) => Number(show.tvdb_id || show.id))
+      .filter(Boolean);
+
+    if (!tvdbIds.length) {
+      setSavedIds(new Set());
+      return;
+    }
 
     const { data, error } = await supabase
-      .from("user_shows")
-      .select("tvdb_id")
-      .eq("user_id", user.id)
-      .in("tvdb_id", ids);
+      .from("user_shows_new")
+      .select("show_id, shows!inner(tvdb_id)")
+      .eq("user_id", user.id);
 
     if (error) {
       console.error("Failed checking saved shows:", error);
@@ -63,48 +70,56 @@ export default function Search() {
       return;
     }
 
-    setSavedIds(new Set((data || []).map((row) => String(row.tvdb_id))));
+    const matchedIds = new Set(
+      (data || [])
+        .map((row) => row.shows?.tvdb_id)
+        .filter((id) => tvdbIds.includes(Number(id)))
+        .map(String)
+    );
+
+    setSavedIds(matchedIds);
   };
 
-const handleAddShow = async (event, show) => {
-  event.preventDefault();
-  event.stopPropagation();
+  const handleAddShow = async (event, show) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    setError("Please log in to add shows.");
-    return;
-  }
+    if (!user) {
+      setError("Please log in to add shows.");
+      return;
+    }
 
-  const tvdbId = String(show.tvdb_id || show.id);
-  setAddingId(tvdbId);
-  setError("");
+    const tvdbId = String(show.tvdb_id || show.id);
+    setAddingId(tvdbId);
+    setError("");
 
-  try {
-    await addShowToUserList({
-      tvdb_id: tvdbId,
-      show_name: show.name || show.show_name || "Unknown Show",
-      poster_url: show.image_url || show.poster_url || null,
-      overview: show.overview || null,
-      first_air_date: show.first_air_time || show.first_aired || null,
-      status: show.status || null,
-    });
+    try {
+      await addShowToUserList({
+        tvdb_id: Number(show.tvdb_id || show.id),
+        name: show.name || show.show_name || "Unknown Show",
+        poster_url: show.image_url || show.poster_url || null,
+        overview: show.overview || null,
+        first_air_date: show.first_air_time || show.first_aired || null,
+        status: show.status || null,
+      });
 
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      next.add(tvdbId);
-      return next;
-    });
-  } catch (err) {
-    console.error("Failed to add show:", err);
-    setError(err.message || "Failed to add show.");
-  } finally {
-    setAddingId(null);
-  }
-};
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.add(tvdbId);
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to add show:", err);
+      setError(err.message || "Failed to add show.");
+    } finally {
+      setAddingId(null);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-shell">
