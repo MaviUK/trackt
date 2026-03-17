@@ -359,7 +359,7 @@ export default function MyShows() {
       .from("user_shows")
       .delete()
       .eq("user_id", user.id)
-      .eq("tvdb_id", String(tvdb_id));
+      .eq("tvdb_id", Number(tvdb_id));
 
     if (error) {
       console.error("Failed to remove show:", error);
@@ -367,7 +367,7 @@ export default function MyShows() {
     }
 
     setShows((prev) =>
-      prev.filter((show) => String(show.tvdb_id) !== String(tvdb_id))
+      prev.filter((show) => String(show.tvdb_id) !== Number(tvdb_id))
     );
   }
 
@@ -391,7 +391,7 @@ async function handleStopWatching(tvdb_id) {
 
     setShows((prev) =>
       prev.map((show) =>
-        String(show.tvdb_id) === String(tvdb_id)
+        String(show.tvdb_id) === Number(tvdb_id)
           ? { ...show, watch_status: "stopped" }
           : show
       )
@@ -422,7 +422,7 @@ async function handleResumeWatching(tvdb_id) {
 
     setShows((prev) =>
       prev.map((show) =>
-        String(show.tvdb_id) === String(tvdb_id)
+        String(show.tvdb_id) === Number(tvdb_id)
           ? { ...show, watch_status: "watching" }
           : show
       )
