@@ -19,7 +19,7 @@ export async function addShowToUserList(show) {
   };
 
   const { error } = await supabase
-    .from("user_shows")
+    .from("user_shows_new")
     .upsert(payload, { onConflict: "user_id,show_id" });
 
   if (error) throw error;
