@@ -18,6 +18,7 @@ export async function handler(event) {
       },
       body: JSON.stringify({
         apikey: process.env.TVDB_API_KEY,
+        pin: process.env.TVDB_PIN,
       }),
     });
 
