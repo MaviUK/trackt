@@ -3,69 +3,6 @@ import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
-import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
-
-function normalizeId(value) {
-  if (value == null) return "";
-  return String(value).trim();
-}
-
-function createEmptyWatchedLookup() {
-  return {
-    episodeRowIds: new Set(),
-    episodeCodes: new Set(),
-    seasonEpisodeKeys: new Set(),
-  };
-}
-
-function getEpisodeCode(seasonNumber, episodeNumber) {
-  if (!seasonNumber || !episodeNumber) return null;
-  return `S${String(seasonNumber).padStart(2, "0")}E${String(
-    episodeNumber
-  ).padStart(2, "0")}`;
-}
-
-function isStoredEpisodeWatched(ep, watchedLookup) {
-  if (!ep) return false;
-
-  if (ep.id != null && watchedLookup.episodeRowIds.has(String(ep.id))) {
-    return true;
-  }
-
-  if (
-    ep.episode_code &&
-    watchedLookup.episodeCodes.has(String(ep.episode_code).toUpperCase())
-  ) {
-    return true;
-  }
-
-  const derived = getEpisodeCode(ep.season_number, ep.episode_number);
-  if (derived && watchedLookup.episodeCodes.has(derived.toUpperCase())) {
-    return true;
-  }
-
-  if (
-    ep.season_number != null &&
-    ep.episode_number != null &&
-    watchedLookup.seasonEpisodeKeys.has(
-      `${ep.season_number}-${ep.episode_number}`
-    )
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function toStatusEpisodeShape(ep) {
-  return {
-    seasonNumber: ep.season_number,
-    number: ep.episode_number,
-    aired: ep.aired,
-    airDate: ep.aired,
-    name: ep.episode_name,
-  };
-}
 
 function isAired(dateValue) {
   if (!dateValue) return false;
@@ -74,10 +11,19 @@ function isAired(dateValue) {
   return date <= new Date();
 }
 
+function toStatusEpisodeShape(ep) {
+  return {
+    seasonNumber: ep.season_number,
+    number: ep.episode_number,
+    aired: ep.aired_date,
+    airDate: ep.aired_date,
+    name: ep.name,
+  };
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [backfilling, setBackfilling] = useState(false);
   const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
 
@@ -98,113 +44,103 @@ export default function MyShows() {
       }
 
       const { data: userShows, error: userShowsError } = await supabase
-        .from("user_shows")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("show_name", { ascending: true });
+        .from("user_shows_new")
+        .select(`
+          id,
+          user_id,
+          show_id,
+          watch_status,
+          added_at,
+          created_at,
+          shows!inner(
+            id,
+            tvdb_id,
+            name,
+            overview,
+            status,
+            poster_url,
+            first_aired
+          )
+        `)
+        .eq("user_id", user.id);
 
       if (userShowsError) throw userShowsError;
 
-      const normalizedUserShows = (userShows || []).map((show) => ({
-        ...show,
-        tvdb_id: normalizeId(show.tvdb_id),
-        watch_status: show.watch_status || "watching",
+      const normalizedUserShows = (userShows || []).map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        show_id: row.show_id,
+        watch_status: row.watch_status || "watching",
+        added_at: row.added_at,
+        created_at: row.created_at,
+        tvdb_id: row.shows.tvdb_id,
+        show_name: row.shows.name || "Unknown title",
+        overview: row.shows.overview || "",
+        status: row.shows.status || null,
+        poster_url: row.shows.poster_url || null,
+        first_aired: row.shows.first_aired || null,
       }));
 
-      const showIds = normalizedUserShows
-        .map((show) => show.tvdb_id)
-        .filter(Boolean);
+      const showIds = normalizedUserShows.map((show) => show.show_id).filter(Boolean);
 
       if (!showIds.length) {
         setShows([]);
         return;
       }
 
-      const [watchedResp, storedShowsResp, storedEpisodesResp] = await Promise.all([
+      const [watchedResp, episodesResp] = await Promise.all([
         supabase
           .from("watched_episodes")
-          .select(
-            "show_tvdb_id, episode_row_id, season_number, episode_number, episode_code"
-          )
-          .eq("user_id", user.id)
-          .in("show_tvdb_id", showIds),
-
-        supabase
-          .from("shows")
-          .select("tvdb_id, show_name, overview, status, poster_url, first_air_date")
-          .in("tvdb_id", showIds),
+          .select("episode_id")
+          .eq("user_id", user.id),
 
         supabase
           .from("episodes")
-          .select(
-            "id, show_tvdb_id, season_number, episode_number, episode_code, episode_name, aired"
-          )
-          .in("show_tvdb_id", showIds)
-          .order("show_tvdb_id", { ascending: true })
+          .select(`
+            id,
+            show_id,
+            season_number,
+            episode_number,
+            name,
+            aired_date
+          `)
+          .in("show_id", showIds)
+          .order("show_id", { ascending: true })
           .order("season_number", { ascending: true })
           .order("episode_number", { ascending: true }),
       ]);
 
       if (watchedResp.error) throw watchedResp.error;
-      if (storedShowsResp.error) throw storedShowsResp.error;
-      if (storedEpisodesResp.error) throw storedEpisodesResp.error;
+      if (episodesResp.error) throw episodesResp.error;
 
-      const watchedRowsByShow = {};
-      for (const row of watchedResp.data || []) {
-        const key = normalizeId(row.show_tvdb_id);
-
-        if (!watchedRowsByShow[key]) {
-          watchedRowsByShow[key] = createEmptyWatchedLookup();
-        }
-
-        if (row.episode_row_id != null) {
-          watchedRowsByShow[key].episodeRowIds.add(String(row.episode_row_id));
-        }
-
-        if (row.episode_code) {
-          watchedRowsByShow[key].episodeCodes.add(
-            String(row.episode_code).toUpperCase()
-          );
-        }
-
-        if (row.season_number != null && row.episode_number != null) {
-          watchedRowsByShow[key].seasonEpisodeKeys.add(
-            `${row.season_number}-${row.episode_number}`
-          );
-        }
-      }
-
-      const storedShowById = {};
-      for (const storedShow of storedShowsResp.data || []) {
-        const key = normalizeId(storedShow.tvdb_id);
-        if (key) storedShowById[key] = storedShow;
-      }
+      const watchedEpisodeIds = new Set(
+        (watchedResp.data || [])
+          .map((row) => row.episode_id)
+          .filter(Boolean)
+          .map(String)
+      );
 
       const episodesByShowId = {};
-      for (const ep of storedEpisodesResp.data || []) {
-        const key = normalizeId(ep.show_tvdb_id);
+      for (const ep of episodesResp.data || []) {
+        const key = ep.show_id;
         if (!episodesByShowId[key]) episodesByShowId[key] = [];
         episodesByShowId[key].push(ep);
       }
 
       const updatedShows = normalizedUserShows.map((userShow) => {
-        const showId = normalizeId(userShow.tvdb_id);
-        const matchedStoredShow = storedShowById[showId] || null;
-        const showEpisodes = episodesByShowId[showId] || [];
-        const watchedLookup =
-          watchedRowsByShow[showId] || createEmptyWatchedLookup();
+        const showEpisodes = episodesByShowId[userShow.show_id] || [];
 
-        const airedEpisodes = showEpisodes.filter((ep) => isAired(ep.aired));
+        const airedEpisodes = showEpisodes.filter((ep) => isAired(ep.aired_date));
         const futureEpisodes = showEpisodes.filter(
-          (ep) => ep.aired && !isAired(ep.aired)
+          (ep) => ep.aired_date && !isAired(ep.aired_date)
         );
 
         const watchedAiredCount = airedEpisodes.filter((ep) =>
-          isStoredEpisodeWatched(ep, watchedLookup)
+          watchedEpisodeIds.has(String(ep.id))
         ).length;
 
         const watchedOverallCount = showEpisodes.filter((ep) =>
-          isStoredEpisodeWatched(ep, watchedLookup)
+          watchedEpisodeIds.has(String(ep.id))
         ).length;
 
         const totalEpisodes = showEpisodes.length;
@@ -214,23 +150,22 @@ export default function MyShows() {
         today.setHours(0, 0, 0, 0);
 
         const upcomingEpisodes = futureEpisodes
-          .filter((ep) => ep.aired)
+          .filter((ep) => ep.aired_date)
           .filter((ep) => {
-            const airDate = new Date(ep.aired);
+            const airDate = new Date(ep.aired_date);
             airDate.setHours(0, 0, 0, 0);
             return airDate >= today;
           })
-          .sort((a, b) => new Date(a.aired) - new Date(b.aired));
+          .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
 
         const nextEpisodeDate =
-          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired : null;
+          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
 
         const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
         const status = getShowStatus(
           {
             ...userShow,
-            first_aired:
-              userShow.first_aired || matchedStoredShow?.first_air_date,
+            first_aired: userShow.first_aired,
           },
           statusEpisodes
         );
@@ -245,12 +180,6 @@ export default function MyShows() {
 
         return {
           ...userShow,
-          show_name:
-            userShow.show_name || matchedStoredShow?.show_name || "Unknown title",
-          overview: userShow.overview || matchedStoredShow?.overview || "",
-          poster_url: userShow.poster_url || matchedStoredShow?.poster_url || null,
-          first_aired:
-            userShow.first_aired || matchedStoredShow?.first_air_date || null,
           watchedCount: watchedAiredCount,
           watchedOverallCount,
           totalEpisodes,
@@ -275,21 +204,7 @@ export default function MyShows() {
     loadShows();
   }, []);
 
-  async function handleBackfillStoredShows() {
-    try {
-      setBackfilling(true);
-      await backfillStoredShowsForCurrentUser();
-      await loadShows();
-      alert("Backfill complete.");
-    } catch (error) {
-      console.error("Backfill failed:", error);
-      alert(error.message || "Backfill failed");
-    } finally {
-      setBackfilling(false);
-    }
-  }
-
-  async function removeShow(tvdb_id) {
+  async function removeShow(showId) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -297,22 +212,20 @@ export default function MyShows() {
     if (!user) return;
 
     const { error } = await supabase
-      .from("user_shows")
+      .from("user_shows_new")
       .delete()
       .eq("user_id", user.id)
-      .eq("tvdb_id", normalizeId(tvdb_id));
+      .eq("show_id", showId);
 
     if (error) {
       console.error("Failed to remove show:", error);
       return;
     }
 
-    setShows((prev) =>
-      prev.filter((show) => normalizeId(show.tvdb_id) !== normalizeId(tvdb_id))
-    );
+    setShows((prev) => prev.filter((show) => show.show_id !== showId));
   }
 
-  async function setWatchStatus(tvdbId, status) {
+  async function setWatchStatus(showId, status) {
     const {
       data: { user },
       error: userError,
@@ -322,18 +235,16 @@ export default function MyShows() {
     if (!user) return;
 
     const { error } = await supabase
-      .from("user_shows")
+      .from("user_shows_new")
       .update({ watch_status: status })
       .eq("user_id", user.id)
-      .eq("tvdb_id", normalizeId(tvdbId));
+      .eq("show_id", showId);
 
     if (error) throw error;
 
     setShows((prev) =>
       prev.map((show) =>
-        normalizeId(show.tvdb_id) === normalizeId(tvdbId)
-          ? { ...show, watch_status: status }
-          : show
+        show.show_id === showId ? { ...show, watch_status: status } : show
       )
     );
   }
@@ -379,7 +290,7 @@ export default function MyShows() {
       }
 
       if (sortBy === "recent") {
-        return new Date(b.added_at || 0) - new Date(a.added_at || 0);
+        return new Date(b.added_at || b.created_at || 0) - new Date(a.added_at || a.created_at || 0);
       }
 
       if (sortBy === "firstaired") {
@@ -484,15 +395,6 @@ export default function MyShows() {
             <option value="firstaired">First Aired</option>
           </select>
         </label>
-
-        <button
-          type="button"
-          className="msd-btn msd-btn-secondary"
-          onClick={handleBackfillStoredShows}
-          disabled={backfilling}
-        >
-          {backfilling ? "Backfilling..." : "Backfill Stored Shows"}
-        </button>
       </div>
 
       {sortedShows.length === 0 ? (
@@ -502,7 +404,7 @@ export default function MyShows() {
       ) : (
         <div className="show-grid">
           {sortedShows.map((show) => (
-            <article key={show.tvdb_id} className="show-card">
+            <article key={show.show_id} className="show-card">
               <Link to={`/my-shows/${show.tvdb_id}`}>
                 {show.poster_url ? (
                   <img
@@ -576,7 +478,7 @@ export default function MyShows() {
                     <button
                       type="button"
                       className="msd-btn msd-btn-secondary"
-                      onClick={() => setWatchStatus(show.tvdb_id, "watching")}
+                      onClick={() => setWatchStatus(show.show_id, "watching")}
                     >
                       Resume
                     </button>
@@ -584,7 +486,7 @@ export default function MyShows() {
                     <button
                       type="button"
                       className="msd-btn msd-btn-secondary"
-                      onClick={() => setWatchStatus(show.tvdb_id, "stopped")}
+                      onClick={() => setWatchStatus(show.show_id, "stopped")}
                     >
                       Stop Watching
                     </button>
@@ -593,7 +495,7 @@ export default function MyShows() {
                   <button
                     type="button"
                     className="msd-btn msd-btn-secondary"
-                    onClick={() => removeShow(show.tvdb_id)}
+                    onClick={() => removeShow(show.show_id)}
                   >
                     Remove
                   </button>
