@@ -34,88 +34,121 @@ export default function CalendarPage() {
     async function loadCalendar() {
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        setItems([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: userShows, error: showsError } = await supabase
-        .from("user_shows")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("show_name", { ascending: true });
-
-      if (showsError) {
-        console.error("Failed to load shows:", showsError);
-        setItems([]);
-        setLoading(false);
-        return;
-      }
-
-      const safeShows = userShows || [];
-      const tvdbIds = safeShows.map((show) => String(show.tvdb_id));
-      const showLookup = {};
-
-      for (const show of safeShows) {
-        showLookup[String(show.tvdb_id)] = show;
-      }
-
-      const today = startOfToday();
-      const collected = [];
-
-      if (tvdbIds.length > 0) {
-        const { data: episodeRows, error: episodesError } = await supabase
-          .from("episodes")
-          .select("*")
-          .in("show_tvdb_id", tvdbIds)
-          .gte("aired", today.toISOString().slice(0, 10))
-          .order("aired", { ascending: true })
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true });
-
-        if (episodesError) {
-          console.error("Failed to load calendar episodes:", episodesError);
+        if (!user) {
           setItems([]);
           setLoading(false);
           return;
         }
 
-        for (const row of episodeRows || []) {
-          const show = showLookup[String(row.show_tvdb_id)];
-          if (!show) continue;
+        const { data: userShows, error: showsError } = await supabase
+          .from("user_shows_new")
+          .select(`
+            id,
+            user_id,
+            show_id,
+            watch_status,
+            added_at,
+            created_at,
+            shows!inner(
+              id,
+              tvdb_id,
+              name,
+              poster_url
+            )
+          `)
+          .eq("user_id", user.id)
+          .order("added_at", { ascending: true });
 
-          const airValue = row.aired;
-          if (!airValue) continue;
-
-          const airDate = new Date(airValue);
-          if (Number.isNaN(airDate.getTime())) continue;
-
-          const airDay = new Date(airDate);
-          airDay.setHours(0, 0, 0, 0);
-
-          if (airDay < today) continue;
-
-          collected.push({
-            showTvdbId: String(row.show_tvdb_id),
-            showName: show.show_name,
-            posterUrl: show.poster_url,
-            episodeId: row.id,
-            episodeName: row.episode_name,
-            seasonNumber: row.season_number,
-            episodeNumber: row.episode_number,
-            aired: row.aired,
-          });
+        if (showsError) {
+          console.error("Failed to load shows:", showsError);
+          setItems([]);
+          setLoading(false);
+          return;
         }
-      }
 
-      collected.sort((a, b) => new Date(a.aired) - new Date(b.aired));
-      setItems(collected);
-      setLoading(false);
+        const safeShows = (userShows || []).map((row) => ({
+          show_id: row.show_id,
+          tvdb_id: row.shows.tvdb_id,
+          show_name: row.shows.name || "Unknown title",
+          poster_url: row.shows.poster_url || null,
+        }));
+
+        const showIds = safeShows.map((show) => show.show_id).filter(Boolean);
+        const showLookup = {};
+
+        for (const show of safeShows) {
+          showLookup[show.show_id] = show;
+        }
+
+        const today = startOfToday();
+        const collected = [];
+
+        if (showIds.length > 0) {
+          const { data: episodeRows, error: episodesError } = await supabase
+            .from("episodes")
+            .select(`
+              id,
+              show_id,
+              name,
+              season_number,
+              episode_number,
+              aired_date
+            `)
+            .in("show_id", showIds)
+            .gte("aired_date", today.toISOString().slice(0, 10))
+            .order("aired_date", { ascending: true })
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true });
+
+          if (episodesError) {
+            console.error("Failed to load calendar episodes:", episodesError);
+            setItems([]);
+            setLoading(false);
+            return;
+          }
+
+          for (const row of episodeRows || []) {
+            const show = showLookup[row.show_id];
+            if (!show) continue;
+
+            const airValue = row.aired_date;
+            if (!airValue) continue;
+
+            const airDate = new Date(airValue);
+            if (Number.isNaN(airDate.getTime())) continue;
+
+            const airDay = new Date(airDate);
+            airDay.setHours(0, 0, 0, 0);
+
+            if (airDay < today) continue;
+
+            collected.push({
+              showId: row.show_id,
+              showTvdbId: String(show.tvdb_id),
+              showName: show.show_name,
+              posterUrl: show.poster_url,
+              episodeId: row.id,
+              episodeName: row.name,
+              seasonNumber: row.season_number,
+              episodeNumber: row.episode_number,
+              aired: row.aired_date,
+            });
+          }
+        }
+
+        collected.sort((a, b) => new Date(a.aired) - new Date(b.aired));
+        setItems(collected);
+      } catch (error) {
+        console.error("Failed loading calendar:", error);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadCalendar();
