@@ -40,6 +40,7 @@ function isToday(dateStr) {
 function isBeforeToday(dateStr) {
   const date = parseDate(dateStr);
   if (!date) return false;
+
   return date < startOfDay(new Date());
 }
 
@@ -78,7 +79,8 @@ function getDisplayEpisodeCode(ep) {
 
 function sortEpisodes(episodes) {
   return [...episodes].sort((a, b) => {
-    const seasonDiff = Number(a.seasonNumber || 0) - Number(b.seasonNumber || 0);
+    const seasonDiff =
+      Number(a.seasonNumber || 0) - Number(b.seasonNumber || 0);
     if (seasonDiff !== 0) return seasonDiff;
 
     const episodeDiff = Number(a.number || 0) - Number(b.number || 0);
@@ -110,30 +112,55 @@ function isEpisodeWatched(ep, watchedSet) {
 
 function getSequentialProgressInfo(episodes, watchedSet) {
   const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
-  const watchedCount = airedBeforeToday.filter((ep) =>
+
+  const matchedWatchedCount = airedBeforeToday.filter((ep) =>
     isEpisodeWatched(ep, watchedSet)
   ).length;
 
-  const firstUnwatchedIndex = airedBeforeToday.findIndex(
-    (ep) => !isEpisodeWatched(ep, watchedSet)
-  );
+  const watchedRowCount = watchedSet.size;
+  const fallbackWatchedCount = Math.min(watchedRowCount, airedBeforeToday.length);
+
+  const isCompleteByExactMatch =
+    airedBeforeToday.length > 0 &&
+    matchedWatchedCount === airedBeforeToday.length;
+
+  const isCompleteByCountFallback =
+    airedBeforeToday.length > 0 &&
+    fallbackWatchedCount >= airedBeforeToday.length;
+
+  const isComplete = isCompleteByExactMatch || isCompleteByCountFallback;
 
   if (airedBeforeToday.length === 0) {
     return {
       airedBeforeToday,
-      watchedCount,
-      firstUnwatchedIndex: -1,
+      matchedWatchedCount,
+      fallbackWatchedCount,
       nextContinueEpisode: null,
       isComplete: false,
       hasWatchedAfterGap: false,
     };
   }
 
+  if (isComplete) {
+    return {
+      airedBeforeToday,
+      matchedWatchedCount,
+      fallbackWatchedCount,
+      nextContinueEpisode: null,
+      isComplete: true,
+      hasWatchedAfterGap: false,
+    };
+  }
+
+  const firstUnwatchedIndex = airedBeforeToday.findIndex(
+    (ep) => !isEpisodeWatched(ep, watchedSet)
+  );
+
   if (firstUnwatchedIndex === -1) {
     return {
       airedBeforeToday,
-      watchedCount,
-      firstUnwatchedIndex,
+      matchedWatchedCount,
+      fallbackWatchedCount,
       nextContinueEpisode: null,
       isComplete: true,
       hasWatchedAfterGap: false,
@@ -150,8 +177,8 @@ function getSequentialProgressInfo(episodes, watchedSet) {
 
   return {
     airedBeforeToday,
-    watchedCount,
-    firstUnwatchedIndex,
+    matchedWatchedCount,
+    fallbackWatchedCount,
     nextContinueEpisode,
     isComplete: false,
     hasWatchedAfterGap,
@@ -307,7 +334,7 @@ export default function Dashboard() {
       if (progress.isComplete) {
         completedCount += 1;
       } else if (
-        progress.watchedCount > 0 &&
+        progress.fallbackWatchedCount > 0 &&
         progress.nextContinueEpisode &&
         !progress.hasWatchedAfterGap
       ) {
@@ -323,7 +350,7 @@ export default function Dashboard() {
       }
 
       if (
-        progress.watchedCount > 0 &&
+        progress.fallbackWatchedCount > 0 &&
         progress.nextContinueEpisode &&
         !progress.isComplete &&
         !progress.hasWatchedAfterGap
