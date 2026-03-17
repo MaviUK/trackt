@@ -1,8 +1,8 @@
 export async function handler(event) {
   try {
-    const id = event.queryStringParameters?.tvdb_id;
+    const tvdbId = event.queryStringParameters?.tvdb_id;
 
-    if (!id) {
+    if (!tvdbId) {
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -35,13 +35,22 @@ export async function handler(event) {
 
     const token = loginData?.data?.token;
 
-    let allEpisodes = [];
+    if (!token) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message: "TVDB token missing after login",
+        }),
+      };
+    }
+
+    const allEpisodes = [];
     let page = 0;
     let hasMore = true;
 
     while (hasMore) {
       const episodesRes = await fetch(
-        `https://api4.thetvdb.com/v4/series/${id}/episodes/default?page=${page}`,
+        `https://api4.thetvdb.com/v4/series/${tvdbId}/episodes/default?page=${page}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -62,11 +71,27 @@ export async function handler(event) {
         };
       }
 
-      const pageEpisodes = episodesData?.data?.episodes || [];
-      allEpisodes = allEpisodes.concat(pageEpisodes);
+      const pageEpisodes = Array.isArray(episodesData?.data?.episodes)
+        ? episodesData.data.episodes
+        : [];
 
-      const links = episodesData?.links || {};
-      const next = links.next;
+      allEpisodes.push(
+        ...pageEpisodes.map((ep) => ({
+          id: ep?.id ?? null,
+          name: ep?.name ?? null,
+          overview: ep?.overview ?? null,
+          seasonNumber: ep?.seasonNumber ?? null,
+          number: ep?.number ?? null,
+          absoluteNumber: ep?.absoluteNumber ?? null,
+          aired: ep?.aired ?? null,
+          runtime: ep?.runtime ?? null,
+          image: ep?.image ?? null,
+          isPremiere: ep?.isPremiere ?? false,
+          isFinale: ep?.isFinale ?? false,
+        }))
+      );
+
+      const next = episodesData?.links?.next;
 
       if (next === null || next === undefined) {
         hasMore = false;
