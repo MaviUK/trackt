@@ -10,18 +10,19 @@ export async function addShowToUserList(show) {
   if (userError) throw userError;
   if (!user) throw new Error("User not logged in");
 
-  await saveShowToDatabase(show);
+  const savedShow = await saveShowToDatabase(show);
 
   const payload = {
     user_id: user.id,
-    tvdb_id: String(show.tvdb_id),
-    show_name: show.show_name ?? show.name ?? "Unknown title",
-    poster_url: show.poster_url ?? null,
+    show_id: savedShow.id,
+    watch_status: "watching",
   };
 
   const { error } = await supabase
     .from("user_shows")
-    .upsert(payload, { onConflict: "user_id,tvdb_id" });
+    .upsert(payload, { onConflict: "user_id,show_id" });
 
   if (error) throw error;
+
+  return savedShow;
 }
