@@ -4,7 +4,17 @@ import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
 import { backfillStoredShowsForCurrentUser } from "../lib/backfillStoredShows";
-import { updateUserShowStatus } from "../lib/userShows";
+import { addShowToUserList } from "../lib/userShows";
+
+async function handleAddShow(show) {
+  try {
+    await addShowToUserList(show);
+    alert("Show added");
+  } catch (error) {
+    console.error("Failed to add show:", error);
+    alert("Failed to add show");
+  }
+}
 
 function normalizeId(value) {
   if (value == null) return "";
