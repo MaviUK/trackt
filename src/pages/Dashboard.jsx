@@ -4,22 +4,75 @@ import { supabase } from "../lib/supabase";
 import { getCachedEpisodes } from "../lib/episodesCache";
 import { formatDate } from "../lib/date";
 
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
 function isAired(dateStr) {
-  if (!dateStr) return false;
-
-  const airDate = new Date(dateStr);
-  const now = new Date();
-
-  return !isNaN(airDate.getTime()) && airDate <= now;
+  const date = parseDate(dateStr);
+  if (!date) return false;
+  return date <= new Date();
 }
 
 function isFuture(dateStr) {
-  if (!dateStr) return false;
+  const date = parseDate(dateStr);
+  if (!date) return false;
+  return date > new Date();
+}
 
-  const airDate = new Date(dateStr);
+function isToday(dateStr) {
+  const date = parseDate(dateStr);
+  if (!date) return false;
+
+  const todayStart = startOfDay(new Date());
+  const todayEnd = endOfDay(new Date());
+
+  return date >= todayStart && date <= todayEnd;
+}
+
+function isBeforeToday(dateStr) {
+  const date = parseDate(dateStr);
+  if (!date) return false;
+
+  const todayStart = startOfDay(new Date());
+  return date < todayStart;
+}
+
+function isWithinLastDays(dateStr, days, { includeToday = true } = {}) {
+  const date = parseDate(dateStr);
+  if (!date) return false;
+
   const now = new Date();
+  const rangeEnd = includeToday ? endOfDay(now) : startOfDay(now);
+  const rangeStart = startOfDay(now);
+  rangeStart.setDate(rangeStart.getDate() - days);
 
-  return !isNaN(airDate.getTime()) && airDate > now;
+  return date >= rangeStart && date < rangeEnd;
+}
+
+function isWithinLastMonth(dateStr) {
+  const date = parseDate(dateStr);
+  if (!date) return false;
+
+  const now = new Date();
+  const monthAgo = startOfDay(new Date());
+  monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+  return date >= monthAgo && date <= endOfDay(now);
 }
 
 function getDisplayEpisodeCode(ep) {
@@ -30,9 +83,11 @@ function getDisplayEpisodeCode(ep) {
 
 function sortEpisodes(episodes) {
   return [...episodes].sort((a, b) => {
-    if (a.seasonNumber !== b.seasonNumber) {
-      return a.seasonNumber - b.seasonNumber;
-    }
+    const aTime = parseDate(a.aired)?.getTime() ?? 0;
+    const bTime = parseDate(b.aired)?.getTime() ?? 0;
+
+    if (aTime !== bTime) return aTime - bTime;
+    if (a.seasonNumber !== b.seasonNumber) return a.seasonNumber - b.seasonNumber;
     return a.number - b.number;
   });
 }
@@ -101,8 +156,8 @@ export default function Dashboard() {
         (userShows || []).map(async (show) => {
           try {
             const eps = await getCachedEpisodes(show.tvdb_id);
-            episodesLookup[show.tvdb_id] = (eps || []).filter(
-              (ep) => ep.seasonNumber > 0
+            episodesLookup[show.tvdb_id] = sortEpisodes(
+              (eps || []).filter((ep) => ep.seasonNumber > 0)
             );
           } catch (err) {
             console.error(`Failed to load episodes for ${show.show_name}:`, err);
@@ -121,9 +176,10 @@ export default function Dashboard() {
   }, []);
 
   const dashboardData = useMemo(() => {
+    const airingToday = [];
+    const recentlyAired = [];
     const continueWatching = [];
-    const readyToWatch = [];
-    const airingSoon = [];
+    const recentlyAdded = [];
 
     let completedCount = 0;
     let inProgressCount = 0;
@@ -132,10 +188,7 @@ export default function Dashboard() {
       const episodes = episodesByShow[show.tvdb_id] || [];
       const watchedSet = watchedMap[show.tvdb_id] || new Set();
 
-      const validEpisodes = sortEpisodes(
-        episodes.filter((ep) => ep.seasonNumber > 0)
-      );
-
+      const validEpisodes = episodes.filter((ep) => ep.seasonNumber > 0);
       const airedEpisodes = validEpisodes.filter((ep) => isAired(ep.aired));
       const futureEpisodes = validEpisodes.filter((ep) => isFuture(ep.aired));
 
@@ -143,84 +196,95 @@ export default function Dashboard() {
         watchedSet.has(String(ep.id))
       );
 
-      const watchedValidCount = validEpisodes.filter((ep) =>
-        watchedSet.has(String(ep.id))
-      ).length;
-
-      if (validEpisodes.length > 0 && watchedValidCount === validEpisodes.length) {
-        completedCount += 1;
-      } else if (watchedValidCount > 0) {
-        inProgressCount += 1;
-      }
-
-      const firstAiredUnwatched = airedEpisodes.find(
+      const unwatchedAiredEpisodes = airedEpisodes.filter(
         (ep) => !watchedSet.has(String(ep.id))
       );
 
-      if (firstAiredUnwatched) {
-        readyToWatch.push({
-          show,
-          episode: firstAiredUnwatched,
-        });
+      const todayEpisodes = validEpisodes.filter((ep) => isToday(ep.aired));
+      const recentUnwatchedEpisodes = validEpisodes.filter(
+        (ep) =>
+          isWithinLastDays(ep.aired, 7, { includeToday: false }) &&
+          !watchedSet.has(String(ep.id))
+      );
+
+      const continueEpisode = validEpisodes.find(
+        (ep) => isBeforeToday(ep.aired) && !watchedSet.has(String(ep.id))
+      );
+
+      const latestEpisodeThisMonth = [...validEpisodes]
+        .filter((ep) => isWithinLastMonth(ep.aired))
+        .sort((a, b) => {
+          const aTime = parseDate(a.aired)?.getTime() ?? 0;
+          const bTime = parseDate(b.aired)?.getTime() ?? 0;
+          return bTime - aTime;
+        })[0];
+
+      const isCompleted =
+        airedEpisodes.length > 0 &&
+        unwatchedAiredEpisodes.length === 0 &&
+        futureEpisodes.length === 0;
+
+      if (isCompleted) {
+        completedCount += 1;
+      } else if (watchedAiredEpisodes.length > 0 && continueEpisode) {
+        inProgressCount += 1;
       }
 
-      let nextContinueEpisode = null;
-
-      if (watchedAiredEpisodes.length > 0) {
-        const lastWatchedAired = watchedAiredEpisodes[watchedAiredEpisodes.length - 1];
-        const lastWatchedIndex = airedEpisodes.findIndex(
-          (ep) => String(ep.id) === String(lastWatchedAired.id)
-        );
-
-        const candidate = airedEpisodes[lastWatchedIndex + 1];
-
-        if (candidate && !watchedSet.has(String(candidate.id))) {
-          nextContinueEpisode = candidate;
-        }
+      for (const episode of todayEpisodes) {
+        airingToday.push({ show, episode });
       }
 
-      if (nextContinueEpisode) {
+      for (const episode of recentUnwatchedEpisodes) {
+        recentlyAired.push({ show, episode });
+      }
+
+      if (watchedAiredEpisodes.length > 0 && continueEpisode) {
         continueWatching.push({
           show,
-          episode: nextContinueEpisode,
+          episode: continueEpisode,
         });
       }
 
-      const nextUpcoming = futureEpisodes[0];
-      if (nextUpcoming) {
-        airingSoon.push({
+      if (latestEpisodeThisMonth) {
+        recentlyAdded.push({
           show,
-          episode: nextUpcoming,
+          episode: latestEpisodeThisMonth,
         });
       }
     }
 
-    continueWatching.sort((a, b) => {
-      const aDate = new Date(a.episode.aired || 0).getTime();
-      const bDate = new Date(b.episode.aired || 0).getTime();
-      return bDate - aDate;
-    });
-
-    readyToWatch.sort((a, b) => {
-      const aDate = new Date(a.episode.aired || 0).getTime();
-      const bDate = new Date(b.episode.aired || 0).getTime();
-      return bDate - aDate;
-    });
-
-    airingSoon.sort((a, b) => {
-      const aDate = new Date(a.episode.aired || 0).getTime();
-      const bDate = new Date(b.episode.aired || 0).getTime();
+    airingToday.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
       return aDate - bDate;
+    });
+
+    recentlyAired.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
+
+    continueWatching.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
+
+    recentlyAdded.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
     });
 
     return {
       totalShows: shows.length,
       completedCount,
       inProgressCount,
-      continueWatching: continueWatching.slice(0, 6),
-      readyToWatch: readyToWatch.slice(0, 6),
-      airingSoon: airingSoon.slice(0, 6),
-      recentlyAdded: shows.slice(0, 6),
+      airingToday: airingToday.slice(0, 12),
+      recentlyAired: recentlyAired.slice(0, 12),
+      continueWatching: continueWatching.slice(0, 12),
+      recentlyAdded: recentlyAdded.slice(0, 12),
     };
   }, [shows, watchedMap, episodesByShow]);
 
@@ -257,80 +321,16 @@ export default function Dashboard() {
       <div className="dashboard-grid">
         <section className="dashboard-card">
           <div className="card-header">
-            <h2>Continue Watching</h2>
-            <Link to="/ready-to-watch">View all</Link>
+            <h2>Airing Today</h2>
           </div>
 
-          {dashboardData.continueWatching.length === 0 ? (
-            <p className="empty-state">No shows ready to continue.</p>
+          {dashboardData.airingToday.length === 0 ? (
+            <p className="empty-state">No episodes airing today.</p>
           ) : (
             <div className="dashboard-list">
-              {dashboardData.continueWatching.map(({ show, episode }) => (
+              {dashboardData.airingToday.map(({ show, episode }) => (
                 <Link
-                  key={`${show.tvdb_id}-${episode.id}`}
-                  to={`/my-shows/${show.tvdb_id}`}
-                  className="dashboard-item"
-                >
-                  <img
-                    src={show.poster_url}
-                    alt={show.show_name}
-                    className="dashboard-poster"
-                  />
-                  <div className="dashboard-item-info">
-                    <strong>{show.show_name}</strong>
-                    <span>
-                      {getDisplayEpisodeCode(episode)} - {episode.name}
-                    </span>
-                    <small>Aired: {formatDate(episode.aired)}</small>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card">
-          <div className="card-header">
-            <h2>Ready To Watch</h2>
-            <Link to="/ready-to-watch">View all</Link>
-          </div>
-
-          {dashboardData.readyToWatch.length === 0 ? (
-            <p className="empty-state">No unwatched aired episodes.</p>
-          ) : (
-            <div className="dashboard-list">
-              {dashboardData.readyToWatch.map(({ show, episode }) => (
-                <Link
-                  key={`${show.tvdb_id}-${episode.id}`}
-                  to={`/my-shows/${show.tvdb_id}`}
-                  className="dashboard-item"
-                >
-                  <div className="dashboard-item-info">
-                    <strong>{show.show_name}</strong>
-                    <span>
-                      {getDisplayEpisodeCode(episode)} - {episode.name}
-                    </span>
-                    <small>Aired: {formatDate(episode.aired)}</small>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card">
-          <div className="card-header">
-            <h2>Airing Soon</h2>
-            <Link to="/airing-next">View all</Link>
-          </div>
-
-          {dashboardData.airingSoon.length === 0 ? (
-            <p className="empty-state">No upcoming episodes found.</p>
-          ) : (
-            <div className="dashboard-list">
-              {dashboardData.airingSoon.map(({ show, episode }) => (
-                <Link
-                  key={`${show.tvdb_id}-${episode.id}`}
+                  key={`${show.tvdb_id}-${episode.id}-today`}
                   to={`/my-shows/${show.tvdb_id}`}
                   className="dashboard-item"
                 >
@@ -349,17 +349,46 @@ export default function Dashboard() {
 
         <section className="dashboard-card">
           <div className="card-header">
-            <h2>Recently Added</h2>
-            <Link to="/my-shows">View all</Link>
+            <h2>Recently Aired</h2>
           </div>
 
-          {dashboardData.recentlyAdded.length === 0 ? (
-            <p className="empty-state">No shows added yet.</p>
+          {dashboardData.recentlyAired.length === 0 ? (
+            <p className="empty-state">
+              No unwatched episodes aired in the last 7 days.
+            </p>
           ) : (
             <div className="dashboard-list">
-              {dashboardData.recentlyAdded.map((show) => (
+              {dashboardData.recentlyAired.map(({ show, episode }) => (
                 <Link
-                  key={show.tvdb_id}
+                  key={`${show.tvdb_id}-${episode.id}-recent`}
+                  to={`/my-shows/${show.tvdb_id}`}
+                  className="dashboard-item"
+                >
+                  <div className="dashboard-item-info">
+                    <strong>{show.show_name}</strong>
+                    <span>
+                      {getDisplayEpisodeCode(episode)} - {episode.name}
+                    </span>
+                    <small>Aired: {formatDate(episode.aired)}</small>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-card">
+          <div className="card-header">
+            <h2>Continue Watching</h2>
+          </div>
+
+          {dashboardData.continueWatching.length === 0 ? (
+            <p className="empty-state">No shows ready to continue.</p>
+          ) : (
+            <div className="dashboard-list">
+              {dashboardData.continueWatching.map(({ show, episode }) => (
+                <Link
+                  key={`${show.tvdb_id}-${episode.id}-continue`}
                   to={`/my-shows/${show.tvdb_id}`}
                   className="dashboard-item"
                 >
@@ -370,7 +399,45 @@ export default function Dashboard() {
                   />
                   <div className="dashboard-item-info">
                     <strong>{show.show_name}</strong>
-                    <small>Added: {formatDate(show.added_at)}</small>
+                    <span>
+                      {getDisplayEpisodeCode(episode)} - {episode.name}
+                    </span>
+                    <small>Aired: {formatDate(episode.aired)}</small>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-card">
+          <div className="card-header">
+            <h2>Recently Added</h2>
+          </div>
+
+          {dashboardData.recentlyAdded.length === 0 ? (
+            <p className="empty-state">
+              No shows have had a new episode in the last month.
+            </p>
+          ) : (
+            <div className="dashboard-list">
+              {dashboardData.recentlyAdded.map(({ show, episode }) => (
+                <Link
+                  key={`${show.tvdb_id}-${episode.id}-added`}
+                  to={`/my-shows/${show.tvdb_id}`}
+                  className="dashboard-item"
+                >
+                  <img
+                    src={show.poster_url}
+                    alt={show.show_name}
+                    className="dashboard-poster"
+                  />
+                  <div className="dashboard-item-info">
+                    <strong>{show.show_name}</strong>
+                    <span>
+                      Latest: {getDisplayEpisodeCode(episode)} - {episode.name}
+                    </span>
+                    <small>Aired: {formatDate(episode.aired)}</small>
                   </div>
                 </Link>
               ))}
