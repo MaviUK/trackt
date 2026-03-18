@@ -68,6 +68,12 @@ export default function MyShowDetails() {
   const [watchedRows, setWatchedRows] = useState([]);
   const [expandedSeasons, setExpandedSeasons] = useState({});
 
+  const [watchProviders, setWatchProviders] = useState([]);
+  const [cast, setCast] = useState([]);
+  const [recommendedShows, setRecommendedShows] = useState([]);
+  const [burgrRatings, setBurgrRatings] = useState([]);
+  const [myBurgrRating, setMyBurgrRating] = useState("");
+
   const watchedEpisodeIds = useMemo(
     () => buildWatchedEpisodeIdSet(watchedRows),
     [watchedRows]
@@ -86,6 +92,11 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setWatchProviders([]);
+          setCast([]);
+          setRecommendedShows([]);
+          setBurgrRatings([]);
+          setMyBurgrRating("");
           return;
         }
 
@@ -115,39 +126,101 @@ export default function MyShowDetails() {
           .single();
 
         if (userShowError) throw userShowError;
+
         if (!userShowRow?.shows) {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setWatchProviders([]);
+          setCast([]);
+          setRecommendedShows([]);
+          setBurgrRatings([]);
+          setMyBurgrRating("");
           return;
         }
 
         const showRecord = userShowRow.shows;
         const showId = showRecord.id;
 
-        const [{ data: episodeRows, error: episodeError }, watchedRowsData] =
-          await Promise.all([
-            supabase
-              .from("episodes")
-              .select(`
+        const [
+          { data: episodeRows, error: episodeError },
+          watchedRowsData,
+          { data: providerRows, error: providerError },
+          { data: castRows, error: castError },
+          { data: recommendationRows, error: recommendationError },
+          { data: burgrRows, error: burgrError },
+        ] = await Promise.all([
+          supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showId)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true }),
+
+          fetchWatchedRows(user.id),
+
+          supabase
+            .from("show_watch_providers")
+            .select(`
+              id,
+              provider_name,
+              provider_url,
+              provider_type
+            `)
+            .eq("show_id", showId)
+            .order("provider_name", { ascending: true }),
+
+          supabase
+            .from("show_cast")
+            .select(`
+              id,
+              person_name,
+              character_name,
+              profile_url,
+              sort_order
+            `)
+            .eq("show_id", showId)
+            .order("sort_order", { ascending: true })
+            .limit(12),
+
+          supabase
+            .from("show_recommendations")
+            .select(`
+              id,
+              recommended_show_id,
+              shows!show_recommendations_recommended_show_id_fkey(
                 id,
                 tvdb_id,
-                show_id,
-                season_number,
-                episode_number,
-                episode_code,
                 name,
-                overview,
-                aired_date,
-                image_url
-              `)
-              .eq("show_id", showId)
-              .order("season_number", { ascending: true })
-              .order("episode_number", { ascending: true }),
-            fetchWatchedRows(user.id),
-          ]);
+                poster_url,
+                first_aired
+              )
+            `)
+            .eq("show_id", showId)
+            .limit(12),
+
+          supabase
+            .from("burgr_ratings")
+            .select("user_id, show_id, rating")
+            .eq("show_id", showId),
+        ]);
 
         if (episodeError) throw episodeError;
+        if (providerError) throw providerError;
+        if (castError) throw castError;
+        if (recommendationError) throw recommendationError;
+        if (burgrError) throw burgrError;
 
         const normalizedEpisodes = (episodeRows || []).map((row) => ({
           id: row.id,
@@ -178,6 +251,12 @@ export default function MyShowDetails() {
           }
         }
 
+        const mappedRecommendations = (recommendationRows || [])
+          .map((row) => row.shows)
+          .filter(Boolean);
+
+        const mine = (burgrRows || []).find((row) => row.user_id === user.id);
+
         setShow({
           id: showRecord.id,
           tvdb_id: showRecord.tvdb_id,
@@ -194,11 +273,21 @@ export default function MyShowDetails() {
         setEpisodes(normalizedEpisodes);
         setWatchedRows(watchedRowsData);
         setExpandedSeasons(seasonMap);
+        setWatchProviders(providerRows || []);
+        setCast(castRows || []);
+        setRecommendedShows(mappedRecommendations);
+        setBurgrRatings(burgrRows || []);
+        setMyBurgrRating(mine ? String(mine.rating) : "");
       } catch (error) {
         console.error("Failed loading show:", error);
         setShow(null);
         setEpisodes([]);
         setWatchedRows([]);
+        setWatchProviders([]);
+        setCast([]);
+        setRecommendedShows([]);
+        setBurgrRatings([]);
+        setMyBurgrRating("");
       } finally {
         setLoading(false);
       }
@@ -261,6 +350,22 @@ export default function MyShowDetails() {
     return { total, watched, pct, nextEpisode };
   }, [episodes, watchedEpisodeIds]);
 
+  const burgrStats = useMemo(() => {
+    const ratings = burgrRatings
+      .map((r) => Number(r.rating))
+      .filter((n) => !Number.isNaN(n));
+
+    const avg =
+      ratings.length > 0
+        ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1)
+        : null;
+
+    return {
+      avg,
+      count: ratings.length,
+    };
+  }, [burgrRatings]);
+
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
       ...prev,
@@ -271,6 +376,16 @@ export default function MyShowDetails() {
   async function refreshWatched(userId) {
     const fresh = await fetchWatchedRows(userId);
     setWatchedRows(fresh);
+  }
+
+  async function refreshBurgrRatings(showId) {
+    const { data, error } = await supabase
+      .from("burgr_ratings")
+      .select("user_id, show_id, rating")
+      .eq("show_id", showId);
+
+    if (error) throw error;
+    setBurgrRatings(data || []);
   }
 
   async function handleMarkWatched(ep) {
@@ -335,6 +450,39 @@ export default function MyShowDetails() {
     }
   }
 
+  async function handleSaveBurgrRating() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !show?.id) return;
+
+    const rating = Number(myBurgrRating);
+
+    if (Number.isNaN(rating) || rating < 0 || rating > 10) {
+      alert("Burgr rating must be between 0 and 10");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("burgr_ratings").upsert(
+        {
+          user_id: user.id,
+          show_id: show.id,
+          rating,
+        },
+        { onConflict: "user_id,show_id" }
+      );
+
+      if (error) throw error;
+
+      await refreshBurgrRatings(show.id);
+    } catch (error) {
+      console.error("Failed saving Burgr rating:", error);
+      alert(error.message || "Failed saving Burgr rating");
+    }
+  }
+
   if (loading) {
     return (
       <div className="msd-page">
@@ -378,6 +526,7 @@ export default function MyShowDetails() {
 
           <div className="msd-hero-main">
             <h1 className="msd-title">{show.show_name}</h1>
+
             {show.overview ? (
               <p className="msd-overview">{show.overview}</p>
             ) : null}
@@ -405,13 +554,22 @@ export default function MyShowDetails() {
                 <span className="msd-stat-label">Watched</span>
                 <strong className="msd-stat-value">{stats.watched}</strong>
               </div>
+
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Total</span>
                 <strong className="msd-stat-value">{stats.total}</strong>
               </div>
+
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Progress</span>
                 <strong className="msd-stat-value">{stats.pct}%</strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Burgrs</span>
+                <strong className="msd-stat-value">
+                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
+                </strong>
               </div>
             </div>
 
@@ -422,6 +580,140 @@ export default function MyShowDetails() {
               />
             </div>
           </div>
+        </section>
+
+        <section className="msd-extra-grid">
+          <div className="msd-panel">
+            <h2 className="msd-section-title">Where to Watch</h2>
+
+            {watchProviders.length > 0 ? (
+              <div className="msd-provider-list">
+                {watchProviders.map((provider) => (
+                  <a
+                    key={provider.id}
+                    href={provider.provider_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="msd-provider-chip"
+                  >
+                    {provider.provider_name}
+                    {provider.provider_type
+                      ? ` (${provider.provider_type})`
+                      : ""}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="msd-muted">No watch providers available.</p>
+            )}
+          </div>
+
+          <div className="msd-panel">
+            <h2 className="msd-section-title">Burgrs Rating</h2>
+
+            <div className="msd-burgr-summary">
+              <div>
+                <span className="msd-stat-label">Average</span>
+                <strong className="msd-stat-value">
+                  {burgrStats.avg ? `${burgrStats.avg}/10` : "No ratings yet"}
+                </strong>
+              </div>
+
+              <div>
+                <span className="msd-stat-label">Ratings</span>
+                <strong className="msd-stat-value">{burgrStats.count}</strong>
+              </div>
+            </div>
+
+            <div className="msd-burgr-form">
+              <label htmlFor="burgr-rating" className="msd-stat-label">
+                Your Burgrs
+              </label>
+
+              <div className="msd-burgr-controls">
+                <input
+                  id="burgr-rating"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="1"
+                  value={myBurgrRating}
+                  onChange={(e) => setMyBurgrRating(e.target.value)}
+                  className="msd-rating-input"
+                  placeholder="0-10"
+                />
+
+                <button
+                  type="button"
+                  className="msd-btn msd-btn-primary"
+                  onClick={handleSaveBurgrRating}
+                >
+                  Save Rating
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Cast</h2>
+
+          {cast.length > 0 ? (
+            <div className="msd-cast-grid">
+              {cast.map((member) => (
+                <div key={member.id} className="msd-cast-card">
+                  {member.profile_url ? (
+                    <img
+                      src={member.profile_url}
+                      alt={member.person_name}
+                      className="msd-cast-image"
+                    />
+                  ) : null}
+
+                  <div className="msd-cast-name">{member.person_name}</div>
+                  <div className="msd-cast-role">
+                    {member.character_name || "Cast"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="msd-muted">No cast available.</p>
+          )}
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Recommended Shows</h2>
+
+          {recommendedShows.length > 0 ? (
+            <div className="msd-recommended-grid">
+              {recommendedShows.map((rec) => (
+                <Link
+                  key={rec.id}
+                  to={`/my-shows/${rec.tvdb_id}`}
+                  className="msd-rec-card"
+                >
+                  {rec.poster_url ? (
+                    <img
+                      src={rec.poster_url}
+                      alt={rec.name}
+                      className="msd-rec-poster"
+                    />
+                  ) : null}
+
+                  <div className="msd-rec-title">{rec.name}</div>
+
+                  {rec.first_aired ? (
+                    <div className="msd-rec-date">
+                      {formatDate(rec.first_aired)}
+                    </div>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
         </section>
 
         <section className="msd-episodes-section">
