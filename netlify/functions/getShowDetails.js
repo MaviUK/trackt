@@ -16,7 +16,7 @@ export async function handler(event) {
       headers: {
         "Content-Type": "application/json",
       },
-     body: JSON.stringify({
+      body: JSON.stringify({
         apikey: process.env.TVDB_API_KEY,
         pin: process.env.TVDB_PIN,
       }),
@@ -79,9 +79,7 @@ export async function handler(event) {
     }
 
     const genres = Array.isArray(series?.genres)
-      ? series.genres
-          .map((genre) => genre?.name)
-          .filter(Boolean)
+      ? series.genres.map((genre) => genre?.name).filter(Boolean)
       : [];
 
     const aliases = Array.isArray(series?.aliases)
@@ -97,17 +95,11 @@ export async function handler(event) {
     const artworks = Array.isArray(series?.artworks) ? series.artworks : [];
 
     const poster =
-      artworks.find((art) => art?.type === 2)?.image ||
-      series?.image ||
-      null;
+      artworks.find((art) => art?.type === 2)?.image || series?.image || null;
 
-    const banner =
-      artworks.find((art) => art?.type === 1)?.image ||
-      null;
+    const banner = artworks.find((art) => art?.type === 1)?.image || null;
 
-    const backdrop =
-      artworks.find((art) => art?.type === 3)?.image ||
-      null;
+    const backdrop = artworks.find((art) => art?.type === 3)?.image || null;
 
     const payload = {
       tvdb_id: series?.id ?? null,
@@ -132,6 +124,16 @@ export async function handler(event) {
       poster_url: poster,
       backdrop_url: backdrop,
       banner_url: banner,
+      rating_average:
+        series?.score ??
+        series?.siteRating ??
+        series?.averageScore ??
+        null,
+      rating_count:
+        series?.siteRatingCount ??
+        series?.scoreCount ??
+        series?.ratingCount ??
+        null,
       external_ids: {},
     };
 
