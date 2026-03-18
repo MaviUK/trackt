@@ -1,8 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { Link } from "react-router-dom";
 import { formatDate } from "../lib/date";
+import { supabase } from "../lib/supabase";
+import { getShowStatus } from "../lib/showStatus";
 import "./MyShowDetails.css";
+
+function isAired(dateValue) {
+  if (!dateValue) return false;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return false;
+  return date <= new Date();
+}
+
+function toStatusEpisodeShape(ep) {
+  return {
+    seasonNumber: ep.season_number,
+    number: ep.episode_number,
+    aired: ep.aired_date,
+    airDate: ep.aired_date,
+    name: ep.name,
+  };
+}
 
 function makeEpisodeCode(ep) {
   if (!ep?.seasonNumber || !ep?.number) return "Episode";
@@ -25,252 +43,262 @@ function isEpisodeWatched(ep, watchedEpisodeIds) {
   return watchedEpisodeIds.has(String(ep.id));
 }
 
-function isFuture(dateString) {
-  if (!dateString) return false;
-  const d = new Date(dateString);
-  return !Number.isNaN(d.getTime()) && d > new Date();
+function groupEpisodesBySeasonDesc(episodes, watchedEpisodeIds) {
+  const grouped = {};
+
+  for (const ep of episodes) {
+    const seasonNumber = Number(ep.seasonNumber || 0);
+    if (!grouped[seasonNumber]) grouped[seasonNumber] = [];
+    grouped[seasonNumber].push(ep);
+  }
+
+  return Object.entries(grouped)
+    .map(([seasonNumber, seasonEpisodes]) => {
+      const sortedEpisodes = [...seasonEpisodes].sort((a, b) => {
+        if (b.number !== a.number) return b.number - a.number;
+        return new Date(b.aired || 0) - new Date(a.aired || 0);
+      });
+
+      const watchedCount = sortedEpisodes.filter((ep) =>
+        isEpisodeWatched(ep, watchedEpisodeIds)
+      ).length;
+
+      return {
+        seasonNumber: Number(seasonNumber),
+        episodes: sortedEpisodes,
+        watchedCount,
+        totalCount: sortedEpisodes.length,
+        complete:
+          sortedEpisodes.length > 0 && watchedCount === sortedEpisodes.length,
+      };
+    })
+    .sort((a, b) => b.seasonNumber - a.seasonNumber);
 }
 
-function getDaysUntil(dateString) {
-  if (!dateString) return null;
-  const now = new Date();
-  const target = new Date(dateString);
-  if (Number.isNaN(target.getTime())) return null;
-
-  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const targetStart = new Date(
-    target.getFullYear(),
-    target.getMonth(),
-    target.getDate()
-  );
-
-  return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
-}
-
-async function fetchWatchedRows(userId) {
-  const { data, error } = await supabase
-    .from("watched_episodes")
-    .select("episode_id")
-    .eq("user_id", userId);
-
-  if (error) throw error;
-  return data || [];
-}
-
-export default function MyShowDetails() {
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const targetEpisodeId = searchParams.get("episode");
-
+export default function MyShows() {
+  const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [show, setShow] = useState(null);
-  const [episodes, setEpisodes] = useState([]);
-  const [watchedRows, setWatchedRows] = useState([]);
+  const [sortBy, setSortBy] = useState("airingnext");
+  const [filterBy, setFilterBy] = useState("all");
+  const [expandedShowId, setExpandedShowId] = useState(null);
   const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [watchedRows, setWatchedRows] = useState([]);
 
   const watchedEpisodeIds = useMemo(
     () => buildWatchedEpisodeIdSet(watchedRows),
     [watchedRows]
   );
 
-  useEffect(() => {
-    async function loadShow() {
+  async function loadShows() {
+    try {
       setLoading(true);
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-        if (!user) {
-          setShow(null);
-          setEpisodes([]);
-          setWatchedRows([]);
-          return;
-        }
+      if (userError) throw userError;
 
-        const tvdbId = Number(id);
+      if (!user) {
+        setShows([]);
+        setWatchedRows([]);
+        return;
+      }
 
-        const { data: userShowRow, error: userShowError } = await supabase
-          .from("user_shows_new")
-          .select(`
+      const { data: userShows, error: userShowsError } = await supabase
+        .from("user_shows_new")
+        .select(`
+          id,
+          user_id,
+          show_id,
+          watch_status,
+          added_at,
+          created_at,
+          shows!inner(
             id,
-            user_id,
-            show_id,
-            watch_status,
-            added_at,
-            created_at,
-            shows!inner(
-              id,
-              tvdb_id,
-              name,
-              overview,
-              status,
-              poster_url,
-              first_aired
-            )
-          `)
-          .eq("user_id", user.id)
-          .eq("shows.tvdb_id", tvdbId)
-          .single();
+            tvdb_id,
+            name,
+            overview,
+            status,
+            poster_url,
+            first_aired
+          )
+        `)
+        .eq("user_id", user.id);
 
-        if (userShowError) throw userShowError;
-        if (!userShowRow?.shows) {
-          setShow(null);
-          setEpisodes([]);
-          setWatchedRows([]);
-          return;
-        }
+      if (userShowsError) throw userShowsError;
 
-        const showRecord = userShowRow.shows;
-        const showId = showRecord.id;
+      const normalizedUserShows = (userShows || []).map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        show_id: row.show_id,
+        watch_status: row.watch_status || "watching",
+        added_at: row.added_at,
+        created_at: row.created_at,
+        tvdb_id: row.shows.tvdb_id,
+        show_name: row.shows.name || "Unknown title",
+        overview: row.shows.overview || "",
+        status: row.shows.status || null,
+        poster_url: row.shows.poster_url || null,
+        first_aired: row.shows.first_aired || null,
+      }));
 
-        const [{ data: episodeRows, error: episodeError }, watchedRowsData] =
-          await Promise.all([
-            supabase
+      const showIds = normalizedUserShows
+        .map((show) => show.show_id)
+        .filter(Boolean);
+
+      const [watchedResp, episodesResp] = await Promise.all([
+        supabase
+          .from("watched_episodes")
+          .select("episode_id")
+          .eq("user_id", user.id),
+
+        showIds.length
+          ? supabase
               .from("episodes")
               .select(`
                 id,
-                tvdb_id,
                 show_id,
                 season_number,
                 episode_number,
-                episode_code,
                 name,
                 overview,
                 aired_date,
                 image_url
               `)
-              .eq("show_id", showId)
+              .in("show_id", showIds)
+              .order("show_id", { ascending: true })
               .order("season_number", { ascending: true })
-              .order("episode_number", { ascending: true }),
-            fetchWatchedRows(user.id),
-          ]);
+              .order("episode_number", { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-        if (episodeError) throw episodeError;
+      if (watchedResp.error) throw watchedResp.error;
+      if (episodesResp.error) throw episodesResp.error;
 
-        const normalizedEpisodes = (episodeRows || []).map((row) => ({
-          id: row.id,
-          tvdb_episode_id: row.tvdb_id,
-          seasonNumber: row.season_number,
-          number: row.episode_number,
-          aired: row.aired_date,
-          airDate: row.aired_date,
-          name: row.name || "Untitled episode",
-          overview: row.overview || "",
-          image: row.image_url || null,
-          episode_code: row.episode_code,
-        }));
+      const watched = watchedResp.data || [];
+      const watchedIds = new Set(
+        watched.map((row) => row.episode_id).filter(Boolean).map(String)
+      );
 
-        const seasonMap = {};
-        normalizedEpisodes.forEach((ep) => {
-          if (!(ep.seasonNumber in seasonMap)) {
-            seasonMap[ep.seasonNumber] = false;
-          }
-        });
-
-        if (targetEpisodeId) {
-          const targetEpisode = normalizedEpisodes.find(
-            (ep) => String(ep.id) === String(targetEpisodeId)
-          );
-          if (targetEpisode) {
-            seasonMap[targetEpisode.seasonNumber] = true;
-          }
-        }
-
-        setShow({
-          id: showRecord.id,
-          tvdb_id: showRecord.tvdb_id,
-          show_name: showRecord.name || "Unknown title",
-          overview: showRecord.overview || "",
-          poster_url: showRecord.poster_url || null,
-          first_aired: showRecord.first_aired || null,
-          status: showRecord.status || null,
-          watch_status: userShowRow.watch_status || "watching",
-          added_at: userShowRow.added_at,
-          created_at: userShowRow.created_at,
-        });
-
-        setEpisodes(normalizedEpisodes);
-        setWatchedRows(watchedRowsData);
-        setExpandedSeasons(seasonMap);
-      } catch (error) {
-        console.error("Failed loading show:", error);
-        setShow(null);
-        setEpisodes([]);
-        setWatchedRows([]);
-      } finally {
-        setLoading(false);
+      const episodesByShowId = {};
+      for (const ep of episodesResp.data || []) {
+        const key = ep.show_id;
+        if (!episodesByShowId[key]) episodesByShowId[key] = [];
+        episodesByShowId[key].push(ep);
       }
-    }
 
-    loadShow();
-  }, [id, targetEpisodeId]);
+      const updatedShows = normalizedUserShows.map((userShow) => {
+        const showEpisodes = (episodesByShowId[userShow.show_id] || []).map(
+          (ep) => ({
+            id: ep.id,
+            show_id: ep.show_id,
+            season_number: ep.season_number,
+            episode_number: ep.episode_number,
+            name: ep.name || "Untitled episode",
+            overview: ep.overview || "",
+            aired_date: ep.aired_date,
+            image_url: ep.image_url || null,
+            seasonNumber: ep.season_number,
+            number: ep.episode_number,
+            aired: ep.aired_date,
+          })
+        );
 
-  useEffect(() => {
-    if (!targetEpisodeId || loading) return;
+        const airedEpisodes = showEpisodes.filter((ep) =>
+          isAired(ep.aired_date)
+        );
+        const futureEpisodes = showEpisodes.filter(
+          (ep) => ep.aired_date && !isAired(ep.aired_date)
+        );
 
-    const timer = setTimeout(() => {
-      const el = document.getElementById(`episode-${targetEpisodeId}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("episode-highlight");
-      setTimeout(() => el.classList.remove("episode-highlight"), 2500);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
-
-  const groupedSeasons = useMemo(() => {
-    const grouped = {};
-
-    for (const ep of episodes) {
-      if (!grouped[ep.seasonNumber]) grouped[ep.seasonNumber] = [];
-      grouped[ep.seasonNumber].push(ep);
-    }
-
-    return Object.entries(grouped)
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([seasonNumber, seasonEpisodes]) => {
-        const watchedCount = seasonEpisodes.filter((ep) =>
-          isEpisodeWatched(ep, watchedEpisodeIds)
+        const watchedAiredCount = airedEpisodes.filter((ep) =>
+          watchedIds.has(String(ep.id))
         ).length;
 
+        const watchedOverallCount = showEpisodes.filter((ep) =>
+          watchedIds.has(String(ep.id))
+        ).length;
+
+        const totalEpisodes = showEpisodes.length;
+        const totalAiredEpisodes = airedEpisodes.length;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const upcomingEpisodes = futureEpisodes
+          .filter((ep) => ep.aired_date)
+          .filter((ep) => {
+            const airDate = new Date(ep.aired_date);
+            airDate.setHours(0, 0, 0, 0);
+            return airDate >= today;
+          })
+          .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
+
+        const nextEpisodeDate =
+          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
+
+        const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
+        const status = getShowStatus(
+          {
+            ...userShow,
+            first_aired: userShow.first_aired,
+          },
+          statusEpisodes
+        );
+
+        const isCompleted =
+          totalAiredEpisodes > 0 && watchedAiredCount >= totalAiredEpisodes;
+
+        const progress =
+          totalAiredEpisodes > 0
+            ? Math.round((watchedAiredCount / totalAiredEpisodes) * 100)
+            : 0;
+
         return {
-          seasonNumber: Number(seasonNumber),
-          episodes: seasonEpisodes,
-          watchedCount,
-          totalCount: seasonEpisodes.length,
-          complete:
-            seasonEpisodes.length > 0 && watchedCount === seasonEpisodes.length,
+          ...userShow,
+          allEpisodes: showEpisodes,
+          watchedCount: watchedAiredCount,
+          watchedOverallCount,
+          totalEpisodes,
+          totalAiredEpisodes,
+          nextEpisodeDate,
+          status,
+          isCompleted,
+          progress,
         };
       });
-  }, [episodes, watchedEpisodeIds]);
 
-  const stats = useMemo(() => {
-    const total = episodes.length;
-    const watched = episodes.filter((ep) =>
-      isEpisodeWatched(ep, watchedEpisodeIds)
-    ).length;
-    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
-
-    const nextEpisode = episodes.find(
-      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
-    );
-
-    return { total, watched, pct, nextEpisode };
-  }, [episodes, watchedEpisodeIds]);
-
-  function toggleSeason(seasonNumber) {
-    setExpandedSeasons((prev) => ({
-      ...prev,
-      [seasonNumber]: !prev[seasonNumber],
-    }));
+      setShows(updatedShows);
+      setWatchedRows(watched);
+    } catch (error) {
+      console.error("LOAD SHOWS FAILED:", error);
+      setShows([]);
+      setWatchedRows([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function refreshWatched(userId) {
-    const fresh = await fetchWatchedRows(userId);
-    setWatchedRows(fresh);
+  useEffect(() => {
+    loadShows();
+  }, []);
+
+  async function refreshWatched() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+    setWatchedRows(data || []);
   }
 
   async function handleMarkWatched(ep) {
@@ -281,25 +309,27 @@ export default function MyShowDetails() {
     if (!user) return;
 
     try {
-      const payload = {
-        user_id: user.id,
-        episode_id: ep.id,
-      };
-
       const { error } = await supabase
         .from("watched_episodes")
-        .upsert(payload, { onConflict: "user_id,episode_id" });
+        .upsert(
+          {
+            user_id: user.id,
+            episode_id: ep.id,
+          },
+          { onConflict: "user_id,episode_id" }
+        );
 
       if (error) throw error;
 
-      await refreshWatched(user.id);
+      await refreshWatched();
+      await loadShows();
     } catch (error) {
       console.error("Failed marking watched:", error);
       alert(error.message || "Failed marking watched");
     }
   }
 
-  async function handleWatchUpToHere(targetEpisode) {
+  async function handleWatchUpToHere(targetEpisode, allEpisodes) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -307,7 +337,7 @@ export default function MyShowDetails() {
     if (!user) return;
 
     try {
-      const episodesToBeWatched = episodes.filter((ep) => {
+      const finalEpisodes = allEpisodes.filter((ep) => {
         if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
         return (
           ep.seasonNumber === targetEpisode.seasonNumber &&
@@ -315,9 +345,9 @@ export default function MyShowDetails() {
         );
       });
 
-      if (episodesToBeWatched.length === 0) return;
+      if (finalEpisodes.length === 0) return;
 
-      const rows = episodesToBeWatched.map((ep) => ({
+      const rows = finalEpisodes.map((ep) => ({
         user_id: user.id,
         episode_id: ep.id,
       }));
@@ -328,199 +358,617 @@ export default function MyShowDetails() {
 
       if (error) throw error;
 
-      await refreshWatched(user.id);
+      await refreshWatched();
+      await loadShows();
     } catch (error) {
       console.error("Failed watch up to here:", error);
       alert(error.message || "Failed watch up to here");
     }
   }
 
-  if (loading) {
-    return (
-      <div className="msd-page">
-        <div className="msd-shell">
-          <div className="msd-loading">Loading show...</div>
-        </div>
-      </div>
+  async function removeShow(showId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("user_shows_new")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("show_id", showId);
+
+    if (error) {
+      console.error("Failed to remove show:", error);
+      return;
+    }
+
+    setShows((prev) => prev.filter((show) => show.show_id !== showId));
+    if (expandedShowId === showId) {
+      setExpandedShowId(null);
+      setExpandedSeasons({});
+    }
+  }
+
+  async function setWatchStatus(showId, status) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("user_shows_new")
+      .update({ watch_status: status })
+      .eq("user_id", user.id)
+      .eq("show_id", showId);
+
+    if (error) throw error;
+
+    setShows((prev) =>
+      prev.map((show) =>
+        show.show_id === showId ? { ...show, watch_status: status } : show
+      )
     );
   }
 
-  if (!show) {
+  function openShowPanel(showId, seasons) {
+    if (expandedShowId === showId) {
+      setExpandedShowId(null);
+      setExpandedSeasons({});
+      return;
+    }
+
+    setExpandedShowId(showId);
+
+    const nextExpanded = {};
+    if (seasons.length > 0) {
+      nextExpanded[seasons[0].seasonNumber] = true;
+    }
+    setExpandedSeasons(nextExpanded);
+  }
+
+  function toggleSeason(seasonNumber) {
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
+  }
+
+  const filteredShows = useMemo(() => {
+    return shows.filter((show) => {
+      const watchStatus = show.watch_status || "watching";
+
+      if (filterBy === "all") return watchStatus !== "stopped";
+      if (filterBy === "stopped") return watchStatus === "stopped";
+      if (filterBy === "completed")
+        return show.isCompleted && watchStatus !== "stopped";
+      if (filterBy === "inprogress")
+        return !show.isCompleted && watchStatus !== "stopped";
+      if (filterBy === "airing")
+        return show.status === "Airing" && watchStatus !== "stopped";
+      if (filterBy === "ended")
+        return show.status === "Ended" && watchStatus !== "stopped";
+      if (filterBy === "upcoming")
+        return show.status === "Upcoming" && watchStatus !== "stopped";
+
+      return true;
+    });
+  }, [shows, filterBy]);
+
+  const sortedShows = useMemo(() => {
+    const result = [...filteredShows].sort((a, b) => {
+      if (sortBy === "airingnext") {
+        const aHasDate = !!a.nextEpisodeDate;
+        const bHasDate = !!b.nextEpisodeDate;
+
+        if (aHasDate && bHasDate) {
+          return new Date(a.nextEpisodeDate) - new Date(b.nextEpisodeDate);
+        }
+        if (aHasDate) return -1;
+        if (bHasDate) return 1;
+
+        return (a.show_name || "").localeCompare(b.show_name || "");
+      }
+
+      if (sortBy === "alphabetical") {
+        return (a.show_name || "").localeCompare(b.show_name || "");
+      }
+
+      if (sortBy === "recent") {
+        return (
+          new Date(b.added_at || b.created_at || 0) -
+          new Date(a.added_at || a.created_at || 0)
+        );
+      }
+
+      if (sortBy === "firstaired") {
+        return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
+      }
+
+      return 0;
+    });
+
+    return result;
+  }, [filteredShows, sortBy]);
+
+  const counts = useMemo(
+    () => ({
+      all: shows.filter(
+        (show) => (show.watch_status || "watching") !== "stopped"
+      ).length,
+      inprogress: shows.filter(
+        (show) =>
+          !show.isCompleted && (show.watch_status || "watching") !== "stopped"
+      ).length,
+      completed: shows.filter(
+        (show) =>
+          show.isCompleted && (show.watch_status || "watching") !== "stopped"
+      ).length,
+      airing: shows.filter(
+        (show) =>
+          show.status === "Airing" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      ended: shows.filter(
+        (show) =>
+          show.status === "Ended" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      upcoming: shows.filter(
+        (show) =>
+          show.status === "Upcoming" &&
+          (show.watch_status || "watching") !== "stopped"
+      ).length,
+      stopped: shows.filter(
+        (show) => (show.watch_status || "watching") === "stopped"
+      ).length,
+    }),
+    [shows]
+  );
+
+  const expandedShow = useMemo(
+    () => sortedShows.find((show) => show.show_id === expandedShowId) || null,
+    [sortedShows, expandedShowId]
+  );
+
+  const expandedShowSeasons = useMemo(() => {
+    if (!expandedShow) return [];
+    return groupEpisodesBySeasonDesc(
+      expandedShow.allEpisodes || [],
+      watchedEpisodeIds
+    );
+  }, [expandedShow, watchedEpisodeIds]);
+
+  if (loading) {
     return (
-      <div className="msd-page">
-        <div className="msd-shell">
-          <div className="msd-empty">
-            <p>Show not found.</p>
-            <Link to="/my-shows" className="msd-back-link">
-              Back to My Shows
-            </Link>
-          </div>
+      <div className="page">
+        <div className="page-header">
+          <h1>My Shows</h1>
+          <p>Loading your saved shows...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="msd-page">
-      <div className="msd-shell">
-        <Link to="/my-shows" className="msd-back-link">
-          ← Back to My Shows
-        </Link>
+    <div className="page">
+      <div className="page-header">
+        <h1>My Shows</h1>
+        <p>Track your saved shows and progress.</p>
+      </div>
 
-        <section className="msd-hero">
-          {show.poster_url ? (
-            <img
-              src={show.poster_url}
-              alt={show.show_name}
-              className="msd-poster"
-            />
-          ) : null}
+      <div
+        style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}
+      >
+        {[
+          ["all", `All (${counts.all})`],
+          ["inprogress", `In Progress (${counts.inprogress})`],
+          ["completed", `Completed (${counts.completed})`],
+          ["airing", `Airing (${counts.airing})`],
+          ["ended", `Ended (${counts.ended})`],
+          ["upcoming", `Upcoming (${counts.upcoming})`],
+          ["stopped", `Stopped (${counts.stopped})`],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            className="msd-btn msd-btn-secondary"
+            type="button"
+            onClick={() => setFilterBy(value)}
+            style={{ opacity: filterBy === value ? 1 : 0.7 }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-          <div className="msd-hero-main">
-            <h1 className="msd-title">{show.show_name}</h1>
-            {show.overview ? (
-              <p className="msd-overview">{show.overview}</p>
-            ) : null}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+          marginBottom: 24,
+        }}
+      >
+        <label>
+          Sort by{" "}
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="airingnext">Airing Next</option>
+            <option value="alphabetical">Alphabetical</option>
+            <option value="recent">Recently Added</option>
+            <option value="firstaired">First Aired</option>
+          </select>
+        </label>
+      </div>
 
-            <div className="msd-meta">
-              {show.first_aired ? (
-                <div>First aired: {formatDate(show.first_aired)}</div>
-              ) : null}
+      {sortedShows.length === 0 ? (
+        <div className="show-card">
+          <p>No shows found for this filter.</p>
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 20,
+              marginBottom: 28,
+            }}
+          >
+            {sortedShows.map((show) => {
+              const seasons = groupEpisodesBySeasonDesc(
+                show.allEpisodes || [],
+                watchedEpisodeIds
+              );
+              const isExpanded = expandedShowId === show.show_id;
 
-              {stats.nextEpisode ? (
-                <div>
-                  Next episode: {formatDate(stats.nextEpisode.aired)} (
-                  {getDaysUntil(stats.nextEpisode.aired) === 0
-                    ? "TODAY"
-                    : getDaysUntil(stats.nextEpisode.aired) === 1
-                    ? "IN 1 DAY"
-                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
-                  )
-                </div>
-              ) : null}
-            </div>
-
-            <div className="msd-stats-row">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Watched</span>
-                <strong className="msd-stat-value">{stats.watched}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Total</span>
-                <strong className="msd-stat-value">{stats.total}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Progress</span>
-                <strong className="msd-stat-value">{stats.pct}%</strong>
-              </div>
-            </div>
-
-            <div className="msd-progress">
-              <div
-                className="msd-progress-fill"
-                style={{ width: `${stats.pct}%` }}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="msd-episodes-section">
-          <h2 className="msd-section-title">Episodes</h2>
-
-          <div className="msd-seasons">
-            {groupedSeasons.map((season) => (
-              <section
-                key={season.seasonNumber}
-                className={`msd-season-card ${
-                  season.complete ? "msd-season-complete" : ""
-                }`}
-              >
+              return (
                 <button
+                  key={show.show_id}
                   type="button"
-                  className="msd-season-toggle"
-                  onClick={() => toggleSeason(season.seasonNumber)}
+                  onClick={() => openShowPanel(show.show_id, seasons)}
+                  style={{
+                    background: "transparent",
+                    border: isExpanded
+                      ? "2px solid #8b5cf6"
+                      : "1px solid #26324a",
+                    borderRadius: 18,
+                    padding: 12,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "0.2s ease",
+                  }}
                 >
-                  <div>
-                    <div className="msd-season-title">
-                      Season {season.seasonNumber}
-                    </div>
-                    <div className="msd-season-subtitle">
-                      {season.watchedCount}/{season.totalCount} watched
-                    </div>
-                  </div>
+                  {show.poster_url ? (
+                    <img
+                      src={show.poster_url}
+                      alt={show.show_name}
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        objectFit: "cover",
+                        borderRadius: 14,
+                        display: "block",
+                        background: "#111827",
+                        marginBottom: 12,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        borderRadius: 14,
+                        background: "#111827",
+                        marginBottom: 12,
+                      }}
+                    />
+                  )}
 
-                  <div className="msd-season-toggle-right">
-                    {season.complete ? (
-                      <span className="msd-season-badge">Completed</span>
-                    ) : null}
-                    <span className="msd-season-chevron">
-                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
-                    </span>
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontWeight: 800,
+                      fontSize: "1rem",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {show.show_name}
                   </div>
                 </button>
+              );
+            })}
+          </div>
 
-                {expandedSeasons[season.seasonNumber] && (
-                  <div className="msd-episode-list">
-                    {season.episodes.map((ep) => {
-                      const watched = isEpisodeWatched(ep, watchedEpisodeIds);
+          {expandedShow && (
+            <div className="show-card" style={{ padding: 24, marginBottom: 24 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "240px minmax(0, 1fr)",
+                  gap: 28,
+                  alignItems: "start",
+                  marginBottom: 28,
+                }}
+              >
+                <div>
+                  {expandedShow.poster_url ? (
+                    <img
+                      src={expandedShow.poster_url}
+                      alt={expandedShow.show_name}
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        objectFit: "cover",
+                        borderRadius: 18,
+                        display: "block",
+                        background: "#111827",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        borderRadius: 18,
+                        background: "#111827",
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <h2
+                    style={{
+                      marginTop: 0,
+                      marginBottom: 14,
+                      fontSize: "2.2rem",
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {expandedShow.show_name}
+                  </h2>
+
+                  {expandedShow.overview ? (
+                    <p
+                      style={{
+                        marginTop: 0,
+                        marginBottom: 18,
+                        color: "#dbe4f3",
+                        lineHeight: 1.6,
+                        fontSize: "1rem",
+                      }}
+                    >
+                      {expandedShow.overview}
+                    </p>
+                  ) : null}
+
+                  {expandedShow.first_aired ? (
+                    <p className="muted-text" style={{ marginBottom: 8 }}>
+                      First aired: {formatDate(expandedShow.first_aired)}
+                    </p>
+                  ) : null}
+
+                  <p className="muted-text" style={{ marginBottom: 8 }}>
+                    Status: {expandedShow.status || "Unknown"}
+                  </p>
+
+                  {expandedShow.nextEpisodeDate ? (
+                    <p className="muted-text" style={{ marginBottom: 18 }}>
+                      Next episode: {formatDate(expandedShow.nextEpisodeDate)}
+                    </p>
+                  ) : null}
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: 12,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div className="stat-card">
+                      <span className="stat-label">Watched</span>
+                      <strong className="stat-value">
+                        {expandedShow.watchedCount}
+                      </strong>
+                    </div>
+                    <div className="stat-card">
+                      <span className="stat-label">Total</span>
+                      <strong className="stat-value">
+                        {expandedShow.totalAiredEpisodes}
+                      </strong>
+                    </div>
+                    <div className="stat-card">
+                      <span className="stat-label">Progress</span>
+                      <strong className="stat-value">
+                        {expandedShow.progress}%
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="msd-progress" style={{ marginBottom: 18 }}>
+                    <div
+                      className="msd-progress-fill"
+                      style={{ width: `${expandedShow.progress}%` }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Link
+                      className="msd-btn msd-btn-primary"
+                      to={`/my-shows/${expandedShow.tvdb_id}`}
+                    >
+                      Open
+                    </Link>
+
+                    {(expandedShow.watch_status || "watching") === "stopped" ? (
+                      <button
+                        type="button"
+                        className="msd-btn msd-btn-secondary"
+                        onClick={() =>
+                          setWatchStatus(expandedShow.show_id, "watching")
+                        }
+                      >
+                        Resume
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="msd-btn msd-btn-secondary"
+                        onClick={() =>
+                          setWatchStatus(expandedShow.show_id, "stopped")
+                        }
+                      >
+                        Stop Watching
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => removeShow(expandedShow.show_id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 18, fontSize: "1.5rem" }}>
+                  Episodes
+                </h3>
+
+                {expandedShowSeasons.length === 0 ? (
+                  <p className="muted-text">No episodes found.</p>
+                ) : (
+                  <div className="msd-seasons">
+                    {expandedShowSeasons.map((season) => {
+                      const isOpen = !!expandedSeasons[season.seasonNumber];
 
                       return (
-                        <article
-                          id={`episode-${ep.id}`}
-                          key={ep.id}
-                          className={`msd-episode-card ${
-                            watched ? "msd-episode-watched" : ""
+                        <section
+                          key={season.seasonNumber}
+                          className={`msd-season-card ${
+                            season.complete ? "msd-season-complete" : ""
                           }`}
                         >
-                          <div className="msd-episode-top">
+                          <button
+                            type="button"
+                            className="msd-season-toggle"
+                            onClick={() => toggleSeason(season.seasonNumber)}
+                          >
                             <div>
-                              <h3 className="msd-episode-title">
-                                {makeEpisodeCode(ep)} - {ep.name}
-                              </h3>
-                              <div className="msd-episode-date">
-                                Air date: {formatDate(ep.aired)}
+                              <div className="msd-season-title">
+                                Season {season.seasonNumber}
+                              </div>
+                              <div className="msd-season-subtitle">
+                                {season.watchedCount}/{season.totalCount} watched
                               </div>
                             </div>
 
-                            {watched ? (
-                              <span className="msd-watched-pill">Watched</span>
-                            ) : null}
-                          </div>
+                            <div className="msd-season-toggle-right">
+                              {season.complete ? (
+                                <span className="msd-season-badge">Completed</span>
+                              ) : null}
+                              <span className="msd-season-chevron">
+                                {isOpen ? "▲" : "▼"}
+                              </span>
+                            </div>
+                          </button>
 
-                          {ep.overview ? (
-                            <p className="msd-episode-overview">{ep.overview}</p>
-                          ) : null}
+                          {isOpen && (
+                            <div className="msd-episode-list">
+                              {season.episodes.map((ep) => {
+                                const watched = isEpisodeWatched(
+                                  ep,
+                                  watchedEpisodeIds
+                                );
 
-                          <div className="msd-actions">
-                            <button
-                              type="button"
-                              className={`msd-btn ${
-                                watched ? "msd-btn-success" : "msd-btn-primary"
-                              }`}
-                              onClick={() => handleMarkWatched(ep)}
-                              disabled={watched}
-                            >
-                              {watched ? "Watched" : "Mark Watched"}
-                            </button>
+                                return (
+                                  <article
+                                    id={`episode-${ep.id}`}
+                                    key={ep.id}
+                                    className={`msd-episode-card ${
+                                      watched ? "msd-episode-watched" : ""
+                                    }`}
+                                  >
+                                    <div className="msd-episode-top">
+                                      <div>
+                                        <h3 className="msd-episode-title">
+                                          {makeEpisodeCode(ep)} - {ep.name}
+                                        </h3>
+                                        <div className="msd-episode-date">
+                                          Air date: {formatDate(ep.aired)}
+                                        </div>
+                                      </div>
 
-                            <button
-                              type="button"
-                              className="msd-btn msd-btn-secondary"
-                              onClick={() => handleWatchUpToHere(ep)}
-                            >
-                              Watch up to here
-                            </button>
-                          </div>
-                        </article>
+                                      {watched ? (
+                                        <span className="msd-watched-pill">
+                                          Watched
+                                        </span>
+                                      ) : null}
+                                    </div>
+
+                                    {ep.overview ? (
+                                      <p className="msd-episode-overview">
+                                        {ep.overview}
+                                      </p>
+                                    ) : null}
+
+                                    <div className="msd-actions">
+                                      <button
+                                        type="button"
+                                        className={`msd-btn ${
+                                          watched
+                                            ? "msd-btn-success"
+                                            : "msd-btn-primary"
+                                        }`}
+                                        onClick={() => handleMarkWatched(ep)}
+                                        disabled={watched}
+                                      >
+                                        {watched ? "Watched" : "Mark Watched"}
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="msd-btn msd-btn-secondary"
+                                        onClick={() =>
+                                          handleWatchUpToHere(
+                                            ep,
+                                            expandedShow.allEpisodes || []
+                                          )
+                                        }
+                                      >
+                                        Watch up to here
+                                      </button>
+                                    </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </section>
                       );
                     })}
                   </div>
                 )}
-              </section>
-            ))}
-          </div>
-        </section>
-      </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
