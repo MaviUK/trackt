@@ -51,6 +51,7 @@ function dedupeByTvdbId(items) {
 
   for (const item of items) {
     if (!item?.tvdb_id) continue;
+
     if (!map.has(item.tvdb_id)) {
       map.set(item.tvdb_id, item);
       continue;
@@ -78,6 +79,16 @@ function dedupeByTvdbId(items) {
   }
 
   return Array.from(map.values());
+}
+
+function dedupeByValue(values) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 function normalizeSearchResult(item) {
@@ -183,35 +194,33 @@ const RELATED_GENRES = {
 };
 
 function buildSeedTerms({ query, genre, network }) {
-  if (query) return [query];
-
-  if (network) {
-    return [network, `${network} series`, `${network} drama`, `${network} show`];
+  if (query) {
+    return [query];
   }
 
-  if (genre) {
-    const lower = genre.toLowerCase();
-    const related = RELATED_GENRES[lower] || [lower];
-
+  if (network) {
     return dedupeByValue([
-      genre,
-      `${genre} series`,
-      `${genre} show`,
-      ...related,
+      network,
+      `${network} series`,
+      `${network} show`,
+      `${network} original series`,
+      "top rated series",
+      "popular series",
     ]);
   }
 
-  return [];
-}
+  if (genre) {
+    return [
+      "top rated series",
+      "popular series",
+      "best tv series",
+      "hit television series",
+      "award winning series",
+      "trending series",
+    ];
+  }
 
-function dedupeByValue(values) {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => String(value || "").trim())
-        .filter(Boolean)
-    )
-  );
+  return [];
 }
 
 async function loginToTvdb() {
@@ -274,20 +283,21 @@ async function searchTvdb(token, term) {
 }
 
 async function fetchSeriesDetails(token, tvdbId) {
-  const res = await fetch(`https://api4.thetvdb.com/v4/series/${tvdbId}/extended`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
+  const res = await fetch(
+    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
 
   const data = await res.json();
 
-  if (!res.ok) {
+  if (!res.ok || !data?.data) {
     return null;
   }
-
-  if (!data?.data) return null;
 
   return normalizeSeriesDetails(data.data);
 }
@@ -317,20 +327,41 @@ function scoreShow(show, options) {
 
   if (query) {
     const queryLower = query.toLowerCase();
-    if (name.includes(queryLower)) score += 12;
+
+    if (name.includes(queryLower)) score += 14;
     if (overview.includes(queryLower)) score += 4;
   }
 
   if (genre) {
     const genreLower = genre.toLowerCase();
     const related = RELATED_GENRES[genreLower] || [genreLower];
+    const hasExactGenre = showGenres.includes(genreLower);
+    const hasRelatedGenre = showGenres.some((g) => related.includes(g));
 
-    if (showGenres.includes(genreLower)) {
-      score += 20;
-    } else if (showGenres.some((g) => related.includes(g))) {
+    if (hasExactGenre) {
+      score += 28;
+    } else if (hasRelatedGenre) {
       score += 10;
     } else {
-      score -= 8;
+      score -= 20;
+    }
+
+    if (name.includes(genreLower)) {
+      score -= 18;
+    }
+
+    if (
+      genreLower === "drama" &&
+      (showGenres.includes("animation") || showGenres.includes("family"))
+    ) {
+      score -= 14;
+    }
+
+    if (
+      genreLower === "thriller" &&
+      (showGenres.includes("animation") || showGenres.includes("family"))
+    ) {
+      score -= 14;
     }
   }
 
@@ -358,6 +389,10 @@ function scoreShow(show, options) {
         score += 4;
       }
     }
+  } else if (showYear) {
+    if (showYear >= 2016) score += 6;
+    else if (showYear >= 2010) score += 2;
+    else score -= 8;
   }
 
   if (sourceRating != null && showRating != null) {
@@ -367,6 +402,10 @@ function scoreShow(show, options) {
     } else {
       score -= 20;
     }
+  } else if (showRating != null) {
+    if (showRating >= 7.5) score += 8;
+    else if (showRating >= 7.0) score += 4;
+    else if (showRating < 6.0) score -= 8;
   }
 
   if (show.image_url) score += 2;
@@ -406,7 +445,7 @@ export async function handler(event) {
 
     let candidates = [];
 
-    for (const term of seedTerms.slice(0, 5)) {
+    for (const term of seedTerms.slice(0, 6)) {
       const results = await searchTvdb(token, term);
       candidates.push(...results);
     }
@@ -414,7 +453,7 @@ export async function handler(event) {
     candidates = dedupeByTvdbId(candidates);
 
     const enriched = [];
-    for (const candidate of candidates.slice(0, 30)) {
+    for (const candidate of candidates.slice(0, 40)) {
       const details = await fetchSeriesDetails(token, candidate.tvdb_id);
       enriched.push(details || candidate);
     }
@@ -426,8 +465,24 @@ export async function handler(event) {
       const related = RELATED_GENRES[genreLower] || [genreLower];
 
       results = results.filter((item) => {
-        const itemGenres = normalizeGenres(item.genres).map((g) => g.toLowerCase());
-        return itemGenres.includes(genreLower) || itemGenres.some((g) => related.includes(g));
+        const itemGenres = normalizeGenres(item.genres).map((g) =>
+          g.toLowerCase()
+        );
+
+        const exact = itemGenres.includes(genreLower);
+        const relatedHit = itemGenres.some((g) => related.includes(g));
+
+        if (!exact && !relatedHit) return false;
+
+        if (
+          genreLower === "drama" &&
+          String(item.name || "").toLowerCase().includes("drama") &&
+          (itemGenres.includes("animation") || itemGenres.includes("family"))
+        ) {
+          return false;
+        }
+
+        return true;
       });
     }
 
@@ -448,12 +503,22 @@ export async function handler(event) {
         const itemYear = getYear(item.first_aired || item.first_air_time);
         return itemYear == null || itemYear >= minYear;
       });
+    } else {
+      results = results.filter((item) => {
+        const itemYear = getYear(item.first_aired || item.first_air_time);
+        return itemYear == null || itemYear >= 2010;
+      });
     }
 
     if (sourceRating != null) {
       results = results.filter((item) => {
         const itemRating = normalizeNumber(item.rating_average);
         return itemRating == null || itemRating >= sourceRating;
+      });
+    } else {
+      results = results.filter((item) => {
+        const itemRating = normalizeNumber(item.rating_average);
+        return itemRating == null || itemRating >= 6.5;
       });
     }
 
