@@ -90,6 +90,7 @@ export default function MyShowDetails() {
 
   const [burgrRatings, setBurgrRatings] = useState([]);
   const [myBurgrRating, setMyBurgrRating] = useState("");
+  const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
 
   const watchedEpisodeIds = useMemo(
     () => buildWatchedEpisodeIdSet(watchedRows),
@@ -495,8 +496,8 @@ export default function MyShowDetails() {
 
     const rating = Number(myBurgrRating);
 
-    if (Number.isNaN(rating) || rating < 0 || rating > 10) {
-      alert("Burgr rating must be between 0 and 10");
+    if (Number.isNaN(rating) || rating < 1 || rating > 10) {
+      alert("Burgr rating must be between 1 and 10");
       return;
     }
 
@@ -543,6 +544,8 @@ export default function MyShowDetails() {
       </div>
     );
   }
+
+  const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
 
   return (
     <div className="msd-page">
@@ -604,7 +607,7 @@ export default function MyShowDetails() {
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Burgrs</span>
+                <span className="msd-stat-label">Average Burgrs</span>
                 <strong className="msd-stat-value">
                   {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
                 </strong>
@@ -617,176 +620,83 @@ export default function MyShowDetails() {
                 style={{ width: `${stats.pct}%` }}
               />
             </div>
-          </div>
-        </section>
 
-        <section className="msd-extra-grid">
-          <div className="msd-panel">
-            <h2 className="msd-section-title">Where to Watch</h2>
+            <div className="msd-hero-section">
+              <h2 className="msd-section-title">Where to Watch</h2>
 
-            {extrasLoading ? (
-              <p className="msd-muted">Loading watch options...</p>
-            ) : watchProviders.length > 0 ? (
-              <div className="msd-provider-list">
-                {watchProviders.map((provider, index) => (
-                  <a
-                    key={provider.id || `${provider.name}-${index}`}
-                    href={provider.url || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="msd-provider-chip"
-                  >
-                    {provider.name || "Unknown provider"}
-                    {provider.type ? ` (${provider.type})` : ""}
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <p className="msd-muted">No watch providers available.</p>
-            )}
-          </div>
-
-          <div className="msd-panel">
-            <h2 className="msd-section-title">Burgrs Rating</h2>
-
-            <div className="msd-burgr-summary">
-              <div>
-                <span className="msd-stat-label">Average</span>
-                <strong className="msd-stat-value">
-                  {burgrStats.avg ? `${burgrStats.avg}/10` : "No ratings yet"}
-                </strong>
-              </div>
-
-              <div>
-                <span className="msd-stat-label">Ratings</span>
-                <strong className="msd-stat-value">{burgrStats.count}</strong>
-              </div>
-            </div>
-
-            <div className="msd-burgr-form">
-              <label htmlFor="burgr-rating" className="msd-stat-label">
-                Your Burgrs
-              </label>
-
-              <div className="msd-burgr-controls">
-                <input
-                  id="burgr-rating"
-                  type="number"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={myBurgrRating}
-                  onChange={(e) => setMyBurgrRating(e.target.value)}
-                  className="msd-rating-input"
-                  placeholder="0-10"
-                />
-
-                <button
-                  type="button"
-                  className="msd-btn msd-btn-primary"
-                  onClick={handleSaveBurgrRating}
-                >
-                  Save Rating
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="msd-panel">
-          <h2 className="msd-section-title">Cast</h2>
-
-          {extrasLoading ? (
-            <p className="msd-muted">Loading cast...</p>
-          ) : cast.length > 0 ? (
-            <div className="msd-cast-grid">
-              {cast.map((member, index) => (
-                <div
-                  key={member.id || `${member.personName}-${index}`}
-                  className="msd-cast-card"
-                >
-                  {member.image ? (
-                    <img
-                      src={member.image}
-                      alt={member.personName || "Cast member"}
-                      className="msd-cast-image"
-                    />
-                  ) : null}
-
-                  <div className="msd-cast-name">
-                    {member.personName || "Unknown actor"}
-                  </div>
-                  <div className="msd-cast-role">
-                    {member.characterName || "Cast"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="msd-muted">No cast available.</p>
-          )}
-        </section>
-
-        <section className="msd-panel">
-          <h2 className="msd-section-title">Recommended Shows</h2>
-
-          {extrasLoading ? (
-            <p className="msd-muted">Loading recommendations...</p>
-          ) : recommendedShows.length > 0 ? (
-            <div className="msd-recommended-grid">
-              {recommendedShows.map((rec, index) => {
-                const hasTvdbId = rec.tvdb_id || rec.tvdbId;
-                const linkTarget = hasTvdbId
-                  ? `/my-shows/${rec.tvdb_id || rec.tvdbId}`
-                  : "#";
-
-                const content = (
-                  <>
-                    {rec.poster_url || rec.posterUrl ? (
-                      <img
-                        src={rec.poster_url || rec.posterUrl}
-                        alt={rec.name || "Recommended show"}
-                        className="msd-rec-poster"
-                      />
-                    ) : null}
-
-                    <div className="msd-rec-title">
-                      {rec.name || "Unknown show"}
-                    </div>
-
-                    {rec.first_aired || rec.firstAired ? (
-                      <div className="msd-rec-date">
-                        {formatDate(rec.first_aired || rec.firstAired)}
-                      </div>
-                    ) : null}
-                  </>
-                );
-
-                if (hasTvdbId) {
-                  return (
-                    <Link
-                      key={rec.id || `${rec.name}-${index}`}
-                      to={linkTarget}
-                      className="msd-rec-card"
+              {extrasLoading ? (
+                <p className="msd-muted">Loading watch options...</p>
+              ) : watchProviders.length > 0 ? (
+                <div className="msd-provider-list">
+                  {watchProviders.map((provider, index) => (
+                    <a
+                      key={provider.id || `${provider.name}-${index}`}
+                      href={provider.url || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="msd-provider-chip"
                     >
-                      {content}
-                    </Link>
-                  );
-                }
-
-                return (
-                  <div
-                    key={rec.id || `${rec.name}-${index}`}
-                    className="msd-rec-card"
-                  >
-                    {content}
-                  </div>
-                );
-              })}
+                      {provider.name || "Unknown provider"}
+                      {provider.type ? ` (${provider.type})` : ""}
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p className="msd-muted">No watch providers available.</p>
+              )}
             </div>
-          ) : (
-            <p className="msd-muted">No recommendations yet.</p>
-          )}
+
+            <div className="msd-hero-section">
+              <h2 className="msd-section-title">Your Burgrs</h2>
+
+              <div className="msd-burgr-form">
+                <div className="msd-burgr-picker">
+                  {Array.from({ length: 10 }, (_, index) => {
+                    const value = index + 1;
+                    const filled = value <= activeBurgrRating;
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`msd-burger-btn ${
+                          filled ? "is-filled" : "is-empty"
+                        }`}
+                        onMouseEnter={() => setHoverBurgrRating(value)}
+                        onMouseLeave={() => setHoverBurgrRating(0)}
+                        onClick={() => setMyBurgrRating(String(value))}
+                        aria-label={`Rate ${value} out of 10 burgers`}
+                        title={`${value}/10`}
+                      >
+                        <img
+                          src="/burger-rating.png"
+                          alt=""
+                          className="msd-burger-icon"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="msd-burgr-picker-footer">
+                  <span className="msd-burgr-current">
+                    {myBurgrRating
+                      ? `${myBurgrRating}/10 Burgrs`
+                      : "Select your rating"}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="msd-btn msd-btn-primary"
+                    onClick={handleSaveBurgrRating}
+                    disabled={!myBurgrRating}
+                  >
+                    Save Rating
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="msd-episodes-section">
@@ -884,6 +794,102 @@ export default function MyShowDetails() {
               </section>
             ))}
           </div>
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Cast</h2>
+
+          {extrasLoading ? (
+            <p className="msd-muted">Loading cast...</p>
+          ) : cast.length > 0 ? (
+            <div className="msd-cast-grid">
+              {cast.map((member, index) => (
+                <div
+                  key={member.id || `${member.personName}-${index}`}
+                  className="msd-cast-card"
+                >
+                  {member.image ? (
+                    <img
+                      src={member.image}
+                      alt={member.personName || "Cast member"}
+                      className="msd-cast-image"
+                    />
+                  ) : null}
+
+                  <div className="msd-cast-name">
+                    {member.personName || "Unknown actor"}
+                  </div>
+                  <div className="msd-cast-role">
+                    {member.characterName || "Cast"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="msd-muted">No cast available.</p>
+          )}
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Recommended Shows</h2>
+
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-grid">
+              {recommendedShows.map((rec, index) => {
+                const hasTvdbId = rec.tvdb_id || rec.tvdbId;
+                const linkTarget = hasTvdbId
+                  ? `/my-shows/${rec.tvdb_id || rec.tvdbId}`
+                  : "#";
+
+                const content = (
+                  <>
+                    {rec.poster_url || rec.posterUrl ? (
+                      <img
+                        src={rec.poster_url || rec.posterUrl}
+                        alt={rec.name || "Recommended show"}
+                        className="msd-rec-poster"
+                      />
+                    ) : null}
+
+                    <div className="msd-rec-title">
+                      {rec.name || "Unknown show"}
+                    </div>
+
+                    {rec.first_aired || rec.firstAired ? (
+                      <div className="msd-rec-date">
+                        {formatDate(rec.first_aired || rec.firstAired)}
+                      </div>
+                    ) : null}
+                  </>
+                );
+
+                if (hasTvdbId) {
+                  return (
+                    <Link
+                      key={rec.id || `${rec.name}-${index}`}
+                      to={linkTarget}
+                      className="msd-rec-card"
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div
+                    key={rec.id || `${rec.name}-${index}`}
+                    className="msd-rec-card"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
         </section>
       </div>
     </div>
