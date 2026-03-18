@@ -16,6 +16,9 @@ export default function Search() {
 
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
+  const sourceShowId = searchParams.get("sourceShowId") || "";
+  const sourceYear = searchParams.get("sourceYear") || "";
+  const sourceRating = searchParams.get("sourceRating") || "";
 
   useEffect(() => {
     if (genreFilter) {
@@ -32,13 +35,19 @@ export default function Search() {
       search({
         genre: genreFilter || null,
         network: networkFilter || null,
+        sourceShowId: sourceShowId || null,
+        sourceYear: sourceYear || null,
+        sourceRating: sourceRating || null,
       });
     }
-  }, [genreFilter, networkFilter]);
+  }, [genreFilter, networkFilter, sourceShowId, sourceYear, sourceRating]);
 
   const search = async (filters = null) => {
     const activeGenre = filters?.genre ?? null;
     const activeNetwork = filters?.network ?? null;
+    const activeSourceShowId = filters?.sourceShowId ?? null;
+    const activeSourceYear = filters?.sourceYear ?? null;
+    const activeSourceRating = filters?.sourceRating ?? null;
     const trimmedQuery = query.trim();
 
     if (!activeGenre && !activeNetwork && !trimmedQuery) return;
@@ -55,6 +64,18 @@ export default function Search() {
 
       if (activeNetwork) {
         params.set("network", activeNetwork);
+      }
+
+      if (activeSourceShowId) {
+        params.set("sourceShowId", activeSourceShowId);
+      }
+
+      if (activeSourceYear) {
+        params.set("sourceYear", activeSourceYear);
+      }
+
+      if (activeSourceRating) {
+        params.set("sourceRating", activeSourceRating);
       }
 
       if (!activeGenre && !activeNetwork && trimmedQuery) {
@@ -244,6 +265,22 @@ export default function Search() {
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
                 Network = {networkFilter}
               </span>
+            ) : null}
+            {sourceYear ? (
+              <>
+                {" | "}
+                <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                  From year = {sourceYear}
+                </span>
+              </>
+            ) : null}
+            {sourceRating ? (
+              <>
+                {" | "}
+                <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                  Min rating = {sourceRating}
+                </span>
+              </>
             ) : null}
           </div>
         )}
