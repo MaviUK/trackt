@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { addShowToUserList } from "../lib/userShows";
 
 export default function Search() {
+  const [searchParams] = useSearchParams();
+
   const [query, setQuery] = useState("");
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,15 +14,55 @@ export default function Search() {
   const [addingId, setAddingId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
 
-  const search = async () => {
-    if (!query.trim()) return;
+  const genreFilter = searchParams.get("genre") || "";
+  const networkFilter = searchParams.get("network") || "";
+
+  useEffect(() => {
+    if (genreFilter) {
+      setQuery(genreFilter);
+    } else if (networkFilter) {
+      setQuery(networkFilter);
+    } else {
+      setQuery("");
+    }
+  }, [genreFilter, networkFilter]);
+
+  useEffect(() => {
+    if (genreFilter || networkFilter) {
+      search({
+        genre: genreFilter || null,
+        network: networkFilter || null,
+      });
+    }
+  }, [genreFilter, networkFilter]);
+
+  const search = async (filters = null) => {
+    const activeGenre = filters?.genre ?? null;
+    const activeNetwork = filters?.network ?? null;
+    const trimmedQuery = query.trim();
+
+    if (!activeGenre && !activeNetwork && !trimmedQuery) return;
 
     setLoading(true);
     setError("");
 
     try {
+      const params = new URLSearchParams();
+
+      if (activeGenre) {
+        params.set("genre", activeGenre);
+      }
+
+      if (activeNetwork) {
+        params.set("network", activeNetwork);
+      }
+
+      if (!activeGenre && !activeNetwork && trimmedQuery) {
+        params.set("q", trimmedQuery);
+      }
+
       const res = await fetch(
-        `/.netlify/functions/searchShows?q=${encodeURIComponent(query)}`
+        `/.netlify/functions/searchShows?${params.toString()}`
       );
       const data = await res.json();
 
@@ -120,12 +162,24 @@ export default function Search() {
     }
   };
 
+  const pageTitle = genreFilter
+    ? `Genre: ${genreFilter}`
+    : networkFilter
+    ? `Network: ${networkFilter}`
+    : "Search Shows";
+
+  const pageSubtitle = genreFilter
+    ? `Browse shows in ${genreFilter}.`
+    : networkFilter
+    ? `Browse shows from ${networkFilter}.`
+    : "Find a show and add it to My Shows.";
+
   return (
     <div className="page">
       <div className="page-shell">
         <div className="page-header">
-          <h1>Search Shows</h1>
-          <p>Find a show and add it to My Shows.</p>
+          <h1>{pageTitle}</h1>
+          <p>{pageSubtitle}</p>
         </div>
 
         <div
@@ -159,7 +213,7 @@ export default function Search() {
           />
 
           <button
-            onClick={search}
+            onClick={() => search()}
             disabled={loading}
             className="msd-btn msd-btn-secondary"
             style={{
@@ -170,6 +224,29 @@ export default function Search() {
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
+
+        {(genreFilter || networkFilter) && (
+          <div
+            style={{
+              marginBottom: "16px",
+              color: "#cbd5e1",
+              fontSize: "0.95rem",
+            }}
+          >
+            Active filter:{" "}
+            {genreFilter ? (
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                Genre = {genreFilter}
+              </span>
+            ) : null}
+            {genreFilter && networkFilter ? " | " : ""}
+            {networkFilter ? (
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                Network = {networkFilter}
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {error && (
           <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
@@ -211,10 +288,7 @@ export default function Search() {
                       alignItems: "stretch",
                     }}
                   >
-                    <Link
-                      to={`/show/${tvdbId}`}
-                      style={{ display: "block" }}
-                    >
+                    <Link to={`/show/${tvdbId}`} style={{ display: "block" }}>
                       {show.image_url ? (
                         <img
                           src={show.image_url}
@@ -278,7 +352,7 @@ export default function Search() {
                         {show.name}
                       </div>
 
-                      {show.first_air_time && (
+                      {(show.first_air_time || show.first_aired) && (
                         <p
                           style={{
                             margin: "0 0 10px 0",
@@ -286,7 +360,8 @@ export default function Search() {
                             fontWeight: "600",
                           }}
                         >
-                          First aired: {formatDate(show.first_air_time)}
+                          First aired:{" "}
+                          {formatDate(show.first_air_time || show.first_aired)}
                         </p>
                       )}
 
