@@ -47,6 +47,13 @@ function getDaysUntil(dateString) {
   return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
 }
 
+function getYear(dateString) {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
+  return String(d.getFullYear());
+}
+
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
@@ -154,7 +161,9 @@ export default function MyShowDetails() {
               poster_url,
               first_aired,
               network,
-              genres
+              genres,
+              rating_average,
+              rating_count
             )
           `)
           .eq("user_id", user.id)
@@ -180,7 +189,9 @@ export default function MyShowDetails() {
               poster_url,
               first_aired,
               network,
-              genres
+              genres,
+              rating_average,
+              rating_count
             `)
             .eq("tvdb_id", tvdbId)
             .maybeSingle();
@@ -271,6 +282,14 @@ export default function MyShowDetails() {
           status: showRecord.status || null,
           network: showRecord.network || "",
           genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
+          rating_average:
+            showRecord.rating_average != null
+              ? Number(showRecord.rating_average)
+              : null,
+          rating_count:
+            showRecord.rating_count != null
+              ? Number(showRecord.rating_count)
+              : null,
           watch_status: userShowRow?.watch_status || "not_added",
           added_at: userShowRow?.added_at || null,
           created_at: userShowRow?.created_at || null,
@@ -398,6 +417,12 @@ export default function MyShowDetails() {
       count: ratings.length,
     };
   }, [burgrRatings]);
+
+  const sourceYear = getYear(show?.first_aired);
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -666,7 +691,13 @@ export default function MyShowDetails() {
                 <strong className="msd-stat-value">
                   {show.network ? (
                     <Link
-                      to={`/search?network=${encodeURIComponent(show.network)}`}
+                      to={`/search?network=${encodeURIComponent(
+                        show.network
+                      )}&sourceShowId=${encodeURIComponent(
+                        show.tvdb_id
+                      )}&sourceYear=${encodeURIComponent(
+                        sourceYear
+                      )}&sourceRating=${encodeURIComponent(sourceRating)}`}
                       className="msd-link"
                     >
                       {show.network}
@@ -684,7 +715,15 @@ export default function MyShowDetails() {
                     ? show.genres.map((genre, index) => (
                         <span key={genre}>
                           <Link
-                            to={`/search?genre=${encodeURIComponent(genre)}`}
+                            to={`/search?genre=${encodeURIComponent(
+                              genre
+                            )}&sourceShowId=${encodeURIComponent(
+                              show.tvdb_id
+                            )}&sourceYear=${encodeURIComponent(
+                              sourceYear
+                            )}&sourceRating=${encodeURIComponent(
+                              sourceRating
+                            )}`}
                             className="msd-link"
                           >
                             {genre}
