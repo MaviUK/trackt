@@ -47,6 +47,11 @@ function getDaysUntil(dateString) {
   return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
 }
 
+function formatGenres(genres) {
+  if (!Array.isArray(genres) || genres.length === 0) return "—";
+  return genres.filter(Boolean).join(", ");
+}
+
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
@@ -85,7 +90,6 @@ export default function MyShowDetails() {
   const [watchedRows, setWatchedRows] = useState([]);
   const [expandedSeasons, setExpandedSeasons] = useState({});
 
-  const [watchProviders, setWatchProviders] = useState([]);
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
 
@@ -113,7 +117,6 @@ export default function MyShowDetails() {
           setEpisodes([]);
           setWatchedRows([]);
           setExpandedSeasons({});
-          setWatchProviders([]);
           setCast([]);
           setRecommendedShows([]);
           setBurgrRatings([]);
@@ -128,7 +131,6 @@ export default function MyShowDetails() {
           setEpisodes([]);
           setWatchedRows([]);
           setExpandedSeasons({});
-          setWatchProviders([]);
           setCast([]);
           setRecommendedShows([]);
           setBurgrRatings([]);
@@ -155,7 +157,9 @@ export default function MyShowDetails() {
               overview,
               status,
               poster_url,
-              first_aired
+              first_aired,
+              network,
+              genres
             )
           `)
           .eq("user_id", user.id)
@@ -179,7 +183,9 @@ export default function MyShowDetails() {
               overview,
               status,
               poster_url,
-              first_aired
+              first_aired,
+              network,
+              genres
             `)
             .eq("tvdb_id", tvdbId)
             .maybeSingle();
@@ -191,7 +197,6 @@ export default function MyShowDetails() {
             setEpisodes([]);
             setWatchedRows([]);
             setExpandedSeasons({});
-            setWatchProviders([]);
             setCast([]);
             setRecommendedShows([]);
             setBurgrRatings([]);
@@ -269,6 +274,8 @@ export default function MyShowDetails() {
           poster_url: showRecord.poster_url || null,
           first_aired: showRecord.first_aired || null,
           status: showRecord.status || null,
+          network: showRecord.network || "",
+          genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
           watch_status: userShowRow?.watch_status || "not_added",
           added_at: userShowRow?.added_at || null,
           created_at: userShowRow?.created_at || null,
@@ -280,7 +287,6 @@ export default function MyShowDetails() {
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
 
-        setWatchProviders([]);
         setCast([]);
         setRecommendedShows([]);
 
@@ -298,9 +304,6 @@ export default function MyShowDetails() {
           const extras = await extrasRes.json();
 
           setCast(Array.isArray(extras.cast) ? extras.cast : []);
-          setWatchProviders(
-            Array.isArray(extras.providers) ? extras.providers : []
-          );
           setRecommendedShows(
             Array.isArray(extras.recommendations)
               ? extras.recommendations
@@ -309,7 +312,6 @@ export default function MyShowDetails() {
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           setCast([]);
-          setWatchProviders([]);
           setRecommendedShows([]);
         } finally {
           setExtrasLoading(false);
@@ -320,7 +322,6 @@ export default function MyShowDetails() {
         setEpisodes([]);
         setWatchedRows([]);
         setExpandedSeasons({});
-        setWatchProviders([]);
         setCast([]);
         setRecommendedShows([]);
         setBurgrRatings([]);
@@ -665,28 +666,18 @@ export default function MyShowDetails() {
                 </strong>
               </div>
 
-              <div className="msd-stat-box msd-stat-box-rest-wide">
-                <span className="msd-stat-label">Where to Watch</span>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Network</span>
+                <strong className="msd-stat-value">
+                  {show.network?.trim() || "—"}
+                </strong>
+              </div>
 
-                {extrasLoading ? (
-                  <div className="msd-stat-inline-muted">Loading...</div>
-                ) : watchProviders.length > 0 ? (
-                  <div className="msd-provider-list msd-provider-list-compact">
-                    {watchProviders.map((provider, index) => (
-                      <a
-                        key={provider.id || `${provider.name}-${index}`}
-                        href={provider.url || "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="msd-provider-chip"
-                      >
-                        {provider.name || "Unknown provider"}
-                      </a>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="msd-stat-inline-muted">No providers</div>
-                )}
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Genre</span>
+                <strong className="msd-stat-value">
+                  {formatGenres(show.genres)}
+                </strong>
               </div>
             </div>
 
