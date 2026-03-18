@@ -16,41 +16,65 @@ export default function Search() {
 
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
+  const relationshipTypeFilter = searchParams.get("relationshipType") || "";
+  const settingFilter = searchParams.get("setting") || "";
   const sourceShowId = searchParams.get("sourceShowId") || "";
   const sourceYear = searchParams.get("sourceYear") || "";
   const sourceRating = searchParams.get("sourceRating") || "";
+  const sourceLanguage = searchParams.get("sourceLanguage") || "";
 
   useEffect(() => {
-    if (genreFilter) {
-      setQuery(genreFilter);
-    } else if (networkFilter) {
-      setQuery(networkFilter);
-    } else {
-      setQuery("");
-    }
-  }, [genreFilter, networkFilter]);
+    if (genreFilter) setQuery(genreFilter);
+    else if (networkFilter) setQuery(networkFilter);
+    else if (relationshipTypeFilter) setQuery(relationshipTypeFilter);
+    else if (settingFilter) setQuery(settingFilter);
+    else setQuery("");
+  }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
   useEffect(() => {
-    if (genreFilter || networkFilter) {
+    if (genreFilter || networkFilter || relationshipTypeFilter || settingFilter) {
       search({
         genre: genreFilter || null,
         network: networkFilter || null,
+        relationshipType: relationshipTypeFilter || null,
+        setting: settingFilter || null,
         sourceShowId: sourceShowId || null,
         sourceYear: sourceYear || null,
         sourceRating: sourceRating || null,
+        sourceLanguage: sourceLanguage || null,
       });
     }
-  }, [genreFilter, networkFilter, sourceShowId, sourceYear, sourceRating]);
+  }, [
+    genreFilter,
+    networkFilter,
+    relationshipTypeFilter,
+    settingFilter,
+    sourceShowId,
+    sourceYear,
+    sourceRating,
+    sourceLanguage,
+  ]);
 
   const search = async (filters = null) => {
     const activeGenre = filters?.genre ?? null;
     const activeNetwork = filters?.network ?? null;
+    const activeRelationshipType = filters?.relationshipType ?? null;
+    const activeSetting = filters?.setting ?? null;
     const activeSourceShowId = filters?.sourceShowId ?? null;
     const activeSourceYear = filters?.sourceYear ?? null;
     const activeSourceRating = filters?.sourceRating ?? null;
+    const activeSourceLanguage = filters?.sourceLanguage ?? null;
     const trimmedQuery = query.trim();
 
-    if (!activeGenre && !activeNetwork && !trimmedQuery) return;
+    if (
+      !activeGenre &&
+      !activeNetwork &&
+      !activeRelationshipType &&
+      !activeSetting &&
+      !trimmedQuery
+    ) {
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -58,33 +82,26 @@ export default function Search() {
     try {
       const params = new URLSearchParams();
 
-      if (activeGenre) {
-        params.set("genre", activeGenre);
-      }
+      if (activeGenre) params.set("genre", activeGenre);
+      if (activeNetwork) params.set("network", activeNetwork);
+      if (activeRelationshipType) params.set("relationshipType", activeRelationshipType);
+      if (activeSetting) params.set("setting", activeSetting);
+      if (activeSourceShowId) params.set("sourceShowId", activeSourceShowId);
+      if (activeSourceYear) params.set("sourceYear", activeSourceYear);
+      if (activeSourceRating) params.set("sourceRating", activeSourceRating);
+      if (activeSourceLanguage) params.set("sourceLanguage", activeSourceLanguage);
 
-      if (activeNetwork) {
-        params.set("network", activeNetwork);
-      }
-
-      if (activeSourceShowId) {
-        params.set("sourceShowId", activeSourceShowId);
-      }
-
-      if (activeSourceYear) {
-        params.set("sourceYear", activeSourceYear);
-      }
-
-      if (activeSourceRating) {
-        params.set("sourceRating", activeSourceRating);
-      }
-
-      if (!activeGenre && !activeNetwork && trimmedQuery) {
+      if (
+        !activeGenre &&
+        !activeNetwork &&
+        !activeRelationshipType &&
+        !activeSetting &&
+        trimmedQuery
+      ) {
         params.set("q", trimmedQuery);
       }
 
-      const res = await fetch(
-        `/.netlify/functions/searchShows?${params.toString()}`
-      );
+      const res = await fetch(`/.netlify/functions/searchShows?${params.toString()}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -187,12 +204,20 @@ export default function Search() {
     ? `Genre: ${genreFilter}`
     : networkFilter
     ? `Network: ${networkFilter}`
+    : relationshipTypeFilter
+    ? `Relationship Type: ${relationshipTypeFilter}`
+    : settingFilter
+    ? `Setting: ${settingFilter}`
     : "Search Shows";
 
   const pageSubtitle = genreFilter
     ? `Browse shows in ${genreFilter}.`
     : networkFilter
     ? `Browse shows from ${networkFilter}.`
+    : relationshipTypeFilter
+    ? `Browse shows with ${relationshipTypeFilter}.`
+    : settingFilter
+    ? `Browse shows set in ${settingFilter}.`
     : "Find a show and add it to My Shows.";
 
   return (
@@ -246,69 +271,52 @@ export default function Search() {
           </button>
         </div>
 
-        {(genreFilter || networkFilter) && (
-          <div
-            style={{
-              marginBottom: "16px",
-              color: "#cbd5e1",
-              fontSize: "0.95rem",
-            }}
-          >
+        {(genreFilter || networkFilter || relationshipTypeFilter || settingFilter) && (
+          <div style={{ marginBottom: "16px", color: "#cbd5e1", fontSize: "0.95rem" }}>
             Active filter:{" "}
             {genreFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                Genre = {genreFilter}
-              </span>
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>Genre = {genreFilter}</span>
             ) : null}
-            {genreFilter && networkFilter ? " | " : ""}
             {networkFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                Network = {networkFilter}
+                {genreFilter ? " | " : ""}Network = {networkFilter}
+              </span>
+            ) : null}
+            {relationshipTypeFilter ? (
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                {(genreFilter || networkFilter) ? " | " : ""}
+                Relationship Type = {relationshipTypeFilter}
+              </span>
+            ) : null}
+            {settingFilter ? (
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                {(genreFilter || networkFilter || relationshipTypeFilter) ? " | " : ""}
+                Setting = {settingFilter}
               </span>
             ) : null}
             {sourceYear ? (
-              <>
-                {" | "}
-                <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                  From year = {sourceYear}
-                </span>
-              </>
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                {" | "}From year = {sourceYear}
+              </span>
             ) : null}
             {sourceRating ? (
-              <>
-                {" | "}
-                <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                  Min rating = {sourceRating}
-                </span>
-              </>
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                {" | "}Min rating = {sourceRating}
+              </span>
             ) : null}
           </div>
         )}
 
-        {error && (
-          <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
-        )}
+        {error && <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>}
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "14px",
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shows.map((show) => {
             const tvdbId = String(show.tvdb_id || show.id);
             const isSaved = savedIds.has(tvdbId);
             const isAdding = addingId === tvdbId;
 
             return (
-              <div
-                key={tvdbId}
-                className="show-card"
-                style={{
-                  padding: "14px",
-                }}
-              >
+              <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
                 <div
                   style={{
                     display: "grid",
@@ -355,14 +363,8 @@ export default function Search() {
                       type="button"
                       onClick={(e) => handleAddShow(e, show)}
                       disabled={isSaved || isAdding}
-                      className={`msd-btn ${
-                        isSaved ? "msd-btn-success" : "msd-btn-primary"
-                      }`}
-                      style={{
-                        width: "100%",
-                        padding: "9px 10px",
-                        fontSize: "0.9rem",
-                      }}
+                      className={`msd-btn ${isSaved ? "msd-btn-success" : "msd-btn-primary"}`}
+                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
                     >
                       {isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
                     </button>
@@ -370,11 +372,7 @@ export default function Search() {
 
                   <Link
                     to={`/show/${tvdbId}`}
-                    style={{
-                      textDecoration: "none",
-                      color: "inherit",
-                      minWidth: 0,
-                    }}
+                    style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
                   >
                     <div style={{ minWidth: 0 }}>
                       <div
@@ -390,26 +388,13 @@ export default function Search() {
                       </div>
 
                       {(show.first_air_time || show.first_aired) && (
-                        <p
-                          style={{
-                            margin: "0 0 10px 0",
-                            color: "#cbd5e1",
-                            fontWeight: "600",
-                          }}
-                        >
-                          First aired:{" "}
-                          {formatDate(show.first_air_time || show.first_aired)}
+                        <p style={{ margin: "0 0 10px 0", color: "#cbd5e1", fontWeight: "600" }}>
+                          First aired: {formatDate(show.first_air_time || show.first_aired)}
                         </p>
                       )}
 
                       {show.overview && (
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "#dbe4f3",
-                            lineHeight: "1.45",
-                          }}
-                        >
+                        <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
                           {show.overview.length > 180
                             ? `${show.overview.slice(0, 180)}...`
                             : show.overview}
