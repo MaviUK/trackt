@@ -27,7 +27,7 @@ function getEpisodeCode(seasonNumber, episodeNumber) {
   ).padStart(2, "0")}`;
 }
 
-function groupEpisodesBySeason(episodes) {
+function groupEpisodesBySeasonDesc(episodes) {
   const grouped = {};
 
   for (const ep of episodes) {
@@ -39,14 +39,9 @@ function groupEpisodesBySeason(episodes) {
   return Object.entries(grouped)
     .map(([seasonNumber, eps]) => ({
       seasonNumber: Number(seasonNumber),
-      episodes: [...eps].sort((a, b) => {
-        if (a.season_number !== b.season_number) {
-          return a.season_number - b.season_number;
-        }
-        return a.episode_number - b.episode_number;
-      }),
+      episodes: [...eps].sort((a, b) => a.episode_number - b.episode_number),
     }))
-    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+    .sort((a, b) => b.seasonNumber - a.seasonNumber);
 }
 
 export default function MyShows() {
@@ -55,6 +50,7 @@ export default function MyShows() {
   const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
   const [expandedShowId, setExpandedShowId] = useState(null);
+  const [expandedSeasons, setExpandedSeasons] = useState({});
 
   async function loadShows() {
     try {
@@ -110,9 +106,7 @@ export default function MyShows() {
         first_aired: row.shows.first_aired || null,
       }));
 
-      const showIds = normalizedUserShows
-        .map((show) => show.show_id)
-        .filter(Boolean);
+      const showIds = normalizedUserShows.map((show) => show.show_id).filter(Boolean);
 
       if (!showIds.length) {
         setShows([]);
@@ -256,7 +250,10 @@ export default function MyShows() {
     }
 
     setShows((prev) => prev.filter((show) => show.show_id !== showId));
-    if (expandedShowId === showId) setExpandedShowId(null);
+    if (expandedShowId === showId) {
+      setExpandedShowId(null);
+      setExpandedSeasons({});
+    }
   }
 
   async function setWatchStatus(showId, status) {
@@ -281,6 +278,29 @@ export default function MyShows() {
         show.show_id === showId ? { ...show, watch_status: status } : show
       )
     );
+  }
+
+  function openShowPanel(showId, seasons) {
+    if (expandedShowId === showId) {
+      setExpandedShowId(null);
+      setExpandedSeasons({});
+      return;
+    }
+
+    setExpandedShowId(showId);
+
+    const nextExpanded = {};
+    if (seasons.length > 0) {
+      nextExpanded[seasons[0].seasonNumber] = true;
+    }
+    setExpandedSeasons(nextExpanded);
+  }
+
+  function toggleSeason(seasonNumber) {
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
   }
 
   const filteredShows = useMemo(() => {
@@ -342,9 +362,7 @@ export default function MyShows() {
 
   const counts = useMemo(
     () => ({
-      all: shows.filter(
-        (show) => (show.watch_status || "watching") !== "stopped"
-      ).length,
+      all: shows.filter((show) => (show.watch_status || "watching") !== "stopped").length,
       inprogress: shows.filter(
         (show) =>
           !show.isCompleted && (show.watch_status || "watching") !== "stopped"
@@ -382,7 +400,7 @@ export default function MyShows() {
 
   const expandedShowSeasons = useMemo(() => {
     if (!expandedShow) return [];
-    return groupEpisodesBySeason(expandedShow.allEpisodes || []);
+    return groupEpisodesBySeasonDesc(expandedShow.allEpisodes || []);
   }, [expandedShow]);
 
   if (loading) {
@@ -454,28 +472,25 @@ export default function MyShows() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 18,
-              marginBottom: 24,
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 20,
+              marginBottom: 28,
             }}
           >
             {sortedShows.map((show) => {
+              const seasons = groupEpisodesBySeasonDesc(show.allEpisodes || []);
               const isExpanded = expandedShowId === show.show_id;
 
               return (
                 <button
                   key={show.show_id}
                   type="button"
-                  onClick={() =>
-                    setExpandedShowId(isExpanded ? null : show.show_id)
-                  }
+                  onClick={() => openShowPanel(show.show_id, seasons)}
                   style={{
                     background: "transparent",
-                    border: isExpanded
-                      ? "2px solid #8b5cf6"
-                      : "1px solid #26324a",
-                    borderRadius: 16,
-                    padding: 10,
+                    border: isExpanded ? "2px solid #8b5cf6" : "1px solid #26324a",
+                    borderRadius: 18,
+                    padding: 12,
                     cursor: "pointer",
                     textAlign: "left",
                     transition: "0.2s ease",
@@ -489,10 +504,10 @@ export default function MyShows() {
                         width: "100%",
                         aspectRatio: "2 / 3",
                         objectFit: "cover",
-                        borderRadius: 12,
+                        borderRadius: 14,
                         display: "block",
                         background: "#111827",
-                        marginBottom: 10,
+                        marginBottom: 12,
                       }}
                     />
                   ) : (
@@ -500,9 +515,9 @@ export default function MyShows() {
                       style={{
                         width: "100%",
                         aspectRatio: "2 / 3",
-                        borderRadius: 12,
+                        borderRadius: 14,
                         background: "#111827",
-                        marginBottom: 10,
+                        marginBottom: 12,
                       }}
                     />
                   )}
@@ -510,8 +525,8 @@ export default function MyShows() {
                   <div
                     style={{
                       color: "#f8fafc",
-                      fontWeight: 700,
-                      fontSize: "0.95rem",
+                      fontWeight: 800,
+                      fontSize: "1rem",
                       lineHeight: 1.25,
                     }}
                   >
@@ -523,14 +538,14 @@ export default function MyShows() {
           </div>
 
           {expandedShow && (
-            <div className="show-card" style={{ padding: 20, marginBottom: 24 }}>
+            <div className="show-card" style={{ padding: 24, marginBottom: 24 }}>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "180px minmax(0, 1fr)",
-                  gap: 24,
+                  gridTemplateColumns: "240px minmax(0, 1fr)",
+                  gap: 28,
                   alignItems: "start",
-                  marginBottom: 24,
+                  marginBottom: 28,
                 }}
               >
                 <div>
@@ -538,23 +553,36 @@ export default function MyShows() {
                     <img
                       src={expandedShow.poster_url}
                       alt={expandedShow.show_name}
-                      className="show-poster"
-                      style={{ width: "100%" }}
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        objectFit: "cover",
+                        borderRadius: 18,
+                        display: "block",
+                        background: "#111827",
+                      }}
                     />
                   ) : (
                     <div
                       style={{
                         width: "100%",
                         aspectRatio: "2 / 3",
+                        borderRadius: 18,
                         background: "#111827",
-                        borderRadius: 16,
                       }}
                     />
                   )}
                 </div>
 
                 <div>
-                  <h2 style={{ marginTop: 0, marginBottom: 12 }}>
+                  <h2
+                    style={{
+                      marginTop: 0,
+                      marginBottom: 14,
+                      fontSize: "2.2rem",
+                      lineHeight: 1.1,
+                    }}
+                  >
                     {expandedShow.show_name}
                   </h2>
 
@@ -562,9 +590,10 @@ export default function MyShows() {
                     <p
                       style={{
                         marginTop: 0,
-                        marginBottom: 16,
+                        marginBottom: 18,
                         color: "#dbe4f3",
-                        lineHeight: 1.55,
+                        lineHeight: 1.6,
+                        fontSize: "1rem",
                       }}
                     >
                       {expandedShow.overview}
@@ -582,7 +611,7 @@ export default function MyShows() {
                   </p>
 
                   {expandedShow.nextEpisodeDate ? (
-                    <p className="muted-text" style={{ marginBottom: 16 }}>
+                    <p className="muted-text" style={{ marginBottom: 18 }}>
                       Next episode: {formatDate(expandedShow.nextEpisodeDate)}
                     </p>
                   ) : null}
@@ -615,7 +644,7 @@ export default function MyShows() {
                     </div>
                   </div>
 
-                  <div className="msd-progress" style={{ marginBottom: 16 }}>
+                  <div className="msd-progress" style={{ marginBottom: 18 }}>
                     <div
                       className="msd-progress-fill"
                       style={{ width: `${expandedShow.progress}%` }}
@@ -670,116 +699,141 @@ export default function MyShows() {
               </div>
 
               <div>
-                <h3 style={{ marginTop: 0, marginBottom: 18 }}>Episodes</h3>
+                <h3 style={{ marginTop: 0, marginBottom: 18, fontSize: "1.5rem" }}>
+                  Episodes
+                </h3>
 
                 {expandedShowSeasons.length === 0 ? (
                   <p className="muted-text">No episodes found.</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                    {expandedShowSeasons.map((season) => (
-                      <section
-                        key={season.seasonNumber}
-                        style={{
-                          border: "1px solid #26324a",
-                          borderRadius: 18,
-                          background: "rgba(15, 23, 42, 0.55)",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
+                    {expandedShowSeasons.map((season) => {
+                      const isOpen = !!expandedSeasons[season.seasonNumber];
+
+                      return (
+                        <section
+                          key={season.seasonNumber}
                           style={{
-                            padding: "16px 18px",
-                            borderBottom: "1px solid #22304b",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
+                            border: "1px solid #26324a",
+                            borderRadius: 18,
+                            background: "rgba(15, 23, 42, 0.55)",
+                            overflow: "hidden",
                           }}
                         >
-                          <div>
-                            <div
-                              style={{
-                                color: "#f8fafc",
-                                fontWeight: 800,
-                                fontSize: "1.05rem",
-                              }}
-                            >
-                              Season {season.seasonNumber}
-                            </div>
-                            <div
-                              style={{
-                                color: "#94a3b8",
-                                fontSize: "0.92rem",
-                                marginTop: 4,
-                              }}
-                            >
-                              {season.episodes.length} episode
-                              {season.episodes.length === 1 ? "" : "s"}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          {season.episodes.map((ep, index) => (
-                            <div
-                              key={ep.id}
-                              style={{
-                                padding: "14px 18px",
-                                borderTop:
-                                  index === 0 ? "none" : "1px solid #1e293b",
-                              }}
-                            >
+                          <button
+                            type="button"
+                            onClick={() => toggleSeason(season.seasonNumber)}
+                            style={{
+                              width: "100%",
+                              background: "transparent",
+                              border: "none",
+                              color: "inherit",
+                              padding: "18px 20px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              cursor: "pointer",
+                              textAlign: "left",
+                            }}
+                          >
+                            <div>
                               <div
                                 style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  gap: 12,
-                                  flexWrap: "wrap",
-                                  marginBottom: 6,
+                                  color: "#f8fafc",
+                                  fontWeight: 800,
+                                  fontSize: "1.08rem",
                                 }}
                               >
+                                Season {season.seasonNumber}
+                              </div>
+                              <div
+                                style={{
+                                  color: "#94a3b8",
+                                  fontSize: "0.92rem",
+                                  marginTop: 4,
+                                }}
+                              >
+                                {season.episodes.length} episode
+                                {season.episodes.length === 1 ? "" : "s"}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                color: "#c4b5fd",
+                                fontSize: "1rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {isOpen ? "▲" : "▼"}
+                            </div>
+                          </button>
+
+                          {isOpen && (
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              {season.episodes.map((ep, index) => (
                                 <div
+                                  key={ep.id}
                                   style={{
-                                    color: "#f8fafc",
-                                    fontWeight: 700,
-                                    fontSize: "0.98rem",
+                                    padding: "15px 20px",
+                                    borderTop:
+                                      index === 0 ? "1px solid #22304b" : "1px solid #1e293b",
                                   }}
                                 >
-                                  {getEpisodeCode(
-                                    ep.season_number,
-                                    ep.episode_number
-                                  )}{" "}
-                                  - {ep.name || "Untitled episode"}
-                                </div>
-
-                                {ep.aired_date ? (
                                   <div
                                     style={{
-                                      color: "#a5b4cc",
-                                      fontSize: "0.9rem",
-                                      whiteSpace: "nowrap",
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      gap: 12,
+                                      flexWrap: "wrap",
+                                      marginBottom: 6,
                                     }}
                                   >
-                                    {formatDate(ep.aired_date)}
-                                  </div>
-                                ) : null}
-                              </div>
+                                    <div
+                                      style={{
+                                        color: "#f8fafc",
+                                        fontWeight: 700,
+                                        fontSize: "0.98rem",
+                                      }}
+                                    >
+                                      {getEpisodeCode(
+                                        ep.season_number,
+                                        ep.episode_number
+                                      )}{" "}
+                                      - {ep.name || "Untitled episode"}
+                                    </div>
 
-                              {ep.overview ? (
-                                <div
-                                  style={{
-                                    color: "#cbd5e1",
-                                    lineHeight: 1.5,
-                                    fontSize: "0.94rem",
-                                  }}
-                                >
-                                  {ep.overview}
+                                    {ep.aired_date ? (
+                                      <div
+                                        style={{
+                                          color: "#a5b4cc",
+                                          fontSize: "0.9rem",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {formatDate(ep.aired_date)}
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  {ep.overview ? (
+                                    <div
+                                      style={{
+                                        color: "#cbd5e1",
+                                        lineHeight: 1.55,
+                                        fontSize: "0.94rem",
+                                      }}
+                                    >
+                                      {ep.overview}
+                                    </div>
+                                  ) : null}
                                 </div>
-                              ) : null}
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </section>
-                    ))}
+                          )}
+                        </section>
+                      );
+                    })}
                   </div>
                 )}
               </div>
