@@ -26,6 +26,7 @@ export default function MyShows() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
+  const [expandedShowId, setExpandedShowId] = useState(null);
 
   async function loadShows() {
     try {
@@ -81,7 +82,9 @@ export default function MyShows() {
         first_aired: row.shows.first_aired || null,
       }));
 
-      const showIds = normalizedUserShows.map((show) => show.show_id).filter(Boolean);
+      const showIds = normalizedUserShows
+        .map((show) => show.show_id)
+        .filter(Boolean);
 
       if (!showIds.length) {
         setShows([]);
@@ -223,6 +226,9 @@ export default function MyShows() {
     }
 
     setShows((prev) => prev.filter((show) => show.show_id !== showId));
+    if (expandedShowId === showId) {
+      setExpandedShowId(null);
+    }
   }
 
   async function setWatchStatus(showId, status) {
@@ -290,7 +296,10 @@ export default function MyShows() {
       }
 
       if (sortBy === "recent") {
-        return new Date(b.added_at || b.created_at || 0) - new Date(a.added_at || a.created_at || 0);
+        return (
+          new Date(b.added_at || b.created_at || 0) -
+          new Date(a.added_at || a.created_at || 0)
+        );
       }
 
       if (sortBy === "firstaired") {
@@ -305,8 +314,9 @@ export default function MyShows() {
 
   const counts = useMemo(
     () => ({
-      all: shows.filter((show) => (show.watch_status || "watching") !== "stopped")
-        .length,
+      all: shows.filter(
+        (show) => (show.watch_status || "watching") !== "stopped"
+      ).length,
       inprogress: shows.filter(
         (show) =>
           !show.isCompleted && (show.watch_status || "watching") !== "stopped"
@@ -402,108 +412,204 @@ export default function MyShows() {
           <p>No shows found for this filter.</p>
         </div>
       ) : (
-        <div className="show-grid">
-          {sortedShows.map((show) => (
-            <article key={show.show_id} className="show-card">
-              <Link to={`/my-shows/${show.tvdb_id}`}>
-                {show.poster_url ? (
-                  <img
-                    src={show.poster_url}
-                    alt={show.show_name}
-                    className="show-poster"
-                  />
-                ) : null}
-              </Link>
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+              gap: 18,
+              marginBottom: 24,
+            }}
+          >
+            {sortedShows.map((show) => {
+              const isExpanded = expandedShowId === show.show_id;
 
-              <div className="show-card-body">
-                <div className="show-card-top">
-                  <div>
-                    <Link
-                      to={`/my-shows/${show.tvdb_id}`}
-                      className="show-title-link"
-                    >
-                      <h2>{show.show_name}</h2>
-                    </Link>
-
-                    <p className="muted-text">Status: {show.status || "Unknown"}</p>
-
-                    {show.first_aired ? (
-                      <p className="muted-text">
-                        First aired: {formatDate(show.first_aired)}
-                      </p>
-                    ) : null}
-
-                    {show.nextEpisodeDate ? (
-                      <p className="muted-text">
-                        Next episode: {formatDate(show.nextEpisodeDate)}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="progress-row">
-                  <strong>
-                    {show.watchedCount}/{show.totalAiredEpisodes} watched
-                  </strong>
-                  <span>{show.progress}%</span>
-                </div>
-
-                <div className="msd-progress" style={{ marginBottom: 12 }}>
-                  <div
-                    className="msd-progress-fill"
-                    style={{ width: `${show.progress}%` }}
-                  />
-                </div>
-
-                {show.totalEpisodes > show.totalAiredEpisodes ? (
-                  <p className="muted-text" style={{ marginBottom: 12 }}>
-                    {show.totalEpisodes - show.totalAiredEpisodes} unaired episode
-                    {show.totalEpisodes - show.totalAiredEpisodes === 1 ? "" : "s"}
-                  </p>
-                ) : null}
-
-                {show.overview ? (
-                  <p className="show-overview">{show.overview}</p>
-                ) : null}
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                  <Link
-                    className="msd-btn msd-btn-primary"
-                    to={`/my-shows/${show.tvdb_id}`}
-                  >
-                    Open
-                  </Link>
-
-                  {(show.watch_status || "watching") === "stopped" ? (
-                    <button
-                      type="button"
-                      className="msd-btn msd-btn-secondary"
-                      onClick={() => setWatchStatus(show.show_id, "watching")}
-                    >
-                      Resume
-                    </button>
+              return (
+                <button
+                  key={show.show_id}
+                  type="button"
+                  onClick={() =>
+                    setExpandedShowId(isExpanded ? null : show.show_id)
+                  }
+                  style={{
+                    background: "transparent",
+                    border: isExpanded
+                      ? "2px solid #8b5cf6"
+                      : "1px solid #26324a",
+                    borderRadius: 16,
+                    padding: 10,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "0.2s ease",
+                  }}
+                >
+                  {show.poster_url ? (
+                    <img
+                      src={show.poster_url}
+                      alt={show.show_name}
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        objectFit: "cover",
+                        borderRadius: 12,
+                        display: "block",
+                        background: "#111827",
+                        marginBottom: 10,
+                      }}
+                    />
                   ) : (
-                    <button
-                      type="button"
-                      className="msd-btn msd-btn-secondary"
-                      onClick={() => setWatchStatus(show.show_id, "stopped")}
-                    >
-                      Stop Watching
-                    </button>
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        borderRadius: 12,
+                        background: "#111827",
+                        marginBottom: 10,
+                      }}
+                    />
                   )}
 
-                  <button
-                    type="button"
-                    className="msd-btn msd-btn-secondary"
-                    onClick={() => removeShow(show.show_id)}
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontWeight: 700,
+                      fontSize: "0.95rem",
+                      lineHeight: 1.25,
+                    }}
                   >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+                    {show.show_name}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {expandedShowId && (
+            <div className="show-card" style={{ padding: 20 }}>
+              {sortedShows
+                .filter((show) => show.show_id === expandedShowId)
+                .map((show) => (
+                  <div key={show.show_id}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "160px minmax(0, 1fr)",
+                        gap: 20,
+                        alignItems: "start",
+                      }}
+                    >
+                      <div>
+                        {show.poster_url ? (
+                          <img
+                            src={show.poster_url}
+                            alt={show.show_name}
+                            className="show-poster"
+                            style={{ width: "100%", marginBottom: 12 }}
+                          />
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <h2 style={{ marginTop: 0, marginBottom: 10 }}>
+                          {show.show_name}
+                        </h2>
+
+                        <p className="muted-text" style={{ marginBottom: 8 }}>
+                          Status: {show.status || "Unknown"}
+                        </p>
+
+                        {show.first_aired ? (
+                          <p className="muted-text" style={{ marginBottom: 8 }}>
+                            First aired: {formatDate(show.first_aired)}
+                          </p>
+                        ) : null}
+
+                        {show.nextEpisodeDate ? (
+                          <p className="muted-text" style={{ marginBottom: 12 }}>
+                            Next episode: {formatDate(show.nextEpisodeDate)}
+                          </p>
+                        ) : null}
+
+                        <div className="progress-row">
+                          <strong>
+                            {show.watchedCount}/{show.totalAiredEpisodes} watched
+                          </strong>
+                          <span>{show.progress}%</span>
+                        </div>
+
+                        <div className="msd-progress" style={{ marginBottom: 12 }}>
+                          <div
+                            className="msd-progress-fill"
+                            style={{ width: `${show.progress}%` }}
+                          />
+                        </div>
+
+                        {show.totalEpisodes > show.totalAiredEpisodes ? (
+                          <p className="muted-text" style={{ marginBottom: 12 }}>
+                            {show.totalEpisodes - show.totalAiredEpisodes} unaired
+                            episode
+                            {show.totalEpisodes - show.totalAiredEpisodes === 1
+                              ? ""
+                              : "s"}
+                          </p>
+                        ) : null}
+
+                        {show.overview ? (
+                          <p className="show-overview">{show.overview}</p>
+                        ) : null}
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            marginTop: 14,
+                          }}
+                        >
+                          <Link
+                            className="msd-btn msd-btn-primary"
+                            to={`/my-shows/${show.tvdb_id}`}
+                          >
+                            Open
+                          </Link>
+
+                          {(show.watch_status || "watching") === "stopped" ? (
+                            <button
+                              type="button"
+                              className="msd-btn msd-btn-secondary"
+                              onClick={() =>
+                                setWatchStatus(show.show_id, "watching")
+                              }
+                            >
+                              Resume
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="msd-btn msd-btn-secondary"
+                              onClick={() =>
+                                setWatchStatus(show.show_id, "stopped")
+                              }
+                            >
+                              Stop Watching
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="msd-btn msd-btn-secondary"
+                            onClick={() => removeShow(show.show_id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
