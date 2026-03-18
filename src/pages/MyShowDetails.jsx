@@ -47,11 +47,6 @@ function getDaysUntil(dateString) {
   return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
 }
 
-function formatGenres(genres) {
-  if (!Array.isArray(genres) || genres.length === 0) return "—";
-  return genres.filter(Boolean).join(", ");
-}
-
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
@@ -669,14 +664,35 @@ export default function MyShowDetails() {
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Network</span>
                 <strong className="msd-stat-value">
-                  {show.network?.trim() || "—"}
+                  {show.network ? (
+                    <Link
+                      to={`/search?network=${encodeURIComponent(show.network)}`}
+                      className="msd-link"
+                    >
+                      {show.network}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </strong>
               </div>
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Genre</span>
                 <strong className="msd-stat-value">
-                  {formatGenres(show.genres)}
+                  {show.genres?.length > 0
+                    ? show.genres.map((genre, index) => (
+                        <span key={genre}>
+                          <Link
+                            to={`/search?genre=${encodeURIComponent(genre)}`}
+                            className="msd-link"
+                          >
+                            {genre}
+                          </Link>
+                          {index < show.genres.length - 1 ? ", " : ""}
+                        </span>
+                      ))
+                    : "—"}
                 </strong>
               </div>
             </div>
