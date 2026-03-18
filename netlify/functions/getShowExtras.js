@@ -71,9 +71,6 @@ async function getTvdbToken() {
   }
 
   cachedToken = token;
-
-  // TVDB docs say the bearer token is valid for 1 month.
-  // Cache slightly under that to be safe.
   cachedTokenExpiresAt = now + 27 * 24 * 60 * 60 * 1000;
 
   return token;
@@ -229,12 +226,9 @@ export async function handler(event) {
     const cast = normalizeCastFromSeries(seriesData);
     const recommendations = normalizeRecommendations(seriesData);
 
-    // TVDB v4 docs do not expose a clear streaming/watch-provider endpoint.
-    const providers = [];
-
     return jsonResponse(200, {
       cast,
-      providers,
+      providers: [],
       recommendations,
     });
   } catch (error) {
