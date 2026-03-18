@@ -13,15 +13,37 @@ function normalizeId(value) {
   return String(value).trim();
 }
 
+function normalizeNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeGenres(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((genre) => {
+      if (typeof genre === "string") return genre;
+      if (genre && typeof genre === "object") {
+        return genre.name ?? genre.genre ?? null;
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
 function normalizeShowPayload(show) {
   const rawTvdbId = pick(show, ["tvdb_id", "tvdbId", "id"], "");
 
   return {
-    tvdb_id: normalizeId(rawTvdbId),
-    show_name: pick(show, ["show_name", "name"], ""),
+    tvdb_id: normalizeNumber(rawTvdbId),
+    name: pick(show, ["name", "show_name"], ""),
     slug: pick(show, ["slug"], null),
     overview: pick(show, ["overview"], null),
-    status: pick(show, ["status"], null),
+    status:
+      typeof pick(show, ["status"], null) === "object"
+        ? pick(show, ["status"], null)?.name ?? null
+        : pick(show, ["status"], null),
     poster_url: pick(show, ["poster_url", "poster", "image"], null),
     backdrop_url: pick(show, ["backdrop_url", "backdrop"], null),
     banner_url: pick(show, ["banner_url", "banner"], null),
@@ -30,12 +52,20 @@ function normalizeShowPayload(show) {
     network: pick(show, ["network", "originalNetwork"], null),
     original_country: pick(show, ["original_country", "originalCountry"], null),
     original_language: pick(show, ["original_language", "originalLanguage"], null),
-    runtime_minutes: pick(show, ["runtime_minutes", "averageRuntime", "runtime"], null),
+    runtime_minutes: normalizeNumber(
+      pick(show, ["runtime_minutes", "averageRuntime", "runtime"], null)
+    ),
     content_rating: pick(show, ["content_rating", "contentRating"], null),
-    genres: pick(show, ["genres"], []),
-    aliases: pick(show, ["aliases"], []),
-    rating_average: pick(show, ["rating_average", "score", "siteRating"], null),
-    rating_count: pick(show, ["rating_count", "siteRatingCount"], null),
+    genres: normalizeGenres(pick(show, ["genres"], [])),
+    aliases: Array.isArray(pick(show, ["aliases"], []))
+      ? pick(show, ["aliases"], []).filter(Boolean)
+      : [],
+    rating_average: normalizeNumber(
+      pick(show, ["rating_average", "score", "siteRating"], null)
+    ),
+    rating_count: normalizeNumber(
+      pick(show, ["rating_count", "siteRatingCount"], null)
+    ),
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -89,9 +119,13 @@ function normalizeEpisodePayload(showTvdbId, episode) {
     name: pick(episode, ["name"], ""),
     overview: pick(episode, ["overview"], null),
     air_date: pick(episode, ["airDate", "aired", "air_date"], null),
-    runtime_minutes: pick(episode, ["runtime", "runtime_minutes"], null),
+    runtime_minutes: normalizeNumber(
+      pick(episode, ["runtime", "runtime_minutes"], null)
+    ),
     image_url: pick(episode, ["image", "image_url"], null),
-    absolute_number: pick(episode, ["absoluteNumber", "absolute_number"], null),
+    absolute_number: normalizeNumber(
+      pick(episode, ["absoluteNumber", "absolute_number"], null)
+    ),
     is_finale: Boolean(pick(episode, ["isFinale", "is_finale"], false)),
     is_premiere: Boolean(pick(episode, ["isPremiere", "is_premiere"], false)),
     last_synced_at: new Date().toISOString(),
@@ -210,7 +244,7 @@ export async function replaceShowCast(showTvdbId, cast = []) {
   }
 
   const normalized = cast
-    .map((member, index) => normalizeCastPayload(canonicalShowId, member, index))
+    .map((member, index) => normalizeCastPayload(showTvdbId, member, index))
     .filter((member) => member.person_name);
 
   const { error: deleteError } = await supabase
