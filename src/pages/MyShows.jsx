@@ -21,6 +21,34 @@ function toStatusEpisodeShape(ep) {
   };
 }
 
+function getEpisodeCode(seasonNumber, episodeNumber) {
+  return `S${String(seasonNumber).padStart(2, "0")}E${String(
+    episodeNumber
+  ).padStart(2, "0")}`;
+}
+
+function groupEpisodesBySeason(episodes) {
+  const grouped = {};
+
+  for (const ep of episodes) {
+    const seasonNumber = Number(ep.season_number || 0);
+    if (!grouped[seasonNumber]) grouped[seasonNumber] = [];
+    grouped[seasonNumber].push(ep);
+  }
+
+  return Object.entries(grouped)
+    .map(([seasonNumber, eps]) => ({
+      seasonNumber: Number(seasonNumber),
+      episodes: [...eps].sort((a, b) => {
+        if (a.season_number !== b.season_number) {
+          return a.season_number - b.season_number;
+        }
+        return a.episode_number - b.episode_number;
+      }),
+    }))
+    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +133,7 @@ export default function MyShows() {
             season_number,
             episode_number,
             name,
+            overview,
             aired_date
           `)
           .in("show_id", showIds)
@@ -183,6 +212,7 @@ export default function MyShows() {
 
         return {
           ...userShow,
+          allEpisodes: showEpisodes,
           watchedCount: watchedAiredCount,
           watchedOverallCount,
           totalEpisodes,
@@ -226,9 +256,7 @@ export default function MyShows() {
     }
 
     setShows((prev) => prev.filter((show) => show.show_id !== showId));
-    if (expandedShowId === showId) {
-      setExpandedShowId(null);
-    }
+    if (expandedShowId === showId) setExpandedShowId(null);
   }
 
   async function setWatchStatus(showId, status) {
@@ -346,6 +374,16 @@ export default function MyShows() {
     }),
     [shows]
   );
+
+  const expandedShow = useMemo(
+    () => sortedShows.find((show) => show.show_id === expandedShowId) || null,
+    [sortedShows, expandedShowId]
+  );
+
+  const expandedShowSeasons = useMemo(() => {
+    if (!expandedShow) return [];
+    return groupEpisodesBySeason(expandedShow.allEpisodes || []);
+  }, [expandedShow]);
 
   if (loading) {
     return (
@@ -484,129 +522,267 @@ export default function MyShows() {
             })}
           </div>
 
-          {expandedShowId && (
-            <div className="show-card" style={{ padding: 20 }}>
-              {sortedShows
-                .filter((show) => show.show_id === expandedShowId)
-                .map((show) => (
-                  <div key={show.show_id}>
+          {expandedShow && (
+            <div className="show-card" style={{ padding: 20, marginBottom: 24 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "180px minmax(0, 1fr)",
+                  gap: 24,
+                  alignItems: "start",
+                  marginBottom: 24,
+                }}
+              >
+                <div>
+                  {expandedShow.poster_url ? (
+                    <img
+                      src={expandedShow.poster_url}
+                      alt={expandedShow.show_name}
+                      className="show-poster"
+                      style={{ width: "100%" }}
+                    />
+                  ) : (
                     <div
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "160px minmax(0, 1fr)",
-                        gap: 20,
-                        alignItems: "start",
+                        width: "100%",
+                        aspectRatio: "2 / 3",
+                        background: "#111827",
+                        borderRadius: 16,
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <h2 style={{ marginTop: 0, marginBottom: 12 }}>
+                    {expandedShow.show_name}
+                  </h2>
+
+                  {expandedShow.overview ? (
+                    <p
+                      style={{
+                        marginTop: 0,
+                        marginBottom: 16,
+                        color: "#dbe4f3",
+                        lineHeight: 1.55,
                       }}
                     >
-                      <div>
-                        {show.poster_url ? (
-                          <img
-                            src={show.poster_url}
-                            alt={show.show_name}
-                            className="show-poster"
-                            style={{ width: "100%", marginBottom: 12 }}
-                          />
-                        ) : null}
-                      </div>
+                      {expandedShow.overview}
+                    </p>
+                  ) : null}
 
-                      <div>
-                        <h2 style={{ marginTop: 0, marginBottom: 10 }}>
-                          {show.show_name}
-                        </h2>
+                  {expandedShow.first_aired ? (
+                    <p className="muted-text" style={{ marginBottom: 8 }}>
+                      First aired: {formatDate(expandedShow.first_aired)}
+                    </p>
+                  ) : null}
 
-                        <p className="muted-text" style={{ marginBottom: 8 }}>
-                          Status: {show.status || "Unknown"}
-                        </p>
+                  <p className="muted-text" style={{ marginBottom: 8 }}>
+                    Status: {expandedShow.status || "Unknown"}
+                  </p>
 
-                        {show.first_aired ? (
-                          <p className="muted-text" style={{ marginBottom: 8 }}>
-                            First aired: {formatDate(show.first_aired)}
-                          </p>
-                        ) : null}
+                  {expandedShow.nextEpisodeDate ? (
+                    <p className="muted-text" style={{ marginBottom: 16 }}>
+                      Next episode: {formatDate(expandedShow.nextEpisodeDate)}
+                    </p>
+                  ) : null}
 
-                        {show.nextEpisodeDate ? (
-                          <p className="muted-text" style={{ marginBottom: 12 }}>
-                            Next episode: {formatDate(show.nextEpisodeDate)}
-                          </p>
-                        ) : null}
-
-                        <div className="progress-row">
-                          <strong>
-                            {show.watchedCount}/{show.totalAiredEpisodes} watched
-                          </strong>
-                          <span>{show.progress}%</span>
-                        </div>
-
-                        <div className="msd-progress" style={{ marginBottom: 12 }}>
-                          <div
-                            className="msd-progress-fill"
-                            style={{ width: `${show.progress}%` }}
-                          />
-                        </div>
-
-                        {show.totalEpisodes > show.totalAiredEpisodes ? (
-                          <p className="muted-text" style={{ marginBottom: 12 }}>
-                            {show.totalEpisodes - show.totalAiredEpisodes} unaired
-                            episode
-                            {show.totalEpisodes - show.totalAiredEpisodes === 1
-                              ? ""
-                              : "s"}
-                          </p>
-                        ) : null}
-
-                        {show.overview ? (
-                          <p className="show-overview">{show.overview}</p>
-                        ) : null}
-
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            marginTop: 14,
-                          }}
-                        >
-                          <Link
-                            className="msd-btn msd-btn-primary"
-                            to={`/my-shows/${show.tvdb_id}`}
-                          >
-                            Open
-                          </Link>
-
-                          {(show.watch_status || "watching") === "stopped" ? (
-                            <button
-                              type="button"
-                              className="msd-btn msd-btn-secondary"
-                              onClick={() =>
-                                setWatchStatus(show.show_id, "watching")
-                              }
-                            >
-                              Resume
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="msd-btn msd-btn-secondary"
-                              onClick={() =>
-                                setWatchStatus(show.show_id, "stopped")
-                              }
-                            >
-                              Stop Watching
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            className="msd-btn msd-btn-secondary"
-                            onClick={() => removeShow(show.show_id)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: 12,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div className="stat-card">
+                      <span className="stat-label">Watched</span>
+                      <strong className="stat-value">
+                        {expandedShow.watchedCount}
+                      </strong>
+                    </div>
+                    <div className="stat-card">
+                      <span className="stat-label">Total</span>
+                      <strong className="stat-value">
+                        {expandedShow.totalAiredEpisodes}
+                      </strong>
+                    </div>
+                    <div className="stat-card">
+                      <span className="stat-label">Progress</span>
+                      <strong className="stat-value">
+                        {expandedShow.progress}%
+                      </strong>
                     </div>
                   </div>
-                ))}
+
+                  <div className="msd-progress" style={{ marginBottom: 16 }}>
+                    <div
+                      className="msd-progress-fill"
+                      style={{ width: `${expandedShow.progress}%` }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Link
+                      className="msd-btn msd-btn-primary"
+                      to={`/my-shows/${expandedShow.tvdb_id}`}
+                    >
+                      Open
+                    </Link>
+
+                    {(expandedShow.watch_status || "watching") === "stopped" ? (
+                      <button
+                        type="button"
+                        className="msd-btn msd-btn-secondary"
+                        onClick={() =>
+                          setWatchStatus(expandedShow.show_id, "watching")
+                        }
+                      >
+                        Resume
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="msd-btn msd-btn-secondary"
+                        onClick={() =>
+                          setWatchStatus(expandedShow.show_id, "stopped")
+                        }
+                      >
+                        Stop Watching
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="msd-btn msd-btn-secondary"
+                      onClick={() => removeShow(expandedShow.show_id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 18 }}>Episodes</h3>
+
+                {expandedShowSeasons.length === 0 ? (
+                  <p className="muted-text">No episodes found.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                    {expandedShowSeasons.map((season) => (
+                      <section
+                        key={season.seasonNumber}
+                        style={{
+                          border: "1px solid #26324a",
+                          borderRadius: 18,
+                          background: "rgba(15, 23, 42, 0.55)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: "16px 18px",
+                            borderBottom: "1px solid #22304b",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div>
+                            <div
+                              style={{
+                                color: "#f8fafc",
+                                fontWeight: 800,
+                                fontSize: "1.05rem",
+                              }}
+                            >
+                              Season {season.seasonNumber}
+                            </div>
+                            <div
+                              style={{
+                                color: "#94a3b8",
+                                fontSize: "0.92rem",
+                                marginTop: 4,
+                              }}
+                            >
+                              {season.episodes.length} episode
+                              {season.episodes.length === 1 ? "" : "s"}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          {season.episodes.map((ep, index) => (
+                            <div
+                              key={ep.id}
+                              style={{
+                                padding: "14px 18px",
+                                borderTop:
+                                  index === 0 ? "none" : "1px solid #1e293b",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: "#f8fafc",
+                                    fontWeight: 700,
+                                    fontSize: "0.98rem",
+                                  }}
+                                >
+                                  {getEpisodeCode(
+                                    ep.season_number,
+                                    ep.episode_number
+                                  )}{" "}
+                                  - {ep.name || "Untitled episode"}
+                                </div>
+
+                                {ep.aired_date ? (
+                                  <div
+                                    style={{
+                                      color: "#a5b4cc",
+                                      fontSize: "0.9rem",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {formatDate(ep.aired_date)}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {ep.overview ? (
+                                <div
+                                  style={{
+                                    color: "#cbd5e1",
+                                    lineHeight: 1.5,
+                                    fontSize: "0.94rem",
+                                  }}
+                                >
+                                  {ep.overview}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </>
