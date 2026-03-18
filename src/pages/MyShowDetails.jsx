@@ -57,12 +57,24 @@ async function fetchWatchedRows(userId) {
   return data || [];
 }
 
+async function fetchBurgrRatings(showId) {
+  const { data, error } = await supabase
+    .from("burgr_ratings")
+    .select("user_id, show_id, rating")
+    .eq("show_id", showId);
+
+  if (error) throw error;
+  return data || [];
+}
+
 export default function MyShowDetails() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const targetEpisodeId = searchParams.get("episode");
 
   const [loading, setLoading] = useState(true);
+  const [extrasLoading, setExtrasLoading] = useState(false);
+
   const [show, setShow] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [watchedRows, setWatchedRows] = useState([]);
@@ -71,6 +83,7 @@ export default function MyShowDetails() {
   const [watchProviders, setWatchProviders] = useState([]);
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
+
   const [burgrRatings, setBurgrRatings] = useState([]);
   const [myBurgrRating, setMyBurgrRating] = useState("");
 
@@ -92,6 +105,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setExpandedSeasons({});
           setWatchProviders([]);
           setCast([]);
           setRecommendedShows([]);
@@ -131,6 +145,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setExpandedSeasons({});
           setWatchProviders([]);
           setCast([]);
           setRecommendedShows([]);
@@ -145,10 +160,7 @@ export default function MyShowDetails() {
         const [
           { data: episodeRows, error: episodeError },
           watchedRowsData,
-          { data: providerRows, error: providerError },
-          { data: castRows, error: castError },
-          { data: recommendationRows, error: recommendationError },
-          { data: burgrRows, error: burgrError },
+          burgrRows,
         ] = await Promise.all([
           supabase
             .from("episodes")
@@ -169,58 +181,10 @@ export default function MyShowDetails() {
             .order("episode_number", { ascending: true }),
 
           fetchWatchedRows(user.id),
-
-          supabase
-            .from("show_watch_providers")
-            .select(`
-              id,
-              provider_name,
-              provider_url,
-              provider_type
-            `)
-            .eq("show_id", showId)
-            .order("provider_name", { ascending: true }),
-
-          supabase
-            .from("show_cast")
-            .select(`
-              id,
-              person_name,
-              character_name,
-              profile_url,
-              sort_order
-            `)
-            .eq("show_id", showId)
-            .order("sort_order", { ascending: true })
-            .limit(12),
-
-          supabase
-            .from("show_recommendations")
-            .select(`
-              id,
-              recommended_show_id,
-              shows!show_recommendations_recommended_show_id_fkey(
-                id,
-                tvdb_id,
-                name,
-                poster_url,
-                first_aired
-              )
-            `)
-            .eq("show_id", showId)
-            .limit(12),
-
-          supabase
-            .from("burgr_ratings")
-            .select("user_id, show_id, rating")
-            .eq("show_id", showId),
+          fetchBurgrRatings(showId),
         ]);
 
         if (episodeError) throw episodeError;
-        if (providerError) throw providerError;
-        if (castError) throw castError;
-        if (recommendationError) throw recommendationError;
-        if (burgrError) throw burgrError;
 
         const normalizedEpisodes = (episodeRows || []).map((row) => ({
           id: row.id,
@@ -251,10 +215,6 @@ export default function MyShowDetails() {
           }
         }
 
-        const mappedRecommendations = (recommendationRows || [])
-          .map((row) => row.shows)
-          .filter(Boolean);
-
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
 
         setShow({
@@ -273,16 +233,49 @@ export default function MyShowDetails() {
         setEpisodes(normalizedEpisodes);
         setWatchedRows(watchedRowsData);
         setExpandedSeasons(seasonMap);
-        setWatchProviders(providerRows || []);
-        setCast(castRows || []);
-        setRecommendedShows(mappedRecommendations);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
+
+        setWatchProviders([]);
+        setCast([]);
+        setRecommendedShows([]);
+
+        try {
+          setExtrasLoading(true);
+
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
+          );
+
+          if (!extrasRes.ok) {
+            throw new Error(`Failed to load show extras (${extrasRes.status})`);
+          }
+
+          const extras = await extrasRes.json();
+
+          setCast(Array.isArray(extras.cast) ? extras.cast : []);
+          setWatchProviders(
+            Array.isArray(extras.providers) ? extras.providers : []
+          );
+          setRecommendedShows(
+            Array.isArray(extras.recommendations)
+              ? extras.recommendations
+              : []
+          );
+        } catch (extrasError) {
+          console.error("Failed loading TVDB extras:", extrasError);
+          setCast([]);
+          setWatchProviders([]);
+          setRecommendedShows([]);
+        } finally {
+          setExtrasLoading(false);
+        }
       } catch (error) {
         console.error("Failed loading show:", error);
         setShow(null);
         setEpisodes([]);
         setWatchedRows([]);
+        setExpandedSeasons({});
         setWatchProviders([]);
         setCast([]);
         setRecommendedShows([]);
@@ -378,14 +371,12 @@ export default function MyShowDetails() {
     setWatchedRows(fresh);
   }
 
-  async function refreshBurgrRatings(showId) {
-    const { data, error } = await supabase
-      .from("burgr_ratings")
-      .select("user_id, show_id, rating")
-      .eq("show_id", showId);
+  async function refreshBurgrRatings(showId, userId) {
+    const fresh = await fetchBurgrRatings(showId);
+    setBurgrRatings(fresh);
 
-    if (error) throw error;
-    setBurgrRatings(data || []);
+    const mine = (fresh || []).find((row) => row.user_id === userId);
+    setMyBurgrRating(mine ? String(mine.rating) : "");
   }
 
   async function handleMarkWatched(ep) {
@@ -476,7 +467,7 @@ export default function MyShowDetails() {
 
       if (error) throw error;
 
-      await refreshBurgrRatings(show.id);
+      await refreshBurgrRatings(show.id, user.id);
     } catch (error) {
       console.error("Failed saving Burgr rating:", error);
       alert(error.message || "Failed saving Burgr rating");
@@ -547,6 +538,8 @@ export default function MyShowDetails() {
                   )
                 </div>
               ) : null}
+
+              {show.status ? <div>Status: {show.status}</div> : null}
             </div>
 
             <div className="msd-stats-row">
@@ -586,20 +579,20 @@ export default function MyShowDetails() {
           <div className="msd-panel">
             <h2 className="msd-section-title">Where to Watch</h2>
 
-            {watchProviders.length > 0 ? (
+            {extrasLoading ? (
+              <p className="msd-muted">Loading watch options...</p>
+            ) : watchProviders.length > 0 ? (
               <div className="msd-provider-list">
-                {watchProviders.map((provider) => (
+                {watchProviders.map((provider, index) => (
                   <a
-                    key={provider.id}
-                    href={provider.provider_url}
+                    key={provider.id || `${provider.name}-${index}`}
+                    href={provider.url || "#"}
                     target="_blank"
                     rel="noreferrer"
                     className="msd-provider-chip"
                   >
-                    {provider.provider_name}
-                    {provider.provider_type
-                      ? ` (${provider.provider_type})`
-                      : ""}
+                    {provider.name || "Unknown provider"}
+                    {provider.type ? ` (${provider.type})` : ""}
                   </a>
                 ))}
               </div>
@@ -658,21 +651,28 @@ export default function MyShowDetails() {
         <section className="msd-panel">
           <h2 className="msd-section-title">Cast</h2>
 
-          {cast.length > 0 ? (
+          {extrasLoading ? (
+            <p className="msd-muted">Loading cast...</p>
+          ) : cast.length > 0 ? (
             <div className="msd-cast-grid">
-              {cast.map((member) => (
-                <div key={member.id} className="msd-cast-card">
-                  {member.profile_url ? (
+              {cast.map((member, index) => (
+                <div
+                  key={member.id || `${member.personName}-${index}`}
+                  className="msd-cast-card"
+                >
+                  {member.image ? (
                     <img
-                      src={member.profile_url}
-                      alt={member.person_name}
+                      src={member.image}
+                      alt={member.personName || "Cast member"}
                       className="msd-cast-image"
                     />
                   ) : null}
 
-                  <div className="msd-cast-name">{member.person_name}</div>
+                  <div className="msd-cast-name">
+                    {member.personName || "Unknown actor"}
+                  </div>
                   <div className="msd-cast-role">
-                    {member.character_name || "Cast"}
+                    {member.characterName || "Cast"}
                   </div>
                 </div>
               ))}
@@ -685,31 +685,59 @@ export default function MyShowDetails() {
         <section className="msd-panel">
           <h2 className="msd-section-title">Recommended Shows</h2>
 
-          {recommendedShows.length > 0 ? (
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
             <div className="msd-recommended-grid">
-              {recommendedShows.map((rec) => (
-                <Link
-                  key={rec.id}
-                  to={`/my-shows/${rec.tvdb_id}`}
-                  className="msd-rec-card"
-                >
-                  {rec.poster_url ? (
-                    <img
-                      src={rec.poster_url}
-                      alt={rec.name}
-                      className="msd-rec-poster"
-                    />
-                  ) : null}
+              {recommendedShows.map((rec, index) => {
+                const hasTvdbId = rec.tvdb_id || rec.tvdbId;
+                const linkTarget = hasTvdbId
+                  ? `/my-shows/${rec.tvdb_id || rec.tvdbId}`
+                  : "#";
 
-                  <div className="msd-rec-title">{rec.name}</div>
+                const content = (
+                  <>
+                    {rec.poster_url || rec.posterUrl ? (
+                      <img
+                        src={rec.poster_url || rec.posterUrl}
+                        alt={rec.name || "Recommended show"}
+                        className="msd-rec-poster"
+                      />
+                    ) : null}
 
-                  {rec.first_aired ? (
-                    <div className="msd-rec-date">
-                      {formatDate(rec.first_aired)}
+                    <div className="msd-rec-title">
+                      {rec.name || "Unknown show"}
                     </div>
-                  ) : null}
-                </Link>
-              ))}
+
+                    {rec.first_aired || rec.firstAired ? (
+                      <div className="msd-rec-date">
+                        {formatDate(rec.first_aired || rec.firstAired)}
+                      </div>
+                    ) : null}
+                  </>
+                );
+
+                if (hasTvdbId) {
+                  return (
+                    <Link
+                      key={rec.id || `${rec.name}-${index}`}
+                      to={linkTarget}
+                      className="msd-rec-card"
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div
+                    key={rec.id || `${rec.name}-${index}`}
+                    className="msd-rec-card"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="msd-muted">No recommendations yet.</p>
