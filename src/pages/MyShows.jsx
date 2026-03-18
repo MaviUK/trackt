@@ -39,7 +39,12 @@ function groupEpisodesBySeasonDesc(episodes) {
   return Object.entries(grouped)
     .map(([seasonNumber, eps]) => ({
       seasonNumber: Number(seasonNumber),
-      episodes: [...eps].sort((a, b) => a.episode_number - b.episode_number),
+      episodes: [...eps].sort((a, b) => {
+        if (b.episode_number !== a.episode_number) {
+          return b.episode_number - a.episode_number;
+        }
+        return new Date(b.aired_date || 0) - new Date(a.aired_date || 0);
+      }),
     }))
     .sort((a, b) => b.seasonNumber - a.seasonNumber);
 }
@@ -290,9 +295,9 @@ export default function MyShows() {
     setExpandedShowId(showId);
 
     const nextExpanded = {};
-    if (seasons.length > 0) {
-      nextExpanded[seasons[0].seasonNumber] = true;
-    }
+if (seasons.length > 0) {
+  nextExpanded[seasons[0].seasonNumber] = true;
+}
     setExpandedSeasons(nextExpanded);
   }
 
