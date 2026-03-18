@@ -7,6 +7,11 @@ function normalizeDate(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function normalizeNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 function normalizeNetwork(networkValue) {
   if (!networkValue) return null;
 
@@ -55,7 +60,10 @@ function buildShowPayload(showDetails) {
     name: showDetails.name ?? showDetails.show_name ?? "Unknown title",
     original_name: showDetails.original_name ?? null,
     overview: showDetails.overview ?? null,
-    status: showDetails.status ?? null,
+    status:
+      typeof showDetails.status === "object"
+        ? showDetails.status?.name ?? null
+        : showDetails.status ?? null,
     original_country: showDetails.original_country ?? null,
     original_language: showDetails.original_language ?? null,
     first_aired: normalizeDate(
@@ -65,19 +73,39 @@ function buildShowPayload(showDetails) {
     ),
     last_aired: normalizeDate(showDetails.last_aired ?? null),
     next_aired: normalizeDate(showDetails.next_aired ?? null),
-    runtime_minutes: Number.isFinite(Number(showDetails.runtime_minutes))
-      ? Number(showDetails.runtime_minutes)
-      : null,
-    network: normalizeNetwork(showDetails.network),
-    content_rating: showDetails.content_rating ?? null,
+    runtime_minutes: normalizeNumber(
+      showDetails.runtime_minutes ??
+        showDetails.averageRuntime ??
+        showDetails.runtime
+    ),
+    network: normalizeNetwork(
+      showDetails.network ??
+        showDetails.originalNetwork ??
+        showDetails.latestNetwork
+    ),
+    content_rating:
+      showDetails.content_rating ?? showDetails.contentRating ?? null,
     genres: normalizeGenres(showDetails.genres),
     aliases: Array.isArray(showDetails.aliases)
       ? showDetails.aliases.filter(Boolean)
       : [],
-    poster_url: showDetails.poster_url ?? showDetails.image_url ?? null,
-    backdrop_url: showDetails.backdrop_url ?? null,
-    banner_url: showDetails.banner_url ?? null,
+    poster_url:
+      showDetails.poster_url ??
+      showDetails.image_url ??
+      showDetails.image ??
+      null,
+    backdrop_url: showDetails.backdrop_url ?? showDetails.backdrop ?? null,
+    banner_url: showDetails.banner_url ?? showDetails.banner ?? null,
     external_ids: showDetails.external_ids ?? {},
+    rating_average: normalizeNumber(
+      showDetails.rating_average ??
+        showDetails.siteRating ??
+        showDetails.score ??
+        showDetails.rating
+    ),
+    rating_count: normalizeNumber(
+      showDetails.rating_count ?? showDetails.siteRatingCount
+    ),
     last_synced_at: new Date().toISOString(),
   };
 }
@@ -130,9 +158,7 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
       const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
       const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
       const tvdbEpisodeId = ep.id ? Number(ep.id) : null;
-      const runtime = Number.isFinite(Number(ep.runtime ?? ep.runtime_minutes))
-        ? Number(ep.runtime ?? ep.runtime_minutes)
-        : null;
+      const runtime = normalizeNumber(ep.runtime ?? ep.runtime_minutes);
 
       return {
         tvdb_id: Number.isFinite(tvdbEpisodeId) ? tvdbEpisodeId : null,
@@ -141,11 +167,9 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         season_type: "official",
         season_number: seasonNumber,
         episode_number: episodeNumber,
-        absolute_number: Number.isFinite(
-          Number(ep.absoluteNumber ?? ep.absolute_number)
-        )
-          ? Number(ep.absoluteNumber ?? ep.absolute_number)
-          : null,
+        absolute_number: normalizeNumber(
+          ep.absoluteNumber ?? ep.absolute_number
+        ),
         name: ep.name ?? `Episode ${episodeNumber}`,
         overview: ep.overview ?? null,
         aired_date: normalizeDate(ep.aired ?? ep.aired_date ?? null),
@@ -154,6 +178,8 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         is_special: seasonNumber === 0,
         is_premiere: Boolean(ep.isPremiere ?? ep.is_premiere ?? false),
         is_finale: Boolean(ep.isFinale ?? ep.is_finale ?? false),
+        rating_average: normalizeNumber(ep.rating_average ?? ep.siteRating),
+        rating_count: normalizeNumber(ep.rating_count ?? ep.siteRatingCount),
         last_synced_at: new Date().toISOString(),
       };
     });
