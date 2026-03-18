@@ -34,6 +34,24 @@ function normalizeNetwork(networkValue) {
   return networkValue;
 }
 
+function normalizeTextArray(value) {
+  if (!Array.isArray(value)) return [];
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => {
+          if (typeof item === "string") return item.trim();
+          if (item && typeof item === "object") {
+            return (item.name ?? item.value ?? item.label ?? "").trim();
+          }
+          return "";
+        })
+        .filter(Boolean)
+    )
+  );
+}
+
 function normalizeGenres(genresValue) {
   if (!Array.isArray(genresValue)) return [];
 
@@ -86,14 +104,11 @@ function buildShowPayload(showDetails) {
     content_rating:
       showDetails.content_rating ?? showDetails.contentRating ?? null,
     genres: normalizeGenres(showDetails.genres),
-    aliases: Array.isArray(showDetails.aliases)
-      ? showDetails.aliases.filter(Boolean)
-      : [],
+    aliases: normalizeTextArray(showDetails.aliases),
+    relationship_types: normalizeTextArray(showDetails.relationship_types),
+    settings: normalizeTextArray(showDetails.settings),
     poster_url:
-      showDetails.poster_url ??
-      showDetails.image_url ??
-      showDetails.image ??
-      null,
+      showDetails.poster_url ?? showDetails.image_url ?? showDetails.image ?? null,
     backdrop_url: showDetails.backdrop_url ?? showDetails.backdrop ?? null,
     banner_url: showDetails.banner_url ?? showDetails.banner ?? null,
     external_ids: showDetails.external_ids ?? {},
@@ -142,9 +157,7 @@ function buildSeasonRows(showId, episodes) {
     bySeason.set(seasonNumber, existing);
   }
 
-  return [...bySeason.values()].sort(
-    (a, b) => a.season_number - b.season_number
-  );
+  return [...bySeason.values()].sort((a, b) => a.season_number - b.season_number);
 }
 
 function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
@@ -167,9 +180,7 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         season_type: "official",
         season_number: seasonNumber,
         episode_number: episodeNumber,
-        absolute_number: normalizeNumber(
-          ep.absoluteNumber ?? ep.absolute_number
-        ),
+        absolute_number: normalizeNumber(ep.absoluteNumber ?? ep.absolute_number),
         name: ep.name ?? `Episode ${episodeNumber}`,
         overview: ep.overview ?? null,
         aired_date: normalizeDate(ep.aired ?? ep.aired_date ?? null),
@@ -186,9 +197,7 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
 }
 
 async function fetchShowDetails(tvdbId) {
-  const res = await fetch(
-    `/.netlify/functions/getShowDetails?tvdb_id=${encodeURIComponent(tvdbId)}`
-  );
+  const res = await fetch(`/.netlify/functions/getShowDetails?tvdb_id=${encodeURIComponent(tvdbId)}`);
   const data = await res.json();
 
   if (!res.ok) {
@@ -199,9 +208,7 @@ async function fetchShowDetails(tvdbId) {
 }
 
 async function fetchShowEpisodes(tvdbId) {
-  const res = await fetch(
-    `/.netlify/functions/getShowEpisodes?tvdb_id=${encodeURIComponent(tvdbId)}`
-  );
+  const res = await fetch(`/.netlify/functions/getShowEpisodes?tvdb_id=${encodeURIComponent(tvdbId)}`);
   const data = await res.json();
 
   if (!res.ok) {
@@ -223,11 +230,7 @@ export async function saveShowToDatabase(show) {
     fetchShowEpisodes(tvdbId),
   ]);
 
-  const showPayload = buildShowPayload({
-    ...show,
-    ...showDetails,
-    tvdb_id: tvdbId,
-  });
+  const showPayload = buildShowPayload({ ...show, ...showDetails, tvdb_id: tvdbId });
 
   const { data: savedShow, error: showError } = await supabase
     .from("shows")
@@ -235,9 +238,7 @@ export async function saveShowToDatabase(show) {
     .select()
     .single();
 
-  if (showError) {
-    throw showError;
-  }
+  if (showError) throw showError;
 
   const seasonRows = buildSeasonRows(savedShow.id, rawEpisodes);
 
@@ -248,9 +249,7 @@ export async function saveShowToDatabase(show) {
         onConflict: "show_id,season_type,season_number",
       });
 
-    if (seasonsError) {
-      throw seasonsError;
-    }
+    if (seasonsError) throw seasonsError;
   }
 
   const { data: savedSeasons, error: savedSeasonsError } = await supabase
@@ -259,19 +258,13 @@ export async function saveShowToDatabase(show) {
     .eq("show_id", savedShow.id)
     .eq("season_type", "official");
 
-  if (savedSeasonsError) {
-    throw savedSeasonsError;
-  }
+  if (savedSeasonsError) throw savedSeasonsError;
 
   const seasonIdByNumber = new Map(
     (savedSeasons || []).map((season) => [season.season_number, season.id])
   );
 
-  const episodeRows = buildEpisodeRows(
-    savedShow.id,
-    seasonIdByNumber,
-    rawEpisodes
-  );
+  const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, rawEpisodes);
 
   if (episodeRows.length > 0) {
     const { error: episodesError } = await supabase
@@ -280,9 +273,7 @@ export async function saveShowToDatabase(show) {
         onConflict: "show_id,season_type,season_number,episode_number",
       });
 
-    if (episodesError) {
-      throw episodesError;
-    }
+    if (episodesError) throw episodesError;
   }
 
   return savedShow;
