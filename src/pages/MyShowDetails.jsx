@@ -431,14 +431,15 @@ export default function MyShowDetails() {
     if (!user) return;
 
     try {
-      const payload = {
-        user_id: user.id,
-        episode_id: ep.id,
-      };
-
       const { error } = await supabase
         .from("watched_episodes")
-        .upsert(payload, { onConflict: "user_id,episode_id" });
+        .upsert(
+          {
+            user_id: user.id,
+            episode_id: ep.id,
+          },
+          { onConflict: "user_id,episode_id" }
+        );
 
       if (error) throw error;
 
@@ -887,4 +888,4 @@ export default function MyShowDetails() {
       </div>
     </div>
   );
-} failed
+}
