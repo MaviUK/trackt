@@ -7,6 +7,42 @@ function normalizeDate(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function normalizeNetwork(networkValue) {
+  if (!networkValue) return null;
+
+  if (Array.isArray(networkValue)) {
+    const names = networkValue
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") return item.name ?? null;
+        return null;
+      })
+      .filter(Boolean);
+
+    return names.length ? names.join(", ") : null;
+  }
+
+  if (typeof networkValue === "object") {
+    return networkValue.name ?? null;
+  }
+
+  return networkValue;
+}
+
+function normalizeGenres(genresValue) {
+  if (!Array.isArray(genresValue)) return [];
+
+  return genresValue
+    .map((genre) => {
+      if (typeof genre === "string") return genre;
+      if (genre && typeof genre === "object") {
+        return genre.name ?? genre.genre ?? null;
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
 function buildShowPayload(showDetails) {
   const tvdbId = Number(showDetails.tvdb_id || showDetails.id);
   if (!tvdbId) {
@@ -23,21 +59,18 @@ function buildShowPayload(showDetails) {
     original_country: showDetails.original_country ?? null,
     original_language: showDetails.original_language ?? null,
     first_aired: normalizeDate(
-      showDetails.first_aired ?? showDetails.first_air_date ?? showDetails.first_air_time
+      showDetails.first_aired ??
+        showDetails.first_air_date ??
+        showDetails.first_air_time
     ),
     last_aired: normalizeDate(showDetails.last_aired ?? null),
     next_aired: normalizeDate(showDetails.next_aired ?? null),
-    runtime_minutes:
-      Number.isFinite(Number(showDetails.runtime_minutes))
-        ? Number(showDetails.runtime_minutes)
-        : null,
-    network: showDetails.network ?? null,
+    runtime_minutes: Number.isFinite(Number(showDetails.runtime_minutes))
+      ? Number(showDetails.runtime_minutes)
+      : null,
+    network: normalizeNetwork(showDetails.network),
     content_rating: showDetails.content_rating ?? null,
-    genres: Array.isArray(showDetails.genres)
-      ? showDetails.genres
-          .map((g) => (typeof g === "string" ? g : g?.name))
-          .filter(Boolean)
-      : [],
+    genres: normalizeGenres(showDetails.genres),
     aliases: Array.isArray(showDetails.aliases)
       ? showDetails.aliases.filter(Boolean)
       : [],
@@ -97,10 +130,9 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
       const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
       const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
       const tvdbEpisodeId = ep.id ? Number(ep.id) : null;
-      const runtime =
-        Number.isFinite(Number(ep.runtime ?? ep.runtime_minutes))
-          ? Number(ep.runtime ?? ep.runtime_minutes)
-          : null;
+      const runtime = Number.isFinite(Number(ep.runtime ?? ep.runtime_minutes))
+        ? Number(ep.runtime ?? ep.runtime_minutes)
+        : null;
 
       return {
         tvdb_id: Number.isFinite(tvdbEpisodeId) ? tvdbEpisodeId : null,
@@ -109,7 +141,9 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         season_type: "official",
         season_number: seasonNumber,
         episode_number: episodeNumber,
-        absolute_number: Number.isFinite(Number(ep.absoluteNumber ?? ep.absolute_number))
+        absolute_number: Number.isFinite(
+          Number(ep.absoluteNumber ?? ep.absolute_number)
+        )
           ? Number(ep.absoluteNumber ?? ep.absolute_number)
           : null,
         name: ep.name ?? `Episode ${episodeNumber}`,
@@ -207,7 +241,11 @@ export async function saveShowToDatabase(show) {
     (savedSeasons || []).map((season) => [season.season_number, season.id])
   );
 
-  const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, rawEpisodes);
+  const episodeRows = buildEpisodeRows(
+    savedShow.id,
+    seasonIdByNumber,
+    rawEpisodes
+  );
 
   if (episodeRows.length > 0) {
     const { error: episodesError } = await supabase
