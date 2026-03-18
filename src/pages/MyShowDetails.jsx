@@ -227,7 +227,6 @@ export default function MyShowDetails() {
         ]);
 
         const { data: episodeRows, error: episodeError } = episodeRes;
-
         if (episodeError) throw episodeError;
 
         const normalizedEpisodes = (episodeRows || []).map((row) => ({
@@ -254,7 +253,6 @@ export default function MyShowDetails() {
           const targetEpisode = normalizedEpisodes.find(
             (ep) => String(ep.id) === String(targetEpisodeId)
           );
-
           if (targetEpisode) {
             seasonMap[targetEpisode.seasonNumber] = true;
           }
@@ -590,7 +588,7 @@ export default function MyShowDetails() {
               {show.status ? <div>Status: {show.status}</div> : null}
             </div>
 
-            <div className="msd-stats-row">
+            <div className="msd-stats-row msd-stats-row-extended">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Watched</span>
                 <strong className="msd-stat-value">{stats.watched}</strong>
@@ -612,6 +610,79 @@ export default function MyShowDetails() {
                   {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
                 </strong>
               </div>
+
+              <div className="msd-stat-box msd-stat-box-wide">
+                <span className="msd-stat-label">Where to Watch</span>
+
+                {extrasLoading ? (
+                  <div className="msd-stat-inline-muted">Loading...</div>
+                ) : watchProviders.length > 0 ? (
+                  <div className="msd-provider-list msd-provider-list-compact">
+                    {watchProviders.map((provider, index) => (
+                      <a
+                        key={provider.id || `${provider.name}-${index}`}
+                        href={provider.url || "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="msd-provider-chip"
+                      >
+                        {provider.name || "Unknown provider"}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="msd-stat-inline-muted">No providers</div>
+                )}
+              </div>
+
+              <div className="msd-stat-box msd-stat-box-wide">
+                <span className="msd-stat-label">Your Burgr Rating</span>
+
+                <div className="msd-burgr-form msd-burgr-form-compact">
+                  <div className="msd-burgr-picker msd-burgr-picker-compact">
+                    {Array.from({ length: 10 }, (_, index) => {
+                      const value = index + 1;
+                      const filled = value <= activeBurgrRating;
+
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className={`msd-burger-btn ${
+                            filled ? "is-filled" : "is-empty"
+                          }`}
+                          onMouseEnter={() => setHoverBurgrRating(value)}
+                          onMouseLeave={() => setHoverBurgrRating(0)}
+                          onClick={() => setMyBurgrRating(String(value))}
+                          aria-label={`Rate ${value} out of 10 burgers`}
+                          title={`${value}/10`}
+                        >
+                          <img
+                            src="/burger-rating.png"
+                            alt=""
+                            className="msd-burger-icon msd-burger-icon-small"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="msd-burgr-picker-footer msd-burgr-picker-footer-compact">
+                    <span className="msd-burgr-current">
+                      {myBurgrRating ? `${myBurgrRating}/10` : "Select"}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="msd-btn msd-btn-primary msd-btn-small"
+                      onClick={handleSaveBurgrRating}
+                      disabled={!myBurgrRating}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="msd-progress">
@@ -619,82 +690,6 @@ export default function MyShowDetails() {
                 className="msd-progress-fill"
                 style={{ width: `${stats.pct}%` }}
               />
-            </div>
-
-            <div className="msd-hero-section">
-              <h2 className="msd-section-title">Where to Watch</h2>
-
-              {extrasLoading ? (
-                <p className="msd-muted">Loading watch options...</p>
-              ) : watchProviders.length > 0 ? (
-                <div className="msd-provider-list">
-                  {watchProviders.map((provider, index) => (
-                    <a
-                      key={provider.id || `${provider.name}-${index}`}
-                      href={provider.url || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="msd-provider-chip"
-                    >
-                      {provider.name || "Unknown provider"}
-                      {provider.type ? ` (${provider.type})` : ""}
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="msd-muted">No watch providers available.</p>
-              )}
-            </div>
-
-            <div className="msd-hero-section">
-              <h2 className="msd-section-title">Your Burgrs</h2>
-
-              <div className="msd-burgr-form">
-                <div className="msd-burgr-picker">
-                  {Array.from({ length: 10 }, (_, index) => {
-                    const value = index + 1;
-                    const filled = value <= activeBurgrRating;
-
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`msd-burger-btn ${
-                          filled ? "is-filled" : "is-empty"
-                        }`}
-                        onMouseEnter={() => setHoverBurgrRating(value)}
-                        onMouseLeave={() => setHoverBurgrRating(0)}
-                        onClick={() => setMyBurgrRating(String(value))}
-                        aria-label={`Rate ${value} out of 10 burgers`}
-                        title={`${value}/10`}
-                      >
-                        <img
-                          src="/burger-rating.png"
-                          alt=""
-                          className="msd-burger-icon"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="msd-burgr-picker-footer">
-                  <span className="msd-burgr-current">
-                    {myBurgrRating
-                      ? `${myBurgrRating}/10 Burgrs`
-                      : "Select your rating"}
-                  </span>
-
-                  <button
-                    type="button"
-                    className="msd-btn msd-btn-primary"
-                    onClick={handleSaveBurgrRating}
-                    disabled={!myBurgrRating}
-                  >
-                    Save Rating
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </section>
