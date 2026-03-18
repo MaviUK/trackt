@@ -458,16 +458,45 @@
   color: inherit;
 }
 
-.msd-burgr-summary {
+/* Container */
+.msd-burgr-picker {
   display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.msd-burgr-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+/* Button reset */
+.msd-burger-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Image size FIX */
+.msd-burger-icon {
+  width: 28px;   /* 🔥 THIS controls size */
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  transition: all 0.2s ease;
+}
+
+/* Default = greyed out */
+.msd-burger-btn.is-empty .msd-burger-icon {
+  filter: grayscale(1) brightness(0.6);
+  opacity: 0.4;
+}
+
+/* Filled (selected or hover) */
+.msd-burger-btn.is-filled .msd-burger-icon {
+  filter: none;
+  opacity: 1;
+}
+
+/* Hover animation */
+.msd-burger-btn:hover .msd-burger-icon {
+  transform: scale(1.15);
 }
 
 .msd-rating-input {
