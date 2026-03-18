@@ -426,3 +426,98 @@
     border-radius: 10px;
   }
 }
+
+.msd-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.msd-panel {
+  background: #111;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.msd-provider-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.msd-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+}
+
+.msd-burgr-summary {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.msd-burgr-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.msd-rating-input {
+  width: 100px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: inherit;
+}
+
+.msd-cast-grid,
+.msd-recommended-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.msd-cast-card,
+.msd-rec-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 14px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+
+.msd-cast-image,
+.msd-rec-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.msd-cast-name,
+.msd-rec-title {
+  font-weight: 700;
+  padding: 10px 10px 4px;
+}
+
+.msd-cast-role,
+.msd-rec-date,
+.msd-muted {
+  padding: 0 10px 10px;
+  opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+  .msd-extra-grid {
+    grid-template-columns: 1fr;
+  }
+}
