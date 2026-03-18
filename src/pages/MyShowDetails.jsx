@@ -134,43 +134,65 @@ useEffect(() => {
         return;
       }
 
-      const { data: userShowRow, error: userShowError } = await supabase
-        .from("user_shows_new")
-        .select(`
-          id,
-          user_id,
-          show_id,
-          watch_status,
-          added_at,
-          created_at,
-          shows!inner(
-            id,
-            tvdb_id,
-            name,
-            overview,
-            status,
-            poster_url,
-            first_aired
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("shows.tvdb_id", tvdbId)
-        .single();
+     let userShowRow = null;
+let showRecord = null;
 
-      if (userShowError) throw userShowError;
+// Try user_shows first
+const { data: userShowData, error: userShowError } = await supabase
+  .from("user_shows_new")
+  .select(`
+    id,
+    user_id,
+    show_id,
+    watch_status,
+    added_at,
+    created_at,
+    shows!inner(
+      id,
+      tvdb_id,
+      name,
+      overview,
+      status,
+      poster_url,
+      first_aired
+    )
+  `)
+  .eq("user_id", user.id)
+  .eq("shows.tvdb_id", tvdbId)
+  .maybeSingle();
 
-      if (!userShowRow?.shows) {
-        setShow(null);
-        setEpisodes([]);
-        setWatchedRows([]);
-        setExpandedSeasons({});
-        setWatchProviders([]);
-        setCast([]);
-        setRecommendedShows([]);
-        setBurgrRatings([]);
-        setMyBurgrRating("");
-        return;
-      }
+if (userShowError) {
+  console.warn("user show fetch failed", userShowError);
+}
+
+if (userShowData?.shows) {
+  userShowRow = userShowData;
+  showRecord = userShowData.shows;
+} else {
+  // 🔥 fallback to shows table directly
+  const { data: showData, error: showError } = await supabase
+    .from("shows")
+    .select(`
+      id,
+      tvdb_id,
+      name,
+      overview,
+      status,
+      poster_url,
+      first_aired
+    `)
+    .eq("tvdb_id", tvdbId)
+    .maybeSingle();
+
+  if (showError) throw showError;
+
+  if (!showData) {
+    setShow(null);
+    return;
+  }
+
+  showRecord = showData;
+}
 
       const showRecord = userShowRow.shows;
       const showId = showRecord.id;
