@@ -268,9 +268,9 @@ if (userShowData?.shows) {
         poster_url: showRecord.poster_url || null,
         first_aired: showRecord.first_aired || null,
         status: showRecord.status || null,
-        watch_status: userShowRow.watch_status || "watching",
-        added_at: userShowRow.added_at,
-        created_at: userShowRow.created_at,
+        watch_status: userShowRow?.watch_status || "not_added",
+added_at: userShowRow?.added_at || null,
+created_at: userShowRow?.created_at || null,
       });
 
       setEpisodes(normalizedEpisodes);
