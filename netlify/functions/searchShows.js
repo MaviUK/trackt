@@ -39,6 +39,46 @@ function normalizeNetwork(value) {
   return value;
 }
 
+function normalizeLanguage(value) {
+  if (!value) return "";
+
+  const str = String(value).trim().toLowerCase();
+
+  const map = {
+    eng: "english",
+    en: "english",
+    english: "english",
+    jpn: "japanese",
+    ja: "japanese",
+    japanese: "japanese",
+    kor: "korean",
+    ko: "korean",
+    korean: "korean",
+    spa: "spanish",
+    es: "spanish",
+    spanish: "spanish",
+    fra: "french",
+    fr: "french",
+    french: "french",
+    deu: "german",
+    de: "german",
+    german: "german",
+    swe: "swedish",
+    sv: "swedish",
+    swedish: "swedish",
+  };
+
+  return map[str] || str;
+}
+
+function looksMostlyLatin(text) {
+  if (!text) return true;
+
+  return /^[\p{Script=Latin}\p{Number}\p{Punctuation}\p{Separator}]+$/u.test(
+    String(text)
+  );
+}
+
 function getYear(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -64,14 +104,16 @@ function dedupeByTvdbId(items) {
       (existing.overview ? 1 : 0) +
       ((existing.genres || []).length ? 1 : 0) +
       (existing.network ? 1 : 0) +
-      (existing.rating_average != null ? 1 : 0);
+      (existing.rating_average != null ? 1 : 0) +
+      (existing.original_language ? 1 : 0);
 
     const nextScore =
       (item.image_url ? 1 : 0) +
       (item.overview ? 1 : 0) +
       ((item.genres || []).length ? 1 : 0) +
       (item.network ? 1 : 0) +
-      (item.rating_average != null ? 1 : 0);
+      (item.rating_average != null ? 1 : 0) +
+      (item.original_language ? 1 : 0);
 
     if (nextScore >= existingScore) {
       map.set(item.tvdb_id, item);
@@ -117,6 +159,9 @@ function normalizeSearchResult(item) {
         item?.companies
     ),
     genres: normalizeGenres(rawGenres),
+    original_language: normalizeLanguage(
+      item?.originalLanguage || item?.language || ""
+    ),
     rating_average: normalizeNumber(
       item?.rating_average ?? item?.score ?? item?.siteRating ?? item?.rating
     ),
@@ -156,6 +201,9 @@ function normalizeSeriesDetails(series) {
     slug: series?.slug || null,
     network: primaryCompany?.name || null,
     genres,
+    original_language: normalizeLanguage(
+      series?.originalLanguage || series?.language || ""
+    ),
     rating_average: normalizeNumber(
       series?.score ??
         series?.siteRating ??
@@ -310,6 +358,7 @@ function scoreShow(show, options) {
     sourceYear,
     sourceRating,
     sourceShowId,
+    targetLanguage,
   } = options;
 
   let score = 0;
@@ -320,6 +369,7 @@ function scoreShow(show, options) {
   const showNetwork = String(show.network || "").toLowerCase();
   const showYear = getYear(show.first_aired || show.first_air_time);
   const showRating = normalizeNumber(show.rating_average);
+  const showLanguage = normalizeLanguage(show.original_language || "");
 
   if (sourceShowId && Number(show.tvdb_id) === Number(sourceShowId)) {
     return -9999;
@@ -377,6 +427,20 @@ function scoreShow(show, options) {
     }
   }
 
+  if (targetLanguage) {
+    if (showLanguage === targetLanguage) {
+      score += 16;
+    } else if (showLanguage) {
+      score -= 20;
+    } else if (targetLanguage === "english") {
+      if (looksMostlyLatin(show.name) && looksMostlyLatin(show.overview)) {
+        score += 8;
+      } else {
+        score -= 18;
+      }
+    }
+  }
+
   if (sourceYear && showYear) {
     const minYear = Number(sourceYear) - 3;
 
@@ -424,7 +488,12 @@ export async function handler(event) {
     const sourceYear = event.queryStringParameters?.sourceYear?.trim() || "";
     const sourceRatingRaw =
       event.queryStringParameters?.sourceRating?.trim() || "";
+    const sourceLanguageRaw =
+      event.queryStringParameters?.sourceLanguage?.trim() || "";
+
     const sourceRating = normalizeNumber(sourceRatingRaw);
+    const sourceLanguage = normalizeLanguage(sourceLanguageRaw);
+    const targetLanguage = sourceLanguage || "english";
 
     if (!query && !genre && !network) {
       return {
@@ -459,6 +528,25 @@ export async function handler(event) {
     }
 
     let results = dedupeByTvdbId(enriched);
+
+    results = results.filter((item) => {
+      const itemLanguage = normalizeLanguage(item.original_language || "");
+
+      if (targetLanguage) {
+        if (itemLanguage) {
+          return itemLanguage === targetLanguage;
+        }
+
+        if (targetLanguage === "english") {
+          return (
+            looksMostlyLatin(item.name || "") &&
+            looksMostlyLatin(item.overview || "")
+          );
+        }
+      }
+
+      return true;
+    });
 
     if (genre) {
       const genreLower = genre.toLowerCase();
@@ -532,6 +620,7 @@ export async function handler(event) {
           sourceYear,
           sourceRating,
           sourceShowId,
+          targetLanguage,
         }),
       }))
       .filter((item) => item._score > -1000)
