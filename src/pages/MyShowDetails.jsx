@@ -96,241 +96,312 @@ export default function MyShowDetails() {
     [watchedRows]
   );
 
-useEffect(() => {
-  async function loadShow() {
-    setLoading(true);
-    setExtrasLoading(false);
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setShow(null);
-        setEpisodes([]);
-        setWatchedRows([]);
-        setExpandedSeasons({});
-        setWatchProviders([]);
-        setCast([]);
-        setRecommendedShows([]);
-        setBurgrRatings([]);
-        setMyBurgrRating("");
-        return;
-      }
-
-      const tvdbId = Number(id);
-
-      if (Number.isNaN(tvdbId)) {
-        setShow(null);
-        setEpisodes([]);
-        setWatchedRows([]);
-        setExpandedSeasons({});
-        setWatchProviders([]);
-        setCast([]);
-        setRecommendedShows([]);
-        setBurgrRatings([]);
-        setMyBurgrRating("");
-        return;
-      }
-
-     let userShowRow = null;
-let showRecord = null;
-
-// Try user_shows first
-const { data: userShowData, error: userShowError } = await supabase
-  .from("user_shows_new")
-  .select(`
-    id,
-    user_id,
-    show_id,
-    watch_status,
-    added_at,
-    created_at,
-    shows!inner(
-      id,
-      tvdb_id,
-      name,
-      overview,
-      status,
-      poster_url,
-      first_aired
-    )
-  `)
-  .eq("user_id", user.id)
-  .eq("shows.tvdb_id", tvdbId)
-  .maybeSingle();
-
-if (userShowError) {
-  console.warn("user show fetch failed", userShowError);
-}
-
-if (userShowData?.shows) {
-  userShowRow = userShowData;
-  showRecord = userShowData.shows;
-} else {
-  // 🔥 fallback to shows table directly
-  const { data: showData, error: showError } = await supabase
-    .from("shows")
-    .select(`
-      id,
-      tvdb_id,
-      name,
-      overview,
-      status,
-      poster_url,
-      first_aired
-    `)
-    .eq("tvdb_id", tvdbId)
-    .maybeSingle();
-
-  if (showError) throw showError;
-
-  if (!showData) {
-    setShow(null);
-    return;
-  }
-
-  showRecord = showData;
-}
-
-      const showRecord = userShowRow.shows;
-      const showId = showRecord.id;
-
-      const [
-        episodeRes,
-        watchedRowsData,
-        burgrRows,
-      ] = await Promise.all([
-        supabase
-          .from("episodes")
-          .select(`
-            id,
-            tvdb_id,
-            show_id,
-            season_number,
-            episode_number,
-            episode_code,
-            name,
-            overview,
-            aired_date,
-            image_url
-          `)
-          .eq("show_id", showId)
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true }),
-
-        fetchWatchedRows(user.id),
-        fetchBurgrRatings(showId),
-      ]);
-
-      const { data: episodeRows, error: episodeError } = episodeRes;
-
-      if (episodeError) throw episodeError;
-
-      const normalizedEpisodes = (episodeRows || []).map((row) => ({
-        id: row.id,
-        tvdb_episode_id: row.tvdb_id,
-        seasonNumber: row.season_number,
-        number: row.episode_number,
-        aired: row.aired_date,
-        airDate: row.aired_date,
-        name: row.name || "Untitled episode",
-        overview: row.overview || "",
-        image: row.image_url || null,
-        episode_code: row.episode_code,
-      }));
-
-      const seasonMap = {};
-      normalizedEpisodes.forEach((ep) => {
-        if (!(ep.seasonNumber in seasonMap)) {
-          seasonMap[ep.seasonNumber] = false;
-        }
-      });
-
-      if (targetEpisodeId) {
-        const targetEpisode = normalizedEpisodes.find(
-          (ep) => String(ep.id) === String(targetEpisodeId)
-        );
-
-        if (targetEpisode) {
-          seasonMap[targetEpisode.seasonNumber] = true;
-        }
-      }
-
-      const mine = (burgrRows || []).find((row) => row.user_id === user.id);
-
-      setShow({
-        id: showRecord.id,
-        tvdb_id: showRecord.tvdb_id,
-        show_name: showRecord.name || "Unknown title",
-        overview: showRecord.overview || "",
-        poster_url: showRecord.poster_url || null,
-        first_aired: showRecord.first_aired || null,
-        status: showRecord.status || null,
-        watch_status: userShowRow?.watch_status || "not_added",
-added_at: userShowRow?.added_at || null,
-created_at: userShowRow?.created_at || null,
-      });
-
-      setEpisodes(normalizedEpisodes);
-      setWatchedRows(watchedRowsData || []);
-      setExpandedSeasons(seasonMap);
-      setBurgrRatings(burgrRows || []);
-      setMyBurgrRating(mine ? String(mine.rating) : "");
-
-      setWatchProviders([]);
-      setCast([]);
-      setRecommendedShows([]);
+  useEffect(() => {
+    async function loadShow() {
+      setLoading(true);
+      setExtrasLoading(false);
 
       try {
-        setExtrasLoading(true);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-        const extrasRes = await fetch(
-          `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
-        );
-
-        if (!extrasRes.ok) {
-          throw new Error(`Failed to load show extras (${extrasRes.status})`);
+        if (!user) {
+          setShow(null);
+          setEpisodes([]);
+          setWatchedRows([]);
+          setExpandedSeasons({});
+          setWatchProviders([]);
+          setCast([]);
+          setRecommendedShows([]);
+          setBurgrRatings([]);
+          setMyBurgrRating("");
+          return;
         }
 
-        const extras = await extrasRes.json();
+        const tvdbId = Number(id);
 
-        setCast(Array.isArray(extras.cast) ? extras.cast : []);
-        setWatchProviders(
-          Array.isArray(extras.providers) ? extras.providers : []
-        );
-        setRecommendedShows(
-          Array.isArray(extras.recommendations)
-            ? extras.recommendations
-            : []
-        );
-      } catch (extrasError) {
-        console.error("Failed loading TVDB extras:", extrasError);
-        setCast([]);
+        if (Number.isNaN(tvdbId)) {
+          setShow(null);
+          setEpisodes([]);
+          setWatchedRows([]);
+          setExpandedSeasons({});
+          setWatchProviders([]);
+          setCast([]);
+          setRecommendedShows([]);
+          setBurgrRatings([]);
+          setMyBurgrRating("");
+          return;
+        }
+
+        let userShowRow = null;
+        let showRecord = null;
+
+        const { data: userShowData, error: userShowError } = await supabase
+          .from("user_shows_new")
+          .select(`
+            id,
+            user_id,
+            show_id,
+            watch_status,
+            added_at,
+            created_at,
+            shows!inner(
+              id,
+              tvdb_id,
+              name,
+              overview,
+              status,
+              poster_url,
+              first_aired
+            )
+          `)
+          .eq("user_id", user.id)
+          .eq("shows.tvdb_id", tvdbId)
+          .maybeSingle();
+
+        if (userShowError) {
+          console.warn("user show fetch failed", userShowError);
+        }
+
+        if (userShowData?.shows) {
+          userShowRow = userShowData;
+          showRecord = userShowData.shows;
+        } else {
+          const { data: showData, error: showError } = await supabase
+            .from("shows")
+            .select(`
+              id,
+              tvdb_id,
+              name,
+              overview,
+              status,
+              poster_url,
+              first_aired
+            `)
+            .eq("tvdb_id", tvdbId)
+            .maybeSingle();
+
+          if (showError) throw showError;
+
+          if (!showData) {
+            setShow(null);
+            setEpisodes([]);
+            setWatchedRows([]);
+            setExpandedSeasons({});
+            setWatchProviders([]);
+            setCast([]);
+            setRecommendedShows([]);
+            setBurgrRatings([]);
+            setMyBurgrRating("");
+            return;
+          }
+
+          showRecord = showData;
+        }
+
+        const showId = showRecord.id;
+
+        const [episodeRes, watchedRowsData, burgrRows] = await Promise.all([
+          supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showId)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true }),
+
+          fetchWatchedRows(user.id),
+          fetchBurgrRatings(showId),
+        ]);
+
+        const { data: episodeRows, error: episodeError } = episodeRes;
+
+        if (episodeError) throw episodeError;
+
+        const normalizedEpisodes = (episodeRows || []).map((row) => ({
+          id: row.id,
+          tvdb_episode_id: row.tvdb_id,
+          seasonNumber: row.season_number,
+          number: row.episode_number,
+          aired: row.aired_date,
+          airDate: row.aired_date,
+          name: row.name || "Untitled episode",
+          overview: row.overview || "",
+          image: row.image_url || null,
+          episode_code: row.episode_code,
+        }));
+
+        const seasonMap = {};
+        normalizedEpisodes.forEach((ep) => {
+          if (!(ep.seasonNumber in seasonMap)) {
+            seasonMap[ep.seasonNumber] = false;
+          }
+        });
+
+        if (targetEpisodeId) {
+          const targetEpisode = normalizedEpisodes.find(
+            (ep) => String(ep.id) === String(targetEpisodeId)
+          );
+
+          if (targetEpisode) {
+            seasonMap[targetEpisode.seasonNumber] = true;
+          }
+        }
+
+        const mine = (burgrRows || []).find((row) => row.user_id === user.id);
+
+        setShow({
+          id: showRecord.id,
+          tvdb_id: showRecord.tvdb_id,
+          show_name: showRecord.name || "Unknown title",
+          overview: showRecord.overview || "",
+          poster_url: showRecord.poster_url || null,
+          first_aired: showRecord.first_aired || null,
+          status: showRecord.status || null,
+          watch_status: userShowRow?.watch_status || "not_added",
+          added_at: userShowRow?.added_at || null,
+          created_at: userShowRow?.created_at || null,
+        });
+
+        setEpisodes(normalizedEpisodes);
+        setWatchedRows(watchedRowsData || []);
+        setExpandedSeasons(seasonMap);
+        setBurgrRatings(burgrRows || []);
+        setMyBurgrRating(mine ? String(mine.rating) : "");
+
         setWatchProviders([]);
+        setCast([]);
         setRecommendedShows([]);
-      } finally {
-        setExtrasLoading(false);
-      }
-    } catch (error) {
-      console.error("Failed loading show:", error);
-      setShow(null);
-      setEpisodes([]);
-      setWatchedRows([]);
-      setExpandedSeasons({});
-      setWatchProviders([]);
-      setCast([]);
-      setRecommendedShows([]);
-      setBurgrRatings([]);
-      setMyBurgrRating("");
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  loadShow();
-}, [id, targetEpisodeId]);
+        try {
+          setExtrasLoading(true);
+
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
+          );
+
+          if (!extrasRes.ok) {
+            throw new Error(`Failed to load show extras (${extrasRes.status})`);
+          }
+
+          const extras = await extrasRes.json();
+
+          setCast(Array.isArray(extras.cast) ? extras.cast : []);
+          setWatchProviders(
+            Array.isArray(extras.providers) ? extras.providers : []
+          );
+          setRecommendedShows(
+            Array.isArray(extras.recommendations)
+              ? extras.recommendations
+              : []
+          );
+        } catch (extrasError) {
+          console.error("Failed loading TVDB extras:", extrasError);
+          setCast([]);
+          setWatchProviders([]);
+          setRecommendedShows([]);
+        } finally {
+          setExtrasLoading(false);
+        }
+      } catch (error) {
+        console.error("Failed loading show:", error);
+        setShow(null);
+        setEpisodes([]);
+        setWatchedRows([]);
+        setExpandedSeasons({});
+        setWatchProviders([]);
+        setCast([]);
+        setRecommendedShows([]);
+        setBurgrRatings([]);
+        setMyBurgrRating("");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadShow();
+  }, [id, targetEpisodeId]);
+
+  useEffect(() => {
+    if (!targetEpisodeId || loading) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`episode-${targetEpisodeId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("episode-highlight");
+      setTimeout(() => el.classList.remove("episode-highlight"), 2500);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
+
+  const groupedSeasons = useMemo(() => {
+    const grouped = {};
+
+    for (const ep of episodes) {
+      if (!grouped[ep.seasonNumber]) grouped[ep.seasonNumber] = [];
+      grouped[ep.seasonNumber].push(ep);
+    }
+
+    return Object.entries(grouped)
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([seasonNumber, seasonEpisodes]) => {
+        const watchedCount = seasonEpisodes.filter((ep) =>
+          isEpisodeWatched(ep, watchedEpisodeIds)
+        ).length;
+
+        return {
+          seasonNumber: Number(seasonNumber),
+          episodes: seasonEpisodes,
+          watchedCount,
+          totalCount: seasonEpisodes.length,
+          complete:
+            seasonEpisodes.length > 0 && watchedCount === seasonEpisodes.length,
+        };
+      });
+  }, [episodes, watchedEpisodeIds]);
+
+  const stats = useMemo(() => {
+    const total = episodes.length;
+    const watched = episodes.filter((ep) =>
+      isEpisodeWatched(ep, watchedEpisodeIds)
+    ).length;
+    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+
+    const nextEpisode = episodes.find(
+      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
+    );
+
+    return { total, watched, pct, nextEpisode };
+  }, [episodes, watchedEpisodeIds]);
+
+  const burgrStats = useMemo(() => {
+    const ratings = burgrRatings
+      .map((r) => Number(r.rating))
+      .filter((n) => !Number.isNaN(n));
+
+    const avg =
+      ratings.length > 0
+        ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1)
+        : null;
+
+    return {
+      avg,
+      count: ratings.length,
+    };
+  }, [burgrRatings]);
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -816,4 +887,4 @@ created_at: userShowRow?.created_at || null,
       </div>
     </div>
   );
-}
+} failed
