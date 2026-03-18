@@ -309,23 +309,35 @@ export default function MyShows() {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from("watched_episodes")
-        .upsert(
-          {
-            user_id: user.id,
-            episode_id: ep.id,
-          },
-          { onConflict: "user_id,episode_id" }
-        );
+      const watched = isEpisodeWatched(ep, watchedEpisodeIds);
 
-      if (error) throw error;
+      if (watched) {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("episode_id", ep.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(
+            {
+              user_id: user.id,
+              episode_id: ep.id,
+            },
+            { onConflict: "user_id,episode_id" }
+          );
+
+        if (error) throw error;
+      }
 
       await refreshWatched();
       await loadShows();
     } catch (error) {
-      console.error("Failed marking watched:", error);
-      alert(error.message || "Failed marking watched");
+      console.error("Failed toggling watched:", error);
+      alert(error.message || "Failed updating watched state");
     }
   }
 
@@ -337,26 +349,41 @@ export default function MyShows() {
     if (!user) return;
 
     try {
-      const finalEpisodes = allEpisodes.filter((ep) => {
+      const showEpisodeIds = allEpisodes.map((ep) => ep.id);
+
+      const episodesToWatch = allEpisodes.filter((ep) => {
         if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
-        return (
-          ep.seasonNumber === targetEpisode.seasonNumber &&
-          ep.number <= targetEpisode.number
-        );
+        if (ep.seasonNumber > targetEpisode.seasonNumber) return false;
+        return ep.number <= targetEpisode.number;
       });
 
-      if (finalEpisodes.length === 0) return;
+      const episodeIdsToWatch = episodesToWatch.map((ep) => ep.id);
+      const episodeIdsToUnwatch = showEpisodeIds.filter(
+        (id) => !episodeIdsToWatch.includes(id)
+      );
 
-      const rows = finalEpisodes.map((ep) => ({
-        user_id: user.id,
-        episode_id: ep.id,
-      }));
+      if (episodeIdsToUnwatch.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .in("episode_id", episodeIdsToUnwatch);
 
-      const { error } = await supabase
-        .from("watched_episodes")
-        .upsert(rows, { onConflict: "user_id,episode_id" });
+        if (deleteError) throw deleteError;
+      }
 
-      if (error) throw error;
+      if (episodeIdsToWatch.length > 0) {
+        const rows = episodeIdsToWatch.map((episodeId) => ({
+          user_id: user.id,
+          episode_id: episodeId,
+        }));
+
+        const { error: upsertError } = await supabase
+          .from("watched_episodes")
+          .upsert(rows, { onConflict: "user_id,episode_id" });
+
+        if (upsertError) throw upsertError;
+      }
 
       await refreshWatched();
       await loadShows();
@@ -929,17 +956,14 @@ export default function MyShows() {
 
                                     <div className="msd-actions">
                                       <button
-                                        type="button"
-                                        className={`msd-btn ${
-                                          watched
-                                            ? "msd-btn-success"
-                                            : "msd-btn-primary"
-                                        }`}
-                                        onClick={() => handleMarkWatched(ep)}
-                                        disabled={watched}
-                                      >
-                                        {watched ? "Watched" : "Mark Watched"}
-                                      </button>
+  type="button"
+  className={`msd-btn ${
+    watched ? "msd-btn-success" : "msd-btn-primary"
+  }`}
+  onClick={() => handleMarkWatched(ep)}
+>
+  {watched ? "Mark Unwatched" : "Mark Watched"}
+</button>
 
                                       <button
                                         type="button"
