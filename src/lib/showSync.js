@@ -34,6 +34,8 @@ function normalizeShowPayload(show) {
     content_rating: pick(show, ["content_rating", "contentRating"], null),
     genres: pick(show, ["genres"], []),
     aliases: pick(show, ["aliases"], []),
+    rating_average: pick(show, ["rating_average", "score", "siteRating"], null),
+    rating_count: pick(show, ["rating_count", "siteRatingCount"], null),
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
