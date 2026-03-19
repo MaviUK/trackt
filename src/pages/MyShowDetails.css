@@ -25,7 +25,7 @@
 .msd-stat-box-full {
   width: 100%;
   margin-top: 12px;
-  margin-bottom: 16px; /* 👈 THIS is the key */
+  margin-bottom: 16px;
 }
 
 .msd-empty {
@@ -114,6 +114,15 @@
   font-weight: 800;
 }
 
+.msd-link {
+  color: #c4b5fd;
+  text-decoration: none;
+}
+
+.msd-link:hover {
+  color: #ddd6fe;
+}
+
 .msd-progress {
   width: 100%;
   height: 12px;
@@ -131,6 +140,7 @@
 
 .msd-episodes-section {
   margin-top: 12px;
+  margin-bottom: 24px;
 }
 
 .msd-section-title {
@@ -314,6 +324,172 @@
   color: #bbf7d0;
 }
 
+.msd-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.msd-panel {
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid #26324a;
+  border-radius: 24px;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.msd-panel-spaced {
+  margin-top: 24px;
+}
+
+.msd-provider-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.msd-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.msd-burgr-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.msd-burgr-form-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msd-burgr-picker-compact {
+  gap: 4px;
+}
+
+.msd-burgr-picker-footer-compact {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.msd-burgr-current {
+  color: #cbd5e1;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.msd-burger-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.msd-burger-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  transition: all 0.2s ease;
+}
+
+.msd-burger-icon-small {
+  width: 24px;
+  height: 24px;
+}
+
+.msd-burger-btn.is-empty .msd-burger-icon {
+  filter: grayscale(1) brightness(0.6);
+  opacity: 0.4;
+}
+
+.msd-burger-btn.is-filled .msd-burger-icon {
+  filter: none;
+  opacity: 1;
+}
+
+.msd-burger-btn:hover .msd-burger-icon {
+  transform: scale(1.15);
+}
+
+.msd-rating-input {
+  width: 100px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: inherit;
+}
+
+.msd-cast-grid,
+.msd-recommended-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+.msd-cast-card,
+.msd-rec-card {
+  background: linear-gradient(180deg, #182235 0%, #141d2f 100%);
+  border: 1px solid #2b3954;
+  border-radius: 18px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.msd-cast-card:hover,
+.msd-rec-card:hover {
+  transform: translateY(-2px);
+  border-color: #3a4b6d;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.msd-cast-image,
+.msd-rec-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+  background: #111827;
+}
+
+.msd-cast-name,
+.msd-rec-title {
+  font-weight: 800;
+  padding: 12px 12px 4px;
+  color: #f8fafc;
+}
+
+.msd-cast-role,
+.msd-rec-date {
+  padding: 0 12px 12px;
+  color: #a5b4cc;
+  font-size: 0.92rem;
+}
+
+.msd-muted {
+  color: #a5b4cc;
+  margin: 0;
+}
+
+.episode-highlight {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55), 0 0 30px rgba(139, 92, 246, 0.2);
+  transition: box-shadow 0.25s ease;
+}
+
 @media (max-width: 900px) {
   .msd-hero {
     grid-template-columns: 160px minmax(0, 1fr);
@@ -327,6 +503,10 @@
 
   .msd-title {
     font-size: 2rem;
+  }
+
+  .msd-extra-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -431,128 +611,15 @@
     font-size: 0.9rem;
     border-radius: 10px;
   }
-}
 
-.msd-extra-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin: 24px 0;
-}
+  .msd-cast-grid,
+  .msd-recommended-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
 
-.msd-panel {
-  background: #111;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
-.msd-provider-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.msd-provider-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  text-decoration: none;
-  background: rgba(255,255,255,0.08);
-  color: inherit;
-}
-
-/* Container */
-.msd-burgr-picker {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* Button reset */
-.msd-burger-btn {
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-/* Image size FIX */
-.msd-burger-icon {
-  width: 28px;   /* 🔥 THIS controls size */
-  height: 28px;
-  object-fit: contain;
-  display: block;
-  transition: all 0.2s ease;
-}
-
-/* Default = greyed out */
-.msd-burger-btn.is-empty .msd-burger-icon {
-  filter: grayscale(1) brightness(0.6);
-  opacity: 0.4;
-}
-
-/* Filled (selected or hover) */
-.msd-burger-btn.is-filled .msd-burger-icon {
-  filter: none;
-  opacity: 1;
-}
-
-/* Hover animation */
-.msd-burger-btn:hover .msd-burger-icon {
-  transform: scale(1.15);
-}
-
-.msd-rating-input {
-  width: 100px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: transparent;
-  color: inherit;
-}
-
-.msd-cast-grid,
-.msd-recommended-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
-}
-
-.msd-cast-card,
-.msd-rec-card {
-  background: rgba(255,255,255,0.04);
-  border-radius: 14px;
-  overflow: hidden;
-  text-decoration: none;
-  color: inherit;
-}
-
-.msd-cast-image,
-.msd-rec-poster {
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  display: block;
-}
-
-.msd-cast-name,
-.msd-rec-title {
-  font-weight: 700;
-  padding: 10px 10px 4px;
-}
-
-.msd-cast-role,
-.msd-rec-date,
-.msd-muted {
-  padding: 0 10px 10px;
-  opacity: 0.75;
-}
-
-@media (max-width: 900px) {
-  .msd-extra-grid {
-    grid-template-columns: 1fr;
+  .msd-panel {
+    padding: 16px;
+    border-radius: 20px;
   }
 }
