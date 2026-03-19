@@ -5,6 +5,11 @@ import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
 
 function makeEpisodeCode(ep) {
+  if (Number(ep?.seasonNumber) === 0) {
+    if (!ep?.number) return "Special";
+    return `Special ${ep.number}`;
+  }
+
   if (!ep?.seasonNumber || !ep?.number) return "Episode";
   return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(ep.number).padStart(2, "0")}`;
 }
@@ -41,6 +46,19 @@ function getYear(dateString) {
   const d = new Date(dateString);
   if (Number.isNaN(d.getTime())) return "";
   return String(d.getFullYear());
+}
+
+function getSeasonLabel(seasonNumber) {
+  return Number(seasonNumber) === 0 ? "Specials" : `Season ${seasonNumber}`;
+}
+
+function sortSeasonGroups(a, b) {
+  const aNum = Number(a[0]);
+  const bNum = Number(b[0]);
+
+  if (aNum === 0 && bNum !== 0) return -1;
+  if (bNum === 0 && aNum !== 0) return 1;
+  return aNum - bNum;
 }
 
 async function fetchWatchedRows(userId) {
@@ -83,6 +101,7 @@ export default function MyShowDetails() {
 
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
+  const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
 
   const [burgrRatings, setBurgrRatings] = useState([]);
   const [myBurgrRating, setMyBurgrRating] = useState("");
@@ -107,6 +126,7 @@ export default function MyShowDetails() {
           setExpandedSeasons({});
           setCast([]);
           setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
           return;
@@ -120,6 +140,7 @@ export default function MyShowDetails() {
           setExpandedSeasons({});
           setCast([]);
           setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
           return;
@@ -193,6 +214,7 @@ export default function MyShowDetails() {
             setExpandedSeasons({});
             setCast([]);
             setRecommendedShows([]);
+            setPeopleAlsoWatch([]);
             setBurgrRatings([]);
             setMyBurgrRating("");
             return;
@@ -243,14 +265,17 @@ export default function MyShowDetails() {
 
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
-          if (!(ep.seasonNumber in seasonMap)) {
-            seasonMap[ep.seasonNumber] = false;
+          const seasonKey = Number(ep.seasonNumber ?? 0);
+          if (!(seasonKey in seasonMap)) {
+            seasonMap[seasonKey] = false;
           }
         });
 
         if (targetEpisodeId) {
           const targetEpisode = normalizedEpisodes.find((ep) => String(ep.id) === String(targetEpisodeId));
-          if (targetEpisode) seasonMap[targetEpisode.seasonNumber] = true;
+          if (targetEpisode) {
+            seasonMap[Number(targetEpisode.seasonNumber ?? 0)] = true;
+          }
         }
 
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
@@ -283,6 +308,7 @@ export default function MyShowDetails() {
 
         setCast([]);
         setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
 
         try {
           setExtrasLoading(true);
@@ -291,12 +317,19 @@ export default function MyShowDetails() {
             throw new Error(`Failed to load show extras (${extrasRes.status})`);
           }
           const extras = await extrasRes.json();
-          setCast(Array.isArray(extras.cast) ? extras.cast : []);
-          setRecommendedShows(Array.isArray(extras.recommendations) ? extras.recommendations : []);
+
+          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
+          const tvdbPeopleAlsoWatch = Array.isArray(extras.peopleAlsoWatch) ? extras.peopleAlsoWatch : [];
+          const fallbackRecommendations = Array.isArray(extras.recommendations) ? extras.recommendations : [];
+
+          setCast(castRows);
+          setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
+          setRecommendedShows(tvdbPeopleAlsoWatch.length > 0 ? tvdbPeopleAlsoWatch : fallbackRecommendations);
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           setCast([]);
           setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
         } finally {
           setExtrasLoading(false);
         }
@@ -308,6 +341,7 @@ export default function MyShowDetails() {
         setExpandedSeasons({});
         setCast([]);
         setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
         setBurgrRatings([]);
         setMyBurgrRating("");
       } finally {
@@ -334,17 +368,21 @@ export default function MyShowDetails() {
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
+
     for (const ep of episodes) {
-      if (!grouped[ep.seasonNumber]) grouped[ep.seasonNumber] = [];
-      grouped[ep.seasonNumber].push(ep);
+      const seasonKey = Number(ep.seasonNumber ?? 0);
+      if (!grouped[seasonKey]) grouped[seasonKey] = [];
+      grouped[seasonKey].push(ep);
     }
 
     return Object.entries(grouped)
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .sort(sortSeasonGroups)
       .map(([seasonNumber, seasonEpisodes]) => {
         const watchedCount = seasonEpisodes.filter((ep) => isEpisodeWatched(ep, watchedEpisodeIds)).length;
         return {
           seasonNumber: Number(seasonNumber),
+          label: getSeasonLabel(Number(seasonNumber)),
+          isSpecials: Number(seasonNumber) === 0,
           episodes: seasonEpisodes,
           watchedCount,
           totalCount: seasonEpisodes.length,
@@ -390,7 +428,9 @@ export default function MyShowDetails() {
   }
 
   async function handleMarkWatched(ep) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     try {
@@ -406,13 +446,18 @@ export default function MyShowDetails() {
   }
 
   async function handleWatchUpToHere(targetEpisode) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     try {
       const episodesToBeWatched = episodes.filter((ep) => {
-        if (ep.seasonNumber < targetEpisode.seasonNumber) return true;
-        return ep.seasonNumber === targetEpisode.seasonNumber && ep.number <= targetEpisode.number;
+        const epSeason = Number(ep.seasonNumber ?? 0);
+        const targetSeason = Number(targetEpisode.seasonNumber ?? 0);
+
+        if (epSeason < targetSeason) return true;
+        return epSeason === targetSeason && ep.number <= targetEpisode.number;
       });
 
       if (episodesToBeWatched.length === 0) return;
@@ -428,7 +473,9 @@ export default function MyShowDetails() {
   }
 
   async function handleSelectBurgrRating(value) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user || !show?.id || savingBurgr) return;
 
     const rating = Number(value);
@@ -455,7 +502,13 @@ export default function MyShowDetails() {
   }
 
   if (loading) {
-    return <div className="msd-page"><div className="msd-shell"><div className="msd-loading">Loading show...</div></div></div>;
+    return (
+      <div className="msd-page">
+        <div className="msd-shell">
+          <div className="msd-loading">Loading show...</div>
+        </div>
+      </div>
+    );
   }
 
   if (!show) {
@@ -599,7 +652,7 @@ export default function MyShowDetails() {
               <section key={season.seasonNumber} className={`msd-season-card ${season.complete ? "msd-season-complete" : ""}`}>
                 <button type="button" className="msd-season-toggle" onClick={() => toggleSeason(season.seasonNumber)}>
                   <div>
-                    <div className="msd-season-title">Season {season.seasonNumber}</div>
+                    <div className="msd-season-title">{season.label}</div>
                     <div className="msd-season-subtitle">{season.watchedCount}/{season.totalCount} watched</div>
                   </div>
                   <div className="msd-season-toggle-right">
@@ -648,7 +701,7 @@ export default function MyShowDetails() {
           </div>
         </section>
 
-        <section className="msd-panel">
+        <section className="msd-panel msd-panel-spaced">
           <h2 className="msd-section-title">Cast</h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading cast...</p>
@@ -668,14 +721,17 @@ export default function MyShowDetails() {
         </section>
 
         <section className="msd-panel">
-          <h2 className="msd-section-title">Recommended Shows</h2>
+          <h2 className="msd-section-title">
+            {peopleAlsoWatch.length > 0 ? "People Also Watch" : "Recommended Shows"}
+          </h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
           ) : recommendedShows.length > 0 ? (
             <div className="msd-recommended-grid">
               {recommendedShows.map((rec, index) => {
-                const hasTvdbId = rec.tvdb_id || rec.tvdbId;
-                const linkTarget = hasTvdbId ? `/my-shows/${rec.tvdb_id || rec.tvdbId}` : "#";
+                const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
+                const hasTvdbId = !!tvdbIdValue;
+                const linkTarget = hasTvdbId ? `/my-shows/${tvdbIdValue}` : "#";
                 const content = (
                   <>
                     {rec.poster_url || rec.posterUrl ? <img src={rec.poster_url || rec.posterUrl} alt={rec.name || "Recommended show"} className="msd-rec-poster" /> : null}
