@@ -158,6 +158,79 @@ function normalizeCastFromSeries(seriesData) {
     }));
 }
 
+function buildRecommendationItem(item, index, prefix = "rec") {
+  const tvdbId =
+    item?.tvdb_id ||
+    item?.tvdbId ||
+    item?.id ||
+    item?.seriesId ||
+    item?.series_id ||
+    item?.remoteIds?.tvdb ||
+    null;
+
+  const name =
+    item?.name ||
+    item?.seriesName ||
+    item?.series_name ||
+    item?.translations?.name ||
+    null;
+
+  const posterUrl = pickImage(
+    item?.poster_url,
+    item?.posterUrl,
+    item?.poster,
+    item?.image,
+    item?.image_url,
+    item?.thumbnail
+  );
+
+  const firstAired =
+    item?.firstAired ||
+    item?.first_aired ||
+    item?.year ||
+    null;
+
+  return {
+    id: item?.id || `${prefix}-${index}`,
+    tvdb_id: tvdbId,
+    tvdbId,
+    name,
+    poster_url: posterUrl,
+    posterUrl,
+    first_aired: firstAired,
+    firstAired,
+  };
+}
+
+function dedupeRecommendations(items) {
+  const seen = new Set();
+
+  return items.filter((item) => {
+    const key = String(item.tvdb_id || item.tvdbId || "");
+    if (!key) return false;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizePeopleAlsoWatch(seriesData) {
+  const candidates = [
+    ...(Array.isArray(seriesData?.peopleAlsoWatch)
+      ? seriesData.peopleAlsoWatch
+      : []),
+    ...(Array.isArray(seriesData?.people_also_watch)
+      ? seriesData.people_also_watch
+      : []),
+  ];
+
+  return dedupeRecommendations(
+    candidates
+      .map((item, index) => buildRecommendationItem(item, index, "paw"))
+      .filter((item) => item.tvdb_id && item.name)
+  ).slice(0, 12);
+}
+
 function normalizeRecommendations(seriesData) {
   const candidates = [
     ...(Array.isArray(seriesData?.recommendations)
@@ -170,45 +243,11 @@ function normalizeRecommendations(seriesData) {
       : []),
   ];
 
-  const seen = new Set();
-
-  return candidates
-    .map((item, index) => {
-      const tvdbId =
-        item?.tvdb_id ||
-        item?.tvdbId ||
-        item?.id ||
-        item?.seriesId ||
-        item?.series_id ||
-        null;
-
-      const name = item?.name || item?.seriesName || item?.series_name || null;
-
-      const posterUrl = pickImage(
-        item?.poster_url,
-        item?.poster,
-        item?.image,
-        item?.image_url
-      );
-
-      const firstAired = item?.firstAired || item?.first_aired || null;
-
-      return {
-        id: item?.id || `rec-${index}`,
-        tvdb_id: tvdbId,
-        name,
-        poster_url: posterUrl,
-        first_aired: firstAired,
-      };
-    })
-    .filter((item) => item.tvdb_id && item.name)
-    .filter((item) => {
-      const key = String(item.tvdb_id);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 12);
+  return dedupeRecommendations(
+    candidates
+      .map((item, index) => buildRecommendationItem(item, index, "rec"))
+      .filter((item) => item.tvdb_id && item.name)
+  ).slice(0, 12);
 }
 
 export async function handler(event) {
@@ -224,12 +263,22 @@ export async function handler(event) {
     const seriesData = seriesJson?.data || {};
 
     const cast = normalizeCastFromSeries(seriesData);
-    const recommendations = normalizeRecommendations(seriesData);
+    const peopleAlsoWatch = normalizePeopleAlsoWatch(seriesData);
+    const fallbackRecommendations = normalizeRecommendations(seriesData);
+    const recommendations =
+      peopleAlsoWatch.length > 0 ? peopleAlsoWatch : fallbackRecommendations;
 
     return jsonResponse(200, {
       cast,
       providers: [],
+      peopleAlsoWatch,
       recommendations,
+      debug: {
+        hasPeopleAlsoWatchArray: Array.isArray(seriesData?.peopleAlsoWatch),
+        hasPeopleAlsoWatchSnakeArray: Array.isArray(seriesData?.people_also_watch),
+        peopleAlsoWatchCount: peopleAlsoWatch.length,
+        fallbackRecommendationsCount: fallbackRecommendations.length,
+      },
     });
   } catch (error) {
     console.error("getShowExtras failed:", error);
@@ -238,6 +287,7 @@ export async function handler(event) {
       error: error.message || "Failed to load show extras",
       cast: [],
       providers: [],
+      peopleAlsoWatch: [],
       recommendations: [],
     });
   }
