@@ -250,6 +250,56 @@ function normalizeRecommendations(seriesData) {
   ).slice(0, 12);
 }
 
+async function getPeopleAlsoWatch(tvdbId) {
+  try {
+    const json = await tvdbGet(`/series/${tvdbId}/filter`);
+    const data = Array.isArray(json?.data) ? json.data : [];
+
+    return dedupeRecommendations(
+      data
+        .map((item, index) => ({
+          id: item?.id || `paw-${index}`,
+          tvdb_id: item?.id || item?.tvdb_id || item?.tvdbId || null,
+          tvdbId: item?.id || item?.tvdb_id || item?.tvdbId || null,
+          name:
+            item?.name ||
+            item?.seriesName ||
+            item?.series_name ||
+            item?.translations?.name ||
+            null,
+          poster_url: pickImage(
+            item?.image,
+            item?.thumbnail,
+            item?.poster,
+            item?.poster_url,
+            item?.posterUrl
+          ),
+          posterUrl: pickImage(
+            item?.image,
+            item?.thumbnail,
+            item?.poster,
+            item?.poster_url,
+            item?.posterUrl
+          ),
+          first_aired:
+            item?.firstAired ||
+            item?.first_aired ||
+            item?.year ||
+            null,
+          firstAired:
+            item?.firstAired ||
+            item?.first_aired ||
+            item?.year ||
+            null,
+        }))
+        .filter((item) => item.tvdb_id && item.name)
+    ).slice(0, 12);
+  } catch (error) {
+    console.error("peopleAlsoWatch fetch failed:", error);
+    return [];
+  }
+}
+
 export async function handler(event) {
   try {
     const tvdbIdRaw = event.queryStringParameters?.tvdbId;
@@ -263,7 +313,14 @@ export async function handler(event) {
     const seriesData = seriesJson?.data || {};
 
     const cast = normalizeCastFromSeries(seriesData);
-    const peopleAlsoWatch = normalizePeopleAlsoWatch(seriesData);
+
+    const inlinePeopleAlsoWatch = normalizePeopleAlsoWatch(seriesData);
+    const fetchedPeopleAlsoWatch = await getPeopleAlsoWatch(tvdbId);
+    const peopleAlsoWatch =
+      fetchedPeopleAlsoWatch.length > 0
+        ? fetchedPeopleAlsoWatch
+        : inlinePeopleAlsoWatch;
+
     const fallbackRecommendations = normalizeRecommendations(seriesData);
     const recommendations =
       peopleAlsoWatch.length > 0 ? peopleAlsoWatch : fallbackRecommendations;
@@ -276,6 +333,8 @@ export async function handler(event) {
       debug: {
         hasPeopleAlsoWatchArray: Array.isArray(seriesData?.peopleAlsoWatch),
         hasPeopleAlsoWatchSnakeArray: Array.isArray(seriesData?.people_also_watch),
+        inlinePeopleAlsoWatchCount: inlinePeopleAlsoWatch.length,
+        fetchedPeopleAlsoWatchCount: fetchedPeopleAlsoWatch.length,
         peopleAlsoWatchCount: peopleAlsoWatch.length,
         fallbackRecommendationsCount: fallbackRecommendations.length,
       },
