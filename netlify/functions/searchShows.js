@@ -164,6 +164,7 @@ function normalizeSearchResult(item) {
 
   return {
     tvdb_id: Number(item?.tvdb_id || item?.id) || null,
+    tmdb_id: null,
     name: item?.name || item?.seriesName || "Unknown title",
     overview: item?.overview || "",
     status:
@@ -173,6 +174,7 @@ function normalizeSearchResult(item) {
     first_aired: item?.first_air_time || item?.firstAired || null,
     first_air_time: item?.first_air_time || item?.firstAired || null,
     image_url: item?.image_url || item?.image || null,
+    poster_url: item?.image_url || item?.image || null,
     slug: item?.slug || null,
     network: normalizeNetwork(
       item?.network ||
@@ -194,6 +196,7 @@ function normalizeSearchResult(item) {
     rating_count: normalizeNumber(
       item?.rating_count ?? item?.siteRatingCount ?? item?.scoreCount
     ),
+    source: "tvdb",
   };
 }
 
@@ -274,6 +277,7 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
+    tmdb_id: null,
     name: series?.name || "Unknown title",
     overview: series?.overview || "",
     status:
@@ -283,14 +287,18 @@ function normalizeSeriesDetails(series) {
     first_aired: series?.firstAired || null,
     first_air_time: series?.firstAired || null,
     image_url: poster,
+    poster_url: poster,
     slug: series?.slug || null,
     network: primaryCompany?.name || null,
     genres,
     relationship_types:
-      normalizeStringArray(series?.relationship_types) ||
-      extractTagValues(series, "relationship types"),
+      normalizeStringArray(series?.relationship_types).length > 0
+        ? normalizeStringArray(series?.relationship_types)
+        : extractTagValues(series, "relationship types"),
     settings:
-      normalizeStringArray(series?.settings) || extractTagValues(series, "setting"),
+      normalizeStringArray(series?.settings).length > 0
+        ? normalizeStringArray(series?.settings)
+        : extractTagValues(series, "setting"),
     original_language: normalizeLanguage(
       series?.originalLanguage || series?.language || ""
     ),
@@ -306,6 +314,34 @@ function normalizeSeriesDetails(series) {
         series?.ratingCount ??
         series?.rating_count
     ),
+    source: "tvdb",
+  };
+}
+
+function normalizeTmdbShow(item, networkName = "") {
+  return {
+    tvdb_id: null,
+    tmdb_id: Number(item?.id) || null,
+    name: item?.name || item?.original_name || "Unknown title",
+    overview: item?.overview || "",
+    status: null,
+    first_aired: item?.first_air_date || null,
+    first_air_time: item?.first_air_date || null,
+    image_url: item?.poster_path
+      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+      : null,
+    poster_url: item?.poster_path
+      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+      : null,
+    slug: null,
+    network: networkName || null,
+    genres: [],
+    relationship_types: [],
+    settings: [],
+    original_language: normalizeLanguage(item?.original_language || ""),
+    rating_average: normalizeNumber(item?.vote_average),
+    rating_count: normalizeNumber(item?.vote_count),
+    source: "tmdb",
   };
 }
 
@@ -454,6 +490,75 @@ async function fetchSeriesDetails(token, tvdbId) {
   }
 
   return normalizeSeriesDetails(data.data);
+}
+
+async function tmdbFetch(path, params = {}) {
+  const apiKey = process.env.TMDB_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Missing TMDB_API_KEY environment variable");
+  }
+
+  const url = new URL(`https://api.themoviedb.org/3${path}`);
+  url.searchParams.set("api_key", apiKey);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, value);
+    }
+  }
+
+  const res = await fetch(url.toString());
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data?.status_message || "TMDB request failed");
+  }
+
+  return data;
+}
+
+async function findTmdbNetworkIdByName(networkName) {
+  const data = await tmdbFetch("/search/company", {
+    query: networkName,
+    page: 1,
+  });
+
+  const results = Array.isArray(data?.results) ? data.results : [];
+  if (!results.length) return null;
+
+  const exact = results.find(
+    (item) =>
+      String(item?.name || "").trim().toLowerCase() ===
+      String(networkName || "").trim().toLowerCase()
+  );
+
+  return exact?.id || results[0]?.id || null;
+}
+
+async function discoverTmdbByNetwork(networkName) {
+  const networkId = await findTmdbNetworkIdByName(networkName);
+
+  if (!networkId) {
+    return [];
+  }
+
+  const data = await tmdbFetch("/discover/tv", {
+    with_networks: networkId,
+    sort_by: "first_air_date.desc",
+    include_null_first_air_dates: "false",
+    page: 1,
+  });
+
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  return results
+    .map((item) => normalizeTmdbShow(item, networkName))
+    .sort((a, b) => {
+      const aTime = a.first_aired ? new Date(a.first_aired).getTime() : 0;
+      const bTime = b.first_aired ? new Date(b.first_aired).getTime() : 0;
+      return bTime - aTime;
+    });
 }
 
 function scoreShow(show, options) {
@@ -630,6 +735,16 @@ export async function handler(event) {
         body: JSON.stringify({
           message: "Missing search query",
         }),
+      };
+    }
+
+    // TMDB NETWORK MODE - NEWEST TO OLDEST
+    if (network && !genre && !relationshipType && !setting && !query) {
+      const results = await discoverTmdbByNetwork(network);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(results.slice(0, 40)),
       };
     }
 
