@@ -11,11 +11,18 @@ function makeEpisodeCode(ep) {
   }
 
   if (!ep?.seasonNumber || !ep?.number) return "Episode";
-  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(ep.number).padStart(2, "0")}`;
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
 }
 
 function buildWatchedEpisodeIdSet(rows) {
-  return new Set((rows || []).map((row) => row.episode_id).filter(Boolean).map(String));
+  return new Set(
+    (rows || [])
+      .map((row) => row.episode_id)
+      .filter(Boolean)
+      .map(String)
+  );
 }
 
 function isEpisodeWatched(ep, watchedEpisodeIds) {
@@ -36,7 +43,11 @@ function getDaysUntil(dateString) {
   if (Number.isNaN(target.getTime())) return null;
 
   const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const targetStart = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  );
 
   return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
 }
@@ -107,7 +118,10 @@ export default function MyShowDetails() {
   const [myBurgrRating, setMyBurgrRating] = useState("");
   const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
 
-  const watchedEpisodeIds = useMemo(() => buildWatchedEpisodeIdSet(watchedRows), [watchedRows]);
+  const watchedEpisodeIds = useMemo(
+    () => buildWatchedEpisodeIdSet(watchedRows),
+    [watchedRows]
+  );
 
   useEffect(() => {
     async function loadShow() {
@@ -272,7 +286,9 @@ export default function MyShowDetails() {
         });
 
         if (targetEpisodeId) {
-          const targetEpisode = normalizedEpisodes.find((ep) => String(ep.id) === String(targetEpisodeId));
+          const targetEpisode = normalizedEpisodes.find(
+            (ep) => String(ep.id) === String(targetEpisodeId)
+          );
           if (targetEpisode) {
             seasonMap[Number(targetEpisode.seasonNumber ?? 0)] = true;
           }
@@ -291,10 +307,20 @@ export default function MyShowDetails() {
           network: showRecord.network || "",
           original_language: showRecord.original_language || "",
           genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
-          relationship_types: Array.isArray(showRecord.relationship_types) ? showRecord.relationship_types : [],
-          settings: Array.isArray(showRecord.settings) ? showRecord.settings : [],
-          rating_average: showRecord.rating_average != null ? Number(showRecord.rating_average) : null,
-          rating_count: showRecord.rating_count != null ? Number(showRecord.rating_count) : null,
+          relationship_types: Array.isArray(showRecord.relationship_types)
+            ? showRecord.relationship_types
+            : [],
+          settings: Array.isArray(showRecord.settings)
+            ? showRecord.settings
+            : [],
+          rating_average:
+            showRecord.rating_average != null
+              ? Number(showRecord.rating_average)
+              : null,
+          rating_count:
+            showRecord.rating_count != null
+              ? Number(showRecord.rating_count)
+              : null,
           watch_status: userShowRow?.watch_status || "not_added",
           added_at: userShowRow?.added_at || null,
           created_at: userShowRow?.created_at || null,
@@ -312,19 +338,29 @@ export default function MyShowDetails() {
 
         try {
           setExtrasLoading(true);
-          const extrasRes = await fetch(`/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`);
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
+          );
           if (!extrasRes.ok) {
             throw new Error(`Failed to load show extras (${extrasRes.status})`);
           }
           const extras = await extrasRes.json();
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
-          const tvdbPeopleAlsoWatch = Array.isArray(extras.peopleAlsoWatch) ? extras.peopleAlsoWatch : [];
-          const fallbackRecommendations = Array.isArray(extras.recommendations) ? extras.recommendations : [];
+          const tvdbPeopleAlsoWatch = Array.isArray(extras.peopleAlsoWatch)
+            ? extras.peopleAlsoWatch
+            : [];
+          const fallbackRecommendations = Array.isArray(extras.recommendations)
+            ? extras.recommendations
+            : [];
 
           setCast(castRows);
           setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
-          setRecommendedShows(tvdbPeopleAlsoWatch.length > 0 ? tvdbPeopleAlsoWatch : fallbackRecommendations);
+          setRecommendedShows(
+            tvdbPeopleAlsoWatch.length > 0
+              ? tvdbPeopleAlsoWatch
+              : fallbackRecommendations
+          );
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           setCast([]);
@@ -378,7 +414,9 @@ export default function MyShowDetails() {
     return Object.entries(grouped)
       .sort(sortSeasonGroups)
       .map(([seasonNumber, seasonEpisodes]) => {
-        const watchedCount = seasonEpisodes.filter((ep) => isEpisodeWatched(ep, watchedEpisodeIds)).length;
+        const watchedCount = seasonEpisodes.filter((ep) =>
+          isEpisodeWatched(ep, watchedEpisodeIds)
+        ).length;
         return {
           seasonNumber: Number(seasonNumber),
           label: getSeasonLabel(Number(seasonNumber)),
@@ -386,33 +424,48 @@ export default function MyShowDetails() {
           episodes: seasonEpisodes,
           watchedCount,
           totalCount: seasonEpisodes.length,
-          complete: seasonEpisodes.length > 0 && watchedCount === seasonEpisodes.length,
+          complete:
+            seasonEpisodes.length > 0 &&
+            watchedCount === seasonEpisodes.length,
         };
       });
   }, [episodes, watchedEpisodeIds]);
 
   const stats = useMemo(() => {
     const total = episodes.length;
-    const watched = episodes.filter((ep) => isEpisodeWatched(ep, watchedEpisodeIds)).length;
+    const watched = episodes.filter((ep) =>
+      isEpisodeWatched(ep, watchedEpisodeIds)
+    ).length;
     const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
-    const nextEpisode = episodes.find((ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired));
+    const nextEpisode = episodes.find(
+      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
+    );
     return { total, watched, pct, nextEpisode };
   }, [episodes, watchedEpisodeIds]);
 
   const burgrStats = useMemo(() => {
-    const ratings = burgrRatings.map((r) => Number(r.rating)).filter((n) => !Number.isNaN(n));
-    const avg = ratings.length > 0 ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1) : null;
+    const ratings = burgrRatings
+      .map((r) => Number(r.rating))
+      .filter((n) => !Number.isNaN(n));
+    const avg =
+      ratings.length > 0
+        ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1)
+        : null;
     return { avg, count: ratings.length };
   }, [burgrRatings]);
 
   const sourceYear = getYear(show?.first_aired);
-  const sourceRating = show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
-    ? Number(show.rating_average).toFixed(1)
-    : "";
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
   const sourceLanguage = show?.original_language || "";
 
   function toggleSeason(seasonNumber) {
-    setExpandedSeasons((prev) => ({ ...prev, [seasonNumber]: !prev[seasonNumber] }));
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
   }
 
   async function refreshWatched(userId) {
@@ -433,15 +486,32 @@ export default function MyShowDetails() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    const watched = isEpisodeWatched(ep, watchedEpisodeIds);
+
     try {
-      const { error } = await supabase
-        .from("watched_episodes")
-        .upsert({ user_id: user.id, episode_id: ep.id }, { onConflict: "user_id,episode_id" });
-      if (error) throw error;
+      if (watched) {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("episode_id", ep.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(
+            { user_id: user.id, episode_id: ep.id },
+            { onConflict: "user_id,episode_id" }
+          );
+
+        if (error) throw error;
+      }
+
       await refreshWatched(user.id);
     } catch (error) {
-      console.error("Failed marking watched:", error);
-      alert(error.message || "Failed marking watched");
+      console.error("Failed toggling watched state:", error);
+      alert(error.message || "Failed updating watched status");
     }
   }
 
@@ -452,19 +522,47 @@ export default function MyShowDetails() {
     if (!user) return;
 
     try {
-      const episodesToBeWatched = episodes.filter((ep) => {
+      const targetSeason = Number(targetEpisode.seasonNumber ?? 0);
+      const targetEpisodeNumber = Number(targetEpisode.number ?? 0);
+
+      const desiredWatchedEpisodes = episodes.filter((ep) => {
         const epSeason = Number(ep.seasonNumber ?? 0);
-        const targetSeason = Number(targetEpisode.seasonNumber ?? 0);
+        const epNumber = Number(ep.number ?? 0);
 
         if (epSeason < targetSeason) return true;
-        return epSeason === targetSeason && ep.number <= targetEpisode.number;
+        if (epSeason > targetSeason) return false;
+        return epNumber <= targetEpisodeNumber;
       });
 
-      if (episodesToBeWatched.length === 0) return;
+      const desiredWatchedIds = desiredWatchedEpisodes.map((ep) => ep.id);
+      const allShowEpisodeIds = episodes.map((ep) => ep.id);
+      const idsToRemove = allShowEpisodeIds.filter(
+        (episodeId) => !desiredWatchedIds.includes(episodeId)
+      );
 
-      const rows = episodesToBeWatched.map((ep) => ({ user_id: user.id, episode_id: ep.id }));
-      const { error } = await supabase.from("watched_episodes").upsert(rows, { onConflict: "user_id,episode_id" });
-      if (error) throw error;
+      if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .in("episode_id", idsToRemove);
+
+        if (deleteError) throw deleteError;
+      }
+
+      if (desiredWatchedIds.length > 0) {
+        const rowsToUpsert = desiredWatchedIds.map((episodeId) => ({
+          user_id: user.id,
+          episode_id: episodeId,
+        }));
+
+        const { error: upsertError } = await supabase
+          .from("watched_episodes")
+          .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
+
+        if (upsertError) throw upsertError;
+      }
+
       await refreshWatched(user.id);
     } catch (error) {
       console.error("Failed watch up to here:", error);
@@ -517,7 +615,9 @@ export default function MyShowDetails() {
         <div className="msd-shell">
           <div className="msd-empty">
             <p>Show not found.</p>
-            <Link to="/my-shows" className="msd-back-link">Back to My Shows</Link>
+            <Link to="/my-shows" className="msd-back-link">
+              Back to My Shows
+            </Link>
           </div>
         </div>
       </div>
@@ -525,34 +625,65 @@ export default function MyShowDetails() {
   }
 
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
-  const baseContext = `sourceShowId=${encodeURIComponent(show.tvdb_id)}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(sourceRating)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
+  const baseContext = `sourceShowId=${encodeURIComponent(
+    show.tvdb_id
+  )}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(
+    sourceRating
+  )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
   return (
     <div className="msd-page">
       <div className="msd-shell">
-        <Link to="/my-shows" className="msd-back-link">← Back to My Shows</Link>
+        <Link to="/my-shows" className="msd-back-link">
+          ← Back to My Shows
+        </Link>
 
         <section className="msd-hero">
-          {show.poster_url ? <img src={show.poster_url} alt={show.show_name} className="msd-poster" /> : null}
+          {show.poster_url ? (
+            <img
+              src={show.poster_url}
+              alt={show.show_name}
+              className="msd-poster"
+            />
+          ) : null}
 
           <div className="msd-hero-main">
             <h1 className="msd-title">{show.show_name}</h1>
-            {show.overview ? <p className="msd-overview">{show.overview}</p> : null}
+            {show.overview ? (
+              <p className="msd-overview">{show.overview}</p>
+            ) : null}
 
             <div className="msd-meta">
-              {show.first_aired ? <div>First aired: {formatDate(show.first_aired)}</div> : null}
+              {show.first_aired ? (
+                <div>First aired: {formatDate(show.first_aired)}</div>
+              ) : null}
               {stats.nextEpisode ? (
                 <div>
-                  Next episode: {formatDate(stats.nextEpisode.aired)} ({getDaysUntil(stats.nextEpisode.aired) === 0 ? "TODAY" : getDaysUntil(stats.nextEpisode.aired) === 1 ? "IN 1 DAY" : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`})
+                  Next episode: {formatDate(stats.nextEpisode.aired)} (
+                  {getDaysUntil(stats.nextEpisode.aired) === 0
+                    ? "TODAY"
+                    : getDaysUntil(stats.nextEpisode.aired) === 1
+                    ? "IN 1 DAY"
+                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
+                  )
                 </div>
               ) : null}
               {show.status ? <div>Status: {show.status}</div> : null}
             </div>
 
             <div className="msd-stats-row msd-stats-row-top">
-              <div className="msd-stat-box"><span className="msd-stat-label">Watched</span><strong className="msd-stat-value">{stats.watched}</strong></div>
-              <div className="msd-stat-box"><span className="msd-stat-label">Total</span><strong className="msd-stat-value">{stats.total}</strong></div>
-              <div className="msd-stat-box"><span className="msd-stat-label">Progress</span><strong className="msd-stat-value">{stats.pct}%</strong></div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Watched</span>
+                <strong className="msd-stat-value">{stats.watched}</strong>
+              </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Total</span>
+                <strong className="msd-stat-value">{stats.total}</strong>
+              </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Progress</span>
+                <strong className="msd-stat-value">{stats.pct}%</strong>
+              </div>
             </div>
 
             <div className="msd-stat-box msd-stat-box-full">
@@ -566,7 +697,9 @@ export default function MyShowDetails() {
                       <button
                         key={value}
                         type="button"
-                        className={`msd-burger-btn ${filled ? "is-filled" : "is-empty"}`}
+                        className={`msd-burger-btn ${
+                          filled ? "is-filled" : "is-empty"
+                        }`}
                         onMouseEnter={() => setHoverBurgrRating(value)}
                         onMouseLeave={() => setHoverBurgrRating(0)}
                         onClick={() => handleSelectBurgrRating(value)}
@@ -574,13 +707,23 @@ export default function MyShowDetails() {
                         title={`${value}/10`}
                         disabled={savingBurgr}
                       >
-                        <img src="/burger-rating.png" alt="" className="msd-burger-icon msd-burger-icon-small" />
+                        <img
+                          src="/burger-rating.png"
+                          alt=""
+                          className="msd-burger-icon msd-burger-icon-small"
+                        />
                       </button>
                     );
                   })}
                 </div>
                 <div className="msd-burgr-picker-footer msd-burgr-picker-footer-compact">
-                  <span className="msd-burgr-current">{savingBurgr ? "Saving..." : myBurgrRating ? `${myBurgrRating}/10` : "Select"}</span>
+                  <span className="msd-burgr-current">
+                    {savingBurgr
+                      ? "Saving..."
+                      : myBurgrRating
+                      ? `${myBurgrRating}/10`
+                      : "Select"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -588,59 +731,108 @@ export default function MyShowDetails() {
             <div className="msd-stats-row msd-stats-row-rest">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Average Burgrs</span>
-                <strong className="msd-stat-value">{burgrStats.avg ? `${burgrStats.avg}/10` : "—"}</strong>
+                <strong className="msd-stat-value">
+                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
+                </strong>
               </div>
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Network</span>
                 <strong className="msd-stat-value">
-                  {show.network ? <Link to={`/search?network=${encodeURIComponent(show.network)}&${baseContext}`} className="msd-link">{show.network}</Link> : "—"}
+                  {show.network ? (
+                    <Link
+                      to={`/search?network=${encodeURIComponent(
+                        show.network
+                      )}&${baseContext}`}
+                      className="msd-link"
+                    >
+                      {show.network}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </strong>
               </div>
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Genre</span>
                 <strong className="msd-stat-value">
-                  {show.genres?.length > 0 ? show.genres.map((genre, index) => (
-                    <span key={genre}>
-                      <Link to={`/search?genre=${encodeURIComponent(genre)}&${baseContext}`} className="msd-link">{genre}</Link>
-                      {index < show.genres.length - 1 ? ", " : ""}
-                    </span>
-                  )) : "—"}
+                  {show.genres?.length > 0
+                    ? show.genres.map((genre, index) => (
+                        <span key={genre}>
+                          <Link
+                            to={`/search?genre=${encodeURIComponent(
+                              genre
+                            )}&${baseContext}`}
+                            className="msd-link"
+                          >
+                            {genre}
+                          </Link>
+                          {index < show.genres.length - 1 ? ", " : ""}
+                        </span>
+                      ))
+                    : "—"}
                 </strong>
               </div>
             </div>
 
-            {(show.relationship_types?.length > 0 || show.settings?.length > 0) && (
-              <div className="msd-stats-row msd-stats-row-rest" style={{ marginTop: "12px" }}>
+            {(show.relationship_types?.length > 0 ||
+              show.settings?.length > 0) && (
+              <div
+                className="msd-stats-row msd-stats-row-rest"
+                style={{ marginTop: "12px" }}
+              >
                 <div className="msd-stat-box">
                   <span className="msd-stat-label">Relationship Types</span>
                   <strong className="msd-stat-value">
-                    {show.relationship_types?.length > 0 ? show.relationship_types.map((value, index) => (
-                      <span key={value}>
-                        <Link to={`/search?relationshipType=${encodeURIComponent(value)}&${baseContext}`} className="msd-link">{value}</Link>
-                        {index < show.relationship_types.length - 1 ? ", " : ""}
-                      </span>
-                    )) : "—"}
+                    {show.relationship_types?.length > 0
+                      ? show.relationship_types.map((value, index) => (
+                          <span key={value}>
+                            <Link
+                              to={`/search?relationshipType=${encodeURIComponent(
+                                value
+                              )}&${baseContext}`}
+                              className="msd-link"
+                            >
+                              {value}
+                            </Link>
+                            {index < show.relationship_types.length - 1
+                              ? ", "
+                              : ""}
+                          </span>
+                        ))
+                      : "—"}
                   </strong>
                 </div>
 
                 <div className="msd-stat-box msd-stat-box-rest-wide">
                   <span className="msd-stat-label">Settings</span>
                   <strong className="msd-stat-value">
-                    {show.settings?.length > 0 ? show.settings.map((value, index) => (
-                      <span key={value}>
-                        <Link to={`/search?setting=${encodeURIComponent(value)}&${baseContext}`} className="msd-link">{value}</Link>
-                        {index < show.settings.length - 1 ? ", " : ""}
-                      </span>
-                    )) : "—"}
+                    {show.settings?.length > 0
+                      ? show.settings.map((value, index) => (
+                          <span key={value}>
+                            <Link
+                              to={`/search?setting=${encodeURIComponent(
+                                value
+                              )}&${baseContext}`}
+                              className="msd-link"
+                            >
+                              {value}
+                            </Link>
+                            {index < show.settings.length - 1 ? ", " : ""}
+                          </span>
+                        ))
+                      : "—"}
                   </strong>
                 </div>
               </div>
             )}
 
             <div className="msd-progress">
-              <div className="msd-progress-fill" style={{ width: `${stats.pct}%` }} />
+              <div
+                className="msd-progress-fill"
+                style={{ width: `${stats.pct}%` }}
+              />
             </div>
           </div>
         </section>
@@ -649,15 +841,30 @@ export default function MyShowDetails() {
           <h2 className="msd-section-title">Episodes</h2>
           <div className="msd-seasons">
             {groupedSeasons.map((season) => (
-              <section key={season.seasonNumber} className={`msd-season-card ${season.complete ? "msd-season-complete" : ""}`}>
-                <button type="button" className="msd-season-toggle" onClick={() => toggleSeason(season.seasonNumber)}>
+              <section
+                key={season.seasonNumber}
+                className={`msd-season-card ${
+                  season.complete ? "msd-season-complete" : ""
+                }`}
+              >
+                <button
+                  type="button"
+                  className="msd-season-toggle"
+                  onClick={() => toggleSeason(season.seasonNumber)}
+                >
                   <div>
                     <div className="msd-season-title">{season.label}</div>
-                    <div className="msd-season-subtitle">{season.watchedCount}/{season.totalCount} watched</div>
+                    <div className="msd-season-subtitle">
+                      {season.watchedCount}/{season.totalCount} watched
+                    </div>
                   </div>
                   <div className="msd-season-toggle-right">
-                    {season.complete ? <span className="msd-season-badge">Completed</span> : null}
-                    <span className="msd-season-chevron">{expandedSeasons[season.seasonNumber] ? "▲" : "▼"}</span>
+                    {season.complete ? (
+                      <span className="msd-season-badge">Completed</span>
+                    ) : null}
+                    <span className="msd-season-chevron">
+                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                    </span>
                   </div>
                 </button>
 
@@ -666,28 +873,49 @@ export default function MyShowDetails() {
                     {season.episodes.map((ep) => {
                       const watched = isEpisodeWatched(ep, watchedEpisodeIds);
                       return (
-                        <article id={`episode-${ep.id}`} key={ep.id} className={`msd-episode-card ${watched ? "msd-episode-watched" : ""}`}>
+                        <article
+                          id={`episode-${ep.id}`}
+                          key={ep.id}
+                          className={`msd-episode-card ${
+                            watched ? "msd-episode-watched" : ""
+                          }`}
+                        >
                           <div className="msd-episode-top">
                             <div>
-                              <h3 className="msd-episode-title">{makeEpisodeCode(ep)} - {ep.name}</h3>
-                              <div className="msd-episode-date">Air date: {formatDate(ep.aired)}</div>
+                              <h3 className="msd-episode-title">
+                                {makeEpisodeCode(ep)} - {ep.name}
+                              </h3>
+                              <div className="msd-episode-date">
+                                Air date: {formatDate(ep.aired)}
+                              </div>
                             </div>
-                            {watched ? <span className="msd-watched-pill">Watched</span> : null}
+                            {watched ? (
+                              <span className="msd-watched-pill">Watched</span>
+                            ) : null}
                           </div>
 
-                          {ep.overview ? <p className="msd-episode-overview">{ep.overview}</p> : null}
+                          {ep.overview ? (
+                            <p className="msd-episode-overview">{ep.overview}</p>
+                          ) : null}
 
                           <div className="msd-actions">
                             <button
                               type="button"
-                              className={`msd-btn ${watched ? "msd-btn-success" : "msd-btn-primary"}`}
+                              className={`msd-btn ${
+                                watched
+                                  ? "msd-btn-secondary"
+                                  : "msd-btn-primary"
+                              }`}
                               onClick={() => handleMarkWatched(ep)}
-                              disabled={watched}
                             >
-                              {watched ? "Watched" : "Mark Watched"}
+                              {watched ? "Mark Unwatched" : "Mark Watched"}
                             </button>
 
-                            <button type="button" className="msd-btn msd-btn-secondary" onClick={() => handleWatchUpToHere(ep)}>
+                            <button
+                              type="button"
+                              className="msd-btn msd-btn-secondary"
+                              onClick={() => handleWatchUpToHere(ep)}
+                            >
                               Watch up to here
                             </button>
                           </div>
@@ -708,10 +936,23 @@ export default function MyShowDetails() {
           ) : cast.length > 0 ? (
             <div className="msd-cast-grid">
               {cast.map((member, index) => (
-                <div key={member.id || `${member.personName}-${index}`} className="msd-cast-card">
-                  {member.image ? <img src={member.image} alt={member.personName || "Cast member"} className="msd-cast-image" /> : null}
-                  <div className="msd-cast-name">{member.personName || "Unknown actor"}</div>
-                  <div className="msd-cast-role">{member.characterName || "Cast"}</div>
+                <div
+                  key={member.id || `${member.personName}-${index}`}
+                  className="msd-cast-card"
+                >
+                  {member.image ? (
+                    <img
+                      src={member.image}
+                      alt={member.personName || "Cast member"}
+                      className="msd-cast-image"
+                    />
+                  ) : null}
+                  <div className="msd-cast-name">
+                    {member.personName || "Unknown actor"}
+                  </div>
+                  <div className="msd-cast-role">
+                    {member.characterName || "Cast"}
+                  </div>
                 </div>
               ))}
             </div>
@@ -722,7 +963,9 @@ export default function MyShowDetails() {
 
         <section className="msd-panel">
           <h2 className="msd-section-title">
-            {peopleAlsoWatch.length > 0 ? "People Also Watch" : "Recommended Shows"}
+            {peopleAlsoWatch.length > 0
+              ? "People Also Watch"
+              : "Recommended Shows"}
           </h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
@@ -734,17 +977,44 @@ export default function MyShowDetails() {
                 const linkTarget = hasTvdbId ? `/my-shows/${tvdbIdValue}` : "#";
                 const content = (
                   <>
-                    {rec.poster_url || rec.posterUrl ? <img src={rec.poster_url || rec.posterUrl} alt={rec.name || "Recommended show"} className="msd-rec-poster" /> : null}
-                    <div className="msd-rec-title">{rec.name || "Unknown show"}</div>
-                    {rec.first_aired || rec.firstAired ? <div className="msd-rec-date">{formatDate(rec.first_aired || rec.firstAired)}</div> : null}
+                    {rec.poster_url || rec.posterUrl ? (
+                      <img
+                        src={rec.poster_url || rec.posterUrl}
+                        alt={rec.name || "Recommended show"}
+                        className="msd-rec-poster"
+                      />
+                    ) : null}
+                    <div className="msd-rec-title">
+                      {rec.name || "Unknown show"}
+                    </div>
+                    {rec.first_aired || rec.firstAired ? (
+                      <div className="msd-rec-date">
+                        {formatDate(rec.first_aired || rec.firstAired)}
+                      </div>
+                    ) : null}
                   </>
                 );
 
                 if (hasTvdbId) {
-                  return <Link key={rec.id || `${rec.name}-${index}`} to={linkTarget} className="msd-rec-card">{content}</Link>;
+                  return (
+                    <Link
+                      key={rec.id || `${rec.name}-${index}`}
+                      to={linkTarget}
+                      className="msd-rec-card"
+                    >
+                      {content}
+                    </Link>
+                  );
                 }
 
-                return <div key={rec.id || `${rec.name}-${index}`} className="msd-rec-card">{content}</div>;
+                return (
+                  <div
+                    key={rec.id || `${rec.name}-${index}`}
+                    className="msd-rec-card"
+                  >
+                    {content}
+                  </div>
+                );
               })}
             </div>
           ) : (
