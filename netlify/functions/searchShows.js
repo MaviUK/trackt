@@ -345,6 +345,56 @@ function normalizeTmdbShow(item, networkName = "") {
   };
 }
 
+function isExcludedNetworkResult(show) {
+  const title = String(show?.name || "").toLowerCase();
+  const overview = String(show?.overview || "").toLowerCase();
+
+  const blockedTitleTerms = [
+    "news",
+    "nightly news",
+    "morning news",
+    "evening news",
+    "today",
+    "dateline",
+    "late night",
+    "tonight show",
+    "daily",
+    "weekend news",
+    "meet the press",
+    "soap opera",
+  ];
+
+  const blockedOverviewTerms = [
+    "news program",
+    "newsmagazine",
+    "daily news",
+    "morning news",
+    "evening news",
+    "late-night",
+    "talk show",
+    "public affairs",
+    "current affairs",
+    "soap opera",
+    "variety show",
+    "broadcast journalist",
+    "broadcast on",
+    "broadcast from",
+  ];
+
+  if (blockedTitleTerms.some((term) => title.includes(term))) return true;
+  if (blockedOverviewTerms.some((term) => overview.includes(term))) return true;
+
+  return false;
+}
+
+function sortNewestToOldest(items) {
+  return [...items].sort((a, b) => {
+    const aTime = a.first_aired ? new Date(a.first_aired).getTime() : 0;
+    const bTime = b.first_aired ? new Date(b.first_aired).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 const RELATED_GENRES = {
   drama: ["drama", "thriller", "crime", "mystery", "romance"],
   thriller: ["thriller", "crime", "mystery", "drama", "horror", "suspense"],
@@ -543,22 +593,38 @@ async function discoverTmdbByNetwork(networkName) {
     return [];
   }
 
-  const data = await tmdbFetch("/discover/tv", {
-    with_networks: networkId,
-    sort_by: "first_air_date.desc",
-    include_null_first_air_dates: "false",
-    page: 1,
+  const all = [];
+
+  for (let page = 1; page <= 3; page += 1) {
+    const data = await tmdbFetch("/discover/tv", {
+      with_networks: networkId,
+      sort_by: "first_air_date.desc",
+      include_null_first_air_dates: "false",
+      page,
+    });
+
+    const results = Array.isArray(data?.results) ? data.results : [];
+    all.push(...results);
+
+    const totalPages = Number(data?.total_pages || 1);
+    if (page >= totalPages) break;
+  }
+
+  const normalized = all.map((item) => normalizeTmdbShow(item, networkName));
+
+  const filtered = normalized.filter((item) => {
+    if (isExcludedNetworkResult(item)) return false;
+
+    const year = getYear(item.first_aired || item.first_air_time);
+    if (year != null && year < 1990) return false;
+
+    const rating = normalizeNumber(item.rating_average);
+    if (rating != null && rating < 5.5) return false;
+
+    return true;
   });
 
-  const results = Array.isArray(data?.results) ? data.results : [];
-
-  return results
-    .map((item) => normalizeTmdbShow(item, networkName))
-    .sort((a, b) => {
-      const aTime = a.first_aired ? new Date(a.first_aired).getTime() : 0;
-      const bTime = b.first_aired ? new Date(b.first_aired).getTime() : 0;
-      return bTime - aTime;
-    });
+  return sortNewestToOldest(filtered).slice(0, 40);
 }
 
 function scoreShow(show, options) {
@@ -738,19 +804,17 @@ export async function handler(event) {
       };
     }
 
-    // TMDB NETWORK MODE - NEWEST TO OLDEST
     if (network && !genre && !relationshipType && !setting && !query) {
       const results = await discoverTmdbByNetwork(network);
 
       return {
         statusCode: 200,
-        body: JSON.stringify(results.slice(0, 40)),
+        body: JSON.stringify(results),
       };
     }
 
     const token = await loginToTvdb();
 
-    // NORMAL SEARCH MODE
     if (query && !genre && !network && !relationshipType && !setting) {
       const directResults = await searchTvdb(token, query);
 
@@ -786,7 +850,6 @@ export async function handler(event) {
       };
     }
 
-    // DISCOVERY MODE
     const seedTerms = buildSeedTerms({
       query,
       genre,
