@@ -31,30 +31,6 @@ export default function Search() {
     else setQuery("");
   }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
-  useEffect(() => {
-    if (genreFilter || networkFilter || relationshipTypeFilter || settingFilter) {
-      search({
-        genre: genreFilter || null,
-        network: networkFilter || null,
-        relationshipType: relationshipTypeFilter || null,
-        setting: settingFilter || null,
-        sourceShowId: sourceShowId || null,
-        sourceYear: sourceYear || null,
-        sourceRating: sourceRating || null,
-        sourceLanguage: sourceLanguage || null,
-      });
-    }
-  }, [
-    genreFilter,
-    networkFilter,
-    relationshipTypeFilter,
-    settingFilter,
-    sourceShowId,
-    sourceYear,
-    sourceRating,
-    sourceLanguage,
-  ]);
-
   const search = async (filters = null) => {
     const activeGenre = filters?.genre ?? null;
     const activeNetwork = filters?.network ?? null;
@@ -119,6 +95,33 @@ export default function Search() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (genreFilter || networkFilter || relationshipTypeFilter || settingFilter) {
+      const isPureNetworkBrowse =
+        !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
+
+      search({
+        genre: genreFilter || null,
+        network: networkFilter || null,
+        relationshipType: relationshipTypeFilter || null,
+        setting: settingFilter || null,
+        sourceShowId: sourceShowId || null,
+        sourceYear: isPureNetworkBrowse ? null : sourceYear || null,
+        sourceRating: isPureNetworkBrowse ? null : sourceRating || null,
+        sourceLanguage: isPureNetworkBrowse ? null : sourceLanguage || null,
+      });
+    }
+  }, [
+    genreFilter,
+    networkFilter,
+    relationshipTypeFilter,
+    settingFilter,
+    sourceShowId,
+    sourceYear,
+    sourceRating,
+    sourceLanguage,
+  ]);
 
   const markAlreadySaved = async (results) => {
     const {
@@ -225,6 +228,9 @@ export default function Search() {
     ? `Browse shows set in ${settingFilter}.`
     : "Find a show and add it to My Shows.";
 
+  const isPureNetworkBrowse =
+    !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
+
   return (
     <div className="page">
       <div className="page-shell">
@@ -299,12 +305,12 @@ export default function Search() {
                 Setting = {settingFilter}
               </span>
             ) : null}
-            {sourceYear ? (
+            {!isPureNetworkBrowse && sourceYear ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
                 {" | "}From year = {sourceYear}
               </span>
             ) : null}
-            {sourceRating ? (
+            {!isPureNetworkBrowse && sourceRating ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
                 {" | "}Min rating = {sourceRating}
               </span>
