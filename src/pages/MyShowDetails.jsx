@@ -403,45 +403,53 @@ export default function MyShowDetails() {
   }, [episodes, expandedSeasons, targetEpisodeId, loading]);
 
   const groupedSeasons = useMemo(() => {
-    const grouped = {};
+  const grouped = {};
 
-    for (const ep of episodes) {
-      const seasonKey = Number(ep.seasonNumber ?? 0);
-      if (!grouped[seasonKey]) grouped[seasonKey] = [];
-      grouped[seasonKey].push(ep);
-    }
+  for (const ep of episodes) {
+    const seasonKey = Number(ep.seasonNumber ?? 0);
 
-    return Object.entries(grouped)
-      .sort(sortSeasonGroups)
-      .map(([seasonNumber, seasonEpisodes]) => {
-        const watchedCount = seasonEpisodes.filter((ep) =>
-          isEpisodeWatched(ep, watchedEpisodeIds)
-        ).length;
-        return {
-          seasonNumber: Number(seasonNumber),
-          label: getSeasonLabel(Number(seasonNumber)),
-          isSpecials: Number(seasonNumber) === 0,
-          episodes: seasonEpisodes,
-          watchedCount,
-          totalCount: seasonEpisodes.length,
-          complete:
-            seasonEpisodes.length > 0 &&
-            watchedCount === seasonEpisodes.length,
-        };
-      });
-  }, [episodes, watchedEpisodeIds]);
+    if (seasonKey === 0) continue;
+
+    if (!grouped[seasonKey]) grouped[seasonKey] = [];
+    grouped[seasonKey].push(ep);
+  }
+
+  return Object.entries(grouped)
+    .sort(sortSeasonGroups)
+    .map(([seasonNumber, seasonEpisodes]) => {
+      const watchedCount = seasonEpisodes.filter((ep) =>
+        isEpisodeWatched(ep, watchedEpisodeIds)
+      ).length;
+
+      return {
+        seasonNumber: Number(seasonNumber),
+        label: `Season ${seasonNumber}`,
+        episodes: seasonEpisodes,
+        watchedCount,
+        totalCount: seasonEpisodes.length,
+        complete:
+          seasonEpisodes.length > 0 &&
+          watchedCount === seasonEpisodes.length,
+      };
+    });
+}, [episodes, watchedEpisodeIds]);
 
   const stats = useMemo(() => {
-    const total = episodes.length;
-    const watched = episodes.filter((ep) =>
-      isEpisodeWatched(ep, watchedEpisodeIds)
-    ).length;
-    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
-    const nextEpisode = episodes.find(
-      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
-    );
-    return { total, watched, pct, nextEpisode };
-  }, [episodes, watchedEpisodeIds]);
+  const mainEpisodes = episodes.filter(
+    (ep) => Number(ep.seasonNumber ?? 0) !== 0
+  );
+
+  const total = mainEpisodes.length;
+  const watched = mainEpisodes.filter((ep) =>
+    isEpisodeWatched(ep, watchedEpisodeIds)
+  ).length;
+  const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+  const nextEpisode = mainEpisodes.find(
+    (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
+  );
+
+  return { total, watched, pct, nextEpisode };
+}, [episodes, watchedEpisodeIds]);
 
   const burgrStats = useMemo(() => {
     const ratings = burgrRatings
