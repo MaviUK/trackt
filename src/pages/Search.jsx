@@ -131,7 +131,7 @@ export default function Search() {
     }
 
     const tvdbIds = results
-      .map((show) => Number(show.tvdb_id || show.id))
+      .map((show) => Number(show.tvdb_id))
       .filter(Boolean);
 
     if (!tvdbIds.length) {
@@ -173,13 +173,18 @@ export default function Search() {
       return;
     }
 
-    const tvdbId = String(show.tvdb_id || show.id);
+    if (!show.tvdb_id) {
+      setError("This result came from TMDB and does not have a TVDB id yet.");
+      return;
+    }
+
+    const tvdbId = String(show.tvdb_id);
     setAddingId(tvdbId);
     setError("");
 
     try {
       await addShowToUserList({
-        tvdb_id: Number(show.tvdb_id || show.id),
+        tvdb_id: Number(show.tvdb_id),
         name: show.name || show.show_name || "Unknown Show",
         poster_url: show.image_url || show.poster_url || null,
         overview: show.overview || null,
@@ -213,7 +218,7 @@ export default function Search() {
   const pageSubtitle = genreFilter
     ? `Browse shows in ${genreFilter}.`
     : networkFilter
-    ? `Browse shows from ${networkFilter}.`
+    ? `Browse shows from ${networkFilter}, newest first.`
     : relationshipTypeFilter
     ? `Browse shows with ${relationshipTypeFilter}.`
     : settingFilter
@@ -311,12 +316,13 @@ export default function Search() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shows.map((show) => {
-            const tvdbId = String(show.tvdb_id || show.id);
-            const isSaved = savedIds.has(tvdbId);
-            const isAdding = addingId === tvdbId;
+            const itemId = String(show.tvdb_id || show.tmdb_id || show.id);
+            const isSaved = show.tvdb_id ? savedIds.has(String(show.tvdb_id)) : false;
+            const isAdding = addingId === String(show.tvdb_id);
+            const canAdd = !!show.tvdb_id;
 
             return (
-              <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
+              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
                 <div
                   style={{
                     display: "grid",
@@ -333,10 +339,10 @@ export default function Search() {
                       alignItems: "stretch",
                     }}
                   >
-                    <Link to={`/show/${tvdbId}`} style={{ display: "block" }}>
-                      {show.image_url ? (
+                    <Link to={`/show/${itemId}`} style={{ display: "block" }}>
+                      {show.image_url || show.poster_url ? (
                         <img
-                          src={show.image_url}
+                          src={show.image_url || show.poster_url}
                           alt={show.name}
                           style={{
                             width: "88px",
@@ -362,16 +368,17 @@ export default function Search() {
                     <button
                       type="button"
                       onClick={(e) => handleAddShow(e, show)}
-                      disabled={isSaved || isAdding}
+                      disabled={!canAdd || isSaved || isAdding}
                       className={`msd-btn ${isSaved ? "msd-btn-success" : "msd-btn-primary"}`}
                       style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
+                      title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
                     >
-                      {isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
+                      {!canAdd ? "TMDB Only" : isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
                     </button>
                   </div>
 
                   <Link
-                    to={`/show/${tvdbId}`}
+                    to={`/show/${itemId}`}
                     style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -390,6 +397,12 @@ export default function Search() {
                       {(show.first_air_time || show.first_aired) && (
                         <p style={{ margin: "0 0 10px 0", color: "#cbd5e1", fontWeight: "600" }}>
                           First aired: {formatDate(show.first_air_time || show.first_aired)}
+                        </p>
+                      )}
+
+                      {show.network && (
+                        <p style={{ margin: "0 0 10px 0", color: "#93c5fd", fontWeight: "600" }}>
+                          Network: {show.network}
                         </p>
                       )}
 
