@@ -1,4 +1,6 @@
 const TVDB_BASE_URL = "https://api4.thetvdb.com/v4";
+const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
@@ -206,7 +208,7 @@ function dedupeRecommendations(items) {
   const seen = new Set();
 
   return items.filter((item) => {
-    const key = String(item.tvdb_id || item.tvdbId || "");
+    const key = String(item.tvdb_id || item.tvdbId || item.name || "");
     if (!key) return false;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -300,6 +302,87 @@ async function getPeopleAlsoWatch(tvdbId) {
   }
 }
 
+async function getTmdbRecommendations(tvdbId) {
+  try {
+    const apiKey = process.env.TMDB_API_KEY;
+
+    if (!apiKey) {
+      return [];
+    }
+
+    const findRes = await fetch(
+      `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
+        apiKey
+      )}&external_source=tvdb_id`,
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const findJson = await readJsonSafe(findRes);
+
+    if (!findRes.ok) {
+      throw new Error(
+        `TMDB find failed (${findRes.status}): ${
+          findJson?.status_message || "Unknown error"
+        }`
+      );
+    }
+
+    const tmdbId = findJson?.tv_results?.[0]?.id;
+
+    if (!tmdbId) {
+      return [];
+    }
+
+    const recRes = await fetch(
+      `${TMDB_BASE_URL}/tv/${tmdbId}/recommendations?api_key=${encodeURIComponent(
+        apiKey
+      )}`,
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const recJson = await readJsonSafe(recRes);
+
+    if (!recRes.ok) {
+      throw new Error(
+        `TMDB recommendations failed (${recRes.status}): ${
+          recJson?.status_message || "Unknown error"
+        }`
+      );
+    }
+
+    return dedupeRecommendations(
+      (Array.isArray(recJson?.results) ? recJson.results : [])
+        .map((item, index) => ({
+          id: item?.id || `tmdb-rec-${index}`,
+          tvdb_id: null,
+          tvdbId: null,
+          name: item?.name || item?.original_name || null,
+          poster_url: item?.poster_path
+            ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+            : null,
+          posterUrl: item?.poster_path
+            ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+            : null,
+          first_aired: item?.first_air_date || null,
+          firstAired: item?.first_air_date || null,
+          tmdb_id: item?.id || null,
+        }))
+        .filter((item) => item.name)
+    ).slice(0, 12);
+  } catch (error) {
+    console.error("TMDB recommendations failed:", error);
+    return [];
+  }
+}
+
 export async function handler(event) {
   try {
     const tvdbIdRaw = event.queryStringParameters?.tvdbId;
@@ -322,8 +405,18 @@ export async function handler(event) {
         : inlinePeopleAlsoWatch;
 
     const fallbackRecommendations = normalizeRecommendations(seriesData);
+
+    let tmdbRecommendations = [];
+    if (peopleAlsoWatch.length === 0 && fallbackRecommendations.length === 0) {
+      tmdbRecommendations = await getTmdbRecommendations(tvdbId);
+    }
+
     const recommendations =
-      peopleAlsoWatch.length > 0 ? peopleAlsoWatch : fallbackRecommendations;
+      peopleAlsoWatch.length > 0
+        ? peopleAlsoWatch
+        : fallbackRecommendations.length > 0
+        ? fallbackRecommendations
+        : tmdbRecommendations;
 
     return jsonResponse(200, {
       cast,
@@ -337,6 +430,15 @@ export async function handler(event) {
         fetchedPeopleAlsoWatchCount: fetchedPeopleAlsoWatch.length,
         peopleAlsoWatchCount: peopleAlsoWatch.length,
         fallbackRecommendationsCount: fallbackRecommendations.length,
+        tmdbRecommendationsCount: tmdbRecommendations.length,
+        usingSource:
+          peopleAlsoWatch.length > 0
+            ? "tvdb_people_also_watch"
+            : fallbackRecommendations.length > 0
+            ? "tvdb_recommendations"
+            : tmdbRecommendations.length > 0
+            ? "tmdb_recommendations"
+            : "none",
       },
     });
   } catch (error) {
