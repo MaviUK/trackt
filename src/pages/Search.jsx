@@ -23,6 +23,9 @@ export default function Search() {
   const sourceRating = searchParams.get("sourceRating") || "";
   const sourceLanguage = searchParams.get("sourceLanguage") || "";
 
+  const isPureNetworkBrowse =
+    !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
+
   useEffect(() => {
     if (genreFilter) setQuery(genreFilter);
     else if (networkFilter) setQuery(networkFilter);
@@ -30,98 +33,6 @@ export default function Search() {
     else if (settingFilter) setQuery(settingFilter);
     else setQuery("");
   }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
-
-  const search = async (filters = null) => {
-    const activeGenre = filters?.genre ?? null;
-    const activeNetwork = filters?.network ?? null;
-    const activeRelationshipType = filters?.relationshipType ?? null;
-    const activeSetting = filters?.setting ?? null;
-    const activeSourceShowId = filters?.sourceShowId ?? null;
-    const activeSourceYear = filters?.sourceYear ?? null;
-    const activeSourceRating = filters?.sourceRating ?? null;
-    const activeSourceLanguage = filters?.sourceLanguage ?? null;
-    const trimmedQuery = query.trim();
-
-    if (
-      !activeGenre &&
-      !activeNetwork &&
-      !activeRelationshipType &&
-      !activeSetting &&
-      !trimmedQuery
-    ) {
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const params = new URLSearchParams();
-
-      if (activeGenre) params.set("genre", activeGenre);
-      if (activeNetwork) params.set("network", activeNetwork);
-      if (activeRelationshipType) params.set("relationshipType", activeRelationshipType);
-      if (activeSetting) params.set("setting", activeSetting);
-      if (activeSourceShowId) params.set("sourceShowId", activeSourceShowId);
-      if (activeSourceYear) params.set("sourceYear", activeSourceYear);
-      if (activeSourceRating) params.set("sourceRating", activeSourceRating);
-      if (activeSourceLanguage) params.set("sourceLanguage", activeSourceLanguage);
-
-      if (
-        !activeGenre &&
-        !activeNetwork &&
-        !activeRelationshipType &&
-        !activeSetting &&
-        trimmedQuery
-      ) {
-        params.set("q", trimmedQuery);
-      }
-
-      const res = await fetch(`/.netlify/functions/searchShows?${params.toString()}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Search failed");
-      }
-
-      const results = Array.isArray(data) ? data : [];
-      setShows(results);
-      await markAlreadySaved(results);
-    } catch (err) {
-      setError(err.message || "Search failed");
-      setShows([]);
-      setSavedIds(new Set());
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (genreFilter || networkFilter || relationshipTypeFilter || settingFilter) {
-      const isPureNetworkBrowse =
-        !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
-
-      search({
-        genre: genreFilter || null,
-        network: networkFilter || null,
-        relationshipType: relationshipTypeFilter || null,
-        setting: settingFilter || null,
-        sourceShowId: sourceShowId || null,
-        sourceYear: isPureNetworkBrowse ? null : sourceYear || null,
-        sourceRating: isPureNetworkBrowse ? null : sourceRating || null,
-        sourceLanguage: isPureNetworkBrowse ? null : sourceLanguage || null,
-      });
-    }
-  }, [
-    genreFilter,
-    networkFilter,
-    relationshipTypeFilter,
-    settingFilter,
-    sourceShowId,
-    sourceYear,
-    sourceRating,
-    sourceLanguage,
-  ]);
 
   const markAlreadySaved = async (results) => {
     const {
@@ -161,6 +72,105 @@ export default function Search() {
     );
 
     setSavedIds(matchedIds);
+  };
+
+  const runSearch = async ({
+    genre = null,
+    network = null,
+    relationshipType = null,
+    setting = null,
+    sourceShowIdValue = null,
+    sourceYearValue = null,
+    sourceRatingValue = null,
+    sourceLanguageValue = null,
+    queryValue = "",
+  } = {}) => {
+    const trimmedQuery = String(queryValue || "").trim();
+
+    if (
+      !genre &&
+      !network &&
+      !relationshipType &&
+      !setting &&
+      !trimmedQuery
+    ) {
+      setShows([]);
+      setSavedIds(new Set());
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (genre) params.set("genre", genre);
+      if (network) params.set("network", network);
+      if (relationshipType) params.set("relationshipType", relationshipType);
+      if (setting) params.set("setting", setting);
+      if (sourceShowIdValue) params.set("sourceShowId", sourceShowIdValue);
+      if (sourceYearValue) params.set("sourceYear", sourceYearValue);
+      if (sourceRatingValue) params.set("sourceRating", sourceRatingValue);
+      if (sourceLanguageValue) params.set("sourceLanguage", sourceLanguageValue);
+
+      if (!genre && !network && !relationshipType && !setting && trimmedQuery) {
+        params.set("q", trimmedQuery);
+      }
+
+      const res = await fetch(`/.netlify/functions/searchShows?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Search failed");
+      }
+
+      const results = Array.isArray(data) ? data : [];
+      setShows(results);
+      await markAlreadySaved(results);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setError(err.message || "Search failed");
+      setShows([]);
+      setSavedIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const hasFilter =
+      !!genreFilter || !!networkFilter || !!relationshipTypeFilter || !!settingFilter;
+
+    if (!hasFilter) return;
+
+    runSearch({
+      genre: genreFilter || null,
+      network: networkFilter || null,
+      relationshipType: relationshipTypeFilter || null,
+      setting: settingFilter || null,
+      sourceShowIdValue: sourceShowId || null,
+      sourceYearValue: isPureNetworkBrowse ? null : sourceYear || null,
+      sourceRatingValue: isPureNetworkBrowse ? null : sourceRating || null,
+      sourceLanguageValue: isPureNetworkBrowse ? null : sourceLanguage || null,
+      queryValue: "",
+    });
+  }, [
+    genreFilter,
+    networkFilter,
+    relationshipTypeFilter,
+    settingFilter,
+    sourceShowId,
+    sourceYear,
+    sourceRating,
+    sourceLanguage,
+    isPureNetworkBrowse,
+  ]);
+
+  const handleManualSearch = async () => {
+    await runSearch({
+      queryValue: query,
+    });
   };
 
   const handleAddShow = async (event, show) => {
@@ -228,9 +238,6 @@ export default function Search() {
     ? `Browse shows set in ${settingFilter}.`
     : "Find a show and add it to My Shows.";
 
-  const isPureNetworkBrowse =
-    !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
-
   return (
     <div className="page">
       <div className="page-shell">
@@ -252,7 +259,7 @@ export default function Search() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-                search();
+                handleManualSearch();
               }
             }}
             placeholder="Search for a show"
@@ -270,7 +277,7 @@ export default function Search() {
           />
 
           <button
-            onClick={() => search()}
+            onClick={handleManualSearch}
             disabled={loading}
             className="msd-btn msd-btn-secondary"
             style={{
@@ -290,18 +297,19 @@ export default function Search() {
             ) : null}
             {networkFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {genreFilter ? " | " : ""}Network = {networkFilter}
+                {genreFilter ? " | " : ""}
+                Network = {networkFilter}
               </span>
             ) : null}
             {relationshipTypeFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {(genreFilter || networkFilter) ? " | " : ""}
+                {genreFilter || networkFilter ? " | " : ""}
                 Relationship Type = {relationshipTypeFilter}
               </span>
             ) : null}
             {settingFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {(genreFilter || networkFilter || relationshipTypeFilter) ? " | " : ""}
+                {genreFilter || networkFilter || relationshipTypeFilter ? " | " : ""}
                 Setting = {settingFilter}
               </span>
             ) : null}
