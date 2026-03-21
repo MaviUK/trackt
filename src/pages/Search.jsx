@@ -88,7 +88,9 @@ export default function Search() {
       });
 
       const url = `/.netlify/functions/searchShows?${params.toString()}`;
-      console.log("SEARCH URL:", url);
+
+      console.log("FETCH SEARCH PARAMS", paramsObject);
+      console.log("SEARCH URL", url);
 
       const res = await fetch(url);
       const data = await res.json();
@@ -113,6 +115,15 @@ export default function Search() {
   useEffect(() => {
     const hasFilter =
       !!genreFilter || !!networkFilter || !!relationshipTypeFilter || !!settingFilter;
+
+    console.log("FILTER EFFECT", {
+      genreFilter,
+      networkFilter,
+      relationshipTypeFilter,
+      settingFilter,
+      hasFilter,
+      isPureNetworkBrowse,
+    });
 
     if (!hasFilter) return;
 
