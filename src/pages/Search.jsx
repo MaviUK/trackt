@@ -34,7 +34,7 @@ export default function Search() {
     else setQuery("");
   }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
-  const markAlreadySaved = async (results) => {
+  async function markAlreadySaved(results) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -72,53 +72,25 @@ export default function Search() {
     );
 
     setSavedIds(matchedIds);
-  };
+  }
 
-  const runSearch = async ({
-    genre = null,
-    network = null,
-    relationshipType = null,
-    setting = null,
-    sourceShowIdValue = null,
-    sourceYearValue = null,
-    sourceRatingValue = null,
-    sourceLanguageValue = null,
-    queryValue = "",
-  } = {}) => {
-    const trimmedQuery = String(queryValue || "").trim();
-
-    if (
-      !genre &&
-      !network &&
-      !relationshipType &&
-      !setting &&
-      !trimmedQuery
-    ) {
-      setShows([]);
-      setSavedIds(new Set());
-      return;
-    }
-
+  async function fetchSearch(paramsObject) {
     setLoading(true);
     setError("");
 
     try {
       const params = new URLSearchParams();
 
-      if (genre) params.set("genre", genre);
-      if (network) params.set("network", network);
-      if (relationshipType) params.set("relationshipType", relationshipType);
-      if (setting) params.set("setting", setting);
-      if (sourceShowIdValue) params.set("sourceShowId", sourceShowIdValue);
-      if (sourceYearValue) params.set("sourceYear", sourceYearValue);
-      if (sourceRatingValue) params.set("sourceRating", sourceRatingValue);
-      if (sourceLanguageValue) params.set("sourceLanguage", sourceLanguageValue);
+      Object.entries(paramsObject).forEach(([key, value]) => {
+        if (value != null && value !== "") {
+          params.set(key, value);
+        }
+      });
 
-      if (!genre && !network && !relationshipType && !setting && trimmedQuery) {
-        params.set("q", trimmedQuery);
-      }
+      const url = `/.netlify/functions/searchShows?${params.toString()}`;
+      console.log("SEARCH URL:", url);
 
-      const res = await fetch(`/.netlify/functions/searchShows?${params.toString()}`);
+      const res = await fetch(url);
       const data = await res.json();
 
       if (!res.ok) {
@@ -136,7 +108,7 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   useEffect(() => {
     const hasFilter =
@@ -144,16 +116,15 @@ export default function Search() {
 
     if (!hasFilter) return;
 
-    runSearch({
+    fetchSearch({
       genre: genreFilter || null,
       network: networkFilter || null,
       relationshipType: relationshipTypeFilter || null,
       setting: settingFilter || null,
-      sourceShowIdValue: sourceShowId || null,
-      sourceYearValue: isPureNetworkBrowse ? null : sourceYear || null,
-      sourceRatingValue: isPureNetworkBrowse ? null : sourceRating || null,
-      sourceLanguageValue: isPureNetworkBrowse ? null : sourceLanguage || null,
-      queryValue: "",
+      sourceShowId: sourceShowId || null,
+      sourceYear: isPureNetworkBrowse ? null : sourceYear || null,
+      sourceRating: isPureNetworkBrowse ? null : sourceRating || null,
+      sourceLanguage: isPureNetworkBrowse ? null : sourceLanguage || null,
     });
   }, [
     genreFilter,
@@ -167,13 +138,16 @@ export default function Search() {
     isPureNetworkBrowse,
   ]);
 
-  const handleManualSearch = async () => {
-    await runSearch({
-      queryValue: query,
-    });
-  };
+  async function handleManualSearch() {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
 
-  const handleAddShow = async (event, show) => {
+    await fetchSearch({
+      q: trimmedQuery,
+    });
+  }
+
+  async function handleAddShow(event, show) {
     event.preventDefault();
     event.stopPropagation();
 
@@ -216,7 +190,7 @@ export default function Search() {
     } finally {
       setAddingId(null);
     }
-  };
+  }
 
   const pageTitle = genreFilter
     ? `Genre: ${genreFilter}`
