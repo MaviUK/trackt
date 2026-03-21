@@ -336,6 +336,7 @@ function normalizeTmdbShow(item, networkName = "") {
     slug: null,
     network: networkName || null,
     genres: [],
+    genre_ids: Array.isArray(item?.genre_ids) ? item.genre_ids : [],
     relationship_types: [],
     settings: [],
     original_language: normalizeLanguage(item?.original_language || ""),
@@ -345,9 +346,21 @@ function normalizeTmdbShow(item, networkName = "") {
   };
 }
 
+const TMDB_EXCLUDED_GENRE_IDS = new Set([
+  10763, // News
+  10767, // Talk
+  10764, // Reality
+  10766, // Soap
+]);
+
 function isExcludedNetworkResult(show) {
   const title = String(show?.name || "").toLowerCase();
   const overview = String(show?.overview || "").toLowerCase();
+  const genreIds = Array.isArray(show?.genre_ids) ? show.genre_ids : [];
+
+  if (genreIds.some((id) => TMDB_EXCLUDED_GENRE_IDS.has(Number(id)))) {
+    return true;
+  }
 
   const blockedTitleTerms = [
     "news",
@@ -362,6 +375,9 @@ function isExcludedNetworkResult(show) {
     "weekend news",
     "meet the press",
     "soap opera",
+    "gma",
+    "good morning",
+    "world news",
   ];
 
   const blockedOverviewTerms = [
@@ -379,6 +395,8 @@ function isExcludedNetworkResult(show) {
     "broadcast journalist",
     "broadcast on",
     "broadcast from",
+    "morning television",
+    "television news",
   ];
 
   if (blockedTitleTerms.some((term) => title.includes(term))) return true;
@@ -595,7 +613,7 @@ async function discoverTmdbByNetwork(networkName) {
 
   const all = [];
 
-  for (let page = 1; page <= 3; page += 1) {
+  for (let page = 1; page <= 5; page += 1) {
     const data = await tmdbFetch("/discover/tv", {
       with_networks: networkId,
       sort_by: "first_air_date.desc",
