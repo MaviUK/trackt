@@ -55,6 +55,52 @@ function makeEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function normalizeShowPayload(showData, tvdbIdFallback) {
+  if (!showData) return null;
+
+  return {
+    id: showData.id ?? null,
+    tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
+    show_name: showData.name || showData.show_name || "Unknown title",
+    overview: showData.overview || "",
+    poster_url: showData.poster_url || showData.image_url || showData.image || null,
+    first_aired:
+      showData.first_aired || showData.first_air_time || showData.firstAired || null,
+    status: showData.status || null,
+    network: showData.network || "",
+    original_language:
+      showData.original_language || showData.originalLanguage || "",
+    genres: Array.isArray(showData.genres) ? showData.genres : [],
+    relationship_types: Array.isArray(showData.relationship_types)
+      ? showData.relationship_types
+      : [],
+    settings: Array.isArray(showData.settings) ? showData.settings : [],
+    rating_average:
+      showData.rating_average != null ? Number(showData.rating_average) : null,
+    rating_count:
+      showData.rating_count != null ? Number(showData.rating_count) : null,
+  };
+}
+
+function normalizeEpisodePayload(row, index, tvdbId) {
+  return {
+    id:
+      row.id ||
+      row.tvdb_id ||
+      row.tvdbId ||
+      `${tvdbId}-${row.season_number ?? row.seasonNumber ?? 0}-${row.episode_number ?? row.number ?? 0}-${index}`,
+    tvdb_episode_id: row.tvdb_id || row.tvdbId || null,
+    seasonNumber: row.season_number ?? row.seasonNumber ?? 0,
+    number: row.episode_number ?? row.number ?? 0,
+    aired: row.aired_date || row.airDate || row.aired || null,
+    airDate: row.aired_date || row.airDate || row.aired || null,
+    name: row.name || "Untitled episode",
+    overview: row.overview || "",
+    image: row.image_url || row.image || null,
+    episode_code: row.episode_code || null,
+  };
+}
+
 export default function ShowDetails() {
   const { id } = useParams();
 
@@ -98,6 +144,10 @@ export default function ShowDetails() {
           return;
         }
 
+        let dbShow = null;
+        let dbEpisodes = [];
+        let extras = null;
+
         const { data: showData, error: showError } = await supabase
           .from("shows")
           .select(`
@@ -121,7 +171,83 @@ export default function ShowDetails() {
 
         if (showError) throw showError;
 
-        if (!showData) {
+        if (showData) {
+          dbShow = showData;
+
+          if (user) {
+            const { data: userShowData, error: userShowError } = await supabase
+              .from("user_shows_new")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("show_id", showData.id)
+              .maybeSingle();
+
+            if (userShowError) {
+              console.warn("user show fetch failed", userShowError);
+            }
+
+            setIsAdded(!!userShowData);
+          } else {
+            setIsAdded(false);
+          }
+
+          const { data: episodeRows, error: episodeError } = await supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showData.id)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true });
+
+          if (episodeError) throw episodeError;
+
+          dbEpisodes = (episodeRows || []).map((row, index) =>
+            normalizeEpisodePayload(row, index, tvdbId)
+          );
+        } else {
+          setIsAdded(false);
+        }
+
+        try {
+          setExtrasLoading(true);
+
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
+          );
+
+          if (extrasRes.ok) {
+            extras = await extrasRes.json();
+          } else {
+            console.warn(`getShowExtras returned ${extrasRes.status}`);
+          }
+        } catch (extrasError) {
+          console.error("Failed loading TVDB extras:", extrasError);
+        } finally {
+          setExtrasLoading(false);
+        }
+
+        const fallbackShow =
+          extras?.show ||
+          extras?.series ||
+          extras?.data ||
+          null;
+
+        const normalizedShow = normalizeShowPayload(
+          dbShow || fallbackShow,
+          tvdbId
+        );
+
+        if (!normalizedShow) {
           setShow(null);
           setEpisodes([]);
           setExpandedSeasons({});
@@ -132,132 +258,43 @@ export default function ShowDetails() {
           return;
         }
 
-        if (user) {
-          const { data: userShowData, error: userShowError } = await supabase
-            .from("user_shows_new")
-            .select("id")
-            .eq("user_id", user.id)
-            .eq("show_id", showData.id)
-            .maybeSingle();
+        const fallbackEpisodes = Array.isArray(extras?.episodes)
+          ? extras.episodes
+          : [];
 
-          if (userShowError) {
-            console.warn("user show fetch failed", userShowError);
-          }
-
-          setIsAdded(!!userShowData);
-        } else {
-          setIsAdded(false);
-        }
-
-        const { data: episodeRows, error: episodeError } = await supabase
-          .from("episodes")
-          .select(`
-            id,
-            tvdb_id,
-            show_id,
-            season_number,
-            episode_number,
-            episode_code,
-            name,
-            overview,
-            aired_date,
-            image_url
-          `)
-          .eq("show_id", showData.id)
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true });
-
-        if (episodeError) throw episodeError;
-
-        const normalizedEpisodes = (episodeRows || []).map((row) => ({
-          id: row.id,
-          tvdb_episode_id: row.tvdb_id,
-          seasonNumber: row.season_number,
-          number: row.episode_number,
-          aired: row.aired_date,
-          airDate: row.aired_date,
-          name: row.name || "Untitled episode",
-          overview: row.overview || "",
-          image: row.image_url || null,
-          episode_code: row.episode_code,
-        }));
+        const normalizedEpisodes =
+          dbEpisodes.length > 0
+            ? dbEpisodes
+            : fallbackEpisodes.map((row, index) =>
+                normalizeEpisodePayload(row, index, tvdbId)
+              );
 
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
           const seasonKey = Number(ep.seasonNumber ?? 0);
-          if (!(seasonKey in seasonMap)) {
+          if (seasonKey !== 0 && !(seasonKey in seasonMap)) {
             seasonMap[seasonKey] = false;
           }
         });
 
-        setShow({
-          id: showData.id,
-          tvdb_id: showData.tvdb_id,
-          show_name: showData.name || "Unknown title",
-          overview: showData.overview || "",
-          poster_url: showData.poster_url || null,
-          first_aired: showData.first_aired || null,
-          status: showData.status || null,
-          network: showData.network || "",
-          original_language: showData.original_language || "",
-          genres: Array.isArray(showData.genres) ? showData.genres : [],
-          relationship_types: Array.isArray(showData.relationship_types)
-            ? showData.relationship_types
-            : [],
-          settings: Array.isArray(showData.settings) ? showData.settings : [],
-          rating_average:
-            showData.rating_average != null
-              ? Number(showData.rating_average)
-              : null,
-          rating_count:
-            showData.rating_count != null
-              ? Number(showData.rating_count)
-              : null,
-        });
+        const castRows = Array.isArray(extras?.cast) ? extras.cast : [];
+        const tvdbPeopleAlsoWatch = Array.isArray(extras?.peopleAlsoWatch)
+          ? extras.peopleAlsoWatch
+          : [];
+        const fallbackRecommendations = Array.isArray(extras?.recommendations)
+          ? extras.recommendations
+          : [];
 
+        setShow(normalizedShow);
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
-
-        setCast([]);
-        setRecommendedShows([]);
-        setPeopleAlsoWatch([]);
-
-        try {
-          setExtrasLoading(true);
-
-          const extrasRes = await fetch(
-            `/.netlify/functions/getShowExtras?tvdbId=${showData.tvdb_id}`
-          );
-
-          if (!extrasRes.ok) {
-            throw new Error(`Failed to load show extras (${extrasRes.status})`);
-          }
-
-          const extras = await extrasRes.json();
-
-          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
-          const tvdbPeopleAlsoWatch = Array.isArray(extras.peopleAlsoWatch)
-            ? extras.peopleAlsoWatch
-            : [];
-          const fallbackRecommendations = Array.isArray(extras.recommendations)
-            ? extras.recommendations
-            : [];
-
-          setCast(castRows);
-          setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
-          setRecommendedShows(
-            tvdbPeopleAlsoWatch.length > 0
-              ? tvdbPeopleAlsoWatch
-              : fallbackRecommendations
-          );
-        } catch (extrasError) {
-          console.error("Failed loading TVDB extras:", extrasError);
-          setCast([]);
-          setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-        } finally {
-          setExtrasLoading(false);
-        }
+        setCast(castRows);
+        setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
+        setRecommendedShows(
+          tvdbPeopleAlsoWatch.length > 0
+            ? tvdbPeopleAlsoWatch
+            : fallbackRecommendations
+        );
       } catch (err) {
         console.error("Failed loading show:", err);
         setError(err.message || "Failed loading show");
@@ -533,9 +570,19 @@ export default function ShowDetails() {
               </div>
             )}
 
-            <div style={{ marginTop: "18px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                marginTop: "18px",
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
               {isAdded ? (
-                <Link to={`/my-shows/${show.tvdb_id}`} className="msd-btn msd-btn-success">
+                <Link
+                  to={`/my-shows/${show.tvdb_id}`}
+                  className="msd-btn msd-btn-success"
+                >
                   Open in My Shows
                 </Link>
               ) : (
