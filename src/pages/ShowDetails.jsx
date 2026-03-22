@@ -115,6 +115,8 @@ export default function ShowDetails() {
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
   const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [trailer, setTrailer] = useState(null);
 
   const [viewer, setViewer] = useState(null);
   const [isAdded, setIsAdded] = useState(false);
@@ -140,6 +142,8 @@ export default function ShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
+          setProviders([]);
+          setTrailer(null);
           setIsAdded(false);
           return;
         }
@@ -236,11 +240,7 @@ export default function ShowDetails() {
           setExtrasLoading(false);
         }
 
-        const fallbackShow =
-          extras?.show ||
-          extras?.series ||
-          extras?.data ||
-          null;
+        const fallbackShow = extras?.show || extras?.series || extras?.data || null;
 
         const normalizedShow = normalizeShowPayload(
           dbShow || fallbackShow,
@@ -254,6 +254,8 @@ export default function ShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
+          setProviders([]);
+          setTrailer(null);
           setIsAdded(false);
           return;
         }
@@ -284,6 +286,8 @@ export default function ShowDetails() {
         const fallbackRecommendations = Array.isArray(extras?.recommendations)
           ? extras.recommendations
           : [];
+        const providerRows = Array.isArray(extras?.providers) ? extras.providers : [];
+        const trailerData = extras?.trailer || null;
 
         setShow(normalizedShow);
         setEpisodes(normalizedEpisodes);
@@ -295,6 +299,8 @@ export default function ShowDetails() {
             ? tvdbPeopleAlsoWatch
             : fallbackRecommendations
         );
+        setProviders(providerRows);
+        setTrailer(trailerData);
       } catch (err) {
         console.error("Failed loading show:", err);
         setError(err.message || "Failed loading show");
@@ -304,6 +310,8 @@ export default function ShowDetails() {
         setCast([]);
         setRecommendedShows([]);
         setPeopleAlsoWatch([]);
+        setProviders([]);
+        setTrailer(null);
         setIsAdded(false);
       } finally {
         setLoading(false);
@@ -338,11 +346,12 @@ export default function ShowDetails() {
       (ep) => Number(ep.seasonNumber ?? 0) !== 0
     );
 
-    const total = mainEpisodes.length;
+    const totalEpisodes = mainEpisodes.length;
+    const totalSeasons = groupedSeasons.length;
     const nextEpisode = mainEpisodes.find((ep) => isFuture(ep.aired));
 
-    return { total, nextEpisode };
-  }, [episodes]);
+    return { totalEpisodes, totalSeasons, nextEpisode };
+  }, [episodes, groupedSeasons]);
 
   const sourceYear = getYear(show?.first_aired);
   const sourceRating =
@@ -422,6 +431,11 @@ export default function ShowDetails() {
     );
   }
 
+  const streamingText =
+    providers.length > 0
+      ? providers.map((provider) => provider.name).join(", ")
+      : "—";
+
   return (
     <div className="msd-page">
       <div className="msd-shell">
@@ -430,16 +444,47 @@ export default function ShowDetails() {
         </Link>
 
         <section className="msd-hero">
-          {show.poster_url ? (
-            <img
-              src={show.poster_url}
-              alt={show.show_name}
-              className="msd-poster"
-            />
-          ) : null}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              alignItems: "stretch",
+            }}
+          >
+            {show.poster_url ? (
+              <img
+                src={show.poster_url}
+                alt={show.show_name}
+                className="msd-poster"
+              />
+            ) : null}
+
+            {isAdded ? (
+              <Link
+                to={`/my-shows/${show.tvdb_id}`}
+                className="msd-btn msd-btn-success"
+                style={{ textAlign: "center" }}
+              >
+                Open in My Shows
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddShow}
+                disabled={adding}
+                className="msd-btn msd-btn-primary"
+              >
+                {adding ? "Adding..." : "Add to My Shows"}
+              </button>
+            )}
+          </div>
 
           <div className="msd-hero-main">
-            <h1 className="msd-title">{show.show_name}</h1>
+            <h1 className="msd-title">
+              {show.show_name}
+              {show.first_aired ? ` (${getYear(show.first_aired)})` : ""}
+            </h1>
 
             {show.overview ? (
               <p className="msd-overview">{show.overview}</p>
@@ -463,10 +508,18 @@ export default function ShowDetails() {
               {show.status ? <div>Status: {show.status}</div> : null}
             </div>
 
-            <div className="msd-stats-row msd-stats-row-top">
+            <div
+              className="msd-stats-row"
+              style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px", marginTop: "18px" }}
+            >
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Episodes</span>
-                <strong className="msd-stat-value">{stats.total}</strong>
+                <span className="msd-stat-label">Seasons</span>
+                <strong className="msd-stat-value">{stats.totalSeasons}</strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Total Episodes</span>
+                <strong className="msd-stat-value">{stats.totalEpisodes}</strong>
               </div>
 
               <div className="msd-stat-box">
@@ -488,14 +541,12 @@ export default function ShowDetails() {
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Language</span>
-                <strong className="msd-stat-value">
-                  {show.original_language || "—"}
+                <span className="msd-stat-label">Streaming</span>
+                <strong className="msd-stat-value" style={{ fontSize: "1rem", lineHeight: "1.3" }}>
+                  {streamingText}
                 </strong>
               </div>
-            </div>
 
-            <div className="msd-stats-row msd-stats-row-rest">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Genre</span>
                 <strong className="msd-stat-value">
@@ -516,92 +567,38 @@ export default function ShowDetails() {
                     : "—"}
                 </strong>
               </div>
-            </div>
 
-            {(show.relationship_types?.length > 0 ||
-              show.settings?.length > 0) && (
-              <div
-                className="msd-stats-row msd-stats-row-rest"
-                style={{ marginTop: "12px" }}
-              >
-                <div className="msd-stat-box">
-                  <span className="msd-stat-label">Relationship Types</span>
-                  <strong className="msd-stat-value">
-                    {show.relationship_types?.length > 0
-                      ? show.relationship_types.map((value, index) => (
-                          <span key={value}>
-                            <Link
-                              to={`/search?relationshipType=${encodeURIComponent(
-                                value
-                              )}&${baseContext}`}
-                              className="msd-link"
-                            >
-                              {value}
-                            </Link>
-                            {index < show.relationship_types.length - 1
-                              ? ", "
-                              : ""}
-                          </span>
-                        ))
-                      : "—"}
-                  </strong>
-                </div>
-
-                <div className="msd-stat-box msd-stat-box-rest-wide">
-                  <span className="msd-stat-label">Settings</span>
-                  <strong className="msd-stat-value">
-                    {show.settings?.length > 0
-                      ? show.settings.map((value, index) => (
-                          <span key={value}>
-                            <Link
-                              to={`/search?setting=${encodeURIComponent(
-                                value
-                              )}&${baseContext}`}
-                              className="msd-link"
-                            >
-                              {value}
-                            </Link>
-                            {index < show.settings.length - 1 ? ", " : ""}
-                          </span>
-                        ))
-                      : "—"}
-                  </strong>
-                </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Language</span>
+                <strong className="msd-stat-value">
+                  {show.original_language || "—"}
+                </strong>
               </div>
-            )}
 
-            <div
-              style={{
-                marginTop: "18px",
-                display: "flex",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              {isAdded ? (
-                <Link
-                  to={`/my-shows/${show.tvdb_id}`}
-                  className="msd-btn msd-btn-success"
-                >
-                  Open in My Shows
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleAddShow}
-                  disabled={adding}
-                  className="msd-btn msd-btn-primary"
-                >
-                  {adding ? "Adding..." : "Add to My Shows"}
-                </button>
-              )}
-
-              {!isAdded ? (
-                <div style={{ color: "#cbd5e1", alignSelf: "center" }}>
-                  Personal tracking appears after you add this show.
-                </div>
-              ) : null}
+              <div className="msd-stat-box" style={{ gridColumn: "span 2" }}>
+                <span className="msd-stat-label">Play Trailer</span>
+                <strong className="msd-stat-value" style={{ fontSize: "1rem" }}>
+                  {trailer?.url ? (
+                    <a
+                      href={trailer.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="msd-link"
+                    >
+                      {trailer.name || "Watch Trailer"}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
             </div>
+
+            {!isAdded ? (
+              <p style={{ color: "#cbd5e1", marginTop: "14px" }}>
+                Personal tracking appears after you add this show.
+              </p>
+            ) : null}
 
             {error ? (
               <p style={{ color: "#fca5a5", marginTop: "14px" }}>{error}</p>
