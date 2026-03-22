@@ -88,10 +88,6 @@ export default function Search() {
       });
 
       const url = `/.netlify/functions/searchShows?${params.toString()}`;
-
-      console.log("FETCH SEARCH PARAMS", paramsObject);
-      console.log("SEARCH URL", url);
-
       const res = await fetch(url);
       const data = await res.json();
 
@@ -115,15 +111,6 @@ export default function Search() {
   useEffect(() => {
     const hasFilter =
       !!genreFilter || !!networkFilter || !!relationshipTypeFilter || !!settingFilter;
-
-    console.log("FILTER EFFECT", {
-      genreFilter,
-      networkFilter,
-      relationshipTypeFilter,
-      settingFilter,
-      hasFilter,
-      isPureNetworkBrowse,
-    });
 
     if (!hasFilter) return;
 
@@ -319,30 +306,33 @@ export default function Search() {
             const isSaved = show.tvdb_id ? savedIds.has(String(show.tvdb_id)) : false;
             const isAdding = addingId === String(show.tvdb_id);
             const canAdd = !!show.tvdb_id;
+            const detailHref = show.tvdb_id ? `/show/${show.tvdb_id}` : null;
 
-            return (
-              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
+            const poster = show.image_url || show.poster_url || null;
+
+            const cardContent = (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "88px minmax(0, 1fr)",
+                  gap: "14px",
+                  alignItems: "start",
+                }}
+              >
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "88px minmax(0, 1fr)",
-                    gap: "14px",
-                    alignItems: "start",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    alignItems: "stretch",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                      alignItems: "stretch",
-                    }}
-                  >
-                    <Link to={`/show/${itemId}`} style={{ display: "block" }}>
-                      {show.image_url || show.poster_url ? (
+                  {detailHref ? (
+                    <Link to={detailHref} style={{ display: "block" }}>
+                      {poster ? (
                         <img
-                          src={show.image_url || show.poster_url}
-                          alt={show.name}
+                          src={poster}
+                          alt={show.name || show.show_name || "Show poster"}
                           style={{
                             width: "88px",
                             height: "128px",
@@ -363,24 +353,48 @@ export default function Search() {
                         />
                       )}
                     </Link>
+                  ) : poster ? (
+                    <img
+                      src={poster}
+                      alt={show.name || show.show_name || "Show poster"}
+                      style={{
+                        width: "88px",
+                        height: "128px",
+                        borderRadius: "12px",
+                        objectFit: "cover",
+                        display: "block",
+                        background: "#111827",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "88px",
+                        height: "128px",
+                        borderRadius: "12px",
+                        background: "#111827",
+                      }}
+                    />
+                  )}
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleAddShow(e, show)}
-                      disabled={!canAdd || isSaved || isAdding}
-                      className={`msd-btn ${isSaved ? "msd-btn-success" : "msd-btn-primary"}`}
-                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
-                      title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
-                    >
-                      {!canAdd ? "TMDB Only" : isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
-                    </button>
-                  </div>
-
-                  <Link
-                    to={`/show/${itemId}`}
-                    style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
+                  <button
+                    type="button"
+                    onClick={(e) => handleAddShow(e, show)}
+                    disabled={!canAdd || isSaved || isAdding}
+                    className={`msd-btn ${isSaved ? "msd-btn-success" : "msd-btn-primary"}`}
+                    style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
+                    title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
                   >
-                    <div style={{ minWidth: 0 }}>
+                    {!canAdd ? "TMDB Only" : isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
+                  </button>
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  {detailHref ? (
+                    <Link
+                      to={detailHref}
+                      style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
+                    >
                       <div
                         style={{
                           fontSize: "1.05rem",
@@ -390,31 +404,64 @@ export default function Search() {
                           lineHeight: "1.2",
                         }}
                       >
-                        {show.name}
+                        {show.name || show.show_name || "Unknown title"}
                       </div>
-
-                      {(show.first_air_time || show.first_aired) && (
-                        <p style={{ margin: "0 0 10px 0", color: "#cbd5e1", fontWeight: "600" }}>
-                          First aired: {formatDate(show.first_air_time || show.first_aired)}
-                        </p>
-                      )}
-
-                      {show.network && (
-                        <p style={{ margin: "0 0 10px 0", color: "#93c5fd", fontWeight: "600" }}>
-                          Network: {show.network}
-                        </p>
-                      )}
-
-                      {show.overview && (
-                        <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
-                          {show.overview.length > 180
-                            ? `${show.overview.slice(0, 180)}...`
-                            : show.overview}
-                        </p>
-                      )}
+                    </Link>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: "1.05rem",
+                        fontWeight: "800",
+                        color: "#f8fafc",
+                        marginBottom: "8px",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {show.name || show.show_name || "Unknown title"}
                     </div>
-                  </Link>
+                  )}
+
+                  {(show.first_air_time || show.first_aired) && (
+                    <p style={{ margin: "0 0 10px 0", color: "#cbd5e1", fontWeight: "600" }}>
+                      First aired: {formatDate(show.first_air_time || show.first_aired)}
+                    </p>
+                  )}
+
+                  {show.network && (
+                    <p style={{ margin: "0 0 10px 0", color: "#93c5fd", fontWeight: "600" }}>
+                      Network: {show.network}
+                    </p>
+                  )}
+
+                  {show.overview && (
+                    <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
+                      {show.overview.length > 180
+                        ? `${show.overview.slice(0, 180)}...`
+                        : show.overview}
+                    </p>
+                  )}
+
+                  {detailHref ? (
+                    <div style={{ marginTop: "12px" }}>
+                      <Link
+                        to={detailHref}
+                        style={{
+                          color: "#93c5fd",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                        }}
+                      >
+                        View details →
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
+              </div>
+            );
+
+            return (
+              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
+                {cardContent}
               </div>
             );
           })}
