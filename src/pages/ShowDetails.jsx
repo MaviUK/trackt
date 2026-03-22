@@ -482,10 +482,7 @@ async function handleAddShow() {
           </div>
 
           <div className="msd-hero-main">
-            <h1 className="msd-title">
-              {show.show_name}
-              {show.first_aired ? ` (${getYear(show.first_aired)})` : ""}
-            </h1>
+            <h1 className="msd-title">{show.show_name}</h1>
 
             {show.overview ? (
               <p className="msd-overview">{show.overview}</p>
