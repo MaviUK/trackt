@@ -237,6 +237,55 @@ function normalizeEpisodes(seriesData, tvdbId) {
     });
 }
 
+async function getSeriesEpisodesDefault(tvdbId) {
+  try {
+    const json = await tvdbGet(`/series/${tvdbId}/episodes/default`);
+    const data = Array.isArray(json?.data?.episodes)
+      ? json.data.episodes
+      : Array.isArray(json?.data)
+      ? json.data
+      : [];
+
+    return data
+      .map((ep, index) => ({
+        id: ep?.id || `${tvdbId}-ep-default-${index}`,
+        tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
+        season_number:
+          ep?.seasonNumber ??
+          ep?.season_number ??
+          ep?.airedSeason ??
+          0,
+        episode_number:
+          ep?.number ??
+          ep?.episodeNumber ??
+          ep?.episode_number ??
+          ep?.airedEpisodeNumber ??
+          0,
+        episode_code:
+          ep?.productionCode ||
+          ep?.episodeCode ||
+          ep?.episode_code ||
+          null,
+        name: ep?.name || "Untitled episode",
+        overview: ep?.overview || "",
+        aired_date:
+          ep?.aired ||
+          ep?.airDate ||
+          ep?.aired_date ||
+          null,
+        image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
+      }))
+      .sort((a, b) => {
+        const seasonDiff = Number(a.season_number) - Number(b.season_number);
+        if (seasonDiff !== 0) return seasonDiff;
+        return Number(a.episode_number) - Number(b.episode_number);
+      });
+  } catch (error) {
+    console.error("default episodes fetch failed:", error);
+    return [];
+  }
+}
+
 function normalizeCastFromSeries(seriesData) {
   const rawCharacters = Array.isArray(seriesData?.characters)
     ? seriesData.characters
@@ -627,7 +676,11 @@ export async function handler(event) {
     const seriesData = seriesJson?.data || {};
 
     const show = normalizeShow(seriesData, tvdbId);
-    const episodes = normalizeEpisodes(seriesData, tvdbId);
+
+    const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
+    const fetchedEpisodes = await getSeriesEpisodesDefault(tvdbId);
+    const episodes = fetchedEpisodes.length > 0 ? fetchedEpisodes : inlineEpisodes;
+
     const cast = normalizeCastFromSeries(seriesData);
 
     const inlinePeopleAlsoWatch = normalizePeopleAlsoWatch(seriesData);
@@ -663,6 +716,8 @@ export async function handler(event) {
       recommendations,
       debug: {
         showFound: !!show,
+        inlineEpisodeCount: inlineEpisodes.length,
+        fetchedEpisodeCount: fetchedEpisodes.length,
         episodeCount: episodes.length,
         castCount: cast.length,
         providerCount: providers.length,
