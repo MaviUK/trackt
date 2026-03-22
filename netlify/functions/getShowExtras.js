@@ -144,11 +144,9 @@ function normalizeShow(seriesData, tvdbId) {
   );
 
   const genres = normalizeStringArray(seriesData?.genres);
-
   const relationshipTypes = normalizeStringArray(
     seriesData?.relationship_types || seriesData?.relationshipTypes
   );
-
   const settings = normalizeStringArray(seriesData?.settings);
 
   const score =
@@ -167,10 +165,7 @@ function normalizeShow(seriesData, tvdbId) {
       seriesData?.overview ||
       seriesData?.translations?.overview ||
       "",
-    status:
-      seriesData?.status?.name ||
-      seriesData?.status ||
-      null,
+    status: seriesData?.status?.name || seriesData?.status || null,
     poster_url: pickImage(
       seriesData?.image,
       seriesData?.image_url,
@@ -192,7 +187,6 @@ function normalizeShow(seriesData, tvdbId) {
     original_language:
       seriesData?.originalLanguage ||
       seriesData?.original_language ||
-      seriesData?.defaultSeasonType ||
       "",
     relationship_types: relationshipTypes,
     settings,
@@ -234,11 +228,7 @@ function normalizeEpisodes(seriesData, tvdbId) {
         ep?.airDate ||
         ep?.aired_date ||
         null,
-      image_url: pickImage(
-        ep?.image,
-        ep?.image_url,
-        ep?.thumbnail
-      ),
+      image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
     }))
     .sort((a, b) => {
       const seasonDiff = Number(a.season_number) - Number(b.season_number);
@@ -355,12 +345,8 @@ function dedupeRecommendations(items) {
 
 function normalizePeopleAlsoWatch(seriesData) {
   const candidates = [
-    ...(Array.isArray(seriesData?.peopleAlsoWatch)
-      ? seriesData.peopleAlsoWatch
-      : []),
-    ...(Array.isArray(seriesData?.people_also_watch)
-      ? seriesData.people_also_watch
-      : []),
+    ...(Array.isArray(seriesData?.peopleAlsoWatch) ? seriesData.peopleAlsoWatch : []),
+    ...(Array.isArray(seriesData?.people_also_watch) ? seriesData.people_also_watch : []),
   ];
 
   return dedupeRecommendations(
@@ -372,14 +358,10 @@ function normalizePeopleAlsoWatch(seriesData) {
 
 function normalizeRecommendations(seriesData) {
   const candidates = [
-    ...(Array.isArray(seriesData?.recommendations)
-      ? seriesData.recommendations
-      : []),
+    ...(Array.isArray(seriesData?.recommendations) ? seriesData.recommendations : []),
     ...(Array.isArray(seriesData?.similar) ? seriesData.similar : []),
     ...(Array.isArray(seriesData?.relatedSeries) ? seriesData.relatedSeries : []),
-    ...(Array.isArray(seriesData?.related_series)
-      ? seriesData.related_series
-      : []),
+    ...(Array.isArray(seriesData?.related_series) ? seriesData.related_series : []),
   ];
 
   return dedupeRecommendations(
@@ -439,40 +421,42 @@ async function getPeopleAlsoWatch(tvdbId) {
   }
 }
 
+async function findTmdbTvIdByTvdbId(tvdbId) {
+  const apiKey = process.env.TMDB_API_KEY;
+
+  if (!apiKey) return null;
+
+  const findRes = await fetch(
+    `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
+      apiKey
+    )}&external_source=tvdb_id`,
+    {
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const findJson = await readJsonSafe(findRes);
+
+  if (!findRes.ok) {
+    throw new Error(
+      `TMDB find failed (${findRes.status}): ${
+        findJson?.status_message || "Unknown error"
+      }`
+    );
+  }
+
+  return findJson?.tv_results?.[0]?.id || null;
+}
+
 async function getTmdbRecommendations(tvdbId) {
   try {
     const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey) return [];
 
-    if (!apiKey) {
-      return [];
-    }
-
-    const findRes = await fetch(
-      `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
-        apiKey
-      )}&external_source=tvdb_id`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const findJson = await readJsonSafe(findRes);
-
-    if (!findRes.ok) {
-      throw new Error(
-        `TMDB find failed (${findRes.status}): ${
-          findJson?.status_message || "Unknown error"
-        }`
-      );
-    }
-
-    const tmdbId = findJson?.tv_results?.[0]?.id;
-
-    if (!tmdbId) {
-      return [];
-    }
+    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId);
+    if (!tmdbId) return [];
 
     const recRes = await fetch(
       `${TMDB_BASE_URL}/tv/${tmdbId}/recommendations?api_key=${encodeURIComponent(
@@ -520,6 +504,116 @@ async function getTmdbRecommendations(tvdbId) {
   }
 }
 
+async function getTmdbProvidersAndTrailer(tvdbId) {
+  try {
+    const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey) {
+      return { providers: [], trailer: null };
+    }
+
+    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId);
+    if (!tmdbId) {
+      return { providers: [], trailer: null };
+    }
+
+    const [providersRes, videosRes] = await Promise.all([
+      fetch(
+        `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${encodeURIComponent(
+          apiKey
+        )}`,
+        {
+          headers: { Accept: "application/json" },
+        }
+      ),
+      fetch(
+        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${encodeURIComponent(apiKey)}`,
+        {
+          headers: { Accept: "application/json" },
+        }
+      ),
+    ]);
+
+    const providersJson = await readJsonSafe(providersRes);
+    const videosJson = await readJsonSafe(videosRes);
+
+    if (!providersRes.ok) {
+      throw new Error(
+        `TMDB providers failed (${providersRes.status}): ${
+          providersJson?.status_message || "Unknown error"
+        }`
+      );
+    }
+
+    if (!videosRes.ok) {
+      throw new Error(
+        `TMDB videos failed (${videosRes.status}): ${
+          videosJson?.status_message || "Unknown error"
+        }`
+      );
+    }
+
+    const providerRegion =
+      providersJson?.results?.GB ||
+      providersJson?.results?.US ||
+      null;
+
+    const providerItems = [
+      ...(Array.isArray(providerRegion?.flatrate) ? providerRegion.flatrate : []),
+      ...(Array.isArray(providerRegion?.free) ? providerRegion.free : []),
+      ...(Array.isArray(providerRegion?.ads) ? providerRegion.ads : []),
+      ...(Array.isArray(providerRegion?.rent) ? providerRegion.rent : []),
+      ...(Array.isArray(providerRegion?.buy) ? providerRegion.buy : []),
+    ];
+
+    const seenProviders = new Set();
+    const providers = providerItems
+      .filter((item) => {
+        const key = String(item?.provider_id || item?.provider_name || "");
+        if (!key || seenProviders.has(key)) return false;
+        seenProviders.add(key);
+        return true;
+      })
+      .map((item) => ({
+        id: item?.provider_id || item?.provider_name,
+        name: item?.provider_name || "Unknown provider",
+        logo: item?.logo_path ? `${TMDB_IMAGE_BASE_URL}${item.logo_path}` : null,
+      }))
+      .slice(0, 8);
+
+    const videos = Array.isArray(videosJson?.results) ? videosJson.results : [];
+    const trailerCandidate =
+      videos.find(
+        (video) =>
+          video?.site === "YouTube" &&
+          video?.type === "Trailer" &&
+          video?.official
+      ) ||
+      videos.find(
+        (video) =>
+          video?.site === "YouTube" &&
+          video?.type === "Trailer"
+      ) ||
+      videos.find(
+        (video) =>
+          video?.site === "YouTube" &&
+          video?.type === "Teaser"
+      ) ||
+      null;
+
+    const trailer = trailerCandidate?.key
+      ? {
+          name: trailerCandidate.name || "Watch Trailer",
+          url: `https://www.youtube.com/watch?v=${trailerCandidate.key}`,
+        }
+      : null;
+
+    return { providers, trailer };
+  } catch (error) {
+    console.error("TMDB providers/trailer failed:", error);
+    return { providers: [], trailer: null };
+  }
+}
+
 export async function handler(event) {
   try {
     const tvdbIdRaw = event.queryStringParameters?.tvdbId;
@@ -557,32 +651,22 @@ export async function handler(event) {
         ? fallbackRecommendations
         : tmdbRecommendations;
 
+    const { providers, trailer } = await getTmdbProvidersAndTrailer(tvdbId);
+
     return jsonResponse(200, {
       show,
       episodes,
       cast,
-      providers: [],
+      providers,
+      trailer,
       peopleAlsoWatch,
       recommendations,
       debug: {
         showFound: !!show,
         episodeCount: episodes.length,
         castCount: cast.length,
-        hasPeopleAlsoWatchArray: Array.isArray(seriesData?.peopleAlsoWatch),
-        hasPeopleAlsoWatchSnakeArray: Array.isArray(seriesData?.people_also_watch),
-        inlinePeopleAlsoWatchCount: inlinePeopleAlsoWatch.length,
-        fetchedPeopleAlsoWatchCount: fetchedPeopleAlsoWatch.length,
-        peopleAlsoWatchCount: peopleAlsoWatch.length,
-        fallbackRecommendationsCount: fallbackRecommendations.length,
-        tmdbRecommendationsCount: tmdbRecommendations.length,
-        usingSource:
-          peopleAlsoWatch.length > 0
-            ? "tvdb_people_also_watch"
-            : fallbackRecommendations.length > 0
-            ? "tvdb_recommendations"
-            : tmdbRecommendations.length > 0
-            ? "tmdb_recommendations"
-            : "none",
+        providerCount: providers.length,
+        hasTrailer: !!trailer,
       },
     });
   } catch (error) {
@@ -594,6 +678,7 @@ export async function handler(event) {
       episodes: [],
       cast: [],
       providers: [],
+      trailer: null,
       peopleAlsoWatch: [],
       recommendations: [],
     });
