@@ -63,9 +63,13 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
     tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
     show_name: showData.name || showData.show_name || "Unknown title",
     overview: showData.overview || "",
-    poster_url: showData.poster_url || showData.image_url || showData.image || null,
+    poster_url:
+      showData.poster_url || showData.image_url || showData.image || null,
     first_aired:
-      showData.first_aired || showData.first_air_time || showData.firstAired || null,
+      showData.first_aired ||
+      showData.first_air_time ||
+      showData.firstAired ||
+      null,
     status: showData.status || null,
     network: showData.network || "",
     original_language:
@@ -76,7 +80,9 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
       : [],
     settings: Array.isArray(showData.settings) ? showData.settings : [],
     rating_average:
-      showData.rating_average != null ? Number(showData.rating_average) : null,
+      showData.rating_average != null
+        ? Number(showData.rating_average)
+        : null,
     rating_count:
       showData.rating_count != null ? Number(showData.rating_count) : null,
   };
@@ -88,7 +94,9 @@ function normalizeEpisodePayload(row, index, tvdbId) {
       row.id ||
       row.tvdb_id ||
       row.tvdbId ||
-      `${tvdbId}-${row.season_number ?? row.seasonNumber ?? 0}-${row.episode_number ?? row.number ?? 0}-${index}`,
+      `${tvdbId}-${row.season_number ?? row.seasonNumber ?? 0}-${
+        row.episode_number ?? row.number ?? 0
+      }-${index}`,
     tvdb_episode_id: row.tvdb_id || row.tvdbId || null,
     seasonNumber: row.season_number ?? row.seasonNumber ?? 0,
     number: row.episode_number ?? row.number ?? 0,
@@ -102,6 +110,7 @@ function normalizeEpisodePayload(row, index, tvdbId) {
 }
 
 export default function ShowDetails() {
+  const { id } = useParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -240,7 +249,8 @@ export default function ShowDetails() {
           setExtrasLoading(false);
         }
 
-        const fallbackShow = extras?.show || extras?.series || extras?.data || null;
+        const fallbackShow =
+          extras?.show || extras?.series || extras?.data || null;
 
         const normalizedShow = normalizeShowPayload(
           dbShow || fallbackShow,
@@ -286,7 +296,9 @@ export default function ShowDetails() {
         const fallbackRecommendations = Array.isArray(extras?.recommendations)
           ? extras.recommendations
           : [];
-        const providerRows = Array.isArray(extras?.providers) ? extras.providers : [];
+        const providerRows = Array.isArray(extras?.providers)
+          ? extras.providers
+          : [];
         const trailerData = extras?.trailer || null;
 
         setShow(normalizedShow);
@@ -373,39 +385,39 @@ export default function ShowDetails() {
     }));
   }
 
-async function handleAddShow() {
-  if (!viewer) {
-    setError("Please log in to add this show.");
-    return;
+  async function handleAddShow() {
+    if (!viewer) {
+      setError("Please log in to add this show.");
+      return;
+    }
+
+    if (!show?.tvdb_id) {
+      setError("This show cannot be added yet because it has no TVDB id.");
+      return;
+    }
+
+    setAdding(true);
+    setError("");
+
+    try {
+      await addShowToUserList({
+        tvdb_id: Number(show.tvdb_id),
+        name: show.show_name || "Unknown Show",
+        poster_url: show.poster_url || null,
+        overview: show.overview || null,
+        first_air_date: show.first_aired || null,
+        status: show.status || null,
+      });
+
+      setIsAdded(true);
+      navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
+    } catch (err) {
+      console.error("Failed to add show:", err);
+      setError(err.message || "Failed to add show.");
+    } finally {
+      setAdding(false);
+    }
   }
-
-  if (!show?.tvdb_id) {
-    setError("This show cannot be added yet because it has no TVDB id.");
-    return;
-  }
-
-  setAdding(true);
-  setError("");
-
-  try {
-    await addShowToUserList({
-      tvdb_id: Number(show.tvdb_id),
-      name: show.show_name || "Unknown Show",
-      poster_url: show.poster_url || null,
-      overview: show.overview || null,
-      first_air_date: show.first_aired || null,
-      status: show.status || null,
-    });
-
-    setIsAdded(true);
-    navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
-  } catch (err) {
-    console.error("Failed to add show:", err);
-    setError(err.message || "Failed to add show.");
-  } finally {
-    setAdding(false);
-  }
-}
 
   if (loading) {
     return (
@@ -508,7 +520,12 @@ async function handleAddShow() {
 
             <div
               className="msd-stats-row"
-              style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px", marginTop: "18px" }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: "12px",
+                marginTop: "18px",
+              }}
             >
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Seasons</span>
@@ -517,7 +534,9 @@ async function handleAddShow() {
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Total Episodes</span>
-                <strong className="msd-stat-value">{stats.totalEpisodes}</strong>
+                <strong className="msd-stat-value">
+                  {stats.totalEpisodes}
+                </strong>
               </div>
 
               <div className="msd-stat-box">
@@ -540,7 +559,10 @@ async function handleAddShow() {
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Streaming</span>
-                <strong className="msd-stat-value" style={{ fontSize: "1rem", lineHeight: "1.3" }}>
+                <strong
+                  className="msd-stat-value"
+                  style={{ fontSize: "1rem", lineHeight: "1.3" }}
+                >
                   {streamingText}
                 </strong>
               </div>
@@ -573,9 +595,15 @@ async function handleAddShow() {
                 </strong>
               </div>
 
-              <div className="msd-stat-box" style={{ gridColumn: "span 2" }}>
+              <div
+                className="msd-stat-box"
+                style={{ gridColumn: "span 2" }}
+              >
                 <span className="msd-stat-label">Play Trailer</span>
-                <strong className="msd-stat-value" style={{ fontSize: "1rem" }}>
+                <strong
+                  className="msd-stat-value"
+                  style={{ fontSize: "1rem" }}
+                >
                   {trailer?.url ? (
                     <a
                       href={trailer.url}
@@ -643,7 +671,9 @@ async function handleAddShow() {
                         </div>
 
                         {ep.overview ? (
-                          <p className="msd-episode-overview">{ep.overview}</p>
+                          <p className="msd-episode-overview">
+                            {ep.overview}
+                          </p>
                         ) : null}
                       </article>
                     ))}
