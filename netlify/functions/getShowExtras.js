@@ -110,6 +110,143 @@ function pickImage(...values) {
   return null;
 }
 
+function normalizeStringArray(values) {
+  if (!Array.isArray(values)) return [];
+
+  return values
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        return (
+          item.name ??
+          item.genre ??
+          item.type ??
+          item.setting ??
+          item.label ??
+          item.value ??
+          null
+        );
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function normalizeShow(seriesData, tvdbId) {
+  if (!seriesData || typeof seriesData !== "object") return null;
+
+  const companies = Array.isArray(seriesData?.companies) ? seriesData.companies : [];
+  const originalNetwork = companies.find(
+    (company) =>
+      company?.primaryCompanyType === 1 ||
+      company?.companyType?.companyTypeId === 1 ||
+      String(company?.companyType?.name || "").toLowerCase() === "network"
+  );
+
+  const genres = normalizeStringArray(seriesData?.genres);
+
+  const relationshipTypes = normalizeStringArray(
+    seriesData?.relationship_types || seriesData?.relationshipTypes
+  );
+
+  const settings = normalizeStringArray(seriesData?.settings);
+
+  const score =
+    seriesData?.score != null && !Number.isNaN(Number(seriesData.score))
+      ? Number(seriesData.score)
+      : null;
+
+  return {
+    tvdb_id: tvdbId,
+    name:
+      seriesData?.name ||
+      seriesData?.seriesName ||
+      seriesData?.translations?.name ||
+      "Unknown title",
+    overview:
+      seriesData?.overview ||
+      seriesData?.translations?.overview ||
+      "",
+    status:
+      seriesData?.status?.name ||
+      seriesData?.status ||
+      null,
+    poster_url: pickImage(
+      seriesData?.image,
+      seriesData?.image_url,
+      seriesData?.poster,
+      seriesData?.poster_url,
+      seriesData?.thumbnail
+    ),
+    first_aired:
+      seriesData?.firstAired ||
+      seriesData?.first_aired ||
+      seriesData?.year ||
+      null,
+    network:
+      originalNetwork?.name ||
+      seriesData?.originalNetwork?.name ||
+      seriesData?.network ||
+      "",
+    genres,
+    original_language:
+      seriesData?.originalLanguage ||
+      seriesData?.original_language ||
+      seriesData?.defaultSeasonType ||
+      "",
+    relationship_types: relationshipTypes,
+    settings,
+    rating_average: score,
+    rating_count:
+      seriesData?.scoreCount != null && !Number.isNaN(Number(seriesData.scoreCount))
+        ? Number(seriesData.scoreCount)
+        : null,
+  };
+}
+
+function normalizeEpisodes(seriesData, tvdbId) {
+  const rawEpisodes = Array.isArray(seriesData?.episodes) ? seriesData.episodes : [];
+
+  return rawEpisodes
+    .map((ep, index) => ({
+      id: ep?.id || `${tvdbId}-ep-${index}`,
+      tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
+      season_number:
+        ep?.seasonNumber ??
+        ep?.season_number ??
+        ep?.airedSeason ??
+        0,
+      episode_number:
+        ep?.number ??
+        ep?.episodeNumber ??
+        ep?.episode_number ??
+        ep?.airedEpisodeNumber ??
+        0,
+      episode_code:
+        ep?.productionCode ||
+        ep?.episodeCode ||
+        ep?.episode_code ||
+        null,
+      name: ep?.name || "Untitled episode",
+      overview: ep?.overview || "",
+      aired_date:
+        ep?.aired ||
+        ep?.airDate ||
+        ep?.aired_date ||
+        null,
+      image_url: pickImage(
+        ep?.image,
+        ep?.image_url,
+        ep?.thumbnail
+      ),
+    }))
+    .sort((a, b) => {
+      const seasonDiff = Number(a.season_number) - Number(b.season_number);
+      if (seasonDiff !== 0) return seasonDiff;
+      return Number(a.episode_number) - Number(b.episode_number);
+    });
+}
+
 function normalizeCastFromSeries(seriesData) {
   const rawCharacters = Array.isArray(seriesData?.characters)
     ? seriesData.characters
@@ -395,6 +532,8 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
+    const show = normalizeShow(seriesData, tvdbId);
+    const episodes = normalizeEpisodes(seriesData, tvdbId);
     const cast = normalizeCastFromSeries(seriesData);
 
     const inlinePeopleAlsoWatch = normalizePeopleAlsoWatch(seriesData);
@@ -419,11 +558,16 @@ export async function handler(event) {
         : tmdbRecommendations;
 
     return jsonResponse(200, {
+      show,
+      episodes,
       cast,
       providers: [],
       peopleAlsoWatch,
       recommendations,
       debug: {
+        showFound: !!show,
+        episodeCount: episodes.length,
+        castCount: cast.length,
         hasPeopleAlsoWatchArray: Array.isArray(seriesData?.peopleAlsoWatch),
         hasPeopleAlsoWatchSnakeArray: Array.isArray(seriesData?.people_also_watch),
         inlinePeopleAlsoWatchCount: inlinePeopleAlsoWatch.length,
@@ -446,6 +590,8 @@ export async function handler(event) {
 
     return jsonResponse(500, {
       error: error.message || "Failed to load show extras",
+      show: null,
+      episodes: [],
       cast: [],
       providers: [],
       peopleAlsoWatch: [],
