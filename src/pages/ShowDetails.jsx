@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
@@ -102,7 +102,7 @@ function normalizeEpisodePayload(row, index, tvdbId) {
 }
 
 export default function ShowDetails() {
-  const { id } = useParams();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [extrasLoading, setExtrasLoading] = useState(false);
@@ -373,38 +373,39 @@ export default function ShowDetails() {
     }));
   }
 
-  async function handleAddShow() {
-    if (!viewer) {
-      setError("Please log in to add this show.");
-      return;
-    }
-
-    if (!show?.tvdb_id) {
-      setError("This show cannot be added yet because it has no TVDB id.");
-      return;
-    }
-
-    setAdding(true);
-    setError("");
-
-    try {
-      await addShowToUserList({
-        tvdb_id: Number(show.tvdb_id),
-        name: show.show_name || "Unknown Show",
-        poster_url: show.poster_url || null,
-        overview: show.overview || null,
-        first_air_date: show.first_aired || null,
-        status: show.status || null,
-      });
-
-      setIsAdded(true);
-    } catch (err) {
-      console.error("Failed to add show:", err);
-      setError(err.message || "Failed to add show.");
-    } finally {
-      setAdding(false);
-    }
+async function handleAddShow() {
+  if (!viewer) {
+    setError("Please log in to add this show.");
+    return;
   }
+
+  if (!show?.tvdb_id) {
+    setError("This show cannot be added yet because it has no TVDB id.");
+    return;
+  }
+
+  setAdding(true);
+  setError("");
+
+  try {
+    await addShowToUserList({
+      tvdb_id: Number(show.tvdb_id),
+      name: show.show_name || "Unknown Show",
+      poster_url: show.poster_url || null,
+      overview: show.overview || null,
+      first_air_date: show.first_aired || null,
+      status: show.status || null,
+    });
+
+    setIsAdded(true);
+    navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
+  } catch (err) {
+    console.error("Failed to add show:", err);
+    setError(err.message || "Failed to add show.");
+  } finally {
+    setAdding(false);
+  }
+}
 
   if (loading) {
     return (
