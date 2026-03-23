@@ -3,47 +3,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 
-function parseDate(value) {
-  if (!value) return null;
-
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function pad(num) {
-  return String(num).padStart(2, "0");
-}
-
-function toLocalDateKey(date) {
-  if (!date) return null;
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate()
-  )}`;
-}
-
-function getTodayKey() {
-  return toLocalDateKey(new Date());
-}
-
-function getStoredDateKey(value) {
-  if (!value) return null;
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-
-    // Handles both:
-    // 2026-03-23
-    // 2026-03-23T00:00:00+00:00
-    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1];
-  }
-
-  const parsed = parseDate(value);
-  return parsed ? toLocalDateKey(parsed) : null;
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function startOfDay(date) {
@@ -58,55 +21,52 @@ function endOfDay(date) {
   return d;
 }
 
+function startOfToday() {
+  return startOfDay(new Date());
+}
+
+function startOfTomorrow() {
+  const d = startOfToday();
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+
 function isAired(dateStr) {
   const date = parseDate(dateStr);
   return !!date && date <= new Date();
 }
 
-function isToday(dateStr) {
-  const key = getStoredDateKey(dateStr);
-  return !!key && key === getTodayKey();
-}
-
 function isBeforeToday(dateStr) {
-  const key = getStoredDateKey(dateStr);
-  const todayKey = getTodayKey();
-
-  if (!key) return false;
-  return key < todayKey;
+  const date = parseDate(dateStr);
+  if (!date) return false;
+  return date < startOfToday();
 }
 
 function isWithinLastDays(dateStr, days, { includeToday = true } = {}) {
-  const key = getStoredDateKey(dateStr);
-  if (!key) return false;
+  const date = parseDate(dateStr);
+  if (!date) return false;
 
   const now = new Date();
   const todayStart = startOfDay(now);
   const rangeStart = new Date(todayStart);
   rangeStart.setDate(rangeStart.getDate() - days);
 
-  const rangeStartKey = toLocalDateKey(rangeStart);
-  const todayKey = toLocalDateKey(todayStart);
-
   if (includeToday) {
-    return key >= rangeStartKey && key <= todayKey;
+    return date >= rangeStart && date <= endOfDay(now);
   }
 
-  return key >= rangeStartKey && key < todayKey;
+  return date >= rangeStart && date < todayStart;
 }
 
 function isWithinLastMonth(dateStr) {
-  const key = getStoredDateKey(dateStr);
-  if (!key) return false;
+  const date = parseDate(dateStr);
+  if (!date) return false;
 
   const now = new Date();
   const monthAgo = startOfDay(new Date(now));
   monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-  const monthAgoKey = toLocalDateKey(monthAgo);
-  const todayKey = toLocalDateKey(now);
-
-  return key >= monthAgoKey && key <= todayKey;
+  return date >= monthAgo && date <= endOfDay(now);
 }
 
 function getDisplayEpisodeCode(ep) {
@@ -118,11 +78,6 @@ function getDisplayEpisodeCode(ep) {
 function isEpisodeWatched(ep, watchedEpisodeIds) {
   if (!ep?.id) return false;
   return watchedEpisodeIds.has(String(ep.id));
-}
-
-function getEpisodeSortTime(episode) {
-  const parsed = parseDate(episode?.aired);
-  return parsed?.getTime() ?? 0;
 }
 
 function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
@@ -158,6 +113,7 @@ export default function Dashboard() {
   const [shows, setShows] = useState([]);
   const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(new Set());
   const [episodesByShow, setEpisodesByShow] = useState({});
+  const [airingTodayItems, setAiringTodayItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -173,6 +129,7 @@ export default function Dashboard() {
           setShows([]);
           setWatchedEpisodeIds(new Set());
           setEpisodesByShow({});
+          setAiringTodayItems([]);
           setLoading(false);
           return;
         }
@@ -221,8 +178,16 @@ export default function Dashboard() {
         }));
 
         const showIds = safeShows.map((show) => show.show_id).filter(Boolean);
+        const showLookup = {};
 
-        const [watchedResp, episodesResp] = await Promise.all([
+        for (const show of safeShows) {
+          showLookup[show.show_id] = show;
+        }
+
+        const today = startOfToday();
+        const tomorrow = startOfTomorrow();
+
+        const [watchedResp, episodesResp, airingTodayResp] = await Promise.all([
           supabase
             .from("watched_episodes")
             .select("episode_id")
@@ -247,6 +212,24 @@ export default function Dashboard() {
                 .order("season_number", { ascending: true })
                 .order("episode_number", { ascending: true })
             : Promise.resolve({ data: [], error: null }),
+
+          showIds.length
+            ? supabase
+                .from("episodes")
+                .select(`
+                  id,
+                  show_id,
+                  season_number,
+                  episode_number,
+                  name,
+                  aired_date
+                `)
+                .in("show_id", showIds)
+                .gte("aired_date", today.toISOString().slice(0, 10))
+                .order("aired_date", { ascending: true })
+                .order("season_number", { ascending: true })
+                .order("episode_number", { ascending: true })
+            : Promise.resolve({ data: [], error: null }),
         ]);
 
         if (watchedResp.error) {
@@ -255,6 +238,10 @@ export default function Dashboard() {
 
         if (episodesResp.error) {
           console.error("Error loading episodes:", episodesResp.error);
+        }
+
+        if (airingTodayResp.error) {
+          console.error("Error loading airing today episodes:", airingTodayResp.error);
         }
 
         const watchedIds = new Set(
@@ -285,14 +272,42 @@ export default function Dashboard() {
           });
         }
 
+        const todayItems = [];
+        for (const row of airingTodayResp.data || []) {
+          const show = showLookup[row.show_id];
+          if (!show) continue;
+
+          const airValue = row.aired_date;
+          if (!airValue) continue;
+
+          const airDate = new Date(airValue);
+          if (Number.isNaN(airDate.getTime())) continue;
+
+          if (airDate < today || airDate >= tomorrow) continue;
+
+          todayItems.push({
+            show,
+            episode: {
+              id: row.id,
+              show_id: row.show_id,
+              seasonNumber: row.season_number,
+              number: row.episode_number,
+              name: row.name || "Untitled episode",
+              aired: row.aired_date,
+            },
+          });
+        }
+
         setShows(safeShows);
         setWatchedEpisodeIds(watchedIds);
         setEpisodesByShow(episodesLookup);
+        setAiringTodayItems(todayItems);
       } catch (error) {
         console.error("Error loading dashboard:", error);
         setShows([]);
         setWatchedEpisodeIds(new Set());
         setEpisodesByShow({});
+        setAiringTodayItems([]);
       } finally {
         setLoading(false);
       }
@@ -302,7 +317,6 @@ export default function Dashboard() {
   }, []);
 
   const dashboardData = useMemo(() => {
-    const airingToday = [];
     const recentlyAired = [];
     const continueWatching = [];
     const recentlyAdded = [];
@@ -314,13 +328,10 @@ export default function Dashboard() {
       const episodes = episodesByShow[show.show_id] || [];
 
       const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
-      const todayEpisodes = episodes.filter((ep) => isToday(ep.aired));
 
-      const watchedAiredBeforeToday = airedBeforeToday.filter((ep) =>
+      const watchedAiredBeforeTodayCount = airedBeforeToday.filter((ep) =>
         isEpisodeWatched(ep, watchedEpisodeIds)
-      );
-
-      const watchedAiredBeforeTodayCount = watchedAiredBeforeToday.length;
+      ).length;
 
       const recentUnwatchedEpisodes = episodes.filter(
         (ep) =>
@@ -335,8 +346,11 @@ export default function Dashboard() {
               isWithinLastMonth(ep.aired) &&
               !isEpisodeWatched(ep, watchedEpisodeIds)
           )
-          .sort((a, b) => getEpisodeSortTime(b) - getEpisodeSortTime(a))[0] ||
-        null;
+          .sort((a, b) => {
+            const aTime = parseDate(a.aired)?.getTime() ?? 0;
+            const bTime = parseDate(b.aired)?.getTime() ?? 0;
+            return bTime - aTime;
+          })[0] || null;
 
       const isComplete =
         airedBeforeToday.length > 0 &&
@@ -351,10 +365,6 @@ export default function Dashboard() {
         completedCount += 1;
       } else if (watchedAiredBeforeTodayCount > 0) {
         inProgressCount += 1;
-      }
-
-      for (const episode of todayEpisodes) {
-        airingToday.push({ show, episode });
       }
 
       for (const episode of recentUnwatchedEpisodes) {
@@ -376,32 +386,34 @@ export default function Dashboard() {
       }
     }
 
-    airingToday.sort(
-      (a, b) => getEpisodeSortTime(a.episode) - getEpisodeSortTime(b.episode)
-    );
+    recentlyAired.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
 
-    recentlyAired.sort(
-      (a, b) => getEpisodeSortTime(b.episode) - getEpisodeSortTime(a.episode)
-    );
+    continueWatching.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
 
-    continueWatching.sort(
-      (a, b) => getEpisodeSortTime(b.episode) - getEpisodeSortTime(a.episode)
-    );
-
-    recentlyAdded.sort(
-      (a, b) => getEpisodeSortTime(b.episode) - getEpisodeSortTime(a.episode)
-    );
+    recentlyAdded.sort((a, b) => {
+      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      return bDate - aDate;
+    });
 
     return {
       totalShows: shows.length,
       completedCount,
       inProgressCount,
-      airingToday: airingToday.slice(0, 12),
+      airingToday: airingTodayItems.slice(0, 12),
       recentlyAired: recentlyAired.slice(0, 12),
       continueWatching: continueWatching.slice(0, 12),
       recentlyAdded: recentlyAdded.slice(0, 12),
     };
-  }, [shows, watchedEpisodeIds, episodesByShow]);
+  }, [shows, watchedEpisodeIds, episodesByShow, airingTodayItems]);
 
   if (loading) {
     return (
