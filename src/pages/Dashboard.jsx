@@ -31,11 +31,6 @@ function startOfTomorrow() {
   return d;
 }
 
-function isAired(dateStr) {
-  const date = parseDate(dateStr);
-  return !!date && date <= new Date();
-}
-
 function isBeforeToday(dateStr) {
   const date = parseDate(dateStr);
   if (!date) return false;
@@ -58,17 +53,6 @@ function isWithinLastDays(dateStr, days, { includeToday = true } = {}) {
   return date >= rangeStart && date < todayStart;
 }
 
-function isWithinLastMonth(dateStr) {
-  const date = parseDate(dateStr);
-  if (!date) return false;
-
-  const now = new Date();
-  const monthAgo = startOfDay(new Date(now));
-  monthAgo.setMonth(monthAgo.getMonth() - 1);
-
-  return date >= monthAgo && date <= endOfDay(now);
-}
-
 function getDisplayEpisodeCode(ep) {
   return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
     ep.number
@@ -80,7 +64,12 @@ function isEpisodeWatched(ep, watchedEpisodeIds) {
   return watchedEpisodeIds.has(String(ep.id));
 }
 
-function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
+function DashboardEpisodeItem({
+  show,
+  episode,
+  dateLabel = "Aired",
+  dateValue,
+}) {
   return (
     <Link
       to={`/my-shows/${show.tvdb_id}?episode=${episode.id}`}
@@ -102,7 +91,7 @@ function DashboardEpisodeItem({ show, episode, dateLabel = "Aired" }) {
           {getDisplayEpisodeCode(episode)} - {episode.name}
         </span>
         <small>
-          {dateLabel}: {formatDate(episode.aired)}
+          {dateLabel}: {formatDate(dateValue || episode.aired)}
         </small>
       </div>
     </Link>
@@ -205,7 +194,8 @@ export default function Dashboard() {
                   aired_date,
                   overview,
                   image_url,
-                  episode_code
+                  episode_code,
+                  created_at
                 `)
                 .in("show_id", showIds)
                 .order("show_id", { ascending: true })
@@ -226,6 +216,7 @@ export default function Dashboard() {
                 `)
                 .in("show_id", showIds)
                 .gte("aired_date", today.toISOString().slice(0, 10))
+                .lt("aired_date", tomorrow.toISOString().slice(0, 10))
                 .order("aired_date", { ascending: true })
                 .order("season_number", { ascending: true })
                 .order("episode_number", { ascending: true })
@@ -241,7 +232,10 @@ export default function Dashboard() {
         }
 
         if (airingTodayResp.error) {
-          console.error("Error loading airing today episodes:", airingTodayResp.error);
+          console.error(
+            "Error loading airing today episodes:",
+            airingTodayResp.error
+          );
         }
 
         const watchedIds = new Set(
@@ -269,6 +263,7 @@ export default function Dashboard() {
             overview: row.overview || "",
             image: row.image_url || null,
             episodeCode: row.episode_code || null,
+            created_at: row.created_at || null,
           });
         }
 
@@ -276,14 +271,6 @@ export default function Dashboard() {
         for (const row of airingTodayResp.data || []) {
           const show = showLookup[row.show_id];
           if (!show) continue;
-
-          const airValue = row.aired_date;
-          if (!airValue) continue;
-
-          const airDate = new Date(airValue);
-          if (Number.isNaN(airDate.getTime())) continue;
-
-          if (airDate < today || airDate >= tomorrow) continue;
 
           todayItems.push({
             show,
@@ -339,18 +326,16 @@ export default function Dashboard() {
           !isEpisodeWatched(ep, watchedEpisodeIds)
       );
 
-      const latestRecentUnwatchedEpisode =
-        [...episodes]
-          .filter(
-            (ep) =>
-              isWithinLastMonth(ep.aired) &&
-              !isEpisodeWatched(ep, watchedEpisodeIds)
-          )
-          .sort((a, b) => {
-            const aTime = parseDate(a.aired)?.getTime() ?? 0;
-            const bTime = parseDate(b.aired)?.getTime() ?? 0;
-            return bTime - aTime;
-          })[0] || null;
+      const recentlyAddedEpisodes = episodes.filter((ep) =>
+        isWithinLastDays(ep.created_at, 7, { includeToday: true })
+      );
+
+      const latestRecentlyAddedEpisode =
+        [...recentlyAddedEpisodes].sort((a, b) => {
+          const aTime = parseDate(a.created_at)?.getTime() ?? 0;
+          const bTime = parseDate(b.created_at)?.getTime() ?? 0;
+          return bTime - aTime;
+        })[0] || null;
 
       const isComplete =
         airedBeforeToday.length > 0 &&
@@ -378,10 +363,10 @@ export default function Dashboard() {
         });
       }
 
-      if (latestRecentUnwatchedEpisode) {
+      if (latestRecentlyAddedEpisode) {
         recentlyAdded.push({
           show,
-          episode: latestRecentUnwatchedEpisode,
+          episode: latestRecentlyAddedEpisode,
         });
       }
     }
@@ -399,8 +384,8 @@ export default function Dashboard() {
     });
 
     recentlyAdded.sort((a, b) => {
-      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
-      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
+      const aDate = parseDate(a.episode.created_at)?.getTime() ?? 0;
+      const bDate = parseDate(b.episode.created_at)?.getTime() ?? 0;
       return bDate - aDate;
     });
 
@@ -461,6 +446,7 @@ export default function Dashboard() {
                   show={show}
                   episode={episode}
                   dateLabel="Airs"
+                  dateValue={episode.aired}
                 />
               ))}
             </div>
@@ -484,6 +470,7 @@ export default function Dashboard() {
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
+                  dateValue={episode.aired}
                 />
               ))}
             </div>
@@ -505,6 +492,7 @@ export default function Dashboard() {
                   show={show}
                   episode={episode}
                   dateLabel="Aired"
+                  dateValue={episode.aired}
                 />
               ))}
             </div>
@@ -513,12 +501,12 @@ export default function Dashboard() {
 
         <section className="dashboard-card">
           <div className="card-header">
-            <h2>Recently Added</h2>
+            <h2>Recently Added Episodes</h2>
           </div>
 
           {dashboardData.recentlyAdded.length === 0 ? (
             <p className="empty-state">
-              No unwatched recent episodes found in the last month.
+              No episodes have been added in the last 7 days.
             </p>
           ) : (
             <div className="dashboard-list">
@@ -527,7 +515,8 @@ export default function Dashboard() {
                   key={`${show.tvdb_id}-${episode.id}-added`}
                   show={show}
                   episode={episode}
-                  dateLabel="Aired"
+                  dateLabel="Added"
+                  dateValue={episode.created_at}
                 />
               ))}
             </div>
