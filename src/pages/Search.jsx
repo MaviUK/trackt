@@ -24,7 +24,10 @@ export default function Search() {
   const sourceLanguage = searchParams.get("sourceLanguage") || "";
 
   const isPureNetworkBrowse =
-    !!networkFilter && !genreFilter && !relationshipTypeFilter && !settingFilter;
+    !!networkFilter &&
+    !genreFilter &&
+    !relationshipTypeFilter &&
+    !settingFilter;
 
   useEffect(() => {
     if (genreFilter) setQuery(genreFilter);
@@ -110,7 +113,10 @@ export default function Search() {
 
   useEffect(() => {
     const hasFilter =
-      !!genreFilter || !!networkFilter || !!relationshipTypeFilter || !!settingFilter;
+      !!genreFilter ||
+      !!networkFilter ||
+      !!relationshipTypeFilter ||
+      !!settingFilter;
 
     if (!hasFilter) return;
 
@@ -261,11 +267,22 @@ export default function Search() {
           </button>
         </div>
 
-        {(genreFilter || networkFilter || relationshipTypeFilter || settingFilter) && (
-          <div style={{ marginBottom: "16px", color: "#cbd5e1", fontSize: "0.95rem" }}>
+        {(genreFilter ||
+          networkFilter ||
+          relationshipTypeFilter ||
+          settingFilter) && (
+          <div
+            style={{
+              marginBottom: "16px",
+              color: "#cbd5e1",
+              fontSize: "0.95rem",
+            }}
+          >
             Active filter:{" "}
             {genreFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>Genre = {genreFilter}</span>
+              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
+                Genre = {genreFilter}
+              </span>
             ) : null}
             {networkFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
@@ -281,7 +298,9 @@ export default function Search() {
             ) : null}
             {settingFilter ? (
               <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {genreFilter || networkFilter || relationshipTypeFilter ? " | " : ""}
+                {genreFilter || networkFilter || relationshipTypeFilter
+                  ? " | "
+                  : ""}
                 Setting = {settingFilter}
               </span>
             ) : null}
@@ -298,103 +317,137 @@ export default function Search() {
           </div>
         )}
 
-        {error && <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>}
+        {error && (
+          <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shows.map((show) => {
             const itemId = String(show.tvdb_id || show.tmdb_id || show.id);
-            const isSaved = show.tvdb_id ? savedIds.has(String(show.tvdb_id)) : false;
-            const isAdding = addingId === String(show.tvdb_id);
-            const canAdd = !!show.tvdb_id;
-            const detailHref = show.tvdb_id ? `/show/${show.tvdb_id}` : null;
+            const tvdbId = show.tvdb_id ? String(show.tvdb_id) : null;
+            const isSaved = tvdbId ? savedIds.has(tvdbId) : false;
+            const isAdding = addingId === tvdbId;
+            const canAdd = !!tvdbId;
+
+            const detailHref = tvdbId
+              ? isSaved
+                ? `/my-shows/${tvdbId}`
+                : `/show/${tvdbId}`
+              : null;
 
             const poster = show.image_url || show.poster_url || null;
 
-            const cardContent = (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "88px minmax(0, 1fr)",
-                  gap: "14px",
-                  alignItems: "start",
-                }}
-              >
+            return (
+              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                    alignItems: "stretch",
+                    display: "grid",
+                    gridTemplateColumns: "88px minmax(0, 1fr)",
+                    gap: "14px",
+                    alignItems: "start",
                   }}
                 >
-                  {detailHref ? (
-                    <Link to={detailHref} style={{ display: "block" }}>
-                      {poster ? (
-                        <img
-                          src={poster}
-                          alt={show.name || show.show_name || "Show poster"}
-                          style={{
-                            width: "88px",
-                            height: "128px",
-                            borderRadius: "12px",
-                            objectFit: "cover",
-                            display: "block",
-                            background: "#111827",
-                          }}
-                        />
-                      ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                      alignItems: "stretch",
+                    }}
+                  >
+                    {detailHref ? (
+                      <Link to={detailHref} style={{ display: "block" }}>
+                        {poster ? (
+                          <img
+                            src={poster}
+                            alt={show.name || show.show_name || "Show poster"}
+                            style={{
+                              width: "88px",
+                              height: "128px",
+                              borderRadius: "12px",
+                              objectFit: "cover",
+                              display: "block",
+                              background: "#111827",
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: "88px",
+                              height: "128px",
+                              borderRadius: "12px",
+                              background: "#111827",
+                            }}
+                          />
+                        )}
+                      </Link>
+                    ) : poster ? (
+                      <img
+                        src={poster}
+                        alt={show.name || show.show_name || "Show poster"}
+                        style={{
+                          width: "88px",
+                          height: "128px",
+                          borderRadius: "12px",
+                          objectFit: "cover",
+                          display: "block",
+                          background: "#111827",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "88px",
+                          height: "128px",
+                          borderRadius: "12px",
+                          background: "#111827",
+                        }}
+                      />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleAddShow(e, show)}
+                      disabled={!canAdd || isSaved || isAdding}
+                      className={`msd-btn ${
+                        isSaved ? "msd-btn-success" : "msd-btn-primary"
+                      }`}
+                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
+                      title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
+                    >
+                      {!canAdd
+                        ? "TMDB Only"
+                        : isSaved
+                        ? "Added"
+                        : isAdding
+                        ? "Adding..."
+                        : "Add"}
+                    </button>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    {detailHref ? (
+                      <Link
+                        to={detailHref}
+                        style={{
+                          textDecoration: "none",
+                          color: "inherit",
+                          minWidth: 0,
+                        }}
+                      >
                         <div
                           style={{
-                            width: "88px",
-                            height: "128px",
-                            borderRadius: "12px",
-                            background: "#111827",
+                            fontSize: "1.05rem",
+                            fontWeight: "800",
+                            color: "#f8fafc",
+                            marginBottom: "8px",
+                            lineHeight: "1.2",
                           }}
-                        />
-                      )}
-                    </Link>
-                  ) : poster ? (
-                    <img
-                      src={poster}
-                      alt={show.name || show.show_name || "Show poster"}
-                      style={{
-                        width: "88px",
-                        height: "128px",
-                        borderRadius: "12px",
-                        objectFit: "cover",
-                        display: "block",
-                        background: "#111827",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: "88px",
-                        height: "128px",
-                        borderRadius: "12px",
-                        background: "#111827",
-                      }}
-                    />
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={(e) => handleAddShow(e, show)}
-                    disabled={!canAdd || isSaved || isAdding}
-                    className={`msd-btn ${isSaved ? "msd-btn-success" : "msd-btn-primary"}`}
-                    style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
-                    title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
-                  >
-                    {!canAdd ? "TMDB Only" : isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
-                  </button>
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  {detailHref ? (
-                    <Link
-                      to={detailHref}
-                      style={{ textDecoration: "none", color: "inherit", minWidth: 0 }}
-                    >
+                        >
+                          {show.name || show.show_name || "Unknown title"}
+                        </div>
+                      </Link>
+                    ) : (
                       <div
                         style={{
                           fontSize: "1.05rem",
@@ -406,62 +459,56 @@ export default function Search() {
                       >
                         {show.name || show.show_name || "Unknown title"}
                       </div>
-                    </Link>
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: "1.05rem",
-                        fontWeight: "800",
-                        color: "#f8fafc",
-                        marginBottom: "8px",
-                        lineHeight: "1.2",
-                      }}
-                    >
-                      {show.name || show.show_name || "Unknown title"}
-                    </div>
-                  )}
+                    )}
 
-                  {(show.first_air_time || show.first_aired) && (
-                    <p style={{ margin: "0 0 10px 0", color: "#cbd5e1", fontWeight: "600" }}>
-                      First aired: {formatDate(show.first_air_time || show.first_aired)}
-                    </p>
-                  )}
-
-                  {show.network && (
-                    <p style={{ margin: "0 0 10px 0", color: "#93c5fd", fontWeight: "600" }}>
-                      Network: {show.network}
-                    </p>
-                  )}
-
-                  {show.overview && (
-                    <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
-                      {show.overview.length > 180
-                        ? `${show.overview.slice(0, 180)}...`
-                        : show.overview}
-                    </p>
-                  )}
-
-                  {detailHref ? (
-                    <div style={{ marginTop: "12px" }}>
-                      <Link
-                        to={detailHref}
+                    {(show.first_air_time || show.first_aired) && (
+                      <p
                         style={{
-                          color: "#93c5fd",
-                          fontWeight: 700,
-                          textDecoration: "none",
+                          margin: "0 0 10px 0",
+                          color: "#cbd5e1",
+                          fontWeight: "600",
                         }}
                       >
-                        View details →
-                      </Link>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            );
+                        First aired: {formatDate(show.first_air_time || show.first_aired)}
+                      </p>
+                    )}
 
-            return (
-              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
-                {cardContent}
+                    {show.network && (
+                      <p
+                        style={{
+                          margin: "0 0 10px 0",
+                          color: "#93c5fd",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Network: {show.network}
+                      </p>
+                    )}
+
+                    {show.overview && (
+                      <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
+                        {show.overview.length > 180
+                          ? `${show.overview.slice(0, 180)}...`
+                          : show.overview}
+                      </p>
+                    )}
+
+                    {detailHref ? (
+                      <div style={{ marginTop: "12px" }}>
+                        <Link
+                          to={detailHref}
+                          style={{
+                            color: "#93c5fd",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                          }}
+                        >
+                          {isSaved ? "Open in My Shows →" : "View details →"}
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             );
           })}
