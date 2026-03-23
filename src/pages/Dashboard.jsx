@@ -5,8 +5,38 @@ import { formatDate } from "../lib/date";
 
 function parseDate(dateStr) {
   if (!dateStr) return null;
-  const date = new Date(dateStr);
-  return Number.isNaN(date.getTime()) ? null : date;
+
+  if (dateStr instanceof Date) {
+    return Number.isNaN(dateStr.getTime()) ? null : dateStr;
+  }
+
+  if (typeof dateStr !== "string") {
+    const fallback = new Date(dateStr);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  // Treat plain YYYY-MM-DD values as LOCAL dates, not UTC dates.
+  const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const localDate = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      0,
+      0,
+      0,
+      0
+    );
+
+    return Number.isNaN(localDate.getTime()) ? null : localDate;
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function startOfDay(date) {
