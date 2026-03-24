@@ -326,9 +326,16 @@ export default function Dashboard() {
           !isEpisodeWatched(ep, watchedEpisodeIds)
       );
 
-      const recentlyAddedEpisodes = episodes.filter((ep) =>
-        isWithinLastDays(ep.created_at, 7, { includeToday: true })
-      );
+      const recentlyAddedEpisodes = episodes.filter((ep) => {
+        const createdRecently = isWithinLastDays(ep.created_at, 7, {
+          includeToday: true,
+        });
+
+        const airDate = parseDate(ep.aired);
+        const notAiredYet = airDate && airDate > new Date();
+
+        return createdRecently && notAiredYet;
+      });
 
       const latestRecentlyAddedEpisode =
         [...recentlyAddedEpisodes].sort((a, b) => {
@@ -506,7 +513,7 @@ export default function Dashboard() {
 
           {dashboardData.recentlyAdded.length === 0 ? (
             <p className="empty-state">
-              No episodes have been added in the last 7 days.
+              No upcoming episodes have been added in the last 7 days.
             </p>
           ) : (
             <div className="dashboard-list">
