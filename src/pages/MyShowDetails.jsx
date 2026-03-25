@@ -59,10 +59,6 @@ function getYear(dateString) {
   return String(d.getFullYear());
 }
 
-function getSeasonLabel(seasonNumber) {
-  return Number(seasonNumber) === 0 ? "Specials" : `Season ${seasonNumber}`;
-}
-
 function sortSeasonGroups(a, b) {
   const aNum = Number(a[0]);
   const bNum = Number(b[0]);
@@ -70,6 +66,11 @@ function sortSeasonGroups(a, b) {
   if (aNum === 0 && bNum !== 0) return -1;
   if (bNum === 0 && aNum !== 0) return 1;
   return aNum - bNum;
+}
+
+function isMobileViewport() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 768px)").matches;
 }
 
 async function fetchWatchedRows(userId) {
@@ -96,6 +97,60 @@ async function fetchBurgrRatings(showId) {
   return data || [];
 }
 
+async function fetchEpisodeRatings(showEpisodeIds) {
+  if (!showEpisodeIds?.length) return [];
+
+  const { data, error } = await supabase
+    .from("episode_ratings")
+    .select("user_id, episode_id, rating")
+    .in("episode_id", showEpisodeIds);
+
+  if (error) {
+    console.warn("episode_ratings load failed:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+function buildEpisodeRatingsMap(rows, userId) {
+  const map = new Map();
+
+  for (const row of rows || []) {
+    if (!row?.episode_id) continue;
+    if (row.user_id !== userId) continue;
+    map.set(String(row.episode_id), String(row.rating));
+  }
+
+  return map;
+}
+
+function buildEpisodeAverageRatingsMap(rows) {
+  const grouped = new Map();
+
+  for (const row of rows || []) {
+    const episodeId = String(row?.episode_id || "");
+    const rating = Number(row?.rating);
+
+    if (!episodeId || Number.isNaN(rating)) continue;
+
+    if (!grouped.has(episodeId)) grouped.set(episodeId, []);
+    grouped.get(episodeId).push(rating);
+  }
+
+  const averages = new Map();
+
+  for (const [episodeId, ratings] of grouped.entries()) {
+    const avg = ratings.reduce((sum, n) => sum + n, 0) / ratings.length;
+    averages.set(episodeId, {
+      avg: avg.toFixed(1),
+      count: ratings.length,
+    });
+  }
+
+  return averages;
+}
+
 export default function MyShowDetails() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -118,9 +173,26 @@ export default function MyShowDetails() {
   const [myBurgrRating, setMyBurgrRating] = useState("");
   const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
 
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [episodeRatings, setEpisodeRatings] = useState([]);
+  const [savingEpisodeRatingId, setSavingEpisodeRatingId] = useState(null);
+  const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
+  const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
+    useState(null);
+
   const watchedEpisodeIds = useMemo(
     () => buildWatchedEpisodeIdSet(watchedRows),
     [watchedRows]
+  );
+
+  const myEpisodeRatings = useMemo(
+    () => buildEpisodeRatingsMap(episodeRatings, currentUserId),
+    [episodeRatings, currentUserId]
+  );
+
+  const episodeAverageRatings = useMemo(
+    () => buildEpisodeAverageRatingsMap(episodeRatings),
+    [episodeRatings]
   );
 
   useEffect(() => {
@@ -134,6 +206,7 @@ export default function MyShowDetails() {
         } = await supabase.auth.getUser();
 
         if (!user) {
+          setCurrentUserId(null);
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
@@ -143,11 +216,18 @@ export default function MyShowDetails() {
           setPeopleAlsoWatch([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
+          setEpisodeRatings([]);
+          setSavingEpisodeRatingId(null);
+          setHoverEpisodeRatings({});
+          setOpenEpisodeRatingPickerId(null);
           return;
         }
 
+        setCurrentUserId(user.id);
+
         const tvdbId = Number(id);
         if (Number.isNaN(tvdbId)) {
+          setCurrentUserId(null);
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
@@ -157,6 +237,10 @@ export default function MyShowDetails() {
           setPeopleAlsoWatch([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
+          setEpisodeRatings([]);
+          setSavingEpisodeRatingId(null);
+          setHoverEpisodeRatings({});
+          setOpenEpisodeRatingPickerId(null);
           return;
         }
 
@@ -231,6 +315,10 @@ export default function MyShowDetails() {
             setPeopleAlsoWatch([]);
             setBurgrRatings([]);
             setMyBurgrRating("");
+            setEpisodeRatings([]);
+            setSavingEpisodeRatingId(null);
+            setHoverEpisodeRatings({});
+            setOpenEpisodeRatingPickerId(null);
             return;
           }
 
@@ -277,9 +365,13 @@ export default function MyShowDetails() {
           episode_code: row.episode_code,
         }));
 
+        const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+        const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
+
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
           const seasonKey = Number(ep.seasonNumber ?? 0);
+          if (seasonKey === 0) return;
           if (!(seasonKey in seasonMap)) {
             seasonMap[seasonKey] = false;
           }
@@ -331,6 +423,10 @@ export default function MyShowDetails() {
         setExpandedSeasons(seasonMap);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
+        setEpisodeRatings(episodeRatingRows || []);
+        setSavingEpisodeRatingId(null);
+        setHoverEpisodeRatings({});
+        setOpenEpisodeRatingPickerId(null);
 
         setCast([]);
         setRecommendedShows([]);
@@ -371,6 +467,7 @@ export default function MyShowDetails() {
         }
       } catch (error) {
         console.error("Failed loading show:", error);
+        setCurrentUserId(null);
         setShow(null);
         setEpisodes([]);
         setWatchedRows([]);
@@ -380,6 +477,10 @@ export default function MyShowDetails() {
         setPeopleAlsoWatch([]);
         setBurgrRatings([]);
         setMyBurgrRating("");
+        setEpisodeRatings([]);
+        setSavingEpisodeRatingId(null);
+        setHoverEpisodeRatings({});
+        setOpenEpisodeRatingPickerId(null);
       } finally {
         setLoading(false);
       }
@@ -403,53 +504,52 @@ export default function MyShowDetails() {
   }, [episodes, expandedSeasons, targetEpisodeId, loading]);
 
   const groupedSeasons = useMemo(() => {
-  const grouped = {};
+    const grouped = {};
 
-  for (const ep of episodes) {
-    const seasonKey = Number(ep.seasonNumber ?? 0);
+    for (const ep of episodes) {
+      const seasonKey = Number(ep.seasonNumber ?? 0);
+      if (seasonKey === 0) continue;
 
-    if (seasonKey === 0) continue;
+      if (!grouped[seasonKey]) grouped[seasonKey] = [];
+      grouped[seasonKey].push(ep);
+    }
 
-    if (!grouped[seasonKey]) grouped[seasonKey] = [];
-    grouped[seasonKey].push(ep);
-  }
+    return Object.entries(grouped)
+      .sort(sortSeasonGroups)
+      .map(([seasonNumber, seasonEpisodes]) => {
+        const watchedCount = seasonEpisodes.filter((ep) =>
+          isEpisodeWatched(ep, watchedEpisodeIds)
+        ).length;
 
-  return Object.entries(grouped)
-    .sort(sortSeasonGroups)
-    .map(([seasonNumber, seasonEpisodes]) => {
-      const watchedCount = seasonEpisodes.filter((ep) =>
-        isEpisodeWatched(ep, watchedEpisodeIds)
-      ).length;
-
-      return {
-        seasonNumber: Number(seasonNumber),
-        label: `Season ${seasonNumber}`,
-        episodes: seasonEpisodes,
-        watchedCount,
-        totalCount: seasonEpisodes.length,
-        complete:
-          seasonEpisodes.length > 0 &&
-          watchedCount === seasonEpisodes.length,
-      };
-    });
-}, [episodes, watchedEpisodeIds]);
+        return {
+          seasonNumber: Number(seasonNumber),
+          label: `Season ${seasonNumber}`,
+          episodes: seasonEpisodes,
+          watchedCount,
+          totalCount: seasonEpisodes.length,
+          complete:
+            seasonEpisodes.length > 0 &&
+            watchedCount === seasonEpisodes.length,
+        };
+      });
+  }, [episodes, watchedEpisodeIds]);
 
   const stats = useMemo(() => {
-  const mainEpisodes = episodes.filter(
-    (ep) => Number(ep.seasonNumber ?? 0) !== 0
-  );
+    const mainEpisodes = episodes.filter(
+      (ep) => Number(ep.seasonNumber ?? 0) !== 0
+    );
 
-  const total = mainEpisodes.length;
-  const watched = mainEpisodes.filter((ep) =>
-    isEpisodeWatched(ep, watchedEpisodeIds)
-  ).length;
-  const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
-  const nextEpisode = mainEpisodes.find(
-    (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
-  );
+    const total = mainEpisodes.length;
+    const watched = mainEpisodes.filter((ep) =>
+      isEpisodeWatched(ep, watchedEpisodeIds)
+    ).length;
+    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+    const nextEpisode = mainEpisodes.find(
+      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
+    );
 
-  return { total, watched, pct, nextEpisode };
-}, [episodes, watchedEpisodeIds]);
+    return { total, watched, pct, nextEpisode };
+  }, [episodes, watchedEpisodeIds]);
 
   const burgrStats = useMemo(() => {
     const ratings = burgrRatings
@@ -486,6 +586,11 @@ export default function MyShowDetails() {
     setBurgrRatings(fresh);
     const mine = (fresh || []).find((row) => row.user_id === userId);
     setMyBurgrRating(mine ? String(mine.rating) : "");
+  }
+
+  async function refreshEpisodeRatings(showEpisodeIds) {
+    const fresh = await fetchEpisodeRatings(showEpisodeIds);
+    setEpisodeRatings(fresh);
   }
 
   async function handleMarkWatched(ep) {
@@ -537,6 +642,7 @@ export default function MyShowDetails() {
         const epSeason = Number(ep.seasonNumber ?? 0);
         const epNumber = Number(ep.number ?? 0);
 
+        if (epSeason === 0) return false;
         if (epSeason < targetSeason) return true;
         if (epSeason > targetSeason) return false;
         return epNumber <= targetEpisodeNumber;
@@ -605,6 +711,61 @@ export default function MyShowDetails() {
     } finally {
       setSavingBurgr(false);
     }
+  }
+
+  async function handleSelectEpisodeRating(ep, value) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !ep?.id || savingEpisodeRatingId) return;
+
+    const rating = Number(value);
+    if (Number.isNaN(rating) || rating < 1 || rating > 10) return;
+
+    setSavingEpisodeRatingId(ep.id);
+
+    const previousRows = episodeRatings;
+
+    const optimisticRows = [
+      ...(episodeRatings || []).filter(
+        (row) =>
+          !(String(row.episode_id) === String(ep.id) && row.user_id === user.id)
+      ),
+      {
+        user_id: user.id,
+        episode_id: ep.id,
+        rating,
+      },
+    ];
+
+    setEpisodeRatings(optimisticRows);
+
+    try {
+      const { error } = await supabase.from("episode_ratings").upsert(
+        {
+          user_id: user.id,
+          episode_id: ep.id,
+          rating,
+        },
+        { onConflict: "user_id,episode_id" }
+      );
+
+      if (error) throw error;
+
+      await refreshEpisodeRatings(episodes.map((episode) => episode.id));
+      setOpenEpisodeRatingPickerId(null);
+    } catch (error) {
+      console.error("Failed saving episode rating:", error);
+      setEpisodeRatings(previousRows);
+      alert(error.message || "Failed saving episode rating");
+    } finally {
+      setSavingEpisodeRatingId(null);
+    }
+  }
+
+  function handleOpenEpisodeRatingPicker(epId) {
+    setOpenEpisodeRatingPickerId((prev) => (prev === epId ? null : epId));
   }
 
   if (loading) {
@@ -880,6 +1041,20 @@ export default function MyShowDetails() {
                   <div className="msd-episode-list">
                     {season.episodes.map((ep) => {
                       const watched = isEpisodeWatched(ep, watchedEpisodeIds);
+                      const myEpisodeRating = Number(
+                        myEpisodeRatings.get(String(ep.id)) || 0
+                      );
+                      const hoverEpisodeRating = Number(
+                        hoverEpisodeRatings[String(ep.id)] || 0
+                      );
+                      const activeEpisodeRating =
+                        hoverEpisodeRating || myEpisodeRating;
+                      const averageEpisodeRating = episodeAverageRatings.get(
+                        String(ep.id)
+                      );
+                      const savingThisEpisode = savingEpisodeRatingId === ep.id;
+                      const isPickerOpen = openEpisodeRatingPickerId === ep.id;
+
                       return (
                         <article
                           id={`episode-${ep.id}`}
@@ -905,6 +1080,126 @@ export default function MyShowDetails() {
                           {ep.overview ? (
                             <p className="msd-episode-overview">{ep.overview}</p>
                           ) : null}
+
+                          <div className="msd-episode-rating-box">
+                            <div className="msd-episode-rating-header">
+                              <span className="msd-stat-label">
+                                Your Episode Rating
+                              </span>
+                              <span className="msd-episode-rating-meta">
+                                {savingThisEpisode
+                                  ? "Saving..."
+                                  : myEpisodeRating
+                                  ? `${myEpisodeRating}/10`
+                                  : "Not rated"}
+                              </span>
+                            </div>
+
+                            <div className="msd-episode-rating-desktop">
+                              <div className="msd-burgr-picker msd-burgr-picker-compact">
+                                {Array.from({ length: 10 }, (_, index) => {
+                                  const value = index + 1;
+                                  const filled = value <= activeEpisodeRating;
+
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      className={`msd-burger-btn ${
+                                        filled ? "is-filled" : "is-empty"
+                                      }`}
+                                      onMouseEnter={() =>
+                                        setHoverEpisodeRatings((prev) => ({
+                                          ...prev,
+                                          [ep.id]: value,
+                                        }))
+                                      }
+                                      onMouseLeave={() =>
+                                        setHoverEpisodeRatings((prev) => ({
+                                          ...prev,
+                                          [ep.id]: 0,
+                                        }))
+                                      }
+                                      onClick={() =>
+                                        handleSelectEpisodeRating(ep, value)
+                                      }
+                                      aria-label={`Rate episode ${value} out of 10 burgers`}
+                                      title={`${value}/10`}
+                                      disabled={savingThisEpisode}
+                                    >
+                                      <img
+                                        src="/burger-rating.png"
+                                        alt=""
+                                        className="msd-burger-icon msd-burger-icon-small"
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="msd-episode-rating-mobile">
+                              <button
+                                type="button"
+                                className="msd-btn msd-btn-secondary msd-rating-trigger"
+                                onClick={() =>
+                                  handleOpenEpisodeRatingPicker(ep.id)
+                                }
+                                disabled={savingThisEpisode}
+                              >
+                                {savingThisEpisode
+                                  ? "Saving..."
+                                  : myEpisodeRating
+                                  ? `Rate Episode (${myEpisodeRating}/10)`
+                                  : "Rate Episode"}
+                              </button>
+
+                              {isPickerOpen ? (
+                                <div className="msd-mobile-rating-sheet">
+                                  <div className="msd-mobile-rating-grid">
+                                    {Array.from({ length: 10 }, (_, index) => {
+                                      const value = index + 1;
+                                      const selected =
+                                        value === myEpisodeRating;
+
+                                      return (
+                                        <button
+                                          key={value}
+                                          type="button"
+                                          className={`msd-mobile-rating-option ${
+                                            selected ? "is-selected" : ""
+                                          }`}
+                                          onClick={() =>
+                                            handleSelectEpisodeRating(ep, value)
+                                          }
+                                          disabled={savingThisEpisode}
+                                        >
+                                          <img
+                                            src="/burger-rating.png"
+                                            alt=""
+                                            className="msd-burger-icon msd-burger-icon-small"
+                                          />
+                                          <span>{value}/10</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="msd-episode-rating-footer">
+                              <span className="msd-muted">
+                                Average:{" "}
+                                {averageEpisodeRating
+                                  ? `${averageEpisodeRating.avg}/10`
+                                  : "—"}
+                                {averageEpisodeRating
+                                  ? ` (${averageEpisodeRating.count})`
+                                  : ""}
+                              </span>
+                            </div>
+                          </div>
 
                           <div className="msd-actions">
                             <button
