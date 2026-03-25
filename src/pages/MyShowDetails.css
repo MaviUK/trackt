@@ -622,4 +622,78 @@
     padding: 16px;
     border-radius: 20px;
   }
+
+  .msd-episode-rating-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.msd-episode-rating-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.msd-episode-rating-meta {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.msd-episode-rating-footer {
+  margin-top: 8px;
+}
+
+.msd-episode-rating-desktop {
+  display: block;
+}
+
+.msd-episode-rating-mobile {
+  display: none;
+}
+
+.msd-rating-trigger {
+  width: 100%;
+}
+
+.msd-mobile-rating-sheet {
+  margin-top: 10px;
+}
+
+.msd-mobile-rating-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.msd-mobile-rating-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.msd-mobile-rating-option.is-selected {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+  .msd-episode-rating-desktop {
+    display: none;
+  }
+
+  .msd-episode-rating-mobile {
+    display: block;
+  }
+}
 }
