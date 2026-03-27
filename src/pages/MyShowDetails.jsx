@@ -68,11 +68,6 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
-function isMobileViewport() {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(max-width: 768px)").matches;
-}
-
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
@@ -111,6 +106,25 @@ async function fetchEpisodeRatings(showEpisodeIds) {
   }
 
   return data || [];
+}
+
+async function fetchSavedShowTvdbIds(userId) {
+  const { data, error } = await supabase
+    .from("user_shows_new")
+    .select("shows!inner(tvdb_id)")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Failed fetching saved shows:", error);
+    return new Set();
+  }
+
+  return new Set(
+    (data || [])
+      .map((row) => row.shows?.tvdb_id)
+      .filter(Boolean)
+      .map(String)
+  );
 }
 
 function buildEpisodeRatingsMap(rows, userId) {
@@ -174,6 +188,7 @@ export default function MyShowDetails() {
   const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
 
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [savedIds, setSavedIds] = useState(new Set());
   const [episodeRatings, setEpisodeRatings] = useState([]);
   const [savingEpisodeRatingId, setSavingEpisodeRatingId] = useState(null);
   const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
@@ -207,6 +222,7 @@ export default function MyShowDetails() {
 
         if (!user) {
           setCurrentUserId(null);
+          setSavedIds(new Set());
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
@@ -228,6 +244,7 @@ export default function MyShowDetails() {
         const tvdbId = Number(id);
         if (Number.isNaN(tvdbId)) {
           setCurrentUserId(null);
+          setSavedIds(new Set());
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
@@ -305,7 +322,9 @@ export default function MyShowDetails() {
             .maybeSingle();
 
           if (showError) throw showError;
+
           if (!showData) {
+            setSavedIds(new Set());
             setShow(null);
             setEpisodes([]);
             setWatchedRows([]);
@@ -327,27 +346,29 @@ export default function MyShowDetails() {
 
         const showId = showRecord.id;
 
-        const [episodeRes, watchedRowsData, burgrRows] = await Promise.all([
-          supabase
-            .from("episodes")
-            .select(`
-              id,
-              tvdb_id,
-              show_id,
-              season_number,
-              episode_number,
-              episode_code,
-              name,
-              overview,
-              aired_date,
-              image_url
-            `)
-            .eq("show_id", showId)
-            .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true }),
-          fetchWatchedRows(user.id),
-          fetchBurgrRatings(showId),
-        ]);
+        const [episodeRes, watchedRowsData, burgrRows, savedShowIds] =
+          await Promise.all([
+            supabase
+              .from("episodes")
+              .select(`
+                id,
+                tvdb_id,
+                show_id,
+                season_number,
+                episode_number,
+                episode_code,
+                name,
+                overview,
+                aired_date,
+                image_url
+              `)
+              .eq("show_id", showId)
+              .order("season_number", { ascending: true })
+              .order("episode_number", { ascending: true }),
+            fetchWatchedRows(user.id),
+            fetchBurgrRatings(showId),
+            fetchSavedShowTvdbIds(user.id),
+          ]);
 
         const { data: episodeRows, error: episodeError } = episodeRes;
         if (episodeError) throw episodeError;
@@ -423,6 +444,7 @@ export default function MyShowDetails() {
         setExpandedSeasons(seasonMap);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
+        setSavedIds(savedShowIds);
         setEpisodeRatings(episodeRatingRows || []);
         setSavingEpisodeRatingId(null);
         setHoverEpisodeRatings({});
@@ -468,6 +490,7 @@ export default function MyShowDetails() {
       } catch (error) {
         console.error("Failed loading show:", error);
         setCurrentUserId(null);
+        setSavedIds(new Set());
         setShow(null);
         setEpisodes([]);
         setWatchedRows([]);
@@ -1276,8 +1299,16 @@ export default function MyShowDetails() {
             <div className="msd-recommended-grid">
               {recommendedShows.map((rec, index) => {
                 const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
-const hasTvdbId = !!tvdbIdValue;
-const linkTarget = hasTvdbId ? `/show/${tvdbIdValue}` : "#";
+                const hasTvdbId = !!tvdbIdValue;
+                const isSaved = hasTvdbId
+                  ? savedIds.has(String(tvdbIdValue))
+                  : false;
+                const linkTarget = hasTvdbId
+                  ? isSaved
+                    ? `/my-shows/${tvdbIdValue}`
+                    : `/show/${tvdbIdValue}`
+                  : "#";
+
                 const content = (
                   <>
                     {rec.poster_url || rec.posterUrl ? (
