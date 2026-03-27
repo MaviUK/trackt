@@ -11,6 +11,7 @@ import ReadyToWatchPage from "./pages/readytowatch";
 import ReadyShowPage from "./pages/readyShow";
 import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
+import ActorShows from "./pages/ActorShows";
 
 function AppNav() {
   return (
@@ -82,6 +83,7 @@ function App() {
         <Route path="/show/:id" element={<ShowDetails />} />
         <Route path="/my-shows" element={<MyShows />} />
         <Route path="/my-shows/:id" element={<MyShowDetails />} />
+        <Route path="/actor/:name" element={<ActorShows />} />
         <Route path="/airing-next" element={<AiringNextPage />} />
         <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
         <Route path="/ready/:id" element={<ReadyShowPage />} />
