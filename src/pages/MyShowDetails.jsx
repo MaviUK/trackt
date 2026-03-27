@@ -1276,8 +1276,8 @@ export default function MyShowDetails() {
             <div className="msd-recommended-grid">
               {recommendedShows.map((rec, index) => {
                 const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
-                const hasTvdbId = !!tvdbIdValue;
-                const linkTarget = hasTvdbId ? `/my-shows/${tvdbIdValue}` : "#";
+const hasTvdbId = !!tvdbIdValue;
+const linkTarget = hasTvdbId ? `/show/${tvdbIdValue}` : "#";
                 const content = (
                   <>
                     {rec.poster_url || rec.posterUrl ? (
