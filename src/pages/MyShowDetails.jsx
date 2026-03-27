@@ -1233,26 +1233,31 @@ export default function MyShowDetails() {
             <p className="msd-muted">Loading cast...</p>
           ) : cast.length > 0 ? (
             <div className="msd-cast-grid">
-              {cast.map((member, index) => (
-                <div
-                  key={member.id || `${member.personName}-${index}`}
-                  className="msd-cast-card"
-                >
-                  {member.image ? (
-                    <img
-                      src={member.image}
-                      alt={member.personName || "Cast member"}
-                      className="msd-cast-image"
-                    />
-                  ) : null}
-                  <div className="msd-cast-name">
-                    {member.personName || "Unknown actor"}
-                  </div>
-                  <div className="msd-cast-role">
-                    {member.characterName || "Cast"}
-                  </div>
-                </div>
-              ))}
+              {cast.map((member, index) => {
+                const actorName = member.personName || "Unknown actor";
+                const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
+
+                return (
+                  <Link
+                    key={member.id || `${member.personName}-${index}`}
+                    to={linkTarget}
+                    className="msd-cast-card"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    {member.image ? (
+                      <img
+                        src={member.image}
+                        alt={actorName}
+                        className="msd-cast-image"
+                      />
+                    ) : null}
+                    <div className="msd-cast-name">{actorName}</div>
+                    <div className="msd-cast-role">
+                      {member.characterName || "Cast"}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <p className="msd-muted">No cast available.</p>
