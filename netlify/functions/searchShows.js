@@ -145,6 +145,49 @@ function dedupeByTvdbId(items) {
   return Array.from(map.values());
 }
 
+function dedupeMixedResults(items) {
+  const map = new Map();
+
+  for (const item of items) {
+    const key = item?.tvdb_id
+      ? `tvdb:${item.tvdb_id}`
+      : item?.tmdb_id
+      ? `tmdb:${item.tmdb_id}`
+      : `name:${String(item?.name || "").toLowerCase()}`;
+
+    if (!map.has(key)) {
+      map.set(key, item);
+      continue;
+    }
+
+    const existing = map.get(key);
+
+    const existingScore =
+      (existing.image_url ? 1 : 0) +
+      (existing.overview ? 1 : 0) +
+      ((existing.genres || []).length ? 1 : 0) +
+      (existing.network ? 1 : 0) +
+      (existing.rating_average != null ? 1 : 0) +
+      (existing.original_language ? 1 : 0) +
+      (existing.tvdb_id ? 2 : 0);
+
+    const nextScore =
+      (item.image_url ? 1 : 0) +
+      (item.overview ? 1 : 0) +
+      ((item.genres || []).length ? 1 : 0) +
+      (item.network ? 1 : 0) +
+      (item.rating_average != null ? 1 : 0) +
+      (item.original_language ? 1 : 0) +
+      (item.tvdb_id ? 2 : 0);
+
+    if (nextScore >= existingScore) {
+      map.set(key, item);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
 function dedupeByValue(values) {
   return Array.from(
     new Set(
@@ -347,10 +390,10 @@ function normalizeTmdbShow(item, networkName = "") {
 }
 
 const TMDB_EXCLUDED_GENRE_IDS = new Set([
-  10763, // News
-  10767, // Talk
-  10764, // Reality
-  10766, // Soap
+  10763,
+  10767,
+  10764,
+  10766,
 ]);
 
 function isExcludedNetworkResult(show) {
@@ -645,6 +688,55 @@ async function discoverTmdbByNetwork(networkName) {
   return sortNewestToOldest(filtered).slice(0, 40);
 }
 
+async function searchTmdbTv(term) {
+  const all = [];
+
+  for (let page = 1; page <= 2; page += 1) {
+    const data = await tmdbFetch("/search/tv", {
+      query: term,
+      page,
+      include_adult: "false",
+    });
+
+    const results = Array.isArray(data?.results) ? data.results : [];
+    all.push(...results);
+
+    const totalPages = Number(data?.total_pages || 1);
+    if (page >= totalPages) break;
+  }
+
+  return all.map((item) => normalizeTmdbShow(item));
+}
+
+async function searchTmdbPersonShows(term) {
+  const personSearch = await tmdbFetch("/search/person", {
+    query: term,
+    page: 1,
+    include_adult: "false",
+  });
+
+  const people = Array.isArray(personSearch?.results)
+    ? personSearch.results
+    : [];
+
+  if (!people.length) return [];
+
+  const exactLower = String(term || "").trim().toLowerCase();
+
+  const chosen =
+    people.find(
+      (person) =>
+        String(person?.name || "").trim().toLowerCase() === exactLower
+    ) || people[0];
+
+  if (!chosen?.id) return [];
+
+  const credits = await tmdbFetch(`/person/${chosen.id}/tv_credits`);
+  const cast = Array.isArray(credits?.cast) ? credits.cast : [];
+
+  return cast.map((item) => normalizeTmdbShow(item));
+}
+
 function scoreShow(show, options) {
   const {
     query,
@@ -680,7 +772,10 @@ function scoreShow(show, options) {
 
   if (query) {
     const queryLower = query.toLowerCase();
-    if (name.includes(queryLower)) score += 20;
+    if (name === queryLower) score += 100;
+    else if (name.startsWith(queryLower)) score += 40;
+    else if (name.includes(queryLower)) score += 20;
+
     if (overview.includes(queryLower)) score += 6;
   }
 
@@ -790,6 +885,7 @@ function scoreShow(show, options) {
   if (show.image_url) score += 2;
   if (show.overview) score += 2;
   if (showRating != null) score += 2;
+  if (show.tvdb_id) score += 3;
 
   return score;
 }
@@ -834,30 +930,42 @@ export async function handler(event) {
     const token = await loginToTvdb();
 
     if (query && !genre && !network && !relationshipType && !setting) {
-      const directResults = await searchTvdb(token, query);
+      const [tvdbResults, tmdbTvResults, tmdbPersonResults] = await Promise.all([
+        searchTvdb(token, query).catch(() => []),
+        searchTmdbTv(query).catch(() => []),
+        searchTmdbPersonShows(query).catch(() => []),
+      ]);
 
-      const ranked = dedupeByTvdbId(directResults)
-        .map((item) => {
-          const name = String(item.name || "").toLowerCase();
-          const overview = String(item.overview || "").toLowerCase();
-          const queryLower = query.toLowerCase();
-
-          let score = 0;
-          if (name === queryLower) score += 100;
-          if (name.startsWith(queryLower)) score += 40;
-          if (name.includes(queryLower)) score += 20;
-          if (overview.includes(queryLower)) score += 5;
-          if (item.image_url) score += 2;
-          if (item.rating_average != null) score += 2;
-
-          return { ...item, _score: score };
-        })
+      const ranked = dedupeMixedResults([
+        ...tvdbResults,
+        ...tmdbTvResults,
+        ...tmdbPersonResults,
+      ])
+        .map((item) => ({
+          ...item,
+          _score: scoreShow(item, {
+            query,
+            genre: "",
+            network: "",
+            relationshipType: "",
+            setting: "",
+            sourceYear: "",
+            sourceRating: null,
+            sourceShowId: "",
+            targetLanguage,
+          }),
+        }))
+        .filter((item) => item._score > -1000)
         .sort((a, b) => {
           if (b._score !== a._score) return b._score - a._score;
 
           const bRating = normalizeNumber(b.rating_average) ?? -1;
           const aRating = normalizeNumber(a.rating_average) ?? -1;
-          return bRating - aRating;
+          if (bRating !== aRating) return bRating - aRating;
+
+          const bYear = getYear(b.first_aired || b.first_air_time) ?? 0;
+          const aYear = getYear(a.first_aired || a.first_air_time) ?? 0;
+          return bYear - aYear;
         })
         .slice(0, 40)
         .map(({ _score, ...item }) => item);
@@ -956,8 +1064,10 @@ export async function handler(event) {
           v.toLowerCase()
         );
 
-        return vals.includes(relLower) ||
-          vals.some((v) => v.includes(relLower) || relLower.includes(v));
+        return (
+          vals.includes(relLower) ||
+          vals.some((v) => v.includes(relLower) || relLower.includes(v))
+        );
       });
     }
 
@@ -969,8 +1079,10 @@ export async function handler(event) {
           v.toLowerCase()
         );
 
-        return vals.includes(settingLower) ||
-          vals.some((v) => v.includes(settingLower) || settingLower.includes(v));
+        return (
+          vals.includes(settingLower) ||
+          vals.some((v) => v.includes(settingLower) || settingLower.includes(v))
+        );
       });
     }
 
