@@ -371,7 +371,11 @@ export default function Search() {
             const poster = show.image_url || show.poster_url || null;
 
             return (
-              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
+              <div
+                key={itemId}
+                className="show-card"
+                style={{ padding: "14px" }}
+              >
                 <div
                   style={{
                     display: "grid",
@@ -445,7 +449,11 @@ export default function Search() {
                       className={`msd-btn ${
                         isSaved ? "msd-btn-success" : "msd-btn-primary"
                       }`}
-                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
+                      style={{
+                        width: "100%",
+                        padding: "9px 10px",
+                        fontSize: "0.9rem",
+                      }}
                       title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
                     >
                       {!canAdd
@@ -502,7 +510,8 @@ export default function Search() {
                           fontWeight: "600",
                         }}
                       >
-                        First aired: {formatDate(show.first_air_time || show.first_aired)}
+                        First aired:{" "}
+                        {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
@@ -519,7 +528,9 @@ export default function Search() {
                     )}
 
                     {show.overview && (
-                      <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
+                      <p
+                        style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}
+                      >
                         {show.overview.length > 180
                           ? `${show.overview.slice(0, 180)}...`
                           : show.overview}
