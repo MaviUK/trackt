@@ -14,6 +14,7 @@ export default function Search() {
   const [addingId, setAddingId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
 
+  const queryParam = searchParams.get("q") || "";
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
   const relationshipTypeFilter = searchParams.get("relationshipType") || "";
@@ -27,15 +28,23 @@ export default function Search() {
     !!networkFilter &&
     !genreFilter &&
     !relationshipTypeFilter &&
-    !settingFilter;
+    !settingFilter &&
+    !queryParam;
 
   useEffect(() => {
     if (genreFilter) setQuery(genreFilter);
     else if (networkFilter) setQuery(networkFilter);
     else if (relationshipTypeFilter) setQuery(relationshipTypeFilter);
     else if (settingFilter) setQuery(settingFilter);
+    else if (queryParam) setQuery(queryParam);
     else setQuery("");
-  }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
+  }, [
+    genreFilter,
+    networkFilter,
+    relationshipTypeFilter,
+    settingFilter,
+    queryParam,
+  ]);
 
   async function markAlreadySaved(results) {
     const {
@@ -142,6 +151,26 @@ export default function Search() {
     isPureNetworkBrowse,
   ]);
 
+  useEffect(() => {
+    const hasFilter =
+      !!genreFilter ||
+      !!networkFilter ||
+      !!relationshipTypeFilter ||
+      !!settingFilter;
+
+    if (!queryParam || hasFilter) return;
+
+    fetchSearch({
+      q: queryParam,
+    });
+  }, [
+    queryParam,
+    genreFilter,
+    networkFilter,
+    relationshipTypeFilter,
+    settingFilter,
+  ]);
+
   async function handleManualSearch() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
@@ -204,6 +233,8 @@ export default function Search() {
     ? `Relationship Type: ${relationshipTypeFilter}`
     : settingFilter
     ? `Setting: ${settingFilter}`
+    : queryParam
+    ? `Search: ${queryParam}`
     : "Search Shows";
 
   const pageSubtitle = genreFilter
@@ -214,6 +245,8 @@ export default function Search() {
     ? `Browse shows with ${relationshipTypeFilter}.`
     : settingFilter
     ? `Browse shows set in ${settingFilter}.`
+    : queryParam
+    ? `Showing results for ${queryParam}.`
     : "Find a show and add it to My Shows.";
 
   return (
