@@ -12,6 +12,7 @@ import ReadyShowPage from "./pages/readyShow";
 import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ActorShows from "./pages/ActorShows";
+import ActorPage from "./pages/ActorPage";
 
 function AppNav() {
   return (
@@ -88,6 +89,7 @@ function App() {
         <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
         <Route path="/ready/:id" element={<ReadyShowPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/actor/:name" element={<ActorPage />} />
       </Routes>
     </BrowserRouter>
   );
