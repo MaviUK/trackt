@@ -19,11 +19,30 @@ function normalizeName(value) {
     .trim();
 }
 
-function getTimeValue(dateString) {
-  if (!dateString) return 0;
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return 0;
-  return date.getTime();
+function chooseBestPerson(results, targetName) {
+  if (!Array.isArray(results) || !results.length) return null;
+
+  const wanted = normalizeName(targetName);
+
+  return [...results]
+    .sort((a, b) => {
+      const aName = normalizeName(a?.name);
+      const bName = normalizeName(b?.name);
+
+      let aScore = 0;
+      let bScore = 0;
+
+      if (aName === wanted) aScore += 100;
+      if (bName === wanted) bScore += 100;
+
+      if (a?.known_for_department === "Acting") aScore += 20;
+      if (b?.known_for_department === "Acting") bScore += 20;
+
+      aScore += Number(a?.popularity || 0);
+      bScore += Number(b?.popularity || 0);
+
+      return bScore - aScore;
+    })[0];
 }
 
 function dedupeCredits(credits = []) {
@@ -37,10 +56,17 @@ function dedupeCredits(credits = []) {
   });
 }
 
+function getYearValue(dateString) {
+  if (!dateString) return 0;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 0;
+  return date.getTime();
+}
+
 function sortCreditsNewestFirst(credits = []) {
   return [...credits].sort((a, b) => {
-    const aDate = getTimeValue(a?.first_air_date);
-    const bDate = getTimeValue(b?.first_air_date);
+    const aDate = getYearValue(a?.first_air_date);
+    const bDate = getYearValue(b?.first_air_date);
 
     if (bDate !== aDate) return bDate - aDate;
 
@@ -51,62 +77,65 @@ function sortCreditsNewestFirst(credits = []) {
   });
 }
 
-function isUsableCredit(item) {
-  if (!item?.id || !item?.name) return false;
-  if (!item?.first_air_date) return false;
+//
+// ✅ NEW CLEAN FILTER
+//
+function isValidScriptedShow(item) {
+  if (!item?.name) return false;
+
+  const text = [
+    item?.name,
+    item?.overview,
+    item?.character,
+    item?.original_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const blocked = [
+    "talk show",
+    "late show",
+    "late night",
+    "tonight show",
+    "with jimmy",
+    "with seth",
+    "with stephen",
+    "with andy",
+    "kelly clarkson show",
+    "the view",
+    "conan",
+    "starralk",
+    "carpool karaoke",
+    "awards",
+    "emmy",
+    "ceremony",
+    "live with",
+    "guest appearance",
+    "guest",
+    "interview",
+    "variety show",
+    "reality",
+    "competition",
+    "game show",
+    "news",
+    "daytime",
+    "telethon",
+  ];
+
+  if (blocked.some((phrase) => text.includes(phrase))) return false;
+
+  const character = (item?.character || "").toLowerCase();
+
+  if (
+    character.includes("self") ||
+    character.includes("himself") ||
+    character.includes("herself")
+  ) {
+    return false;
+  }
+
   return true;
-}
-
-async function chooseBestPersonWithCredits(results, targetName) {
-  if (!Array.isArray(results) || !results.length) return null;
-
-  const wanted = normalizeName(targetName);
-  const candidates = results.slice(0, 5);
-
-  const evaluated = await Promise.all(
-    candidates.map(async (person) => {
-      const personName = normalizeName(person?.name);
-      let nameScore = 0;
-
-      if (personName === wanted) nameScore += 100;
-      else if (personName.includes(wanted) || wanted.includes(personName))
-        nameScore += 60;
-
-      if (person?.known_for_department === "Acting") nameScore += 20;
-
-      const popularityScore = Number(person?.popularity || 0);
-
-      try {
-        const tvCreditsResponse = await tmdbFetch(`/person/${person.id}/tv_credits`, {
-          language: "en-US",
-        });
-
-        const rawCredits = Array.isArray(tvCreditsResponse?.cast)
-          ? tvCreditsResponse.cast
-          : [];
-
-        const usableCredits = dedupeCredits(rawCredits.filter(isUsableCredit));
-
-        return {
-          person,
-          rawCredits,
-          usableCredits,
-          score: nameScore + popularityScore + usableCredits.length * 5,
-        };
-      } catch (error) {
-        return {
-          person,
-          rawCredits: [],
-          usableCredits: [],
-          score: nameScore + popularityScore,
-        };
-      }
-    })
-  );
-
-  evaluated.sort((a, b) => b.score - a.score);
-
-  return evaluated[0] || null;
 }
 
 export const handler = async (event) => {
@@ -124,27 +153,28 @@ export const handler = async (event) => {
       page: "1",
     });
 
-    const bestMatch = await chooseBestPersonWithCredits(
-      personSearch?.results || [],
-      name
-    );
+    const bestPerson = chooseBestPerson(personSearch?.results || [], name);
 
-    if (!bestMatch?.person?.id) {
+    if (!bestPerson?.id) {
       return jsonResponse(404, { message: "Actor not found" });
     }
 
-    const person = bestMatch.person;
-
-    const [personDetails] = await Promise.all([
-      tmdbFetch(`/person/${person.id}`, {
+    const [personDetails, tvCreditsResponse] = await Promise.all([
+      tmdbFetch(`/person/${bestPerson.id}`, { language: "en-US" }),
+      tmdbFetch(`/person/${bestPerson.id}/tv_credits`, {
         language: "en-US",
       }),
     ]);
 
+    const rawCredits = Array.isArray(tvCreditsResponse?.cast)
+      ? tvCreditsResponse.cast
+      : [];
+
     const cleanedCredits = sortCreditsNewestFirst(
       dedupeCredits(
-        (bestMatch.rawCredits || [])
-          .filter(isUsableCredit)
+        rawCredits
+          .filter((item) => item?.id && item?.name)
+          .filter(isValidScriptedShow) // ✅ NEW FILTER
           .map((item) => ({
             id: item.id,
             tmdb_id: item.id,
@@ -172,72 +202,42 @@ export const handler = async (event) => {
     try {
       mappedCredits = await enrichShowsWithMappings(cleanedCredits);
     } catch (mappingError) {
-      console.error("Failed to map TMDB actor credits:", mappingError);
+      console.error("Mapping failed:", mappingError);
       mappedCredits = cleanedCredits.map((item) => ({
         ...item,
         tvdb_id: null,
         mapping_status: "error",
-        mapping_method: null,
         mapping_confidence: 0,
       }));
     }
 
     const output = mappedCredits.map((item) => ({
       tvdb_id: item?.tvdb_id ?? null,
-      tmdb_id: item?.tmdb_id ?? item?.id ?? null,
+      tmdb_id: item?.tmdb_id ?? null,
       name: item?.name || "",
       overview: item?.overview || "",
-      status: item?.status || null,
-      first_aired: item?.first_air_date || null,
       first_air_date: item?.first_air_date || null,
-      first_air_time: item?.first_air_date || null,
-      image_url: item?.image_url || item?.poster_url || null,
-      poster_url: item?.poster_url || item?.image_url || null,
-      slug: item?.slug || null,
-      network: item?.network || null,
-      genres: Array.isArray(item?.genres) ? item.genres : [],
-      relationship_types: Array.isArray(item?.relationship_types)
-        ? item.relationship_types
-        : [],
-      settings: Array.isArray(item?.settings) ? item.settings : [],
-      original_language: item?.original_language || "",
-      rating_average:
-        item?.rating_average != null
-          ? Number(item.rating_average)
-          : item?.vote_average != null
-          ? Number(item.vote_average)
-          : 0,
-      rating_count:
-        item?.rating_count != null
-          ? Number(item.rating_count)
-          : item?.vote_count != null
-          ? Number(item.vote_count)
-          : 0,
-      source: item?.source || "tmdb",
-      mapping_status: item?.mapping_status || null,
-      mapping_method: item?.mapping_method || null,
-      mapping_confidence: item?.mapping_confidence || 0,
+      image_url: item?.image_url || null,
+      poster_url: item?.poster_url || null,
+      rating_average: Number(item?.vote_average || 0),
+      rating_count: Number(item?.vote_count || 0),
       character: item?.character || "",
+      mapping_status: item?.mapping_status || null,
     }));
 
     return jsonResponse(200, {
       actor: {
-        id: personDetails?.id || person.id,
-        name: personDetails?.name || person.name,
+        id: personDetails?.id || bestPerson.id,
+        name: personDetails?.name || bestPerson.name,
         biography: personDetails?.biography || "",
         birthday: personDetails?.birthday || "",
-        deathday: personDetails?.deathday || "",
         place_of_birth: personDetails?.place_of_birth || "",
-        profile_path:
-          personDetails?.profile_path || person?.profile_path || "",
         profile_url: buildTmdbImageUrl(
-          personDetails?.profile_path || person?.profile_path,
+          personDetails?.profile_path || bestPerson?.profile_path,
           "w500"
         ),
         known_for_department:
-          personDetails?.known_for_department ||
-          person?.known_for_department ||
-          "",
+          personDetails?.known_for_department || "Acting",
       },
       credits: output,
     });
