@@ -145,49 +145,6 @@ function dedupeByTvdbId(items) {
   return Array.from(map.values());
 }
 
-function dedupeMixedResults(items) {
-  const map = new Map();
-
-  for (const item of items) {
-    const key = item?.tvdb_id
-      ? `tvdb:${item.tvdb_id}`
-      : item?.tmdb_id
-      ? `tmdb:${item.tmdb_id}`
-      : `name:${String(item?.name || "").toLowerCase()}`;
-
-    if (!map.has(key)) {
-      map.set(key, item);
-      continue;
-    }
-
-    const existing = map.get(key);
-
-    const existingScore =
-      (existing.image_url ? 1 : 0) +
-      (existing.overview ? 1 : 0) +
-      ((existing.genres || []).length ? 1 : 0) +
-      (existing.network ? 1 : 0) +
-      (existing.rating_average != null ? 1 : 0) +
-      (existing.original_language ? 1 : 0) +
-      (existing.tvdb_id ? 2 : 0);
-
-    const nextScore =
-      (item.image_url ? 1 : 0) +
-      (item.overview ? 1 : 0) +
-      ((item.genres || []).length ? 1 : 0) +
-      (item.network ? 1 : 0) +
-      (item.rating_average != null ? 1 : 0) +
-      (item.original_language ? 1 : 0) +
-      (item.tvdb_id ? 2 : 0);
-
-    if (nextScore >= existingScore) {
-      map.set(key, item);
-    }
-  }
-
-  return Array.from(map.values());
-}
-
 function dedupeByValue(values) {
   return Array.from(
     new Set(
@@ -207,7 +164,6 @@ function normalizeSearchResult(item) {
 
   return {
     tvdb_id: Number(item?.tvdb_id || item?.id) || null,
-    tmdb_id: null,
     name: item?.name || item?.seriesName || "Unknown title",
     overview: item?.overview || "",
     status:
@@ -320,7 +276,6 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
-    tmdb_id: null,
     name: series?.name || "Unknown title",
     overview: series?.overview || "",
     status:
@@ -359,93 +314,6 @@ function normalizeSeriesDetails(series) {
     ),
     source: "tvdb",
   };
-}
-
-function normalizeTmdbShow(item, networkName = "") {
-  return {
-    tvdb_id: null,
-    tmdb_id: Number(item?.id) || null,
-    name: item?.name || item?.original_name || "Unknown title",
-    overview: item?.overview || "",
-    status: null,
-    first_aired: item?.first_air_date || null,
-    first_air_time: item?.first_air_date || null,
-    image_url: item?.poster_path
-      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-      : null,
-    poster_url: item?.poster_path
-      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-      : null,
-    slug: null,
-    network: networkName || null,
-    genres: [],
-    genre_ids: Array.isArray(item?.genre_ids) ? item.genre_ids : [],
-    relationship_types: [],
-    settings: [],
-    original_language: normalizeLanguage(item?.original_language || ""),
-    rating_average: normalizeNumber(item?.vote_average),
-    rating_count: normalizeNumber(item?.vote_count),
-    source: "tmdb",
-  };
-}
-
-const TMDB_EXCLUDED_GENRE_IDS = new Set([
-  10763,
-  10767,
-  10764,
-  10766,
-]);
-
-function isExcludedNetworkResult(show) {
-  const title = String(show?.name || "").toLowerCase();
-  const overview = String(show?.overview || "").toLowerCase();
-  const genreIds = Array.isArray(show?.genre_ids) ? show.genre_ids : [];
-
-  if (genreIds.some((id) => TMDB_EXCLUDED_GENRE_IDS.has(Number(id)))) {
-    return true;
-  }
-
-  const blockedTitleTerms = [
-    "news",
-    "nightly news",
-    "morning news",
-    "evening news",
-    "today",
-    "dateline",
-    "late night",
-    "tonight show",
-    "daily",
-    "weekend news",
-    "meet the press",
-    "soap opera",
-    "gma",
-    "good morning",
-    "world news",
-  ];
-
-  const blockedOverviewTerms = [
-    "news program",
-    "newsmagazine",
-    "daily news",
-    "morning news",
-    "evening news",
-    "late-night",
-    "talk show",
-    "public affairs",
-    "current affairs",
-    "soap opera",
-    "variety show",
-    "broadcast journalist",
-    "broadcast on",
-    "broadcast from",
-    "morning television",
-    "television news",
-  ];
-
-  if (blockedTitleTerms.some((term) => title.includes(term))) return true;
-  if (blockedOverviewTerms.some((term) => overview.includes(term))) return true;
-
-  return false;
 }
 
 function sortNewestToOldest(items) {
@@ -601,140 +469,6 @@ async function fetchSeriesDetails(token, tvdbId) {
   }
 
   return normalizeSeriesDetails(data.data);
-}
-
-async function tmdbFetch(path, params = {}) {
-  const apiKey = process.env.TMDB_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Missing TMDB_API_KEY environment variable");
-  }
-
-  const url = new URL(`https://api.themoviedb.org/3${path}`);
-  url.searchParams.set("api_key", apiKey);
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, value);
-    }
-  }
-
-  const res = await fetch(url.toString());
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data?.status_message || "TMDB request failed");
-  }
-
-  return data;
-}
-
-async function findTmdbNetworkIdByName(networkName) {
-  const data = await tmdbFetch("/search/company", {
-    query: networkName,
-    page: 1,
-  });
-
-  const results = Array.isArray(data?.results) ? data.results : [];
-  if (!results.length) return null;
-
-  const exact = results.find(
-    (item) =>
-      String(item?.name || "").trim().toLowerCase() ===
-      String(networkName || "").trim().toLowerCase()
-  );
-
-  return exact?.id || results[0]?.id || null;
-}
-
-async function discoverTmdbByNetwork(networkName) {
-  const networkId = await findTmdbNetworkIdByName(networkName);
-
-  if (!networkId) {
-    return [];
-  }
-
-  const all = [];
-
-  for (let page = 1; page <= 5; page += 1) {
-    const data = await tmdbFetch("/discover/tv", {
-      with_networks: networkId,
-      sort_by: "first_air_date.desc",
-      include_null_first_air_dates: "false",
-      page,
-    });
-
-    const results = Array.isArray(data?.results) ? data.results : [];
-    all.push(...results);
-
-    const totalPages = Number(data?.total_pages || 1);
-    if (page >= totalPages) break;
-  }
-
-  const normalized = all.map((item) => normalizeTmdbShow(item, networkName));
-
-  const filtered = normalized.filter((item) => {
-    if (isExcludedNetworkResult(item)) return false;
-
-    const year = getYear(item.first_aired || item.first_air_time);
-    if (year != null && year < 1990) return false;
-
-    const rating = normalizeNumber(item.rating_average);
-    if (rating != null && rating < 5.5) return false;
-
-    return true;
-  });
-
-  return sortNewestToOldest(filtered).slice(0, 40);
-}
-
-async function searchTmdbTv(term) {
-  const all = [];
-
-  for (let page = 1; page <= 2; page += 1) {
-    const data = await tmdbFetch("/search/tv", {
-      query: term,
-      page,
-      include_adult: "false",
-    });
-
-    const results = Array.isArray(data?.results) ? data.results : [];
-    all.push(...results);
-
-    const totalPages = Number(data?.total_pages || 1);
-    if (page >= totalPages) break;
-  }
-
-  return all.map((item) => normalizeTmdbShow(item));
-}
-
-async function searchTmdbPersonShows(term) {
-  const personSearch = await tmdbFetch("/search/person", {
-    query: term,
-    page: 1,
-    include_adult: "false",
-  });
-
-  const people = Array.isArray(personSearch?.results)
-    ? personSearch.results
-    : [];
-
-  if (!people.length) return [];
-
-  const exactLower = String(term || "").trim().toLowerCase();
-
-  const chosen =
-    people.find(
-      (person) =>
-        String(person?.name || "").trim().toLowerCase() === exactLower
-    ) || people[0];
-
-  if (!chosen?.id) return [];
-
-  const credits = await tmdbFetch(`/person/${chosen.id}/tv_credits`);
-  const cast = Array.isArray(credits?.cast) ? credits.cast : [];
-
-  return cast.map((item) => normalizeTmdbShow(item));
 }
 
 function scoreShow(show, options) {
@@ -918,29 +652,12 @@ export async function handler(event) {
       };
     }
 
-    if (network && !genre && !relationshipType && !setting && !query) {
-      const results = await discoverTmdbByNetwork(network);
-
-      return {
-        statusCode: 200,
-        body: JSON.stringify(results),
-      };
-    }
-
     const token = await loginToTvdb();
 
     if (query && !genre && !network && !relationshipType && !setting) {
-      const [tvdbResults, tmdbTvResults, tmdbPersonResults] = await Promise.all([
-        searchTvdb(token, query).catch(() => []),
-        searchTmdbTv(query).catch(() => []),
-        searchTmdbPersonShows(query).catch(() => []),
-      ]);
+      const tvdbResults = await searchTvdb(token, query).catch(() => []);
 
-      const ranked = dedupeMixedResults([
-        ...tvdbResults,
-        ...tmdbTvResults,
-        ...tmdbPersonResults,
-      ])
+      const ranked = dedupeByTvdbId(tvdbResults)
         .map((item) => ({
           ...item,
           _score: scoreShow(item, {
@@ -1112,35 +829,37 @@ export async function handler(event) {
       });
     }
 
-    results = results
-      .map((item) => ({
-        ...item,
-        _score: scoreShow(item, {
-          query,
-          genre,
-          network,
-          relationshipType,
-          setting,
-          sourceYear,
-          sourceRating,
-          sourceShowId,
-          targetLanguage,
-        }),
-      }))
-      .filter((item) => item._score > -1000)
-      .sort((a, b) => {
-        if (b._score !== a._score) return b._score - a._score;
+    results = sortNewestToOldest(
+      results
+        .map((item) => ({
+          ...item,
+          _score: scoreShow(item, {
+            query,
+            genre,
+            network,
+            relationshipType,
+            setting,
+            sourceYear,
+            sourceRating,
+            sourceShowId,
+            targetLanguage,
+          }),
+        }))
+        .filter((item) => item._score > -1000)
+        .sort((a, b) => {
+          if (b._score !== a._score) return b._score - a._score;
 
-        const bRating = normalizeNumber(b.rating_average) ?? -1;
-        const aRating = normalizeNumber(a.rating_average) ?? -1;
-        if (bRating !== aRating) return bRating - aRating;
+          const bRating = normalizeNumber(b.rating_average) ?? -1;
+          const aRating = normalizeNumber(a.rating_average) ?? -1;
+          if (bRating !== aRating) return bRating - aRating;
 
-        const bYear = getYear(b.first_aired || b.first_air_time) ?? 0;
-        const aYear = getYear(a.first_aired || a.first_air_time) ?? 0;
-        return bYear - aYear;
-      })
-      .slice(0, 40)
-      .map(({ _score, ...item }) => item);
+          const bYear = getYear(b.first_aired || b.first_air_time) ?? 0;
+          const aYear = getYear(a.first_aired || a.first_air_time) ?? 0;
+          return bYear - aYear;
+        })
+        .slice(0, 40)
+        .map(({ _score, ...item }) => item)
+    );
 
     return {
       statusCode: 200,
