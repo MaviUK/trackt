@@ -445,32 +445,51 @@ export default function MyShowDetails() {
           const extras = await extrasRes.json();
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
-          const tvdbPeopleAlsoWatch = Array.isArray(extras.peopleAlsoWatch)
-            ? extras.peopleAlsoWatch
-            : [];
-          const fallbackRecommendations = Array.isArray(extras.recommendations)
-            ? extras.recommendations
-            : [];
 
-          let mappedFallbackRecommendations = [];
-          try {
-            mappedFallbackRecommendations =
-              await enrichTmdbShowsWithMappings(fallbackRecommendations);
-          } catch (mappingError) {
-            console.error(
-              "Failed mapping fallback recommendations:",
-              mappingError
-            );
-            mappedFallbackRecommendations = fallbackRecommendations;
-          }
+const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
+  ? extras.peopleAlsoWatch
+  : [];
 
-          setCast(castRows);
-          setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
-          setRecommendedShows(
-            tvdbPeopleAlsoWatch.length > 0
-              ? tvdbPeopleAlsoWatch
-              : mappedFallbackRecommendations
-          );
+const fallbackRecommendations = Array.isArray(extras.recommendations)
+  ? extras.recommendations
+  : [];
+
+const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map((item) =>
+  normalizeMappedShow({
+    ...item,
+    source: "tvdb",
+    tvdb_id: item?.tvdb_id ?? item?.tvdbId ?? item?.show_id ?? item?.id ?? null,
+    name: item?.name || item?.title || item?.show_name || "Unknown show",
+    first_air_date:
+      item?.first_air_date || item?.firstAired || item?.first_aired || "",
+    poster_url: item?.poster_url || item?.posterUrl || "",
+  })
+);
+
+let mappedFallbackRecommendations = [];
+try {
+  mappedFallbackRecommendations =
+    await enrichTmdbShowsWithMappings(fallbackRecommendations);
+} catch (mappingError) {
+  console.error(
+    "Failed mapping fallback recommendations:",
+    mappingError
+  );
+  mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
+    normalizeMappedShow({
+      ...item,
+      source: "tmdb",
+    })
+  );
+}
+
+setCast(castRows);
+setPeopleAlsoWatch(normalizedTvdbPeopleAlsoWatch);
+setRecommendedShows(
+  normalizedTvdbPeopleAlsoWatch.length > 0
+    ? normalizedTvdbPeopleAlsoWatch
+    : mappedFallbackRecommendations
+);
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           setCast([]);
