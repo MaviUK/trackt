@@ -661,19 +661,20 @@ setRecommendedShows(
     }
   }
 
-  async function handleWatchUpToHere(targetEpisode) {
+    async function handleWatchUpToHere(targetEpisode) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
 
     try {
-      const mainEpisodes = episodes
+      const mainEpisodes = [...episodes]
         .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
         .sort((a, b) => {
           const seasonDiff =
             Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
           if (seasonDiff !== 0) return seasonDiff;
+
           return Number(a.number ?? 0) - Number(b.number ?? 0);
         });
 
@@ -685,41 +686,42 @@ setRecommendedShows(
         throw new Error("Could not find target episode in show episode list");
       }
 
-      const desiredWatchedEpisodes = mainEpisodes.slice(0, targetIndex + 1);
-      const desiredWatchedIds = desiredWatchedEpisodes.map((ep) => ep.id);
+      const episodeIdsToMark = mainEpisodes
+        .slice(0, targetIndex + 1)
+        .map((ep) => ep.id)
+        .filter(Boolean);
 
-      const allShowEpisodeIds = episodes.map((ep) => ep.id).filter(Boolean);
+      if (episodeIdsToMark.length === 0) return;
 
-      if (allShowEpisodeIds.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("watched_episodes")
-          .delete()
-          .eq("user_id", user.id)
-          .in("episode_id", allShowEpisodeIds);
+      const rowsToUpsert = episodeIdsToMark.map((episodeId) => ({
+        user_id: user.id,
+        episode_id: episodeId,
+      }));
 
-        if (deleteError) throw deleteError;
-      }
+      const { error } = await supabase
+        .from("watched_episodes")
+        .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
 
-      if (desiredWatchedIds.length > 0) {
-        const rowsToUpsert = desiredWatchedIds.map((episodeId) => ({
-          user_id: user.id,
-          episode_id: episodeId,
-        }));
+      if (error) throw error;
 
-        const { error: upsertError } = await supabase
-          .from("watched_episodes")
-          .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
+      setWatchedRows((prev) => {
+        const existingIds = new Set((prev || []).map((row) => String(row.episode_id)));
+        const nextRows = [...(prev || [])];
 
-        if (upsertError) throw upsertError;
-      }
+        for (const episodeId of episodeIdsToMark) {
+          if (!existingIds.has(String(episodeId))) {
+            nextRows.push({ episode_id: episodeId });
+          }
+        }
 
-      await refreshWatched(user.id);
+        return nextRows;
+      });
     } catch (error) {
       console.error("Failed watch up to here:", error);
       alert(error.message || "Failed watch up to here");
     }
   }
-
+  
   async function handleSelectBurgrRating(value) {
     const {
       data: { user },
