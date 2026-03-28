@@ -10,6 +10,18 @@ import {
 } from "../lib/tmdbMappings";
 import "./ActorPage.css";
 
+function buildFallbackActor(name, credits) {
+  const firstWithImage = credits.find((item) => item?.profile_url);
+  return {
+    name: decodeURIComponent(name || "").replace(/\+/g, " "),
+    biography: "",
+    birthday: "",
+    place_of_birth: "",
+    known_for_department: "Acting",
+    profile_url: firstWithImage?.profile_url || "",
+  };
+}
+
 export default function ActorPage() {
   const { name } = useParams();
 
@@ -69,7 +81,11 @@ export default function ActorPage() {
           throw new Error(data?.message || "Failed to load actor shows");
         }
 
-        const rawCredits = Array.isArray(data?.credits) ? data.credits : [];
+        const rawCredits = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.credits)
+          ? data.credits
+          : [];
 
         const normalizedCredits = rawCredits.map((item) =>
           normalizeMappedShow({
@@ -77,18 +93,24 @@ export default function ActorPage() {
             source: item?.source || "tmdb",
             name: item?.name || item?.title || item?.show_name || "Unknown show",
             first_air_date:
-              item?.first_air_date || item?.firstAired || item?.first_aired || "",
+              item?.first_air_date ||
+              item?.firstAired ||
+              item?.first_aired ||
+              "",
             poster_url:
               item?.poster_url ||
               item?.posterUrl ||
+              item?.image_url ||
               (item?.poster_path
                 ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
                 : ""),
           })
         );
 
+        const actorPayload = data?.actor || buildFallbackActor(name, normalizedCredits);
+
         if (!cancelled) {
-          setActor(data?.actor || null);
+          setActor(actorPayload);
           setCredits(normalizedCredits);
         }
 
