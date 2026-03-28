@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getMappedShowHref, isMappedToTvdb } from "../lib/tmdbMappings";
+import {
+  getMappedShowHref,
+  isMappedToTvdb,
+  normalizeMappedShow,
+} from "../lib/tmdbMappings";
 import "./ActorPage.css";
 
 function formatDate(dateValue) {
@@ -12,12 +16,6 @@ function formatDate(dateValue) {
     month: "short",
     day: "numeric",
   });
-}
-
-function getYear(dateValue) {
-  if (!dateValue) return "";
-  const match = String(dateValue).match(/^(\d{4})/);
-  return match ? match[1] : "";
 }
 
 export default function ActorPage() {
@@ -44,9 +42,27 @@ export default function ActorPage() {
           throw new Error(data?.message || "Failed to load actor");
         }
 
+        const rawCredits = Array.isArray(data?.credits) ? data.credits : [];
+
+        const normalizedCredits = rawCredits.map((item) =>
+          normalizeMappedShow({
+            ...item,
+            source: item?.source || "tmdb",
+            name: item?.name || item?.title || item?.show_name || "Unknown show",
+            first_air_date:
+              item?.first_air_date || item?.firstAired || item?.first_aired || "",
+            poster_url:
+              item?.poster_url ||
+              item?.posterUrl ||
+              (item?.poster_path
+                ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
+                : ""),
+          })
+        );
+
         if (!cancelled) {
           setActor(data?.actor || null);
-          setCredits(Array.isArray(data?.credits) ? data.credits : []);
+          setCredits(normalizedCredits);
         }
       } catch (err) {
         if (!cancelled) {
@@ -67,114 +83,99 @@ export default function ActorPage() {
   }, [name]);
 
   if (loading) {
-    return <div className="actor-page"><p>Loading actor…</p></div>;
+    return (
+      <div className="actor-page">
+        <p>Loading actor...</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="actor-page"><p>{error}</p></div>;
+    return (
+      <div className="actor-page">
+        <p>{error}</p>
+      </div>
+    );
   }
 
   if (!actor) {
-    return <div className="actor-page"><p>Actor not found.</p></div>;
+    return (
+      <div className="actor-page">
+        <p>Actor not found.</p>
+      </div>
+    );
   }
 
   return (
     <div className="actor-page">
-      <div className="actor-header-card">
-        <div className="actor-header-art">
-          {actor.profile_url ? (
-            <img src={actor.profile_url} alt={actor.name} />
-          ) : (
-            <div className="actor-header-placeholder">No Image</div>
-          )}
-        </div>
+      <Link to="/search" className="actor-back-link">
+        ← Back to Search
+      </Link>
 
-        <div className="actor-header-content">
-          <p className="actor-kicker">Actor</p>
-          <h1>{actor.name}</h1>
-
-          <div className="actor-meta">
-            {actor.known_for_department ? (
-              <span>{actor.known_for_department}</span>
-            ) : null}
-            {actor.birthday ? <span>Born {formatDate(actor.birthday)}</span> : null}
-            {actor.place_of_birth ? <span>{actor.place_of_birth}</span> : null}
-          </div>
-
-          {actor.biography ? (
-            <p className="actor-biography">{actor.biography}</p>
-          ) : (
-            <p className="actor-biography actor-biography--muted">
-              No biography available.
-            </p>
-          )}
-        </div>
+      <div className="actor-header">
+        <h1>{actor.name}</h1>
+        <p>TV shows this actor appears in.</p>
       </div>
 
-      <div className="actor-section-header">
-        <h2>TV shows</h2>
-        <p>{credits.length} results</p>
-      </div>
-
-      <div className="actor-show-grid">
-        {credits.map((show) => {
+      <div className="actor-credits-list">
+        {credits.map((show, index) => {
+          const showName = show.name || "Unknown show";
           const mapped = isMappedToTvdb(show);
+          const href = getMappedShowHref(show);
 
           return (
-            <article className="actor-show-card" key={show.id}>
-              <Link to={getMappedShowHref(show)} className="actor-show-poster-link">
+            <Link
+              key={show.id || `${showName}-${index}`}
+              to={href}
+              className="actor-credit-card"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div className="actor-credit-poster-wrap">
                 {show.poster_url ? (
                   <img
-                    className="actor-show-poster"
                     src={show.poster_url}
-                    alt={show.name}
+                    alt={showName}
+                    className="actor-credit-poster"
                   />
                 ) : (
-                  <div className="actor-show-poster actor-show-poster--placeholder">
-                    No Poster
+                  <div className="actor-credit-poster actor-credit-poster--empty">
+                    No image
                   </div>
                 )}
-              </Link>
 
-              <div className="actor-show-body">
-                <div className="actor-show-topline">
-                  <Link to={getMappedShowHref(show)} className="actor-show-title">
-                    {show.name}
-                  </Link>
-                  {getYear(show.first_air_date) ? (
-                    <span className="actor-show-year">
-                      {getYear(show.first_air_date)}
-                    </span>
-                  ) : null}
-                </div>
-
-                {show.character ? (
-                  <p className="actor-show-role">as {show.character}</p>
-                ) : null}
-
-                <div className="actor-show-stats">
-                  {show.vote_average ? (
-                    <span>TMDB {Number(show.vote_average).toFixed(1)}</span>
-                  ) : null}
-                  {show.episode_count ? (
-                    <span>{show.episode_count} eps</span>
-                  ) : null}
-                  <span className={mapped ? "mapped-pill" : "fallback-pill"}>
-                    {mapped ? "Mapped to TVDB" : "Search fallback"}
-                  </span>
-                </div>
-
-                {show.overview ? (
-                  <p className="actor-show-overview">{show.overview}</p>
-                ) : null}
-
-                <div className="actor-show-actions">
-                  <Link to={getMappedShowHref(show)} className="actor-show-button">
-                    {mapped ? "Open show" : "Search show"}
-                  </Link>
+                <div className="actor-credit-badge">
+                  {mapped ? "Open Show" : "TMDB Only"}
                 </div>
               </div>
-            </article>
+
+              <div className="actor-credit-body">
+                <h2 className="actor-credit-title">{showName}</h2>
+
+                {show.first_air_date ? (
+                  <div className="actor-credit-date">
+                    First aired: {formatDate(show.first_air_date)}
+                  </div>
+                ) : null}
+
+                {show.character ? (
+                  <div className="actor-credit-character">
+                    Character: {show.character}
+                  </div>
+                ) : null}
+
+                {show.overview ? (
+                  <p className="actor-credit-overview">{show.overview}</p>
+                ) : null}
+
+                <div className="actor-credit-meta">
+                  {mapped ? (
+                    <span>TVDB {show.resolved_tvdb_id}</span>
+                  ) : (
+                    <span>Search fallback</span>
+                  )}
+                </div>
+              </div>
+            </Link>
           );
         })}
       </div>
