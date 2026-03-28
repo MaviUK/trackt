@@ -1,26 +1,57 @@
-export function getMappedShowHref(show) {
-  const tvdbId =
-    show?.tvdb_id ??
-    show?.tvdbId ??
-    show?.mapped_tvdb_id ??
-    show?.mappedTvdbId ??
-    null;
+function getNumericId(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
 
-  if (tvdbId) {
-    return `/show/${tvdbId}`;
-  }
-
-  const query = encodeURIComponent(show?.name || show?.title || "");
+function buildSearchFallback(show) {
+  const query = encodeURIComponent(
+    show?.name || show?.title || show?.show_name || ""
+  );
   return query ? `/search?q=${query}` : "/search";
 }
 
+export function normalizeMappedShow(show) {
+  if (!show || typeof show !== "object") {
+    return {
+      ...show,
+      resolved_tvdb_id: null,
+      resolved_href: "/search",
+      is_mapped: false,
+    };
+  }
+
+  const source = String(show.source || "").toLowerCase();
+
+  const explicitTvdbId =
+    getNumericId(show.tvdb_id) ??
+    getNumericId(show.tvdbId) ??
+    getNumericId(show.mapped_tvdb_id) ??
+    getNumericId(show.mappedTvdbId) ??
+    getNumericId(show.show_id);
+
+  const sourceAwareTvdbId =
+    explicitTvdbId ??
+    (source === "tvdb" ? getNumericId(show.id) : null);
+
+  const resolvedTvdbId = sourceAwareTvdbId || null;
+  const resolvedHref = resolvedTvdbId
+    ? `/show/${resolvedTvdbId}`
+    : buildSearchFallback(show);
+
+  return {
+    ...show,
+    resolved_tvdb_id: resolvedTvdbId,
+    resolved_href: resolvedHref,
+    is_mapped: Boolean(resolvedTvdbId),
+  };
+}
+
+export function getMappedShowHref(show) {
+  return normalizeMappedShow(show).resolved_href;
+}
+
 export function isMappedToTvdb(show) {
-  return Boolean(
-    show?.tvdb_id ??
-      show?.tvdbId ??
-      show?.mapped_tvdb_id ??
-      show?.mappedTvdbId
-  );
+  return normalizeMappedShow(show).is_mapped;
 }
 
 export async function enrichTmdbShowsWithMappings(shows = []) {
@@ -30,8 +61,9 @@ export async function enrichTmdbShowsWithMappings(shows = []) {
 
   const payload = shows.map((show) => ({
     id: show?.id,
-    name: show?.name || show?.title || "",
-    first_air_date: show?.first_air_date || show?.firstAirDate || "",
+    name: show?.name || show?.title || show?.show_name || "",
+    first_air_date:
+      show?.first_air_date || show?.firstAired || show?.first_aired || "",
     poster_path: show?.poster_path || "",
     backdrop_path: show?.backdrop_path || "",
     overview: show?.overview || "",
@@ -52,5 +84,12 @@ export async function enrichTmdbShowsWithMappings(shows = []) {
     throw new Error(data?.message || "Failed to map shows");
   }
 
-  return Array.isArray(data?.shows) ? data.shows : [];
+  return Array.isArray(data?.shows)
+    ? data.shows.map((show) =>
+        normalizeMappedShow({
+          ...show,
+          source: show?.source || "tmdb",
+        })
+      )
+    : [];
 }
