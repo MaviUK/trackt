@@ -70,6 +70,7 @@ export default function ActorPage() {
         }
 
         const rawCredits = Array.isArray(data?.credits) ? data.credits : [];
+
         const normalizedCredits = rawCredits.map((item) =>
           normalizeMappedShow({
             ...item,
@@ -180,7 +181,9 @@ export default function ActorPage() {
               alt={actor.name}
               className="actor-poster"
             />
-          ) : null}
+          ) : (
+            <div className="actor-poster actor-poster-empty">No image</div>
+          )}
 
           <div className="actor-hero-main">
             <h1 className="actor-title">{actor.name}</h1>
@@ -210,80 +213,86 @@ export default function ActorPage() {
         <section className="actor-shows-section">
           <h2 className="actor-section-title">Shows</h2>
 
-          <div className="actor-shows-list">
-            {credits.map((show, index) => {
-              const showName = show.name || "Unknown show";
-              const mapped = isMappedToTvdb(show);
-              const href = getMappedShowHref(show);
-              const alreadySaved = show?.resolved_tvdb_id
-                ? savedIds.has(String(show.resolved_tvdb_id))
-                : false;
+          {credits.length === 0 ? (
+            <p className="actor-empty">No TV shows found for this actor.</p>
+          ) : (
+            <div className="actor-shows-list">
+              {credits.map((show, index) => {
+                const showName = show.name || "Unknown show";
+                const mapped = isMappedToTvdb(show);
+                const href = getMappedShowHref(show);
+                const alreadySaved = show?.resolved_tvdb_id
+                  ? savedIds.has(String(show.resolved_tvdb_id))
+                  : false;
 
-              return (
-                <article
-                  key={show.tmdb_id || show.id || `${showName}-${index}`}
-                  className="actor-show-card"
-                >
-                  <div className="actor-show-left">
-                    {show.poster_url ? (
-                      <img
-                        src={show.poster_url}
-                        alt={showName}
-                        className="actor-show-poster"
-                      />
-                    ) : (
-                      <div className="actor-show-poster actor-show-poster-empty">
-                        No image
-                      </div>
-                    )}
-
-                    {mapped ? (
-                      alreadySaved ? (
-                        <div className="actor-show-action actor-show-action-saved">
-                          Added
-                        </div>
+                return (
+                  <article
+                    key={show.tmdb_id || show.id || `${showName}-${index}`}
+                    className="actor-show-card"
+                  >
+                    <div className="actor-show-left">
+                      {show.poster_url ? (
+                        <img
+                          src={show.poster_url}
+                          alt={showName}
+                          className="actor-show-poster"
+                        />
                       ) : (
-                        <button
-                          type="button"
-                          className="actor-show-action"
-                          disabled={addingId === show.resolved_tvdb_id}
-                          onClick={() => handleAddShow(show)}
-                        >
-                          {addingId === show.resolved_tvdb_id ? "Adding..." : "Add"}
-                        </button>
-                      )
-                    ) : null}
-                  </div>
+                        <div className="actor-show-poster actor-show-poster-empty">
+                          No image
+                        </div>
+                      )}
 
-                  <div className="actor-show-body">
-                    <h3 className="actor-show-title">{showName}</h3>
-
-                    {show.first_air_date ? (
-                      <div className="actor-show-date">
-                        First aired: {formatDate(show.first_air_date)}
-                      </div>
-                    ) : null}
-
-                    {show.character ? (
-                      <div className="actor-show-character">
-                        Character: {show.character}
-                      </div>
-                    ) : null}
-
-                    {show.overview ? (
-                      <p className="actor-show-overview">{show.overview}</p>
-                    ) : null}
-
-                    <div className="actor-show-links">
-                      <Link to={href} className="actor-view-link">
-                        {mapped ? "View details →" : "Search show →"}
-                      </Link>
+                      {mapped ? (
+                        alreadySaved ? (
+                          <div className="actor-show-action actor-show-action-saved">
+                            Added
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="actor-show-action"
+                            disabled={addingId === show.resolved_tvdb_id}
+                            onClick={() => handleAddShow(show)}
+                          >
+                            {addingId === show.resolved_tvdb_id
+                              ? "Adding..."
+                              : "Add"}
+                          </button>
+                        )
+                      ) : null}
                     </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+
+                    <div className="actor-show-body">
+                      <h3 className="actor-show-title">{showName}</h3>
+
+                      {show.first_air_date ? (
+                        <div className="actor-show-date">
+                          First aired: {formatDate(show.first_air_date)}
+                        </div>
+                      ) : null}
+
+                      {show.character ? (
+                        <div className="actor-show-character">
+                          Character: {show.character}
+                        </div>
+                      ) : null}
+
+                      {show.overview ? (
+                        <p className="actor-show-overview">{show.overview}</p>
+                      ) : null}
+
+                      <div className="actor-show-links">
+                        <Link to={href} className="actor-view-link">
+                          {mapped ? "View details →" : "Search show →"}
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </div>
