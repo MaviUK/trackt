@@ -3,6 +3,10 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
+import {
+  enrichTmdbShowsWithMappings,
+  getMappedShowHref,
+} from "../lib/tmdbMappings";
 
 function makeEpisodeCode(ep) {
   if (Number(ep?.seasonNumber) === 0) {
@@ -429,12 +433,14 @@ export default function MyShowDetails() {
 
         try {
           setExtrasLoading(true);
+
           const extrasRes = await fetch(
             `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
           );
           if (!extrasRes.ok) {
             throw new Error(`Failed to load show extras (${extrasRes.status})`);
           }
+
           const extras = await extrasRes.json();
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
@@ -445,12 +451,24 @@ export default function MyShowDetails() {
             ? extras.recommendations
             : [];
 
+          let mappedFallbackRecommendations = [];
+          try {
+            mappedFallbackRecommendations =
+              await enrichTmdbShowsWithMappings(fallbackRecommendations);
+          } catch (mappingError) {
+            console.error(
+              "Failed mapping fallback recommendations:",
+              mappingError
+            );
+            mappedFallbackRecommendations = fallbackRecommendations;
+          }
+
           setCast(castRows);
           setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
           setRecommendedShows(
             tvdbPeopleAlsoWatch.length > 0
               ? tvdbPeopleAlsoWatch
-              : fallbackRecommendations
+              : mappedFallbackRecommendations
           );
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
@@ -1276,10 +1294,14 @@ export default function MyShowDetails() {
             <div className="msd-recommended-grid">
               {recommendedShows.map((rec, index) => {
                 const showName = rec.name || rec.title || "Unknown show";
-                const linkTarget = `/search?q=${encodeURIComponent(showName)}`;
+                const linkTarget = getMappedShowHref(rec);
 
-                const content = (
-                  <>
+                return (
+                  <Link
+                    key={rec.id || `${showName}-${index}`}
+                    to={linkTarget}
+                    className="msd-rec-card"
+                  >
                     {rec.poster_url || rec.posterUrl ? (
                       <img
                         src={rec.poster_url || rec.posterUrl}
@@ -1297,16 +1319,6 @@ export default function MyShowDetails() {
                         )}
                       </div>
                     ) : null}
-                  </>
-                );
-
-                return (
-                  <Link
-                    key={rec.id || `${showName}-${index}`}
-                    to={linkTarget}
-                    className="msd-rec-card"
-                  >
-                    {content}
                   </Link>
                 );
               })}
