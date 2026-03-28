@@ -99,25 +99,21 @@ function isClearlyUnwantedTitle(name) {
 
   if (blockedExact.has(value)) return true;
 
-  const blockedContains = [
-    "late show",
-    "late late show",
-    "late night",
-    "tonight show",
+  const blockedStartsWith = [
+    "the tonight show",
+    "late night with",
+    "the late show with",
+    "the late late show with",
     "watch what happens live",
     "jimmy kimmel live",
-    "kelly clarkson show",
-    "critics choice",
-    "emmy awards",
-    "golden globe awards",
-    "academy awards",
-    "carpool karaoke",
-    "talk show",
-    "award show",
-    "awards",
+    "live with ",
   ];
 
-  return blockedContains.some((phrase) => value.includes(phrase));
+  if (blockedStartsWith.some((prefix) => value.startsWith(prefix))) {
+    return true;
+  }
+
+  return false;
 }
 
 function isValidActorCredit(item) {
