@@ -23,10 +23,11 @@ function buildFallbackActor(name, credits) {
 }
 
 export default function ActorPage() {
-  const { name } = useParams();
-    useEffect(() => {
+    const { name } = useParams();
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
-  }, [actorName]);
+  }, [name]);
 
   const [loading, setLoading] = useState(true);
   const [actor, setActor] = useState(null);
