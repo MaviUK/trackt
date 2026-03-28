@@ -56,7 +56,7 @@ function dedupeCredits(credits = []) {
   });
 }
 
-function getYearValue(dateString) {
+function getTimeValue(dateString) {
   if (!dateString) return 0;
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return 0;
@@ -65,8 +65,8 @@ function getYearValue(dateString) {
 
 function sortCreditsNewestFirst(credits = []) {
   return [...credits].sort((a, b) => {
-    const aDate = getYearValue(a?.first_air_date);
-    const bDate = getYearValue(b?.first_air_date);
+    const aDate = getTimeValue(a?.first_air_date);
+    const bDate = getTimeValue(b?.first_air_date);
 
     if (bDate !== aDate) return bDate - aDate;
 
@@ -77,60 +77,87 @@ function sortCreditsNewestFirst(credits = []) {
   });
 }
 
-function looksLikeTalkShow(item) {
-  const text = [
+function buildSearchText(item) {
+  return [
     item?.name,
+    item?.original_name,
     item?.overview,
     item?.character,
-    item?.original_name,
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function isDefinitelyNonScripted(item) {
+  const name = String(item?.name || "").toLowerCase();
+  const overview = String(item?.overview || "").toLowerCase();
+  const text = `${name} ${overview}`;
 
   const blockedPhrases = [
-    "talk show",
     "late show",
     "late late show",
     "late night",
     "tonight show",
-    "with jimmy",
-    "with seth",
-    "with stephen",
-    "with andy cohen",
     "watch what happens live",
-    "kelly clarkson show",
     "jimmy kimmel live",
+    "kelly clarkson show",
     "the view",
-    "conan",
-    "starralk",
+    "live with kelly",
+    "live with regis",
+    "star talk",
+    "startalk",
     "carpool karaoke",
-    "awards",
-    "emmy",
-    "critics choice",
-    "live with",
-    "guest appearance",
-    "himself",
-    "herself",
-    "self",
-    "host",
-    "interview",
-    "variety show",
-    "reality",
-    "competition series",
-    "game show",
+    "critics choice awards",
+    "emmy awards",
+    "academy awards",
+    "golden globe awards",
+    "award show",
+    "awards ceremony",
     "news program",
-    "daytime",
-    "telethon",
+    "talk show",
+    "daytime talk show",
+    "interview series",
+    "variety show",
+    "game show",
+    "competition series",
+    "reality series",
+    "reality competition",
+    "after show",
+    "red carpet",
     "ceremony",
+    "telethon",
   ];
 
-  return blockedPhrases.some((phrase) => text.includes(phrase));
+  if (blockedPhrases.some((phrase) => text.includes(phrase))) {
+    return true;
+  }
+
+  const exactBlockedNames = new Set([
+    "conan",
+    "the view",
+    "jimmy kimmel live!",
+    "the kelly clarkson show",
+    "watch what happens live with andy cohen",
+    "the tonight show starring jimmy fallon",
+    "late night with seth meyers",
+    "the late show with stephen colbert",
+    "the late late show with james corden",
+    "the late late show with craig ferguson",
+    "the late late show with craig kilborn",
+  ]);
+
+  if (exactBlockedNames.has(name)) {
+    return true;
+  }
+
+  return false;
 }
 
-function isScriptedEnough(item) {
-  if (!item?.name) return false;
-  if (looksLikeTalkShow(item)) return false;
+function isValidActorCredit(item) {
+  if (!item?.id || !item?.name) return false;
+  if (!item?.first_air_date) return false;
+  if (isDefinitelyNonScripted(item)) return false;
   return true;
 }
 
@@ -171,8 +198,7 @@ export const handler = async (event) => {
     const cleanedCredits = sortCreditsNewestFirst(
       dedupeCredits(
         rawCredits
-          .filter((item) => item?.id && item?.name)
-          .filter(isScriptedEnough)
+          .filter(isValidActorCredit)
           .map((item) => ({
             id: item.id,
             tmdb_id: item.id,
@@ -217,6 +243,7 @@ export const handler = async (event) => {
       overview: item?.overview || "",
       status: item?.status || null,
       first_aired: item?.first_air_date || null,
+      first_air_date: item?.first_air_date || null,
       first_air_time: item?.first_air_date || null,
       image_url: item?.image_url || item?.poster_url || null,
       poster_url: item?.poster_url || item?.image_url || null,
