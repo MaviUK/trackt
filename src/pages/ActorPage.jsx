@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { addShowToUserList } from "../lib/userShows";
 import { supabase } from "../lib/supabase";
@@ -24,6 +24,9 @@ function buildFallbackActor(name, credits) {
 
 export default function ActorPage() {
   const { name } = useParams();
+    useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [actorName]);
 
   const [loading, setLoading] = useState(true);
   const [actor, setActor] = useState(null);
