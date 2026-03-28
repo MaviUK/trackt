@@ -76,50 +76,9 @@ function sortCreditsNewestFirst(credits = []) {
   });
 }
 
-function isClearlyUnwantedTitle(name) {
-  const value = String(name || "").toLowerCase().trim();
-
-  const blockedExact = new Set([
-    "conan",
-    "the view",
-    "jimmy kimmel live!",
-    "the kelly clarkson show",
-    "watch what happens live with andy cohen",
-    "the tonight show starring jimmy fallon",
-    "late night with seth meyers",
-    "the late show with stephen colbert",
-    "the late late show with james corden",
-    "the late late show with craig ferguson",
-    "the late late show with craig kilborn",
-    "critics choice awards",
-    "the emmy awards",
-    "star talk with neil degrasse tyson",
-    "carpool karaoke: the series",
-  ]);
-
-  if (blockedExact.has(value)) return true;
-
-  const blockedStartsWith = [
-    "the tonight show",
-    "late night with",
-    "the late show with",
-    "the late late show with",
-    "watch what happens live",
-    "jimmy kimmel live",
-    "live with ",
-  ];
-
-  if (blockedStartsWith.some((prefix) => value.startsWith(prefix))) {
-    return true;
-  }
-
-  return false;
-}
-
-function isValidActorCredit(item) {
+function isUsableCredit(item) {
   if (!item?.id || !item?.name) return false;
   if (!item?.first_air_date) return false;
-  if (isClearlyUnwantedTitle(item.name)) return false;
   return true;
 }
 
@@ -160,7 +119,7 @@ export const handler = async (event) => {
     const cleanedCredits = sortCreditsNewestFirst(
       dedupeCredits(
         rawCredits
-          .filter(isValidActorCredit)
+          .filter(isUsableCredit)
           .map((item) => ({
             id: item.id,
             tmdb_id: item.id,
