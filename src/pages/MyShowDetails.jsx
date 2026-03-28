@@ -668,31 +668,34 @@ setRecommendedShows(
     if (!user) return;
 
     try {
-      const targetSeason = Number(targetEpisode.seasonNumber ?? 0);
-      const targetEpisodeNumber = Number(targetEpisode.number ?? 0);
+      const mainEpisodes = episodes
+        .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+        .sort((a, b) => {
+          const seasonDiff =
+            Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+          if (seasonDiff !== 0) return seasonDiff;
+          return Number(a.number ?? 0) - Number(b.number ?? 0);
+        });
 
-      const desiredWatchedEpisodes = episodes.filter((ep) => {
-        const epSeason = Number(ep.seasonNumber ?? 0);
-        const epNumber = Number(ep.number ?? 0);
-
-        if (epSeason === 0) return false;
-        if (epSeason < targetSeason) return true;
-        if (epSeason > targetSeason) return false;
-        return epNumber <= targetEpisodeNumber;
-      });
-
-      const desiredWatchedIds = desiredWatchedEpisodes.map((ep) => ep.id);
-      const allShowEpisodeIds = episodes.map((ep) => ep.id);
-      const idsToRemove = allShowEpisodeIds.filter(
-        (episodeId) => !desiredWatchedIds.includes(episodeId)
+      const targetIndex = mainEpisodes.findIndex(
+        (ep) => String(ep.id) === String(targetEpisode.id)
       );
 
-      if (idsToRemove.length > 0) {
+      if (targetIndex === -1) {
+        throw new Error("Could not find target episode in show episode list");
+      }
+
+      const desiredWatchedEpisodes = mainEpisodes.slice(0, targetIndex + 1);
+      const desiredWatchedIds = desiredWatchedEpisodes.map((ep) => ep.id);
+
+      const allShowEpisodeIds = episodes.map((ep) => ep.id).filter(Boolean);
+
+      if (allShowEpisodeIds.length > 0) {
         const { error: deleteError } = await supabase
           .from("watched_episodes")
           .delete()
           .eq("user_id", user.id)
-          .in("episode_id", idsToRemove);
+          .in("episode_id", allShowEpisodeIds);
 
         if (deleteError) throw deleteError;
       }
