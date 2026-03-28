@@ -47,14 +47,7 @@ export default function Search() {
       return;
     }
 
-    const tvdbIds = results
-      .map((show) => Number(show.tvdb_id))
-      .filter(Boolean);
-
-    if (!tvdbIds.length) {
-      setSavedIds(new Set());
-      return;
-    }
+    const tvdbIds = results.map((show) => Number(show.tvdb_id)).filter(Boolean);
 
     const { data, error } = await supabase
       .from("user_shows_new")
@@ -98,7 +91,11 @@ export default function Search() {
         throw new Error(data?.message || "Search failed");
       }
 
-      const results = Array.isArray(data) ? data : [];
+      // ✅ FILTER OUT TMDB RESULTS
+      const results = (Array.isArray(data) ? data : []).filter(
+        (show) => !!show.tvdb_id
+      );
+
       setShows(results);
       await markAlreadySaved(results);
     } catch (err) {
@@ -146,9 +143,7 @@ export default function Search() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
 
-    await fetchSearch({
-      q: trimmedQuery,
-    });
+    await fetchSearch({ q: trimmedQuery });
   }
 
   async function handleAddShow(event, show) {
@@ -161,11 +156,6 @@ export default function Search() {
 
     if (!user) {
       setError("Please log in to add shows.");
-      return;
-    }
-
-    if (!show.tvdb_id) {
-      setError("This result came from TMDB and does not have a TVDB id yet.");
       return;
     }
 
@@ -224,33 +214,20 @@ export default function Search() {
           <p>{pageSubtitle}</p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            alignItems: "stretch",
-            marginBottom: "20px",
-          }}
-        >
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleManualSearch();
-              }
-            }}
+            onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
             placeholder="Search for a show"
             style={{
               flex: 1,
-              minWidth: 0,
               height: "48px",
               padding: "0 14px",
               borderRadius: "14px",
               border: "1px solid #26324a",
               background: "#121a2b",
               color: "#f8fafc",
-              fontSize: "1rem",
             }}
           />
 
@@ -258,64 +235,11 @@ export default function Search() {
             onClick={handleManualSearch}
             disabled={loading}
             className="msd-btn msd-btn-secondary"
-            style={{
-              height: "48px",
-              minWidth: "112px",
-            }}
+            style={{ height: "48px", minWidth: "112px" }}
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
-
-        {(genreFilter ||
-          networkFilter ||
-          relationshipTypeFilter ||
-          settingFilter) && (
-          <div
-            style={{
-              marginBottom: "16px",
-              color: "#cbd5e1",
-              fontSize: "0.95rem",
-            }}
-          >
-            Active filter:{" "}
-            {genreFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                Genre = {genreFilter}
-              </span>
-            ) : null}
-            {networkFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {genreFilter ? " | " : ""}
-                Network = {networkFilter}
-              </span>
-            ) : null}
-            {relationshipTypeFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {genreFilter || networkFilter ? " | " : ""}
-                Relationship Type = {relationshipTypeFilter}
-              </span>
-            ) : null}
-            {settingFilter ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {genreFilter || networkFilter || relationshipTypeFilter
-                  ? " | "
-                  : ""}
-                Setting = {settingFilter}
-              </span>
-            ) : null}
-            {!isPureNetworkBrowse && sourceYear ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {" | "}From year = {sourceYear}
-              </span>
-            ) : null}
-            {!isPureNetworkBrowse && sourceRating ? (
-              <span style={{ color: "#f8fafc", fontWeight: 700 }}>
-                {" | "}Min rating = {sourceRating}
-              </span>
-            ) : null}
-          </div>
-        )}
 
         {error && (
           <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
@@ -323,190 +247,67 @@ export default function Search() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shows.map((show) => {
-            const itemId = String(show.tvdb_id || show.tmdb_id || show.id);
-            const tvdbId = show.tvdb_id ? String(show.tvdb_id) : null;
-            const isSaved = tvdbId ? savedIds.has(tvdbId) : false;
+            const tvdbId = String(show.tvdb_id);
+            const isSaved = savedIds.has(tvdbId);
             const isAdding = addingId === tvdbId;
-            const canAdd = !!tvdbId;
 
-            const detailHref = tvdbId
-              ? isSaved
-                ? `/my-shows/${tvdbId}`
-                : `/show/${tvdbId}`
-              : null;
+            const detailHref = isSaved
+              ? `/my-shows/${tvdbId}`
+              : `/show/${tvdbId}`;
 
-            const poster = show.image_url || show.poster_url || null;
+            const poster = show.image_url || show.poster_url;
 
             return (
-              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "88px minmax(0, 1fr)",
-                    gap: "14px",
-                    alignItems: "start",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                      alignItems: "stretch",
-                    }}
-                  >
-                    {detailHref ? (
-                      <Link to={detailHref} style={{ display: "block" }}>
-                        {poster ? (
-                          <img
-                            src={poster}
-                            alt={show.name || show.show_name || "Show poster"}
-                            style={{
-                              width: "88px",
-                              height: "128px",
-                              borderRadius: "12px",
-                              objectFit: "cover",
-                              display: "block",
-                              background: "#111827",
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: "88px",
-                              height: "128px",
-                              borderRadius: "12px",
-                              background: "#111827",
-                            }}
-                          />
-                        )}
-                      </Link>
-                    ) : poster ? (
-                      <img
-                        src={poster}
-                        alt={show.name || show.show_name || "Show poster"}
-                        style={{
-                          width: "88px",
-                          height: "128px",
-                          borderRadius: "12px",
-                          objectFit: "cover",
-                          display: "block",
-                          background: "#111827",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "88px",
-                          height: "128px",
-                          borderRadius: "12px",
-                          background: "#111827",
-                        }}
-                      />
-                    )}
+              <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "88px 1fr", gap: "14px" }}>
+                  <div>
+                    <Link to={detailHref}>
+                      {poster ? (
+                        <img
+                          src={poster}
+                          alt={show.name}
+                          style={{
+                            width: "88px",
+                            height: "128px",
+                            borderRadius: "12px",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        <div style={{ width: "88px", height: "128px", background: "#111827" }} />
+                      )}
+                    </Link>
 
                     <button
-                      type="button"
                       onClick={(e) => handleAddShow(e, show)}
-                      disabled={!canAdd || isSaved || isAdding}
+                      disabled={isSaved || isAdding}
                       className={`msd-btn ${
                         isSaved ? "msd-btn-success" : "msd-btn-primary"
                       }`}
-                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
-                      title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
+                      style={{ width: "100%", marginTop: "10px" }}
                     >
-                      {!canAdd
-                        ? "TMDB Only"
-                        : isSaved
-                        ? "Added"
-                        : isAdding
-                        ? "Adding..."
-                        : "Add"}
+                      {isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
                     </button>
                   </div>
 
-                  <div style={{ minWidth: 0 }}>
-                    {detailHref ? (
-                      <Link
-                        to={detailHref}
-                        style={{
-                          textDecoration: "none",
-                          color: "inherit",
-                          minWidth: 0,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "1.05rem",
-                            fontWeight: "800",
-                            color: "#f8fafc",
-                            marginBottom: "8px",
-                            lineHeight: "1.2",
-                          }}
-                        >
-                          {show.name || show.show_name || "Unknown title"}
-                        </div>
-                      </Link>
-                    ) : (
-                      <div
-                        style={{
-                          fontSize: "1.05rem",
-                          fontWeight: "800",
-                          color: "#f8fafc",
-                          marginBottom: "8px",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        {show.name || show.show_name || "Unknown title"}
+                  <div>
+                    <Link to={detailHref} style={{ textDecoration: "none", color: "inherit" }}>
+                      <div style={{ fontWeight: "800", fontSize: "1.05rem" }}>
+                        {show.name}
                       </div>
-                    )}
+                    </Link>
 
                     {(show.first_air_time || show.first_aired) && (
-                      <p
-                        style={{
-                          margin: "0 0 10px 0",
-                          color: "#cbd5e1",
-                          fontWeight: "600",
-                        }}
-                      >
+                      <p style={{ color: "#cbd5e1" }}>
                         First aired: {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
-                    {show.network && (
-                      <p
-                        style={{
-                          margin: "0 0 10px 0",
-                          color: "#93c5fd",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Network: {show.network}
-                      </p>
-                    )}
-
                     {show.overview && (
-                      <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
-                        {show.overview.length > 180
-                          ? `${show.overview.slice(0, 180)}...`
-                          : show.overview}
+                      <p style={{ color: "#dbe4f3" }}>
+                        {show.overview.slice(0, 180)}...
                       </p>
                     )}
-
-                    {detailHref ? (
-                      <div style={{ marginTop: "12px" }}>
-                        <Link
-                          to={detailHref}
-                          style={{
-                            color: "#93c5fd",
-                            fontWeight: 700,
-                            textDecoration: "none",
-                          }}
-                        >
-                          {isSaved ? "Open in My Shows →" : "View details →"}
-                        </Link>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </div>
