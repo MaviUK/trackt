@@ -56,20 +56,82 @@ function dedupeCredits(credits = []) {
   });
 }
 
-function sortCredits(credits = []) {
+function getYearValue(dateString) {
+  if (!dateString) return 0;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 0;
+  return date.getTime();
+}
+
+function sortCreditsNewestFirst(credits = []) {
   return [...credits].sort((a, b) => {
+    const aDate = getYearValue(a?.first_air_date);
+    const bDate = getYearValue(b?.first_air_date);
+
+    if (bDate !== aDate) return bDate - aDate;
+
     const aPopularity = Number(a?.popularity || 0);
     const bPopularity = Number(b?.popularity || 0);
 
-    if (bPopularity !== aPopularity) {
-      return bPopularity - aPopularity;
-    }
-
-    const aDate = a?.first_air_date || "";
-    const bDate = b?.first_air_date || "";
-
-    return bDate.localeCompare(aDate);
+    return bPopularity - aPopularity;
   });
+}
+
+function looksLikeTalkShow(item) {
+  const text = [
+    item?.name,
+    item?.overview,
+    item?.character,
+    item?.original_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const blockedPhrases = [
+    "talk show",
+    "late show",
+    "late late show",
+    "late night",
+    "tonight show",
+    "with jimmy",
+    "with seth",
+    "with stephen",
+    "with andy cohen",
+    "watch what happens live",
+    "kelly clarkson show",
+    "jimmy kimmel live",
+    "the view",
+    "conan",
+    "starralk",
+    "carpool karaoke",
+    "awards",
+    "emmy",
+    "critics choice",
+    "live with",
+    "guest appearance",
+    "himself",
+    "herself",
+    "self",
+    "host",
+    "interview",
+    "variety show",
+    "reality",
+    "competition series",
+    "game show",
+    "news program",
+    "daytime",
+    "telethon",
+    "ceremony",
+  ];
+
+  return blockedPhrases.some((phrase) => text.includes(phrase));
+}
+
+function isScriptedEnough(item) {
+  if (!item?.name) return false;
+  if (looksLikeTalkShow(item)) return false;
+  return true;
 }
 
 export const handler = async (event) => {
@@ -93,22 +155,29 @@ export const handler = async (event) => {
       return jsonResponse(404, { message: "Actor not found" });
     }
 
-    const tvCreditsResponse = await tmdbFetch(`/person/${bestPerson.id}/tv_credits`, {
-      language: "en-US",
-    });
+    const [personDetails, tvCreditsResponse] = await Promise.all([
+      tmdbFetch(`/person/${bestPerson.id}`, {
+        language: "en-US",
+      }),
+      tmdbFetch(`/person/${bestPerson.id}/tv_credits`, {
+        language: "en-US",
+      }),
+    ]);
 
     const rawCredits = Array.isArray(tvCreditsResponse?.cast)
       ? tvCreditsResponse.cast
       : [];
 
-    const cleanedCredits = sortCredits(
+    const cleanedCredits = sortCreditsNewestFirst(
       dedupeCredits(
         rawCredits
           .filter((item) => item?.id && item?.name)
+          .filter(isScriptedEnough)
           .map((item) => ({
             id: item.id,
             tmdb_id: item.id,
             name: item.name,
+            original_name: item.original_name || "",
             overview: item.overview || "",
             first_air_date: item.first_air_date || "",
             first_air_time: item.first_air_date || "",
@@ -178,7 +247,27 @@ export const handler = async (event) => {
       character: item?.character || "",
     }));
 
-    return jsonResponse(200, output);
+    return jsonResponse(200, {
+      actor: {
+        id: personDetails?.id || bestPerson.id,
+        name: personDetails?.name || bestPerson.name,
+        biography: personDetails?.biography || "",
+        birthday: personDetails?.birthday || "",
+        deathday: personDetails?.deathday || "",
+        place_of_birth: personDetails?.place_of_birth || "",
+        profile_path:
+          personDetails?.profile_path || bestPerson?.profile_path || "",
+        profile_url: buildTmdbImageUrl(
+          personDetails?.profile_path || bestPerson?.profile_path,
+          "w500"
+        ),
+        known_for_department:
+          personDetails?.known_for_department ||
+          bestPerson?.known_for_department ||
+          "",
+      },
+      credits: output,
+    });
   } catch (error) {
     console.error("getActorShows error", error);
     return jsonResponse(500, {
