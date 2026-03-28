@@ -23,7 +23,8 @@
 }
 
 .actor-loading,
-.actor-error {
+.actor-error,
+.actor-empty {
   color: #f8fafc;
   font-size: 18px;
 }
@@ -46,6 +47,13 @@
   object-fit: cover;
   aspect-ratio: 2 / 3;
   background: #0f172a;
+}
+
+.actor-poster-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
 }
 
 .actor-hero-main {
@@ -102,7 +110,11 @@
   display: grid;
   grid-template-columns: 130px 1fr;
   gap: 22px;
-  background: linear-gradient(90deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.95));
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.98),
+    rgba(17, 24, 39, 0.95)
+  );
   border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 24px;
   padding: 22px;
