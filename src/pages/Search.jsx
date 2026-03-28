@@ -14,7 +14,6 @@ export default function Search() {
   const [addingId, setAddingId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
 
-  const queryParam = searchParams.get("q") || "";
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
   const relationshipTypeFilter = searchParams.get("relationshipType") || "";
@@ -28,23 +27,15 @@ export default function Search() {
     !!networkFilter &&
     !genreFilter &&
     !relationshipTypeFilter &&
-    !settingFilter &&
-    !queryParam;
+    !settingFilter;
 
   useEffect(() => {
     if (genreFilter) setQuery(genreFilter);
     else if (networkFilter) setQuery(networkFilter);
     else if (relationshipTypeFilter) setQuery(relationshipTypeFilter);
     else if (settingFilter) setQuery(settingFilter);
-    else if (queryParam) setQuery(queryParam);
     else setQuery("");
-  }, [
-    genreFilter,
-    networkFilter,
-    relationshipTypeFilter,
-    settingFilter,
-    queryParam,
-  ]);
+  }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
   async function markAlreadySaved(results) {
     const {
@@ -151,26 +142,6 @@ export default function Search() {
     isPureNetworkBrowse,
   ]);
 
-  useEffect(() => {
-    const hasFilter =
-      !!genreFilter ||
-      !!networkFilter ||
-      !!relationshipTypeFilter ||
-      !!settingFilter;
-
-    if (!queryParam || hasFilter) return;
-
-    fetchSearch({
-      q: queryParam,
-    });
-  }, [
-    queryParam,
-    genreFilter,
-    networkFilter,
-    relationshipTypeFilter,
-    settingFilter,
-  ]);
-
   async function handleManualSearch() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
@@ -233,8 +204,6 @@ export default function Search() {
     ? `Relationship Type: ${relationshipTypeFilter}`
     : settingFilter
     ? `Setting: ${settingFilter}`
-    : queryParam
-    ? `Search: ${queryParam}`
     : "Search Shows";
 
   const pageSubtitle = genreFilter
@@ -245,8 +214,6 @@ export default function Search() {
     ? `Browse shows with ${relationshipTypeFilter}.`
     : settingFilter
     ? `Browse shows set in ${settingFilter}.`
-    : queryParam
-    ? `Showing results for ${queryParam}.`
     : "Find a show and add it to My Shows.";
 
   return (
@@ -371,11 +338,7 @@ export default function Search() {
             const poster = show.image_url || show.poster_url || null;
 
             return (
-              <div
-                key={itemId}
-                className="show-card"
-                style={{ padding: "14px" }}
-              >
+              <div key={itemId} className="show-card" style={{ padding: "14px" }}>
                 <div
                   style={{
                     display: "grid",
@@ -449,11 +412,7 @@ export default function Search() {
                       className={`msd-btn ${
                         isSaved ? "msd-btn-success" : "msd-btn-primary"
                       }`}
-                      style={{
-                        width: "100%",
-                        padding: "9px 10px",
-                        fontSize: "0.9rem",
-                      }}
+                      style={{ width: "100%", padding: "9px 10px", fontSize: "0.9rem" }}
                       title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
                     >
                       {!canAdd
@@ -510,8 +469,7 @@ export default function Search() {
                           fontWeight: "600",
                         }}
                       >
-                        First aired:{" "}
-                        {formatDate(show.first_air_time || show.first_aired)}
+                        First aired: {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
@@ -528,9 +486,7 @@ export default function Search() {
                     )}
 
                     {show.overview && (
-                      <p
-                        style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}
-                      >
+                      <p style={{ margin: 0, color: "#dbe4f3", lineHeight: "1.45" }}>
                         {show.overview.length > 180
                           ? `${show.overview.slice(0, 180)}...`
                           : show.overview}
