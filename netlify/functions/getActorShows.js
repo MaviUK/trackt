@@ -19,29 +19,11 @@ function normalizeName(value) {
     .trim();
 }
 
-function chooseBestPerson(results, targetName) {
-  if (!Array.isArray(results) || !results.length) return null;
-
-  const wanted = normalizeName(targetName);
-
-  return [...results].sort((a, b) => {
-    const aName = normalizeName(a?.name);
-    const bName = normalizeName(b?.name);
-
-    let aScore = 0;
-    let bScore = 0;
-
-    if (aName === wanted) aScore += 100;
-    if (bName === wanted) bScore += 100;
-
-    if (a?.known_for_department === "Acting") aScore += 20;
-    if (b?.known_for_department === "Acting") bScore += 20;
-
-    aScore += Number(a?.popularity || 0);
-    bScore += Number(b?.popularity || 0);
-
-    return bScore - aScore;
-  })[0];
+function getTimeValue(dateString) {
+  if (!dateString) return 0;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 0;
+  return date.getTime();
 }
 
 function dedupeCredits(credits = []) {
@@ -53,13 +35,6 @@ function dedupeCredits(credits = []) {
     seen.add(key);
     return true;
   });
-}
-
-function getTimeValue(dateString) {
-  if (!dateString) return 0;
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return 0;
-  return date.getTime();
 }
 
 function sortCreditsNewestFirst(credits = []) {
@@ -82,6 +57,58 @@ function isUsableCredit(item) {
   return true;
 }
 
+async function chooseBestPersonWithCredits(results, targetName) {
+  if (!Array.isArray(results) || !results.length) return null;
+
+  const wanted = normalizeName(targetName);
+  const candidates = results.slice(0, 5);
+
+  const evaluated = await Promise.all(
+    candidates.map(async (person) => {
+      const personName = normalizeName(person?.name);
+      let nameScore = 0;
+
+      if (personName === wanted) nameScore += 100;
+      else if (personName.includes(wanted) || wanted.includes(personName))
+        nameScore += 60;
+
+      if (person?.known_for_department === "Acting") nameScore += 20;
+
+      const popularityScore = Number(person?.popularity || 0);
+
+      try {
+        const tvCreditsResponse = await tmdbFetch(`/person/${person.id}/tv_credits`, {
+          language: "en-US",
+        });
+
+        const rawCredits = Array.isArray(tvCreditsResponse?.cast)
+          ? tvCreditsResponse.cast
+          : [];
+
+        const usableCredits = dedupeCredits(rawCredits.filter(isUsableCredit));
+
+        return {
+          person,
+          rawCredits,
+          usableCredits,
+          score: nameScore + popularityScore + usableCredits.length * 5,
+        };
+      } catch (error) {
+        return {
+          person,
+          rawCredits: [],
+          usableCredits: [],
+          score: nameScore + popularityScore,
+        };
+      }
+    })
+  );
+
+  evaluated.sort((a, b) => b.score - a.score);
+
+  return evaluated[0] || null;
+}
+
 export const handler = async (event) => {
   try {
     const name = event.queryStringParameters?.name?.trim();
@@ -97,28 +124,26 @@ export const handler = async (event) => {
       page: "1",
     });
 
-    const bestPerson = chooseBestPerson(personSearch?.results || [], name);
+    const bestMatch = await chooseBestPersonWithCredits(
+      personSearch?.results || [],
+      name
+    );
 
-    if (!bestPerson?.id) {
+    if (!bestMatch?.person?.id) {
       return jsonResponse(404, { message: "Actor not found" });
     }
 
-    const [personDetails, tvCreditsResponse] = await Promise.all([
-      tmdbFetch(`/person/${bestPerson.id}`, {
-        language: "en-US",
-      }),
-      tmdbFetch(`/person/${bestPerson.id}/tv_credits`, {
+    const person = bestMatch.person;
+
+    const [personDetails] = await Promise.all([
+      tmdbFetch(`/person/${person.id}`, {
         language: "en-US",
       }),
     ]);
 
-    const rawCredits = Array.isArray(tvCreditsResponse?.cast)
-      ? tvCreditsResponse.cast
-      : [];
-
     const cleanedCredits = sortCreditsNewestFirst(
       dedupeCredits(
-        rawCredits
+        (bestMatch.rawCredits || [])
           .filter(isUsableCredit)
           .map((item) => ({
             id: item.id,
@@ -197,21 +222,21 @@ export const handler = async (event) => {
 
     return jsonResponse(200, {
       actor: {
-        id: personDetails?.id || bestPerson.id,
-        name: personDetails?.name || bestPerson.name,
+        id: personDetails?.id || person.id,
+        name: personDetails?.name || person.name,
         biography: personDetails?.biography || "",
         birthday: personDetails?.birthday || "",
         deathday: personDetails?.deathday || "",
         place_of_birth: personDetails?.place_of_birth || "",
         profile_path:
-          personDetails?.profile_path || bestPerson?.profile_path || "",
+          personDetails?.profile_path || person?.profile_path || "",
         profile_url: buildTmdbImageUrl(
-          personDetails?.profile_path || bestPerson?.profile_path,
+          personDetails?.profile_path || person?.profile_path,
           "w500"
         ),
         known_for_department:
           personDetails?.known_for_department ||
-          bestPerson?.known_for_department ||
+          person?.known_for_department ||
           "",
       },
       credits: output,
