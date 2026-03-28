@@ -24,25 +24,24 @@ function chooseBestPerson(results, targetName) {
 
   const wanted = normalizeName(targetName);
 
-  return [...results]
-    .sort((a, b) => {
-      const aName = normalizeName(a?.name);
-      const bName = normalizeName(b?.name);
+  return [...results].sort((a, b) => {
+    const aName = normalizeName(a?.name);
+    const bName = normalizeName(b?.name);
 
-      let aScore = 0;
-      let bScore = 0;
+    let aScore = 0;
+    let bScore = 0;
 
-      if (aName === wanted) aScore += 100;
-      if (bName === wanted) bScore += 100;
+    if (aName === wanted) aScore += 100;
+    if (bName === wanted) bScore += 100;
 
-      if (a?.known_for_department === "Acting") aScore += 20;
-      if (b?.known_for_department === "Acting") bScore += 20;
+    if (a?.known_for_department === "Acting") aScore += 20;
+    if (b?.known_for_department === "Acting") bScore += 20;
 
-      aScore += Number(a?.popularity || 0);
-      bScore += Number(b?.popularity || 0);
+    aScore += Number(a?.popularity || 0);
+    bScore += Number(b?.popularity || 0);
 
-      return bScore - aScore;
-    })[0];
+    return bScore - aScore;
+  })[0];
 }
 
 function dedupeCredits(credits = []) {
@@ -77,63 +76,10 @@ function sortCreditsNewestFirst(credits = []) {
   });
 }
 
-function buildSearchText(item) {
-  return [
-    item?.name,
-    item?.original_name,
-    item?.overview,
-    item?.character,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
+function isClearlyUnwantedTitle(name) {
+  const value = String(name || "").toLowerCase().trim();
 
-function isDefinitelyNonScripted(item) {
-  const name = String(item?.name || "").toLowerCase();
-  const overview = String(item?.overview || "").toLowerCase();
-  const text = `${name} ${overview}`;
-
-  const blockedPhrases = [
-    "late show",
-    "late late show",
-    "late night",
-    "tonight show",
-    "watch what happens live",
-    "jimmy kimmel live",
-    "kelly clarkson show",
-    "the view",
-    "live with kelly",
-    "live with regis",
-    "star talk",
-    "startalk",
-    "carpool karaoke",
-    "critics choice awards",
-    "emmy awards",
-    "academy awards",
-    "golden globe awards",
-    "award show",
-    "awards ceremony",
-    "news program",
-    "talk show",
-    "daytime talk show",
-    "interview series",
-    "variety show",
-    "game show",
-    "competition series",
-    "reality series",
-    "reality competition",
-    "after show",
-    "red carpet",
-    "ceremony",
-    "telethon",
-  ];
-
-  if (blockedPhrases.some((phrase) => text.includes(phrase))) {
-    return true;
-  }
-
-  const exactBlockedNames = new Set([
+  const blockedExact = new Set([
     "conan",
     "the view",
     "jimmy kimmel live!",
@@ -145,19 +91,39 @@ function isDefinitelyNonScripted(item) {
     "the late late show with james corden",
     "the late late show with craig ferguson",
     "the late late show with craig kilborn",
+    "critics choice awards",
+    "the emmy awards",
+    "star talk with neil degrasse tyson",
+    "carpool karaoke: the series",
   ]);
 
-  if (exactBlockedNames.has(name)) {
-    return true;
-  }
+  if (blockedExact.has(value)) return true;
 
-  return false;
+  const blockedContains = [
+    "late show",
+    "late late show",
+    "late night",
+    "tonight show",
+    "watch what happens live",
+    "jimmy kimmel live",
+    "kelly clarkson show",
+    "critics choice",
+    "emmy awards",
+    "golden globe awards",
+    "academy awards",
+    "carpool karaoke",
+    "talk show",
+    "award show",
+    "awards",
+  ];
+
+  return blockedContains.some((phrase) => value.includes(phrase));
 }
 
 function isValidActorCredit(item) {
   if (!item?.id || !item?.name) return false;
   if (!item?.first_air_date) return false;
-  if (isDefinitelyNonScripted(item)) return false;
+  if (isClearlyUnwantedTitle(item.name)) return false;
   return true;
 }
 
