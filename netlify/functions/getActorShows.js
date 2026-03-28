@@ -1,201 +1,188 @@
-function normalizeNumber(value) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
+import { tmdbFetch, buildTmdbImageUrl } from "./_tmdb.js";
+import { enrichShowsWithMappings } from "./_showMapping.js";
 
-function normalizeLanguage(value) {
-  if (!value) return "";
-
-  const str = String(value).trim().toLowerCase();
-
-  const map = {
-    eng: "english",
-    en: "english",
-    english: "english",
-    jpn: "japanese",
-    ja: "japanese",
-    japanese: "japanese",
-    kor: "korean",
-    ko: "korean",
-    korean: "korean",
-    spa: "spanish",
-    es: "spanish",
-    spanish: "spanish",
-    fra: "french",
-    fr: "french",
-    french: "french",
-    deu: "german",
-    de: "german",
-    german: "german",
-    swe: "swedish",
-    sv: "swedish",
-    swedish: "swedish",
-  };
-
-  return map[str] || str;
-}
-
-function normalizeTmdbShow(item) {
+function jsonResponse(statusCode, body) {
   return {
-    tvdb_id: null,
-    tmdb_id: Number(item?.id) || null,
-    name: item?.name || item?.original_name || "Unknown title",
-    overview: item?.overview || "",
-    status: null,
-    first_aired: item?.first_air_date || null,
-    first_air_time: item?.first_air_date || null,
-    image_url: item?.poster_path
-      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-      : null,
-    poster_url: item?.poster_path
-      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-      : null,
-    slug: null,
-    network: null,
-    genres: [],
-    relationship_types: [],
-    settings: [],
-    original_language: normalizeLanguage(item?.original_language || ""),
-    rating_average: normalizeNumber(item?.vote_average),
-    rating_count: normalizeNumber(item?.vote_count),
-    source: "tmdb",
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+    body: JSON.stringify(body),
   };
 }
 
-function dedupeMixedResults(items) {
-  const map = new Map();
-
-  for (const item of items) {
-    const key = item?.tmdb_id
-      ? `tmdb:${item.tmdb_id}`
-      : `name:${String(item?.name || "").toLowerCase()}`;
-
-    if (!map.has(key)) {
-      map.set(key, item);
-      continue;
-    }
-
-    const existing = map.get(key);
-
-    const existingScore =
-      (existing.image_url ? 1 : 0) +
-      (existing.overview ? 1 : 0) +
-      (existing.rating_average != null ? 1 : 0);
-
-    const nextScore =
-      (item.image_url ? 1 : 0) +
-      (item.overview ? 1 : 0) +
-      (item.rating_average != null ? 1 : 0);
-
-    if (nextScore >= existingScore) {
-      map.set(key, item);
-    }
-  }
-
-  return Array.from(map.values());
+function normalizeName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
-async function tmdbFetch(path, params = {}) {
-  const apiKey = process.env.TMDB_API_KEY;
+function chooseBestPerson(results, targetName) {
+  if (!Array.isArray(results) || !results.length) return null;
 
-  if (!apiKey) {
-    throw new Error("Missing TMDB_API_KEY environment variable");
-  }
+  const wanted = normalizeName(targetName);
 
-  const url = new URL(`https://api.themoviedb.org/3${path}`);
-  url.searchParams.set("api_key", apiKey);
+  return [...results]
+    .sort((a, b) => {
+      const aName = normalizeName(a?.name);
+      const bName = normalizeName(b?.name);
 
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, value);
-    }
-  }
+      let aScore = 0;
+      let bScore = 0;
 
-  const res = await fetch(url.toString());
-  const data = await res.json();
+      if (aName === wanted) aScore += 100;
+      if (bName === wanted) bScore += 100;
 
-  if (!res.ok) {
-    throw new Error(data?.status_message || "TMDB request failed");
-  }
+      if (a?.known_for_department === "Acting") aScore += 20;
+      if (b?.known_for_department === "Acting") bScore += 20;
 
-  return data;
+      aScore += Number(a?.popularity || 0);
+      bScore += Number(b?.popularity || 0);
+
+      return bScore - aScore;
+    })[0];
 }
 
-export async function handler(event) {
+function dedupeCredits(credits = []) {
+  const seen = new Set();
+
+  return credits.filter((item) => {
+    const key = String(item?.id || "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sortCredits(credits = []) {
+  return [...credits].sort((a, b) => {
+    const aPopularity = Number(a?.popularity || 0);
+    const bPopularity = Number(b?.popularity || 0);
+
+    if (bPopularity !== aPopularity) {
+      return bPopularity - aPopularity;
+    }
+
+    const aDate = a?.first_air_date || "";
+    const bDate = b?.first_air_date || "";
+
+    return bDate.localeCompare(aDate);
+  });
+}
+
+export const handler = async (event) => {
   try {
-    const name = event.queryStringParameters?.name?.trim() || "";
+    const name = event.queryStringParameters?.name?.trim();
 
     if (!name) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          message: "Missing actor name",
-        }),
-      };
+      return jsonResponse(400, { message: "Missing actor name" });
     }
 
     const personSearch = await tmdbFetch("/search/person", {
       query: name,
-      page: 1,
       include_adult: "false",
+      language: "en-US",
+      page: "1",
     });
 
-    const people = Array.isArray(personSearch?.results)
-      ? personSearch.results
+    const bestPerson = chooseBestPerson(personSearch?.results || [], name);
+
+    if (!bestPerson?.id) {
+      return jsonResponse(404, { message: "Actor not found" });
+    }
+
+    const tvCreditsResponse = await tmdbFetch(`/person/${bestPerson.id}/tv_credits`, {
+      language: "en-US",
+    });
+
+    const rawCredits = Array.isArray(tvCreditsResponse?.cast)
+      ? tvCreditsResponse.cast
       : [];
 
-    if (!people.length) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify([]),
-      };
+    const cleanedCredits = sortCredits(
+      dedupeCredits(
+        rawCredits
+          .filter((item) => item?.id && item?.name)
+          .map((item) => ({
+            id: item.id,
+            tmdb_id: item.id,
+            name: item.name,
+            overview: item.overview || "",
+            first_air_date: item.first_air_date || "",
+            first_air_time: item.first_air_date || "",
+            poster_path: item.poster_path || "",
+            backdrop_path: item.backdrop_path || "",
+            poster_url: buildTmdbImageUrl(item.poster_path, "w500"),
+            image_url: buildTmdbImageUrl(item.poster_path, "w500"),
+            vote_average: Number(item.vote_average || 0),
+            vote_count: Number(item.vote_count || 0),
+            popularity: Number(item.popularity || 0),
+            original_language: item.original_language || "",
+            character: item.character || "",
+            source: "tmdb",
+          }))
+      )
+    );
+
+    let mappedCredits = [];
+
+    try {
+      mappedCredits = await enrichShowsWithMappings(cleanedCredits);
+    } catch (mappingError) {
+      console.error("Failed to map TMDB actor credits:", mappingError);
+      mappedCredits = cleanedCredits.map((item) => ({
+        ...item,
+        tvdb_id: null,
+        mapping_status: "error",
+        mapping_method: null,
+        mapping_confidence: 0,
+      }));
     }
 
-    const exactLower = name.toLowerCase();
+    const output = mappedCredits.map((item) => ({
+      tvdb_id: item?.tvdb_id ?? null,
+      tmdb_id: item?.tmdb_id ?? item?.id ?? null,
+      name: item?.name || "",
+      overview: item?.overview || "",
+      status: item?.status || null,
+      first_aired: item?.first_air_date || null,
+      first_air_time: item?.first_air_date || null,
+      image_url: item?.image_url || item?.poster_url || null,
+      poster_url: item?.poster_url || item?.image_url || null,
+      slug: item?.slug || null,
+      network: item?.network || null,
+      genres: Array.isArray(item?.genres) ? item.genres : [],
+      relationship_types: Array.isArray(item?.relationship_types)
+        ? item.relationship_types
+        : [],
+      settings: Array.isArray(item?.settings) ? item.settings : [],
+      original_language: item?.original_language || "",
+      rating_average:
+        item?.rating_average != null
+          ? Number(item.rating_average)
+          : item?.vote_average != null
+          ? Number(item.vote_average)
+          : 0,
+      rating_count:
+        item?.rating_count != null
+          ? Number(item.rating_count)
+          : item?.vote_count != null
+          ? Number(item.vote_count)
+          : 0,
+      source: item?.source || "tmdb",
+      mapping_status: item?.mapping_status || null,
+      mapping_method: item?.mapping_method || null,
+      mapping_confidence: item?.mapping_confidence || 0,
+      character: item?.character || "",
+    }));
 
-    const chosen =
-      people.find(
-        (person) =>
-          String(person?.name || "").trim().toLowerCase() === exactLower
-      ) || people[0];
-
-    if (!chosen?.id) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify([]),
-      };
-    }
-
-    const credits = await tmdbFetch(`/person/${chosen.id}/tv_credits`);
-    const cast = Array.isArray(credits?.cast) ? credits.cast : [];
-
-    const normalized = cast
-      .map((item) => normalizeTmdbShow(item))
-      .filter((item) => item.tmdb_id);
-
-    const results = dedupeMixedResults(normalized)
-      .sort((a, b) => {
-        const bRating = normalizeNumber(b.rating_average) ?? -1;
-        const aRating = normalizeNumber(a.rating_average) ?? -1;
-        if (bRating !== aRating) return bRating - aRating;
-
-        const bDate = b.first_aired ? new Date(b.first_aired).getTime() : 0;
-        const aDate = a.first_aired ? new Date(a.first_aired).getTime() : 0;
-        return bDate - aDate;
-      })
-      .slice(0, 80);
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(results),
-    };
+    return jsonResponse(200, output);
   } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        message: "Function crashed",
-        details: error.message,
-      }),
-    };
+    console.error("getActorShows error", error);
+    return jsonResponse(500, {
+      message: error?.message || "Failed to load actor shows",
+    });
   }
-}
+};
