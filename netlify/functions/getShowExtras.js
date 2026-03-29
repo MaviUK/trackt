@@ -532,18 +532,22 @@ async function getTmdbRecommendations(tvdbId) {
       (Array.isArray(recJson?.results) ? recJson.results : [])
         .map((item, index) => ({
           id: item?.id || `tmdb-rec-${index}`,
+          tmdb_id: item?.id || null,
           tvdb_id: null,
           tvdbId: null,
+          source: "tmdb",
           name: item?.name || item?.original_name || null,
+          overview: item?.overview || "",
+          first_air_date: item?.first_air_date || null,
+          first_aired: item?.first_air_date || null,
+          firstAired: item?.first_air_date || null,
+          poster_path: item?.poster_path || "",
           poster_url: item?.poster_path
             ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
             : null,
           posterUrl: item?.poster_path
             ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
             : null,
-          first_aired: item?.first_air_date || null,
-          firstAired: item?.first_air_date || null,
-          tmdb_id: item?.id || null,
         }))
         .filter((item) => item.name)
     ).slice(0, 12);
