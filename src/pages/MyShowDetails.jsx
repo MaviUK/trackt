@@ -518,10 +518,12 @@ export default function MyShowDetails() {
               "Failed mapping fallback recommendations:",
               mappingError
             );
-            mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
+         mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
   normalizeMappedShow({
     ...item,
     source: "tmdb",
+
+    // 🔥 FORCE IMAGE BUILD HERE
     poster_url:
       item?.poster_url ||
       item?.posterUrl ||
@@ -530,6 +532,9 @@ export default function MyShowDetails() {
       (item?.poster_path
         ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
         : ""),
+
+    // 🔥 ALSO KEEP ORIGINAL FOR SAFETY
+    poster_path: item?.poster_path || null,
   })
 );
           }
@@ -1404,19 +1409,14 @@ export default function MyShowDetails() {
   rec.image ||
   rec.poster_path
 ) ? (
-  <img
-    src={
-      rec.poster_url ||
-      rec.posterUrl ||
-      rec.image_url ||
-      rec.image ||
-      (rec.poster_path
-        ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
-        : "")
-    }
-                        alt={showName}
-                        className="msd-rec-poster"
-                      />
+ <img
+  src={
+    rec.poster_url ||
+    (rec.poster_path
+      ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+      : "/no-image.png") // optional fallback
+  }
+/>
                     ) : null}
                     <div className="msd-rec-title">{showName}</div>
                     {rec.first_aired || rec.firstAired || rec.first_air_date ? (
