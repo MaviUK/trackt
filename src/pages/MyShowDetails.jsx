@@ -168,6 +168,7 @@ export default function MyShowDetails() {
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
   const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
+  const [savedShowTvdbIds, setSavedShowTvdbIds] = useState(new Set());
 
   const [burgrRatings, setBurgrRatings] = useState([]);
   const [myBurgrRating, setMyBurgrRating] = useState("");
@@ -214,6 +215,7 @@ export default function MyShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
+          setSavedShowTvdbIds(new Set());
           setBurgrRatings([]);
           setMyBurgrRating("");
           setEpisodeRatings([]);
@@ -235,6 +237,7 @@ export default function MyShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
+          setSavedShowTvdbIds(new Set());
           setBurgrRatings([]);
           setMyBurgrRating("");
           setEpisodeRatings([]);
@@ -313,6 +316,7 @@ export default function MyShowDetails() {
             setCast([]);
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
+            setSavedShowTvdbIds(new Set());
             setBurgrRatings([]);
             setMyBurgrRating("");
             setEpisodeRatings([]);
@@ -326,6 +330,26 @@ export default function MyShowDetails() {
         }
 
         const showId = showRecord.id;
+
+        const { data: savedShowsData, error: savedShowsError } = await supabase
+          .from("user_shows_new")
+          .select(`
+            shows!inner(tvdb_id)
+          `)
+          .eq("user_id", user.id);
+
+        if (savedShowsError) {
+          console.warn("saved shows fetch failed", savedShowsError);
+        }
+
+        const savedTvdbIds = new Set(
+          (savedShowsData || [])
+            .map((row) => row?.shows?.tvdb_id)
+            .filter(Boolean)
+            .map(String)
+        );
+
+        setSavedShowTvdbIds(savedTvdbIds);
 
         const [episodeRes, watchedRowsData, burgrRows] = await Promise.all([
           supabase
@@ -446,50 +470,94 @@ export default function MyShowDetails() {
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
 
-const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
-  ? extras.peopleAlsoWatch
-  : [];
+          const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
+            ? extras.peopleAlsoWatch
+            : [];
 
-const fallbackRecommendations = Array.isArray(extras.recommendations)
-  ? extras.recommendations
-  : [];
+          const fallbackRecommendations = Array.isArray(extras.recommendations)
+            ? extras.recommendations
+            : [];
 
-const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map((item) =>
-  normalizeMappedShow({
-    ...item,
-    source: "tvdb",
-    tvdb_id: item?.tvdb_id ?? item?.tvdbId ?? item?.show_id ?? item?.id ?? null,
-    name: item?.name || item?.title || item?.show_name || "Unknown show",
-    first_air_date:
-      item?.first_air_date || item?.firstAired || item?.first_aired || "",
-    poster_url: item?.poster_url || item?.posterUrl || "",
-  })
-);
+          const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
+            (item) =>
+              normalizeMappedShow({
+                ...item,
+                source: "tvdb",
+                tvdb_id:
+                  item?.tvdb_id ??
+                  item?.tvdbId ??
+                  item?.show_id ??
+                  item?.id ??
+                  null,
+                name:
+                  item?.name ||
+                  item?.title ||
+                  item?.show_name ||
+                  "Unknown show",
+                first_air_date:
+                  item?.first_air_date ||
+                  item?.firstAired ||
+                  item?.first_aired ||
+                  "",
+                poster_url:
+                  item?.poster_url ||
+                  item?.posterUrl ||
+                  item?.image_url ||
+                  item?.image ||
+                  item?.poster ||
+                  "",
+              })
+          );
 
-let mappedFallbackRecommendations = [];
-try {
-  mappedFallbackRecommendations =
-    await enrichTmdbShowsWithMappings(fallbackRecommendations);
-} catch (mappingError) {
-  console.error(
-    "Failed mapping fallback recommendations:",
-    mappingError
-  );
-  mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
-    normalizeMappedShow({
-      ...item,
-      source: "tmdb",
-    })
-  );
-}
+          let mappedFallbackRecommendations = [];
+          try {
+            mappedFallbackRecommendations =
+              await enrichTmdbShowsWithMappings(fallbackRecommendations);
+          } catch (mappingError) {
+            console.error(
+              "Failed mapping fallback recommendations:",
+              mappingError
+            );
+            mappedFallbackRecommendations = fallbackRecommendations.map(
+              (item) =>
+                normalizeMappedShow({
+                  ...item,
+                  source: "tmdb",
+                  poster_url:
+                    item?.poster_url ||
+                    item?.posterUrl ||
+                    item?.image_url ||
+                    item?.image ||
+                    (item?.poster_path
+                      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                      : ""),
+                })
+            );
+          }
 
-setCast(castRows);
-setPeopleAlsoWatch(normalizedTvdbPeopleAlsoWatch);
-setRecommendedShows(
-  normalizedTvdbPeopleAlsoWatch.length > 0
-    ? normalizedTvdbPeopleAlsoWatch
-    : mappedFallbackRecommendations
-);
+          const filteredTvdbPeopleAlsoWatch =
+            normalizedTvdbPeopleAlsoWatch.filter((item) => {
+              const recTvdbId =
+                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+              if (!recTvdbId) return true;
+              return !savedTvdbIds.has(String(recTvdbId));
+            });
+
+          const filteredFallbackRecommendations =
+            mappedFallbackRecommendations.filter((item) => {
+              const recTvdbId =
+                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+              if (!recTvdbId) return true;
+              return !savedTvdbIds.has(String(recTvdbId));
+            });
+
+          setCast(castRows);
+          setPeopleAlsoWatch(filteredTvdbPeopleAlsoWatch);
+          setRecommendedShows(
+            filteredTvdbPeopleAlsoWatch.length > 0
+              ? filteredTvdbPeopleAlsoWatch
+              : filteredFallbackRecommendations
+          );
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           setCast([]);
@@ -508,6 +576,7 @@ setRecommendedShows(
         setCast([]);
         setRecommendedShows([]);
         setPeopleAlsoWatch([]);
+        setSavedShowTvdbIds(new Set());
         setBurgrRatings([]);
         setMyBurgrRating("");
         setEpisodeRatings([]);
@@ -661,7 +730,7 @@ setRecommendedShows(
     }
   }
 
-    async function handleWatchUpToHere(targetEpisode) {
+  async function handleWatchUpToHere(targetEpisode) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -705,7 +774,9 @@ setRecommendedShows(
       if (error) throw error;
 
       setWatchedRows((prev) => {
-        const existingIds = new Set((prev || []).map((row) => String(row.episode_id)));
+        const existingIds = new Set(
+          (prev || []).map((row) => String(row.episode_id))
+        );
         const nextRows = [...(prev || [])];
 
         for (const episodeId of episodeIdsToMark) {
@@ -721,7 +792,7 @@ setRecommendedShows(
       alert(error.message || "Failed watch up to here");
     }
   }
-  
+
   async function handleSelectBurgrRating(value) {
     const {
       data: { user },
@@ -1327,9 +1398,14 @@ setRecommendedShows(
                     to={linkTarget}
                     className="msd-rec-card"
                   >
-                    {rec.poster_url || rec.posterUrl ? (
+                    {rec.poster_url || rec.posterUrl || rec.image_url || rec.image ? (
                       <img
-                        src={rec.poster_url || rec.posterUrl}
+                        src={
+                          rec.poster_url ||
+                          rec.posterUrl ||
+                          rec.image_url ||
+                          rec.image
+                        }
                         alt={showName}
                         className="msd-rec-poster"
                       />
