@@ -10,15 +10,75 @@ function buildSearchFallback(show) {
   return query ? `/search?q=${query}` : "/search";
 }
 
-export function normalizeMappedShow(show) {
-  if (!show || typeof show !== "object") {
+export function normalizeMappedShow(item) {
+  if (!item) {
     return {
-      ...show,
+      id: null,
+      tmdb_id: null,
+      tvdb_id: null,
       resolved_tvdb_id: null,
-      resolved_href: "/search",
-      is_mapped: false,
+      source: "tmdb",
+      name: "Unknown show",
+      title: "Unknown show",
+      overview: "",
+      first_air_date: "",
+      first_aired: "",
+      poster_url: "",
+      poster_path: "",
+      posterUrl: "",
+      image_url: "",
+      image: "",
     };
   }
+
+  const posterPath =
+    item?.poster_path ||
+    item?.posterPath ||
+    "";
+
+  const posterUrl =
+    item?.poster_url ||
+    item?.posterUrl ||
+    item?.image_url ||
+    item?.image ||
+    item?.poster ||
+    (posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "");
+
+  const firstAirDate =
+    item?.first_air_date ||
+    item?.firstAired ||
+    item?.first_aired ||
+    "";
+
+  const name =
+    item?.name ||
+    item?.title ||
+    item?.show_name ||
+    "Unknown show";
+
+  return {
+    ...item,
+    id: item?.id ?? item?.tmdb_id ?? item?.tvdb_id ?? null,
+    tmdb_id: item?.tmdb_id ?? item?.id ?? null,
+    tvdb_id: item?.tvdb_id ?? item?.tvdbId ?? item?.resolved_tvdb_id ?? null,
+    resolved_tvdb_id:
+      item?.resolved_tvdb_id ??
+      item?.tvdb_id ??
+      item?.tvdbId ??
+      null,
+    source: item?.source || "tmdb",
+    name,
+    title: name,
+    overview: item?.overview || "",
+    first_air_date: firstAirDate,
+    first_aired: firstAirDate,
+    poster_url: posterUrl,
+    posterUrl: posterUrl,
+    poster_path: posterPath,
+    image_url: posterUrl,
+    image: posterUrl,
+  };
+}
 
   const source = String(show.source || "").toLowerCase();
 
