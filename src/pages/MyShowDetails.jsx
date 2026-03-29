@@ -518,21 +518,20 @@ export default function MyShowDetails() {
               "Failed mapping fallback recommendations:",
               mappingError
             );
-            mappedFallbackRecommendations = fallbackRecommendations.map(
-              (item) =>
-                normalizeMappedShow({
-                  ...item,
-                  source: "tmdb",
-                  poster_url:
-                    item?.poster_url ||
-                    item?.posterUrl ||
-                    item?.image_url ||
-                    item?.image ||
-                    (item?.poster_path
-                      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-                      : ""),
-                })
-            );
+            mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
+  normalizeMappedShow({
+    ...item,
+    source: "tmdb",
+    poster_url:
+      item?.poster_url ||
+      item?.posterUrl ||
+      item?.image_url ||
+      item?.image ||
+      (item?.poster_path
+        ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+        : ""),
+  })
+);
           }
 
           const filteredTvdbPeopleAlsoWatch =
@@ -1398,14 +1397,23 @@ export default function MyShowDetails() {
                     to={linkTarget}
                     className="msd-rec-card"
                   >
-                    {rec.poster_url || rec.posterUrl || rec.image_url || rec.image ? (
-                      <img
-                        src={
-                          rec.poster_url ||
-                          rec.posterUrl ||
-                          rec.image_url ||
-                          rec.image
-                        }
+                    {(
+  rec.poster_url ||
+  rec.posterUrl ||
+  rec.image_url ||
+  rec.image ||
+  rec.poster_path
+) ? (
+  <img
+    src={
+      rec.poster_url ||
+      rec.posterUrl ||
+      rec.image_url ||
+      rec.image ||
+      (rec.poster_path
+        ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+        : "")
+    }
                         alt={showName}
                         className="msd-rec-poster"
                       />
