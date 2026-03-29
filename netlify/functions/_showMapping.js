@@ -48,6 +48,10 @@ function scoreMatch(a, b) {
   return 0;
 }
 
+function buildPosterUrl(posterPath) {
+  return posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "";
+}
+
 async function searchTvdbShow(name, year) {
   try {
     const token = await getTvdbToken();
@@ -110,22 +114,65 @@ export async function enrichShowsWithMappings(shows = []) {
         ? String(show.first_air_date).slice(0, 4)
         : null;
 
-      const match = await searchTvdbShow(show.name, year);
+      const match = await searchTvdbShow(
+        show?.name || show?.title || show?.show_name || "",
+        year
+      );
+
+      const posterPath = show?.poster_path || "";
+      const posterUrl =
+        show?.poster_url ||
+        show?.posterUrl ||
+        show?.image_url ||
+        show?.image ||
+        buildPosterUrl(posterPath);
 
       results.push({
         ...show,
+        id: show?.id ?? null,
+        tmdb_id: show?.tmdb_id ?? show?.id ?? null,
+        name: show?.name || show?.title || show?.show_name || "",
+        first_air_date:
+          show?.first_air_date || show?.firstAired || show?.first_aired || "",
+        overview: show?.overview || "",
+        poster_path: posterPath,
+        poster_url: posterUrl,
+        posterUrl: posterUrl,
+        image_url: posterUrl,
+        image: posterUrl,
         tvdb_id: match?.tvdb_id ?? match?.id ?? null,
         mapping_status: match ? "matched" : "no_match",
         mapping_confidence: match ? 1 : 0,
+        source: "tmdb",
       });
     } catch (err) {
       console.error("Mapping error:", err);
 
+      const posterPath = show?.poster_path || "";
+      const posterUrl =
+        show?.poster_url ||
+        show?.posterUrl ||
+        show?.image_url ||
+        show?.image ||
+        buildPosterUrl(posterPath);
+
       results.push({
         ...show,
+        id: show?.id ?? null,
+        tmdb_id: show?.tmdb_id ?? show?.id ?? null,
+        name: show?.name || show?.title || show?.show_name || "",
+        first_air_date:
+          show?.first_air_date || show?.firstAired || show?.first_aired || "",
+        overview: show?.overview || "",
+        poster_path: posterPath,
+        poster_url: posterUrl,
+        posterUrl: posterUrl,
+        image_url: posterUrl,
+        image: posterUrl,
         tvdb_id: null,
         mapping_status: "error",
         mapping_confidence: 0,
+        source: "tmdb",
       });
     }
   }
