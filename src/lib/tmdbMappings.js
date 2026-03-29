@@ -10,13 +10,15 @@ function buildSearchFallback(show) {
   return query ? `/search?q=${query}` : "/search";
 }
 
-export function normalizeMappedShow(item) {
-  if (!item) {
+export function normalizeMappedShow(show) {
+  if (!show) {
     return {
       id: null,
       tmdb_id: null,
       tvdb_id: null,
       resolved_tvdb_id: null,
+      resolved_href: "/search",
+      is_mapped: false,
       source: "tmdb",
       name: "Unknown show",
       title: "Unknown show",
@@ -31,67 +33,35 @@ export function normalizeMappedShow(item) {
     };
   }
 
-  const posterPath =
-    item?.poster_path ||
-    item?.posterPath ||
-    "";
+  const source = String(show?.source || "").toLowerCase();
+
+  const posterPath = show?.poster_path || show?.posterPath || "";
 
   const posterUrl =
-    item?.poster_url ||
-    item?.posterUrl ||
-    item?.image_url ||
-    item?.image ||
-    item?.poster ||
+    show?.poster_url ||
+    show?.posterUrl ||
+    show?.image_url ||
+    show?.image ||
+    show?.poster ||
     (posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "");
 
   const firstAirDate =
-    item?.first_air_date ||
-    item?.firstAired ||
-    item?.first_aired ||
+    show?.first_air_date ||
+    show?.firstAired ||
+    show?.first_aired ||
     "";
 
-  const name =
-    item?.name ||
-    item?.title ||
-    item?.show_name ||
-    "Unknown show";
-
-  return {
-    ...item,
-    id: item?.id ?? item?.tmdb_id ?? item?.tvdb_id ?? null,
-    tmdb_id: item?.tmdb_id ?? item?.id ?? null,
-    tvdb_id: item?.tvdb_id ?? item?.tvdbId ?? item?.resolved_tvdb_id ?? null,
-    resolved_tvdb_id:
-      item?.resolved_tvdb_id ??
-      item?.tvdb_id ??
-      item?.tvdbId ??
-      null,
-    source: item?.source || "tmdb",
-    name,
-    title: name,
-    overview: item?.overview || "",
-    first_air_date: firstAirDate,
-    first_aired: firstAirDate,
-    poster_url: posterUrl,
-    posterUrl: posterUrl,
-    poster_path: posterPath,
-    image_url: posterUrl,
-    image: posterUrl,
-  };
-}
-
-  const source = String(show.source || "").toLowerCase();
+  const name = show?.name || show?.title || show?.show_name || "Unknown show";
 
   const explicitTvdbId =
-    getNumericId(show.tvdb_id) ??
-    getNumericId(show.tvdbId) ??
-    getNumericId(show.mapped_tvdb_id) ??
-    getNumericId(show.mappedTvdbId) ??
-    getNumericId(show.show_id);
+    getNumericId(show?.tvdb_id) ??
+    getNumericId(show?.tvdbId) ??
+    getNumericId(show?.mapped_tvdb_id) ??
+    getNumericId(show?.mappedTvdbId) ??
+    getNumericId(show?.show_id);
 
   const sourceAwareTvdbId =
-    explicitTvdbId ??
-    (source === "tvdb" ? getNumericId(show.id) : null);
+    explicitTvdbId ?? (source === "tvdb" ? getNumericId(show?.id) : null);
 
   const resolvedTvdbId = sourceAwareTvdbId || null;
   const resolvedHref = resolvedTvdbId
@@ -100,9 +70,23 @@ export function normalizeMappedShow(item) {
 
   return {
     ...show,
+    id: show?.id ?? show?.tmdb_id ?? show?.tvdb_id ?? null,
+    tmdb_id: show?.tmdb_id ?? (source === "tmdb" ? show?.id ?? null : null),
+    tvdb_id: show?.tvdb_id ?? show?.tvdbId ?? null,
     resolved_tvdb_id: resolvedTvdbId,
     resolved_href: resolvedHref,
     is_mapped: Boolean(resolvedTvdbId),
+    source: show?.source || "tmdb",
+    name,
+    title: name,
+    overview: show?.overview || "",
+    first_air_date: firstAirDate,
+    first_aired: firstAirDate,
+    poster_url: posterUrl,
+    posterUrl: posterUrl,
+    poster_path: posterPath,
+    image_url: posterUrl,
+    image: posterUrl,
   };
 }
 
