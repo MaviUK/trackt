@@ -705,7 +705,6 @@ export default function MyShowDetails() {
     } = await supabase.auth.getUser();
     if (!user || !ep?.id) return;
 
-    const episodeId = String(ep.id);
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
     const previousRows = watchedRows;
 
@@ -713,16 +712,24 @@ export default function MyShowDetails() {
       const rows = Array.isArray(prev) ? prev : [];
 
       if (watched) {
-        return rows.filter((row) => String(row?.episode_id) !== episodeId);
+        return rows.filter(
+          (row) => String(row?.episode_id) !== String(ep.id)
+        );
       }
 
       const alreadyExists = rows.some(
-        (row) => String(row?.episode_id) === episodeId
+        (row) => String(row?.episode_id) === String(ep.id)
       );
 
       if (alreadyExists) return rows;
 
-      return [...rows, { user_id: user.id, episode_id: ep.id }];
+      return [
+        ...rows,
+        {
+          user_id: user.id,
+          episode_id: ep.id,
+        },
+      ];
     });
 
     try {
@@ -735,21 +742,22 @@ export default function MyShowDetails() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("watched_episodes").upsert(
-          { user_id: user.id, episode_id: ep.id },
-          {
-            onConflict: "user_id,episode_id",
-            ignoreDuplicates: true,
-          }
-        );
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(
+            { user_id: user.id, episode_id: ep.id },
+            { onConflict: "user_id,episode_id" }
+          );
 
         if (error) throw error;
       }
 
-      await refreshWatched(user.id);
+      refreshWatched(user.id).catch((refreshError) => {
+        console.warn("Failed refreshing watched rows:", refreshError);
+      });
     } catch (error) {
-      setWatchedRows(previousRows);
       console.error("Failed toggling watched state:", error);
+      setWatchedRows(previousRows);
       alert(error.message || "Failed updating watched status");
     }
   }
@@ -789,48 +797,42 @@ export default function MyShowDetails() {
       if (episodeIdsToMark.length === 0) return;
 
       setWatchedRows((prev) => {
+        const rows = Array.isArray(prev) ? prev : [];
         const existingIds = new Set(
-          (prev || []).map((row) => String(row?.episode_id))
+          rows.map((row) => String(row?.episode_id)).filter(Boolean)
         );
-        const nextRows = [...(prev || [])];
+        const nextRows = [...rows];
 
         for (const episodeId of episodeIdsToMark) {
           if (!existingIds.has(String(episodeId))) {
-            nextRows.push({ user_id: user.id, episode_id: episodeId });
+            nextRows.push({
+              user_id: user.id,
+              episode_id: episodeId,
+            });
+            existingIds.add(String(episodeId));
           }
         }
 
         return nextRows;
       });
 
-      const currentRows = await fetchWatchedRows(user.id);
-      const existingIds = new Set(
-        (currentRows || []).map((row) => String(row?.episode_id))
-      );
+      const rowsToUpsert = episodeIdsToMark.map((episodeId) => ({
+        user_id: user.id,
+        episode_id: episodeId,
+      }));
 
-      const rowsToInsert = episodeIdsToMark
-        .filter((episodeId) => !existingIds.has(String(episodeId)))
-        .map((episodeId) => ({
-          user_id: user.id,
-          episode_id: episodeId,
-        }));
+      const { error } = await supabase
+        .from("watched_episodes")
+        .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
 
-      if (rowsToInsert.length > 0) {
-        const { error } = await supabase.from("watched_episodes").upsert(
-          rowsToInsert,
-          {
-            onConflict: "user_id,episode_id",
-            ignoreDuplicates: true,
-          }
-        );
+      if (error) throw error;
 
-        if (error) throw error;
-      }
-
-      await refreshWatched(user.id);
+      refreshWatched(user.id).catch((refreshError) => {
+        console.warn("Failed refreshing watched rows:", refreshError);
+      });
     } catch (error) {
-      setWatchedRows(previousRows);
       console.error("Failed watch up to here:", error);
+      setWatchedRows(previousRows);
       alert(error.message || "Failed watch up to here");
     }
   }
