@@ -524,25 +524,22 @@ export default function MyShowDetails() {
               "Failed mapping fallback recommendations:",
               mappingError
             );
-         mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
-  normalizeMappedShow({
-    ...item,
-    source: "tmdb",
-
-    // 🔥 FORCE IMAGE BUILD HERE
-    poster_url:
-      item?.poster_url ||
-      item?.posterUrl ||
-      item?.image_url ||
-      item?.image ||
-      (item?.poster_path
-        ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-        : ""),
-
-    // 🔥 ALSO KEEP ORIGINAL FOR SAFETY
-    poster_path: item?.poster_path || null,
-  })
-);
+            mappedFallbackRecommendations = fallbackRecommendations.map(
+              (item) =>
+                normalizeMappedShow({
+                  ...item,
+                  source: "tmdb",
+                  poster_url:
+                    item?.poster_url ||
+                    item?.posterUrl ||
+                    item?.image_url ||
+                    item?.image ||
+                    (item?.poster_path
+                      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                      : ""),
+                  poster_path: item?.poster_path || null,
+                })
+            );
           }
 
           const filteredTvdbPeopleAlsoWatch =
@@ -727,7 +724,9 @@ export default function MyShowDetails() {
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
-        if (!next.some((row) => String(row?.episode_id ?? "") === String(ep.id))) {
+        if (
+          !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
+        ) {
           next.push(optimisticRow);
         }
         return next;
@@ -762,11 +761,12 @@ export default function MyShowDetails() {
     }
   }
 
-  async function handleWatchUpToHere(targetEpisode)(targetEpisode) {
+  async function handleWatchUpToHere(targetEpisode) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user || !show?.tvdb_id) return;
+
+    if (!user) return;
 
     const previousRows = watchedRows;
 
@@ -795,40 +795,25 @@ export default function MyShowDetails() {
       const rowsToUpsert = episodesToMark.map((ep) => ({
         user_id: user.id,
         episode_id: ep.id,
-        episode_row_id: ep.id,
-        show_tvdb_id: show.tvdb_id,
-        season_number: ep.seasonNumber,
-        episode_number: ep.number,
-        episode_code: ep.episode_code || makeEpisodeCode(ep),
       }));
 
       setWatchedRows((prev) => {
-        const nextRows = [...(prev || [])];
-        const seen = new Set(
-          nextRows.flatMap((row) => [
-            row?.episode_id != null ? `id:${row.episode_id}` : null,
-            row?.episode_row_id != null ? `row:${row.episode_row_id}` : null,
-            row?.episode_code ? `code:${row.episode_code}` : null,
-            row?.season_number != null && row?.episode_number != null
-              ? `se:${row.season_number}-${row.episode_number}`
-              : null,
-          ].filter(Boolean))
+        const next = [...(prev || [])];
+        const existingIds = new Set(
+          next
+            .map((row) => row?.episode_id)
+            .filter((value) => value != null)
+            .map((value) => String(value))
         );
 
         for (const row of rowsToUpsert) {
-          const keys = [
-            `id:${row.episode_id}`,
-            `row:${row.episode_row_id}`,
-            `code:${row.episode_code}`,
-            `se:${row.season_number}-${row.episode_number}`,
-          ];
-
-          if (keys.some((key) => seen.has(key))) continue;
-          nextRows.push(row);
-          keys.forEach((key) => seen.add(key));
+          if (!existingIds.has(String(row.episode_id))) {
+            next.push(row);
+            existingIds.add(String(row.episode_id));
+          }
         }
 
-        return nextRows;
+        return next;
       });
 
       const { error } = await supabase
@@ -1443,6 +1428,14 @@ export default function MyShowDetails() {
               {recommendedShows.map((rec, index) => {
                 const showName = rec.name || rec.title || "Unknown show";
                 const linkTarget = getMappedShowHref(rec);
+                const posterSrc =
+                  rec.poster_url ||
+                  rec.posterUrl ||
+                  rec.image_url ||
+                  rec.image ||
+                  (rec.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+                    : "/no-image.png");
 
                 return (
                   <Link
@@ -1450,22 +1443,11 @@ export default function MyShowDetails() {
                     to={linkTarget}
                     className="msd-rec-card"
                   >
-                    {(
-  rec.poster_url ||
-  rec.posterUrl ||
-  rec.image_url ||
-  rec.image ||
-  rec.poster_path
-) ? (
- <img
-  src={
-    rec.poster_url ||
-    (rec.poster_path
-      ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
-      : "/no-image.png") // optional fallback
-  }
-/>
-                    ) : null}
+                    <img
+                      src={posterSrc}
+                      alt={showName}
+                      className="msd-rec-image"
+                    />
                     <div className="msd-rec-title">{showName}</div>
                     {rec.first_aired || rec.firstAired || rec.first_air_date ? (
                       <div className="msd-rec-date">
