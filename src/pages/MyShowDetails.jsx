@@ -753,7 +753,8 @@ export default function MyShowDetails() {
         if (error) throw error;
       }
 
-      await refreshWatched(user.id);
+      // Do not immediately refresh here.
+      // The optimistic state is the source of truth for the current screen.
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
@@ -822,7 +823,7 @@ export default function MyShowDetails() {
 
       if (error) throw error;
 
-      await refreshWatched(user.id);
+      // Do not immediately refresh here either.
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
