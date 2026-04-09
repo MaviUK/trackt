@@ -27,57 +27,18 @@ function getEpisodeCodeKey(ep) {
   ).padStart(2, "0")}`;
 }
 
-function createEmptyWatchedLookup() {
-  return {
-    episodeIds: new Set(),
-    episodeRowIds: new Set(),
-    episodeCodes: new Set(),
-    seasonEpisodeKeys: new Set(),
-  };
+function buildWatchedEpisodeIdSet(rows) {
+  return new Set(
+    (rows || [])
+      .map((row) => row?.episode_id)
+      .filter((value) => value != null)
+      .map((value) => String(value).trim())
+  );
 }
 
-function buildWatchedLookup(rows) {
-  const lookup = createEmptyWatchedLookup();
-
-  for (const row of rows || []) {
-    if (row?.episode_id != null) {
-      lookup.episodeIds.add(String(row.episode_id).trim());
-    }
-
-    if (row?.episode_row_id != null) {
-      lookup.episodeRowIds.add(String(row.episode_row_id).trim());
-    }
-
-    if (row?.episode_code) {
-      lookup.episodeCodes.add(String(row.episode_code).trim());
-    }
-
-    if (row?.season_number != null && row?.episode_number != null) {
-      lookup.seasonEpisodeKeys.add(
-        `${row.season_number}-${row.episode_number}`
-      );
-    }
-  }
-
-  return lookup;
-}
-
-function isEpisodeWatched(ep, watchedLookup) {
-  const byEpisodeId =
-    ep?.id != null && watchedLookup.episodeIds.has(String(ep.id).trim());
-
-  const byEpisodeRowId =
-    ep?.id != null && watchedLookup.episodeRowIds.has(String(ep.id).trim());
-
-  const byCode = watchedLookup.episodeCodes.has(
-    String(ep?.episode_code || getEpisodeCodeKey(ep)).trim()
-  );
-
-  const bySeasonEpisode = watchedLookup.seasonEpisodeKeys.has(
-    `${ep?.seasonNumber}-${ep?.number}`
-  );
-
-  return byEpisodeId || byEpisodeRowId || byCode || bySeasonEpisode;
+function isEpisodeWatched(ep, watchedEpisodeIds) {
+  if (ep?.id == null) return false;
+  return watchedEpisodeIds.has(String(ep.id).trim());
 }
 
 function isFuture(dateString) {
@@ -121,7 +82,7 @@ function sortSeasonGroups(a, b) {
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
-    .select("episode_id, episode_row_id, show_tvdb_id, season_number, episode_number, episode_code")
+    .select("episode_id")
     .eq("user_id", userId);
 
   if (error) throw error;
@@ -226,8 +187,8 @@ export default function MyShowDetails() {
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
 
-  const watchedLookup = useMemo(
-    () => buildWatchedLookup(watchedRows),
+  const watchedEpisodeIds = useMemo(
+    () => buildWatchedEpisodeIdSet(watchedRows),
     [watchedRows]
   );
 
@@ -669,7 +630,7 @@ export default function MyShowDetails() {
       .sort(sortSeasonGroups)
       .map(([seasonNumber, seasonEpisodes]) => {
         const watchedCount = seasonEpisodes.filter((ep) =>
-          isEpisodeWatched(ep, watchedLookup)
+          isEpisodeWatched(ep, watchedEpisodeIds)
         ).length;
 
         return {
@@ -683,7 +644,7 @@ export default function MyShowDetails() {
             watchedCount === seasonEpisodes.length,
         };
       });
-  }, [episodes, watchedLookup]);
+  }, [episodes, watchedEpisodeIds]);
 
   const stats = useMemo(() => {
     const mainEpisodes = episodes.filter(
@@ -692,15 +653,15 @@ export default function MyShowDetails() {
 
     const total = mainEpisodes.length;
     const watched = mainEpisodes.filter((ep) =>
-      isEpisodeWatched(ep, watchedLookup)
+      isEpisodeWatched(ep, watchedEpisodeIds)
     ).length;
     const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
     const nextEpisode = mainEpisodes.find(
-      (ep) => !isEpisodeWatched(ep, watchedLookup) && isFuture(ep.aired)
+      (ep) => !isEpisodeWatched(ep, watchedEpisodeIds) && isFuture(ep.aired)
     );
 
     return { total, watched, pct, nextEpisode };
-  }, [episodes, watchedLookup]);
+  }, [episodes, watchedEpisodeIds]);
 
   const burgrStats = useMemo(() => {
     const ratings = burgrRatings
@@ -748,87 +709,47 @@ export default function MyShowDetails() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user || !show?.tvdb_id) return;
+    if (!user || ep?.id == null) return;
 
-    const watched = isEpisodeWatched(ep, watchedLookup);
+    const watched = isEpisodeWatched(ep, watchedEpisodeIds);
+    const previousRows = watchedRows;
     const optimisticRow = {
       user_id: user.id,
       episode_id: ep.id,
-      episode_row_id: ep.id,
-      show_tvdb_id: show.tvdb_id,
-      season_number: ep.seasonNumber,
-      episode_number: ep.number,
-      episode_code: ep.episode_code || makeEpisodeCode(ep),
     };
-    const previousRows = watchedRows;
 
     if (watched) {
       setWatchedRows((prev) =>
         (prev || []).filter(
-          (row) =>
-            !(row?.episode_id != null && String(row.episode_id) === String(ep.id)) &&
-            !(row?.episode_row_id != null && String(row.episode_row_id) === String(ep.id)) &&
-            !(row?.episode_code && String(row.episode_code) === String(optimisticRow.episode_code)) &&
-            !(
-              row?.season_number != null &&
-              row?.episode_number != null &&
-              Number(row.season_number) === Number(ep.seasonNumber) &&
-              Number(row.episode_number) === Number(ep.number)
-            )
+          (row) => String(row?.episode_id ?? "") !== String(ep.id)
         )
       );
     } else {
       setWatchedRows((prev) => {
-        const nextRows = [...(prev || [])];
-        const exists = nextRows.some(
-          (row) =>
-            (row?.episode_id != null && String(row.episode_id) === String(ep.id)) ||
-            (row?.episode_row_id != null && String(row.episode_row_id) === String(ep.id)) ||
-            (row?.episode_code && String(row.episode_code) === String(optimisticRow.episode_code)) ||
-            (
-              row?.season_number != null &&
-              row?.episode_number != null &&
-              Number(row.season_number) === Number(ep.seasonNumber) &&
-              Number(row.episode_number) === Number(ep.number)
-            )
-        );
-
-        if (exists) return nextRows;
-        nextRows.push(optimisticRow);
-        return nextRows;
+        const next = [...(prev || [])];
+        if (!next.some((row) => String(row?.episode_id ?? "") === String(ep.id))) {
+          next.push(optimisticRow);
+        }
+        return next;
       });
     }
 
     try {
       if (watched) {
-        let deleteQuery = supabase
+        const { error } = await supabase
           .from("watched_episodes")
           .delete()
           .eq("user_id", user.id)
-          .or(
-            [
-              `episode_id.eq.${ep.id}`,
-              `episode_row_id.eq.${ep.id}`,
-              `and(show_tvdb_id.eq.${show.tvdb_id},season_number.eq.${ep.seasonNumber},episode_number.eq.${ep.number})`,
-            ].join(",")
-          );
+          .eq("episode_id", ep.id);
 
-        const { error } = await deleteQuery;
         if (error) throw error;
       } else {
-        const rowToSave = {
-          user_id: user.id,
-          episode_id: ep.id,
-          episode_row_id: ep.id,
-          show_tvdb_id: show.tvdb_id,
-          season_number: ep.seasonNumber,
-          episode_number: ep.number,
-          episode_code: ep.episode_code || makeEpisodeCode(ep),
-        };
-
         const { error } = await supabase
           .from("watched_episodes")
-          .upsert(rowToSave, { onConflict: "user_id,episode_id" });
+          .upsert(
+            { user_id: user.id, episode_id: ep.id },
+            { onConflict: "user_id,episode_id" }
+          );
 
         if (error) throw error;
       }
@@ -841,7 +762,7 @@ export default function MyShowDetails() {
     }
   }
 
-  async function handleWatchUpToHere(targetEpisode) {
+  async function handleWatchUpToHere(targetEpisode)(targetEpisode) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -1280,7 +1201,7 @@ export default function MyShowDetails() {
                 {expandedSeasons[season.seasonNumber] && (
                   <div className="msd-episode-list">
                     {season.episodes.map((ep) => {
-                      const watched = isEpisodeWatched(ep, watchedLookup);
+                      const watched = isEpisodeWatched(ep, watchedEpisodeIds);
                       const myEpisodeRating = Number(
                         myEpisodeRatings.get(String(ep.id)) || 0
                       );
