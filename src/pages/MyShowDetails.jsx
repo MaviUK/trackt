@@ -735,11 +735,15 @@ export default function MyShowDetails() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("watched_episodes")
-          .insert({ user_id: user.id, episode_id: ep.id });
+        const { error } = await supabase.from("watched_episodes").upsert(
+          { user_id: user.id, episode_id: ep.id },
+          {
+            onConflict: "user_id,episode_id",
+            ignoreDuplicates: true,
+          }
+        );
 
-        if (error && error.code !== "23505") throw error;
+        if (error) throw error;
       }
 
       await refreshWatched(user.id);
@@ -786,7 +790,7 @@ export default function MyShowDetails() {
 
       setWatchedRows((prev) => {
         const existingIds = new Set(
-          (prev || []).map((row) => String(row.episode_id))
+          (prev || []).map((row) => String(row?.episode_id))
         );
         const nextRows = [...(prev || [])];
 
@@ -799,8 +803,9 @@ export default function MyShowDetails() {
         return nextRows;
       });
 
+      const currentRows = await fetchWatchedRows(user.id);
       const existingIds = new Set(
-        (watchedRows || []).map((row) => String(row?.episode_id))
+        (currentRows || []).map((row) => String(row?.episode_id))
       );
 
       const rowsToInsert = episodeIdsToMark
@@ -811,11 +816,15 @@ export default function MyShowDetails() {
         }));
 
       if (rowsToInsert.length > 0) {
-        const { error } = await supabase
-          .from("watched_episodes")
-          .insert(rowsToInsert);
+        const { error } = await supabase.from("watched_episodes").upsert(
+          rowsToInsert,
+          {
+            onConflict: "user_id,episode_id",
+            ignoreDuplicates: true,
+          }
+        );
 
-        if (error && error.code !== "23505") throw error;
+        if (error) throw error;
       }
 
       await refreshWatched(user.id);
