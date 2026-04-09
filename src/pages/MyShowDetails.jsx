@@ -703,9 +703,27 @@ export default function MyShowDetails() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || !ep?.id) return;
 
+    const episodeId = String(ep.id);
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
+    const previousRows = watchedRows;
+
+    setWatchedRows((prev) => {
+      const rows = Array.isArray(prev) ? prev : [];
+
+      if (watched) {
+        return rows.filter((row) => String(row?.episode_id) !== episodeId);
+      }
+
+      const alreadyExists = rows.some(
+        (row) => String(row?.episode_id) === episodeId
+      );
+
+      if (alreadyExists) return rows;
+
+      return [...rows, { user_id: user.id, episode_id: ep.id }];
+    });
 
     try {
       if (watched) {
@@ -729,6 +747,7 @@ export default function MyShowDetails() {
 
       await refreshWatched(user.id);
     } catch (error) {
+      setWatchedRows(previousRows);
       console.error("Failed toggling watched state:", error);
       alert(error.message || "Failed updating watched status");
     }
