@@ -31,16 +31,8 @@ function buildWatchedEpisodeIdSet(rows) {
 }
 
 function isEpisodeWatched(ep, watchedEpisodeIds) {
-  if (!ep) return false;
-
-  const localId = ep?.id != null ? String(ep.id).trim() : "";
-  const tvdbId =
-    ep?.tvdb_episode_id != null ? String(ep.tvdb_episode_id).trim() : "";
-
-  return (
-    (localId && watchedEpisodeIds.has(localId)) ||
-    (tvdbId && watchedEpisodeIds.has(tvdbId))
-  );
+  if (ep?.id == null) return false;
+  return watchedEpisodeIds.has(String(ep.id).trim());
 }
 
 function isFuture(dateString) {
@@ -707,13 +699,9 @@ export default function MyShowDetails() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user || !ep) return;
+    if (!user || ep?.id == null) return;
 
-    const watchedKey =
-      ep?.tvdb_episode_id != null ? ep.tvdb_episode_id : ep?.id;
-
-    if (watchedKey == null) return;
-
+    const watchedKey = ep.id;
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
     const previousRows = watchedRows;
     const optimisticRow = {
@@ -800,19 +788,10 @@ export default function MyShowDetails() {
       const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
       if (episodesToMark.length === 0) return;
 
-      const rowsToUpsert = episodesToMark
-        .map((ep) => {
-          const watchedKey =
-            ep?.tvdb_episode_id != null ? ep.tvdb_episode_id : ep?.id;
-
-          if (watchedKey == null) return null;
-
-          return {
-            user_id: user.id,
-            episode_id: watchedKey,
-          };
-        })
-        .filter(Boolean);
+      const rowsToUpsert = episodesToMark.map((ep) => ({
+        user_id: user.id,
+        episode_id: ep.id,
+      }));
 
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
