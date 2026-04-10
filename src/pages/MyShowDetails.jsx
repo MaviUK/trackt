@@ -21,12 +21,6 @@ function makeEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
-function getEpisodeCodeKey(ep) {
-  return `S${String(ep?.seasonNumber ?? 0).padStart(2, "0")}E${String(
-    ep?.number ?? 0
-  ).padStart(2, "0")}`;
-}
-
 function buildWatchedEpisodeIdSet(rows) {
   return new Set(
     (rows || [])
@@ -37,8 +31,16 @@ function buildWatchedEpisodeIdSet(rows) {
 }
 
 function isEpisodeWatched(ep, watchedEpisodeIds) {
-  if (ep?.id == null) return false;
-  return watchedEpisodeIds.has(String(ep.id).trim());
+  if (!ep) return false;
+
+  const localId = ep?.id != null ? String(ep.id).trim() : "";
+  const tvdbId =
+    ep?.tvdb_episode_id != null ? String(ep.tvdb_episode_id).trim() : "";
+
+  return (
+    (localId && watchedEpisodeIds.has(localId)) ||
+    (tvdbId && watchedEpisodeIds.has(tvdbId))
+  );
 }
 
 function isFuture(dateString) {
@@ -475,11 +477,9 @@ export default function MyShowDetails() {
           const extras = await extrasRes.json();
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
-
           const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
             ? extras.peopleAlsoWatch
             : [];
-
           const fallbackRecommendations = Array.isArray(extras.recommendations)
             ? extras.recommendations
             : [];
@@ -706,26 +706,34 @@ export default function MyShowDetails() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user || ep?.id == null) return;
+
+    if (!user || !ep) return;
+
+    const watchedKey =
+      ep?.tvdb_episode_id != null ? ep.tvdb_episode_id : ep?.id;
+
+    if (watchedKey == null) return;
 
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
     const previousRows = watchedRows;
     const optimisticRow = {
       user_id: user.id,
-      episode_id: ep.id,
+      episode_id: watchedKey,
     };
 
     if (watched) {
       setWatchedRows((prev) =>
         (prev || []).filter(
-          (row) => String(row?.episode_id ?? "") !== String(ep.id)
+          (row) => String(row?.episode_id ?? "") !== String(watchedKey)
         )
       );
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
         if (
-          !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
+          !next.some(
+            (row) => String(row?.episode_id ?? "") === String(watchedKey)
+          )
         ) {
           next.push(optimisticRow);
         }
@@ -739,22 +747,21 @@ export default function MyShowDetails() {
           .from("watched_episodes")
           .delete()
           .eq("user_id", user.id)
-          .eq("episode_id", ep.id);
+          .eq("episode_id", watchedKey);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("watched_episodes")
           .upsert(
-            { user_id: user.id, episode_id: ep.id },
+            { user_id: user.id, episode_id: watchedKey },
             { onConflict: "user_id,episode_id" }
           );
 
         if (error) throw error;
       }
 
-      // Do not immediately refresh here.
-      // The optimistic state is the source of truth for the current screen.
+      await refreshWatched(user.id);
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
@@ -793,10 +800,19 @@ export default function MyShowDetails() {
       const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
       if (episodesToMark.length === 0) return;
 
-      const rowsToUpsert = episodesToMark.map((ep) => ({
-        user_id: user.id,
-        episode_id: ep.id,
-      }));
+      const rowsToUpsert = episodesToMark
+        .map((ep) => {
+          const watchedKey =
+            ep?.tvdb_episode_id != null ? ep.tvdb_episode_id : ep?.id;
+
+          if (watchedKey == null) return null;
+
+          return {
+            user_id: user.id,
+            episode_id: watchedKey,
+          };
+        })
+        .filter(Boolean);
 
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
@@ -823,7 +839,7 @@ export default function MyShowDetails() {
 
       if (error) throw error;
 
-      // Do not immediately refresh here either.
+      await refreshWatched(user.id);
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
