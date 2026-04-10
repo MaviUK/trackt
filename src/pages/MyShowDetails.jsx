@@ -25,22 +25,14 @@ function buildWatchedEpisodeIdSet(rows) {
   return new Set(
     (rows || [])
       .map((row) => row?.episode_id)
-      .filter((value) => value != null)
-      .map((value) => String(value))
+      .filter(Boolean)
+      .map(String)
   );
 }
 
 function isEpisodeWatched(ep, watchedEpisodeIds) {
-  if (!ep) return false;
-
-  const localId = ep?.id != null ? String(ep.id) : "";
-  const tvdbId =
-    ep?.tvdb_episode_id != null ? String(ep.tvdb_episode_id) : "";
-
-  return (
-    (localId && watchedEpisodeIds.has(localId)) ||
-    (tvdbId && watchedEpisodeIds.has(tvdbId))
-  );
+  if (!ep?.id) return false;
+  return watchedEpisodeIds.has(String(ep.id));
 }
 
 function isFuture(dateString) {
@@ -88,10 +80,7 @@ async function fetchWatchedRows(userId) {
     .eq("user_id", userId);
 
   if (error) throw error;
-
-  return (data || []).map((row) => ({
-    episode_id: String(row.episode_id),
-  }));
+  return data || [];
 }
 
 async function fetchBurgrRatings(showId) {
@@ -240,28 +229,16 @@ export default function MyShowDetails() {
 
         const tvdbId = Number(id);
         if (Number.isNaN(tvdbId)) {
-          setCurrentUserId(null);
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
-          setExpandedSeasons({});
-          setCast([]);
-          setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-          setSavedShowTvdbIds(new Set());
-          setBurgrRatings([]);
-          setMyBurgrRating("");
-          setEpisodeRatings([]);
-          setSavingEpisodeRatingId(null);
-          setHoverEpisodeRatings({});
-          setOpenEpisodeRatingPickerId(null);
           return;
         }
 
         let userShowRow = null;
         let showRecord = null;
 
-        const { data: userShowData, error: userShowError } = await supabase
+        const { data: userShowData } = await supabase
           .from("user_shows_new")
           .select(`
             id,
@@ -290,8 +267,6 @@ export default function MyShowDetails() {
           .eq("user_id", user.id)
           .eq("shows.tvdb_id", tvdbId)
           .maybeSingle();
-
-        if (userShowError) console.warn("user show fetch failed", userShowError);
 
         if (userShowData?.shows) {
           userShowRow = userShowData;
@@ -323,17 +298,6 @@ export default function MyShowDetails() {
             setShow(null);
             setEpisodes([]);
             setWatchedRows([]);
-            setExpandedSeasons({});
-            setCast([]);
-            setRecommendedShows([]);
-            setPeopleAlsoWatch([]);
-            setSavedShowTvdbIds(new Set());
-            setBurgrRatings([]);
-            setMyBurgrRating("");
-            setEpisodeRatings([]);
-            setSavingEpisodeRatingId(null);
-            setHoverEpisodeRatings({});
-            setOpenEpisodeRatingPickerId(null);
             return;
           }
 
@@ -342,16 +306,10 @@ export default function MyShowDetails() {
 
         const showId = showRecord.id;
 
-        const { data: savedShowsData, error: savedShowsError } = await supabase
+        const { data: savedShowsData } = await supabase
           .from("user_shows_new")
-          .select(`
-            shows!inner(tvdb_id)
-          `)
+          .select(`shows!inner(tvdb_id)`)
           .eq("user_id", user.id);
-
-        if (savedShowsError) {
-          console.warn("saved shows fetch failed", savedShowsError);
-        }
 
         const savedTvdbIds = new Set(
           (savedShowsData || [])
@@ -407,9 +365,7 @@ export default function MyShowDetails() {
         normalizedEpisodes.forEach((ep) => {
           const seasonKey = Number(ep.seasonNumber ?? 0);
           if (seasonKey === 0) return;
-          if (!(seasonKey in seasonMap)) {
-            seasonMap[seasonKey] = false;
-          }
+          if (!(seasonKey in seasonMap)) seasonMap[seasonKey] = false;
         });
 
         if (targetEpisodeId) {
@@ -709,30 +665,26 @@ export default function MyShowDetails() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     if (!user || ep?.id == null) return;
 
-    const watchedKey = String(ep.id);
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
     const previousRows = watchedRows;
     const optimisticRow = {
       user_id: user.id,
-      episode_id: watchedKey,
+      episode_id: ep.id,
     };
 
     if (watched) {
       setWatchedRows((prev) =>
         (prev || []).filter(
-          (row) => String(row?.episode_id ?? "") !== watchedKey
+          (row) => String(row?.episode_id ?? "") !== String(ep.id)
         )
       );
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
         if (
-          !next.some(
-            (row) => String(row?.episode_id ?? "") === watchedKey
-          )
+          !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
         ) {
           next.push(optimisticRow);
         }
@@ -760,7 +712,8 @@ export default function MyShowDetails() {
         if (error) throw error;
       }
 
-      await refreshWatched(user.id);
+      const fresh = await fetchWatchedRows(user.id);
+      setWatchedRows(fresh);
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
@@ -815,10 +768,7 @@ export default function MyShowDetails() {
 
         for (const row of rowsToUpsert) {
           if (!existingIds.has(String(row.episode_id))) {
-            next.push({
-              user_id: row.user_id,
-              episode_id: String(row.episode_id),
-            });
+            next.push(row);
             existingIds.add(String(row.episode_id));
           }
         }
@@ -832,7 +782,8 @@ export default function MyShowDetails() {
 
       if (error) throw error;
 
-      await refreshWatched(user.id);
+      const fresh = await fetchWatchedRows(user.id);
+      setWatchedRows(fresh);
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
