@@ -26,13 +26,21 @@ function buildWatchedEpisodeIdSet(rows) {
     (rows || [])
       .map((row) => row?.episode_id)
       .filter((value) => value != null)
-      .map((value) => String(value).trim())
+      .map((value) => String(value))
   );
 }
 
 function isEpisodeWatched(ep, watchedEpisodeIds) {
-  if (ep?.id == null) return false;
-  return watchedEpisodeIds.has(String(ep.id).trim());
+  if (!ep) return false;
+
+  const localId = ep?.id != null ? String(ep.id) : "";
+  const tvdbId =
+    ep?.tvdb_episode_id != null ? String(ep.tvdb_episode_id) : "";
+
+  return (
+    (localId && watchedEpisodeIds.has(localId)) ||
+    (tvdbId && watchedEpisodeIds.has(tvdbId))
+  );
 }
 
 function isFuture(dateString) {
@@ -80,7 +88,10 @@ async function fetchWatchedRows(userId) {
     .eq("user_id", userId);
 
   if (error) throw error;
-  return data || [];
+
+  return (data || []).map((row) => ({
+    episode_id: String(row.episode_id),
+  }));
 }
 
 async function fetchBurgrRatings(showId) {
@@ -701,7 +712,7 @@ export default function MyShowDetails() {
 
     if (!user || ep?.id == null) return;
 
-    const watchedKey = ep.id;
+    const watchedKey = String(ep.id);
     const watched = isEpisodeWatched(ep, watchedEpisodeIds);
     const previousRows = watchedRows;
     const optimisticRow = {
@@ -712,7 +723,7 @@ export default function MyShowDetails() {
     if (watched) {
       setWatchedRows((prev) =>
         (prev || []).filter(
-          (row) => String(row?.episode_id ?? "") !== String(watchedKey)
+          (row) => String(row?.episode_id ?? "") !== watchedKey
         )
       );
     } else {
@@ -720,7 +731,7 @@ export default function MyShowDetails() {
         const next = [...(prev || [])];
         if (
           !next.some(
-            (row) => String(row?.episode_id ?? "") === String(watchedKey)
+            (row) => String(row?.episode_id ?? "") === watchedKey
           )
         ) {
           next.push(optimisticRow);
@@ -735,14 +746,14 @@ export default function MyShowDetails() {
           .from("watched_episodes")
           .delete()
           .eq("user_id", user.id)
-          .eq("episode_id", watchedKey);
+          .eq("episode_id", ep.id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("watched_episodes")
           .upsert(
-            { user_id: user.id, episode_id: watchedKey },
+            { user_id: user.id, episode_id: ep.id },
             { onConflict: "user_id,episode_id" }
           );
 
@@ -804,7 +815,10 @@ export default function MyShowDetails() {
 
         for (const row of rowsToUpsert) {
           if (!existingIds.has(String(row.episode_id))) {
-            next.push(row);
+            next.push({
+              user_id: row.user_id,
+              episode_id: String(row.episode_id),
+            });
             existingIds.add(String(row.episode_id));
           }
         }
