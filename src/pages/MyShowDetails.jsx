@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
@@ -153,12 +153,14 @@ function buildEpisodeAverageRatingsMap(rows) {
 
 export default function MyShowDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const targetEpisodeId = searchParams.get("episode");
 
   const [loading, setLoading] = useState(true);
   const [extrasLoading, setExtrasLoading] = useState(false);
   const [savingBurgr, setSavingBurgr] = useState(false);
+  const [savingShowAction, setSavingShowAction] = useState(false);
 
   const [show, setShow] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -506,7 +508,7 @@ export default function MyShowDetails() {
               const recTvdbId =
                 item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
               if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
+              return !savedShowTvdbIds.has(String(recTvdbId));
             });
 
           const filteredFallbackRecommendations =
@@ -514,7 +516,7 @@ export default function MyShowDetails() {
               const recTvdbId =
                 item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
               if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
+              return !savedShowTvdbIds.has(String(recTvdbId));
             });
 
           setCast(castRows);
@@ -555,7 +557,7 @@ export default function MyShowDetails() {
     }
 
     loadShow();
-  }, [id, targetEpisodeId]);
+  }, [id, targetEpisodeId, savedShowTvdbIds]);
 
   useEffect(() => {
     if (!targetEpisodeId || loading) return;
@@ -644,11 +646,6 @@ export default function MyShowDetails() {
     }));
   }
 
-  async function refreshWatched(userId) {
-    const fresh = await fetchWatchedRows(userId);
-    setWatchedRows(fresh);
-  }
-
   async function refreshBurgrRatings(showId, userId) {
     const fresh = await fetchBurgrRatings(showId);
     setBurgrRatings(fresh);
@@ -659,6 +656,78 @@ export default function MyShowDetails() {
   async function refreshEpisodeRatings(showEpisodeIds) {
     const fresh = await fetchEpisodeRatings(showEpisodeIds);
     setEpisodeRatings(fresh);
+  }
+
+  async function handleMoveToWatchlist() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !show?.id || savingShowAction) return;
+
+    setSavingShowAction(true);
+
+    try {
+      const { error } = await supabase.from("user_shows_new").upsert(
+        {
+          user_id: user.id,
+          show_id: show.id,
+          watch_status: "watchlist",
+        },
+        { onConflict: "user_id,show_id" }
+      );
+
+      if (error) throw error;
+
+      setShow((prev) =>
+        prev
+          ? {
+              ...prev,
+              watch_status: "watchlist",
+            }
+          : prev
+      );
+
+      alert("Show moved to your watchlist.");
+    } catch (error) {
+      console.error("Failed moving show to watchlist:", error);
+      alert(error.message || "Failed moving show to watchlist");
+    } finally {
+      setSavingShowAction(false);
+    }
+  }
+
+  async function handleRemoveShow() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !show?.id || savingShowAction) return;
+
+    const confirmed = window.confirm(
+      "Remove this show from My Shows?"
+    );
+
+    if (!confirmed) return;
+
+    setSavingShowAction(true);
+
+    try {
+      const { error } = await supabase
+        .from("user_shows_new")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("show_id", show.id);
+
+      if (error) throw error;
+
+      navigate("/my-shows");
+    } catch (error) {
+      console.error("Failed removing show:", error);
+      alert(error.message || "Failed removing show");
+    } finally {
+      setSavingShowAction(false);
+    }
   }
 
   async function handleMarkWatched(ep) {
@@ -683,9 +752,7 @@ export default function MyShowDetails() {
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
-        if (
-          !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
-        ) {
+        if (!next.some((row) => String(row?.episode_id ?? "") === String(ep.id))) {
           next.push(optimisticRow);
         }
         return next;
@@ -711,9 +778,6 @@ export default function MyShowDetails() {
 
         if (error) throw error;
       }
-
-      const fresh = await fetchWatchedRows(user.id);
-      setWatchedRows(fresh);
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
@@ -781,9 +845,6 @@ export default function MyShowDetails() {
         .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
 
       if (error) throw error;
-
-      const fresh = await fetchWatchedRows(user.id);
-      setWatchedRows(fresh);
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
@@ -945,6 +1006,12 @@ export default function MyShowDetails() {
                 </div>
               ) : null}
               {show.status ? <div>Status: {show.status}</div> : null}
+              <div>
+                List status:{" "}
+                {show.watch_status === "watchlist"
+                  ? "Watchlist"
+                  : show.watch_status || "Not added"}
+              </div>
             </div>
 
             <div className="msd-stats-row msd-stats-row-top">
@@ -960,6 +1027,33 @@ export default function MyShowDetails() {
                 <span className="msd-stat-label">Progress</span>
                 <strong className="msd-stat-value">{stats.pct}%</strong>
               </div>
+            </div>
+
+            <div
+              className="msd-actions"
+              style={{ marginTop: 12, marginBottom: 12 }}
+            >
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleMoveToWatchlist}
+                disabled={savingShowAction}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : show.watch_status === "watchlist"
+                  ? "In Watchlist"
+                  : "Move to Watchlist"}
+              </button>
+
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleRemoveShow}
+                disabled={savingShowAction}
+              >
+                Remove from My Shows
+              </button>
             </div>
 
             <div className="msd-stat-box msd-stat-box-full">
