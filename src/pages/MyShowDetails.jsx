@@ -320,8 +320,6 @@ export default function MyShowDetails() {
             .map(String)
         );
 
-        setSavedShowTvdbIds(savedTvdbIds);
-
         const [episodeRes, watchedRowsData, burgrRows] = await Promise.all([
           supabase
             .from("episodes")
@@ -381,6 +379,7 @@ export default function MyShowDetails() {
 
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
 
+        setSavedShowTvdbIds(savedTvdbIds);
         setShow({
           id: showRecord.id,
           tvdb_id: showRecord.tvdb_id,
@@ -508,7 +507,7 @@ export default function MyShowDetails() {
               const recTvdbId =
                 item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
               if (!recTvdbId) return true;
-              return !savedShowTvdbIds.has(String(recTvdbId));
+              return !savedTvdbIds.has(String(recTvdbId));
             });
 
           const filteredFallbackRecommendations =
@@ -516,7 +515,7 @@ export default function MyShowDetails() {
               const recTvdbId =
                 item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
               if (!recTvdbId) return true;
-              return !savedShowTvdbIds.has(String(recTvdbId));
+              return !savedTvdbIds.has(String(recTvdbId));
             });
 
           setCast(castRows);
@@ -557,7 +556,7 @@ export default function MyShowDetails() {
     }
 
     loadShow();
-  }, [id, targetEpisodeId, savedShowTvdbIds]);
+  }, [id, targetEpisodeId]);
 
   useEffect(() => {
     if (!targetEpisodeId || loading) return;
@@ -704,10 +703,7 @@ export default function MyShowDetails() {
 
     if (!user || !show?.id || savingShowAction) return;
 
-    const confirmed = window.confirm(
-      "Remove this show from My Shows?"
-    );
-
+    const confirmed = window.confirm("Remove this show from My Shows?");
     if (!confirmed) return;
 
     setSavingShowAction(true);
@@ -1009,8 +1005,8 @@ export default function MyShowDetails() {
               <div>
                 List status:{" "}
                 {show.watch_status === "watchlist"
-                  ? "Watchlist"
-                  : show.watch_status || "Not added"}
+                  ? "watchlist"
+                  : show.watch_status || "not added"}
               </div>
             </div>
 
@@ -1029,10 +1025,7 @@ export default function MyShowDetails() {
               </div>
             </div>
 
-            <div
-              className="msd-actions"
-              style={{ marginTop: 12, marginBottom: 12 }}
-            >
+            <div className="msd-actions" style={{ marginBottom: "12px" }}>
               <button
                 type="button"
                 className="msd-btn msd-btn-secondary"
