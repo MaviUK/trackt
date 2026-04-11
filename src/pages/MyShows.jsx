@@ -256,10 +256,17 @@ export default function MyShows() {
           statusEpisodes
         );
 
-        const isWatchlist = watchedMainCount === 0;
-        const isCompleted =
-          totalMainEpisodes > 0 && watchedMainCount >= totalMainEpisodes;
         const isArchived = userShow.watch_status === "archived";
+        const isWatchlist = watchedMainCount === 0 && !isArchived;
+        const isCompleted =
+          totalMainEpisodes > 0 &&
+          watchedMainCount >= totalMainEpisodes &&
+          !isArchived;
+        const isInProgress =
+          watchedMainCount > 0 &&
+          watchedMainCount < totalMainEpisodes &&
+          !isArchived;
+
         const isAiring = !!nextEpisodeDate;
         const isAiringSoon =
           daysToNextEpisode != null &&
@@ -273,9 +280,10 @@ export default function MyShows() {
           watchedMainCount,
           totalMainEpisodes,
           status,
+          isArchived,
           isWatchlist,
           isCompleted,
-          isArchived,
+          isInProgress,
           isAiring,
           isAiringSoon,
         };
@@ -300,15 +308,13 @@ export default function MyShows() {
     return shows.filter((show) => {
       const matchesFilter =
         filterBy === "all"
-          ? !show.isArchived
-          : filterBy === "airing"
-          ? show.isAiring && !show.isArchived
+          ? true
           : filterBy === "watchlist"
-          ? show.isWatchlist && !show.isArchived
+          ? show.isWatchlist
+          : filterBy === "inprogress"
+          ? show.isInProgress
           : filterBy === "completed"
-          ? show.isCompleted && !show.isArchived
-          : filterBy === "airingsoon"
-          ? show.isAiringSoon && !show.isArchived
+          ? show.isCompleted
           : filterBy === "archived"
           ? show.isArchived
           : true;
@@ -329,14 +335,10 @@ export default function MyShows() {
 
   const counts = useMemo(
     () => ({
-      all: shows.filter((show) => !show.isArchived).length,
-      airing: shows.filter((show) => show.isAiring && !show.isArchived).length,
-      watchlist: shows.filter((show) => show.isWatchlist && !show.isArchived)
-        .length,
-      completed: shows.filter((show) => show.isCompleted && !show.isArchived)
-        .length,
-      airingsoon: shows.filter((show) => show.isAiringSoon && !show.isArchived)
-        .length,
+      all: shows.length,
+      watchlist: shows.filter((show) => show.isWatchlist).length,
+      inprogress: shows.filter((show) => show.isInProgress).length,
+      completed: shows.filter((show) => show.isCompleted).length,
       archived: shows.filter((show) => show.isArchived).length,
     }),
     [shows]
@@ -370,10 +372,9 @@ export default function MyShows() {
       >
         {[
           ["all", `All (${counts.all})`],
-          ["airing", `Airing (${counts.airing})`],
           ["watchlist", `Watchlist (${counts.watchlist})`],
+          ["inprogress", `In Progress (${counts.inprogress})`],
           ["completed", `Completed (${counts.completed})`],
-          ["airingsoon", `Airing Soon (${counts.airingsoon})`],
           ["archived", `Archived (${counts.archived})`],
         ].map(([value, label]) => (
           <button
@@ -482,12 +483,26 @@ export default function MyShows() {
                     ? "Archived"
                     : show.isCompleted
                     ? `Completed (${show.watchedMainCount}/${show.totalMainEpisodes})`
+                    : show.isInProgress
+                    ? `In Progress (${show.watchedMainCount}/${show.totalMainEpisodes})`
                     : show.isWatchlist
                     ? "Watchlist"
-                    : show.nextEpisodeDate
-                    ? `Next: ${show.nextEpisodeDate}`
-                    : show.status || "Saved"}
+                    : "Saved"}
                 </div>
+
+                {show.isAiring ? (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: "0.8rem",
+                      color: "#c4b5fd",
+                    }}
+                  >
+                    {show.isAiringSoon
+                      ? `Airing Soon: ${show.nextEpisodeDate}`
+                      : `Airing: ${show.nextEpisodeDate}`}
+                  </div>
+                ) : null}
               </div>
             </Link>
           ))}
