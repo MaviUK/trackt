@@ -22,6 +22,7 @@ function toStatusEpisodeShape(ep) {
 
 function daysUntil(dateValue) {
   if (!dateValue) return null;
+
   const now = new Date();
   const target = new Date(dateValue);
 
@@ -164,6 +165,7 @@ export default function MyShows() {
         ).length;
 
         const totalAiredEpisodes = airedEpisodes.length;
+        const totalEpisodeCount = showEpisodes.length;
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -191,10 +193,9 @@ export default function MyShows() {
           statusEpisodes
         );
 
-        const isCompleted =
-          totalAiredEpisodes > 0 && watchedAiredCount >= totalAiredEpisodes;
-
         const isWatchlist = watchedTotalCount === 0;
+        const isCompleted =
+          totalEpisodeCount > 0 && watchedTotalCount >= totalEpisodeCount;
         const isArchived = userShow.watch_status === "archived";
         const isAiring = !!nextEpisodeDate;
         const isAiringSoon =
@@ -209,10 +210,10 @@ export default function MyShows() {
           watchedAiredCount,
           watchedTotalCount,
           totalAiredEpisodes,
-          totalEpisodeCount: showEpisodes.length,
+          totalEpisodeCount,
           status,
-          isCompleted,
           isWatchlist,
+          isCompleted,
           isArchived,
           isAiring,
           isAiringSoon,
@@ -275,7 +276,7 @@ export default function MyShows() {
       }
 
       if (sortBy === "progress") {
-        return b.watchedAiredCount - a.watchedAiredCount;
+        return b.watchedTotalCount - a.watchedTotalCount;
       }
 
       return 0;
@@ -433,7 +434,7 @@ export default function MyShows() {
                   {show.isArchived
                     ? "Archived"
                     : show.isCompleted
-                    ? "Completed"
+                    ? `Completed (${show.watchedTotalCount}/${show.totalEpisodeCount})`
                     : show.isWatchlist
                     ? "Watchlist"
                     : show.nextEpisodeDate
