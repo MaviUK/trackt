@@ -335,16 +335,17 @@ const filteredShows = useMemo(() => {
     );
   }, [filteredShows]);
 
-  const counts = useMemo(
-    () => ({
-      all: shows.length,
-      watchlist: shows.filter((show) => show.isWatchlist).length,
-      inprogress: shows.filter((show) => show.isInProgress).length,
-      completed: shows.filter((show) => show.isCompleted).length,
-      archived: shows.filter((show) => show.isArchived).length,
-    }),
-    [shows]
-  );
+const counts = useMemo(
+  () => ({
+    all: shows.length,
+    watchlist: shows.filter((show) => show.isWatchlist).length,
+    inprogress: shows.filter((show) => show.isInProgress).length,
+    completed: shows.filter((show) => show.isCompleted).length,
+    archived: shows.filter((show) => show.isArchived).length,
+    airing: shows.filter((show) => show.isAiringSoon).length,
+  }),
+  [shows]
+);
 
   if (loading) {
     return (
@@ -373,12 +374,13 @@ const filteredShows = useMemo(() => {
         }}
       >
         {[
-          ["all", `All (${counts.all})`],
-          ["watchlist", `Watchlist (${counts.watchlist})`],
-          ["inprogress", `In Progress (${counts.inprogress})`],
-          ["completed", `Completed (${counts.completed})`],
-          ["archived", `Archived (${counts.archived})`],
-        ].map(([value, label]) => (
+  ["all", `All (${counts.all})`],
+  ["watchlist", `Watchlist (${counts.watchlist})`],
+  ["inprogress", `In Progress (${counts.inprogress})`],
+  ["completed", `Completed (${counts.completed})`],
+  ["archived", `Archived (${counts.archived})`],
+  ["airing", `Airing (${counts.airing})`],
+].map(([value, label]) => (
           <button
             key={value}
             className="msd-btn msd-btn-secondary"
