@@ -823,71 +823,72 @@ export default function MyShowDetails() {
   }
 
   async function handleWatchUpToHere(targetEpisode) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user) return;
+  if (!user) return;
 
-    const previousRows = watchedRows;
+  const previousRows = watchedRows;
 
-    try {
-      const mainEpisodes = [...episodes]
-        .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
-        .sort((a, b) => {
-          const seasonDiff =
-            Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
-          if (seasonDiff !== 0) return seasonDiff;
+  try {
+    const mainEpisodes = [...episodes]
+      .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+      .sort((a, b) => {
+        const seasonDiff =
+          Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+        if (seasonDiff !== 0) return seasonDiff;
 
-          return Number(a.number ?? 0) - Number(b.number ?? 0);
-        });
+        return Number(a.number ?? 0) - Number(b.number ?? 0);
+      });
 
-      const targetIndex = mainEpisodes.findIndex(
-        (ep) => String(ep.id) === String(targetEpisode.id)
-      );
+    const targetIndex = mainEpisodes.findIndex(
+      (ep) => String(ep.id) === String(targetEpisode.id)
+    );
 
-      if (targetIndex === -1) {
-        throw new Error("Could not find target episode in show episode list");
+    if (targetIndex === -1) return;
+
+    const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
+
+    const rowsToUpsert = episodesToMark.map((ep) => ({
+      user_id: user.id,
+      episode_id: ep.id,
+    }));
+
+    // optimistic UI
+    setWatchedRows((prev) => {
+      const next = [...(prev || [])];
+      const existing = new Set(next.map((r) => String(r.episode_id)));
+
+      for (const row of rowsToUpsert) {
+        if (!existing.has(String(row.episode_id))) {
+          next.push(row);
+          existing.add(String(row.episode_id));
+        }
       }
 
-      const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
-      if (episodesToMark.length === 0) return;
+      return next;
+    });
 
-      const rowsToUpsert = episodesToMark.map((ep) => ({
-        user_id: user.id,
-        episode_id: ep.id,
-      }));
+    // ✅ FIX: batch inserts (VERY IMPORTANT)
+    const batchSize = 100;
 
-      setWatchedRows((prev) => {
-        const next = [...(prev || [])];
-        const existingIds = new Set(
-          next
-            .map((row) => row?.episode_id)
-            .filter((value) => value != null)
-            .map((value) => String(value))
-        );
-
-        for (const row of rowsToUpsert) {
-          if (!existingIds.has(String(row.episode_id))) {
-            next.push(row);
-            existingIds.add(String(row.episode_id));
-          }
-        }
-
-        return next;
-      });
+    for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
+      const batch = rowsToUpsert.slice(i, i + batchSize);
 
       const { error } = await supabase
         .from("watched_episodes")
-        .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
+        .upsert(batch, { onConflict: "user_id,episode_id" });
 
       if (error) throw error;
-    } catch (error) {
-      console.error("Failed watch up to here:", error);
-      setWatchedRows(previousRows);
-      alert(error.message || "Failed watch up to here");
     }
+
+  } catch (error) {
+    console.error("Failed watch up to here:", error);
+    setWatchedRows(previousRows);
+    alert("Failed to save watched episodes");
   }
+}
 
   async function handleSelectBurgrRating(value) {
     const {
