@@ -19,6 +19,23 @@ function withTimeout(promise, ms, message) {
   ]);
 }
 
+async function verifyShowWasActuallySaved(tvdbId, userId) {
+  const { data, error } = await supabase
+    .from("user_shows_new")
+    .select(`
+      id,
+      shows!inner(
+        tvdb_id
+      )
+    `)
+    .eq("user_id", userId)
+    .eq("shows.tvdb_id", Number(tvdbId))
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
 
@@ -156,7 +173,6 @@ export default function Search() {
   async function handleManualSearch() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
-
     await fetchSearch({ q: trimmedQuery });
   }
 
@@ -193,15 +209,17 @@ export default function Search() {
           first_air_date: show.first_air_time || show.first_aired || null,
           status: show.status || null,
         }),
-        30000,
-        "Add show timed out. This show may be too large and needs the sync logic in userShows.js updated."
+        120000,
+        "Add show timed out while syncing data."
       );
 
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        next.add(tvdbId);
-        return next;
-      });
+      const reallySaved = await verifyShowWasActuallySaved(tvdbId, user.id);
+
+      if (!reallySaved) {
+        throw new Error(
+          "Show sync did not finish properly. It has not been added to My Shows yet."
+        );
+      }
 
       await markAlreadySaved(shows);
     } catch (err) {
