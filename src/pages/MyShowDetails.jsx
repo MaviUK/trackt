@@ -557,10 +557,24 @@ export default function MyShowDetails() {
     loadShow();
   }, [id, targetEpisodeId]);
 
-useEffect(() => {
-  if (targetEpisodeId) return;
-  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-}, [id, targetEpisodeId]);
+  useEffect(() => {
+    if (targetEpisodeId) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [id, targetEpisodeId]);
+
+  useEffect(() => {
+    if (!targetEpisodeId || loading) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`episode-${targetEpisodeId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("episode-highlight");
+      setTimeout(() => el.classList.remove("episode-highlight"), 2500);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
@@ -610,6 +624,40 @@ useEffect(() => {
     return { total, watched, pct, nextEpisode };
   }, [episodes, watchedEpisodeIds]);
 
+  useEffect(() => {
+    async function syncWatchStatus() {
+      if (!currentUserId || !show?.id) return;
+      if (show.watch_status === "not_added") return;
+      if (savingShowAction) return;
+
+      const desiredStatus = stats.watched > 0 ? "watching" : "watchlist";
+      if (show.watch_status === desiredStatus) return;
+
+      try {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .update({ watch_status: desiredStatus })
+          .eq("user_id", currentUserId)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: desiredStatus,
+              }
+            : prev
+        );
+      } catch (error) {
+        console.error("Failed syncing watch status:", error);
+      }
+    }
+
+    syncWatchStatus();
+  }, [currentUserId, show?.id, show?.watch_status, stats.watched, savingShowAction]);
+
   const burgrStats = useMemo(() => {
     const ratings = burgrRatings
       .map((r) => Number(r.rating))
@@ -628,7 +676,6 @@ useEffect(() => {
       : "";
   const sourceLanguage = show?.original_language || "";
 
-  const isInWatchlist = show?.watch_status === "watchlist";
   const isRemoved = show?.watch_status === "not_added";
 
   function toggleSeason(seasonNumber) {
@@ -650,62 +697,6 @@ useEffect(() => {
     setEpisodeRatings(fresh);
   }
 
-  async function handleToggleWatchlist() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !show?.id || savingShowAction) return;
-
-    setSavingShowAction(true);
-
-    try {
-      if (isInWatchlist) {
-        const { error } = await supabase
-          .from("user_shows_new")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("show_id", show.id);
-
-        if (error) throw error;
-
-        setShow((prev) =>
-          prev
-            ? {
-                ...prev,
-                watch_status: "not_added",
-              }
-            : prev
-        );
-      } else {
-        const { error } = await supabase.from("user_shows_new").upsert(
-          {
-            user_id: user.id,
-            show_id: show.id,
-            watch_status: "watchlist",
-          },
-          { onConflict: "user_id,show_id" }
-        );
-
-        if (error) throw error;
-
-        setShow((prev) =>
-          prev
-            ? {
-                ...prev,
-                watch_status: "watchlist",
-              }
-            : prev
-        );
-      }
-    } catch (error) {
-      console.error("Failed toggling watchlist:", error);
-      alert(error.message || "Failed updating watchlist");
-    } finally {
-      setSavingShowAction(false);
-    }
-  }
-
   async function handleToggleRemoveShow() {
     const {
       data: { user },
@@ -717,11 +708,13 @@ useEffect(() => {
 
     try {
       if (isRemoved) {
+        const restoredStatus = stats.watched > 0 ? "watching" : "watchlist";
+
         const { error } = await supabase.from("user_shows_new").upsert(
           {
             user_id: user.id,
             show_id: show.id,
-            watch_status: "watching",
+            watch_status: restoredStatus,
           },
           { onConflict: "user_id,show_id" }
         );
@@ -732,7 +725,7 @@ useEffect(() => {
           prev
             ? {
                 ...prev,
-                watch_status: "watching",
+                watch_status: restoredStatus,
               }
             : prev
         );
@@ -1018,19 +1011,6 @@ useEffect(() => {
             ) : null}
 
             <div className="msd-actions" style={{ marginTop: "12px" }}>
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleToggleWatchlist}
-                disabled={savingShowAction}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : isInWatchlist
-                  ? "Remove from Watchlist"
-                  : "Watchlist"}
-              </button>
-
               <button
                 type="button"
                 className="msd-btn msd-btn-secondary"
