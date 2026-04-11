@@ -208,7 +208,6 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
       const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
       const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
       const tvdbEpisodeId = ep.id ? Number(ep.id) : null;
-      const runtime = normalizeNumber(ep.runtime ?? ep.runtime_minutes);
 
       return {
         tvdb_id: Number.isFinite(tvdbEpisodeId) ? tvdbEpisodeId : null,
@@ -223,7 +222,7 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         name: ep.name ?? `Episode ${episodeNumber}`,
         overview: ep.overview ?? null,
         aired_date: normalizeDate(ep.aired ?? ep.aired_date ?? null),
-        runtime_minutes: runtime,
+        runtime_minutes: normalizeNumber(ep.runtime ?? ep.runtime_minutes),
         image_url: ep.image ?? ep.image_url ?? null,
         is_special: seasonNumber === 0,
         is_premiere: Boolean(ep.isPremiere ?? ep.is_premiere ?? false),
@@ -302,10 +301,7 @@ export async function saveShowToDatabase(show) {
     throw new Error("Missing show tvdb_id");
   }
 
-  const [showDetails, rawEpisodes] = await Promise.all([
-    fetchShowDetails(tvdbId),
-    fetchShowEpisodes(tvdbId),
-  ]);
+  const showDetails = await fetchShowDetails(tvdbId);
 
   const showPayload = buildShowPayload({
     ...show,
@@ -321,35 +317,45 @@ export async function saveShowToDatabase(show) {
 
   if (showError) throw showError;
 
-  const seasonRows = buildSeasonRows(savedShow.id, rawEpisodes);
+  try {
+    const rawEpisodes = await fetchShowEpisodes(tvdbId);
 
-  await upsertInBatches(
-    "seasons",
-    seasonRows,
-    "show_id,season_type,season_number",
-    100
-  );
+    const seasonRows = buildSeasonRows(savedShow.id, rawEpisodes);
 
-  const { data: savedSeasons, error: savedSeasonsError } = await supabase
-    .from("seasons")
-    .select("id, season_number")
-    .eq("show_id", savedShow.id)
-    .eq("season_type", "official");
+    await upsertInBatches(
+      "seasons",
+      seasonRows,
+      "show_id,season_type,season_number",
+      100
+    );
 
-  if (savedSeasonsError) throw savedSeasonsError;
+    const { data: savedSeasons, error: savedSeasonsError } = await supabase
+      .from("seasons")
+      .select("id, season_number")
+      .eq("show_id", savedShow.id)
+      .eq("season_type", "official");
 
-  const seasonIdByNumber = new Map(
-    (savedSeasons || []).map((season) => [season.season_number, season.id])
-  );
+    if (savedSeasonsError) throw savedSeasonsError;
 
-  const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, rawEpisodes);
+    const seasonIdByNumber = new Map(
+      (savedSeasons || []).map((season) => [season.season_number, season.id])
+    );
 
-  await upsertInBatches(
-    "episodes",
-    episodeRows,
-    "show_id,season_type,season_number,episode_number",
-    200
-  );
+    const episodeRows = buildEpisodeRows(
+      savedShow.id,
+      seasonIdByNumber,
+      rawEpisodes
+    );
+
+    await upsertInBatches(
+      "episodes",
+      episodeRows,
+      "show_id,season_type,season_number,episode_number",
+      200
+    );
+  } catch (error) {
+    console.error("Episode sync failed, but show was saved:", error);
+  }
 
   return savedShow;
 }
