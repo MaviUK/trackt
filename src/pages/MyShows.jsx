@@ -75,6 +75,36 @@ async function fetchEpisodesForShowIds(showIds) {
   return allEpisodes;
 }
 
+async function fetchAllWatchedEpisodeRows(userId) {
+  const pageSize = 1000;
+  let from = 0;
+  let done = false;
+  const allRows = [];
+
+  while (!done) {
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", userId)
+      .range(from, to);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) {
+      done = true;
+    } else {
+      from += pageSize;
+    }
+  }
+
+  return allRows;
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,18 +176,13 @@ export default function MyShows() {
         return;
       }
 
-      const [watchedResp, allEpisodes] = await Promise.all([
-        supabase
-          .from("watched_episodes")
-          .select("episode_id")
-          .eq("user_id", user.id),
+      const [watchedRows, allEpisodes] = await Promise.all([
+        fetchAllWatchedEpisodeRows(user.id),
         fetchEpisodesForShowIds(showIds),
       ]);
 
-      if (watchedResp.error) throw watchedResp.error;
-
       const watchedEpisodeIds = new Set(
-        (watchedResp.data || [])
+        (watchedRows || [])
           .map((row) => row.episode_id)
           .filter(Boolean)
           .map(String)
@@ -175,10 +200,6 @@ export default function MyShows() {
 
         const mainEpisodes = showEpisodes.filter(
           (ep) => Number(ep.season_number ?? 0) !== 0
-        );
-
-        const airedMainEpisodes = mainEpisodes.filter((ep) =>
-          isAired(ep.aired_date)
         );
 
         const futureMainEpisodes = mainEpisodes.filter(
