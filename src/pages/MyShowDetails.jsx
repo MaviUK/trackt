@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
@@ -153,7 +153,6 @@ function buildEpisodeAverageRatingsMap(rows) {
 
 export default function MyShowDetails() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const targetEpisodeId = searchParams.get("episode");
 
@@ -638,6 +637,9 @@ export default function MyShowDetails() {
       : "";
   const sourceLanguage = show?.original_language || "";
 
+  const isInWatchlist = show?.watch_status === "watchlist";
+  const isRemoved = show?.watch_status === "not_added";
+
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
       ...prev,
@@ -657,7 +659,7 @@ export default function MyShowDetails() {
     setEpisodeRatings(fresh);
   }
 
-  async function handleMoveToWatchlist() {
+  async function handleToggleWatchlist() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -667,60 +669,103 @@ export default function MyShowDetails() {
     setSavingShowAction(true);
 
     try {
-      const { error } = await supabase.from("user_shows_new").upsert(
-        {
-          user_id: user.id,
-          show_id: show.id,
-          watch_status: "watchlist",
-        },
-        { onConflict: "user_id,show_id" }
-      );
+      if (isInWatchlist) {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("show_id", show.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setShow((prev) =>
-        prev
-          ? {
-              ...prev,
-              watch_status: "watchlist",
-            }
-          : prev
-      );
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "not_added",
+              }
+            : prev
+        );
+      } else {
+        const { error } = await supabase.from("user_shows_new").upsert(
+          {
+            user_id: user.id,
+            show_id: show.id,
+            watch_status: "watchlist",
+          },
+          { onConflict: "user_id,show_id" }
+        );
 
-      alert("Show moved to your watchlist.");
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "watchlist",
+              }
+            : prev
+        );
+      }
     } catch (error) {
-      console.error("Failed moving show to watchlist:", error);
-      alert(error.message || "Failed moving show to watchlist");
+      console.error("Failed toggling watchlist:", error);
+      alert(error.message || "Failed updating watchlist");
     } finally {
       setSavingShowAction(false);
     }
   }
 
-  async function handleRemoveShow() {
+  async function handleToggleRemoveShow() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user || !show?.id || savingShowAction) return;
 
-    const confirmed = window.confirm("Remove this show from My Shows?");
-    if (!confirmed) return;
-
     setSavingShowAction(true);
 
     try {
-      const { error } = await supabase
-        .from("user_shows_new")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("show_id", show.id);
+      if (isRemoved) {
+        const { error } = await supabase.from("user_shows_new").upsert(
+          {
+            user_id: user.id,
+            show_id: show.id,
+            watch_status: "watching",
+          },
+          { onConflict: "user_id,show_id" }
+        );
 
-      if (error) throw error;
+        if (error) throw error;
 
-      navigate("/my-shows");
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "watching",
+              }
+            : prev
+        );
+      } else {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "not_added",
+              }
+            : prev
+        );
+      }
     } catch (error) {
-      console.error("Failed removing show:", error);
-      alert(error.message || "Failed removing show");
+      console.error("Failed toggling remove show:", error);
+      alert(error.message || "Failed updating show");
     } finally {
       setSavingShowAction(false);
     }
@@ -972,13 +1017,43 @@ export default function MyShowDetails() {
         </Link>
 
         <section className="msd-hero">
-          {show.poster_url ? (
-            <img
-              src={show.poster_url}
-              alt={show.show_name}
-              className="msd-poster"
-            />
-          ) : null}
+          <div>
+            {show.poster_url ? (
+              <img
+                src={show.poster_url}
+                alt={show.show_name}
+                className="msd-poster"
+              />
+            ) : null}
+
+            <div className="msd-actions" style={{ marginTop: "12px" }}>
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleWatchlist}
+                disabled={savingShowAction}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isInWatchlist
+                  ? "Remove from Watchlist"
+                  : "Watchlist"}
+              </button>
+
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleRemoveShow}
+                disabled={savingShowAction}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isRemoved
+                  ? "Add Show"
+                  : "Remove Show"}
+              </button>
+            </div>
+          </div>
 
           <div className="msd-hero-main">
             <h1 className="msd-title">{show.show_name}</h1>
@@ -1023,30 +1098,6 @@ export default function MyShowDetails() {
                 <span className="msd-stat-label">Progress</span>
                 <strong className="msd-stat-value">{stats.pct}%</strong>
               </div>
-            </div>
-
-            <div className="msd-actions" style={{ marginBottom: "12px" }}>
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleMoveToWatchlist}
-                disabled={savingShowAction}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : show.watch_status === "watchlist"
-                  ? "In Watchlist"
-                  : "Move to Watchlist"}
-              </button>
-
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleRemoveShow}
-                disabled={savingShowAction}
-              >
-                Remove from My Shows
-              </button>
             </div>
 
             <div className="msd-stat-box msd-stat-box-full">
