@@ -127,6 +127,7 @@ export default function MyShows() {
   const [loading, setLoading] = useState(true);
   const [filterBy, setFilterBy] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [removingShowId, setRemovingShowId] = useState(null);
 
   async function loadShows() {
     try {
@@ -302,32 +303,70 @@ export default function MyShows() {
     loadShows();
   }, []);
 
-const filteredShows = useMemo(() => {
-  const normalizedSearch = searchTerm.trim().toLowerCase();
+  async function handleRemoveShow(event, show) {
+    event.preventDefault();
+    event.stopPropagation();
 
-  return shows.filter((show) => {
-    const matchesFilter =
-      filterBy === "all"
-        ? true
-        : filterBy === "watchlist"
-        ? show.isWatchlist
-        : filterBy === "inprogress"
-        ? show.isInProgress
-        : filterBy === "completed"
-        ? show.isCompleted
-        : filterBy === "archived"
-        ? show.isArchived
-        : filterBy === "airing"
-        ? show.isAiringSoon
-        : true;
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (!matchesFilter) return false;
+    if (userError) {
+      alert(userError.message || "Failed removing show");
+      return;
+    }
 
-    if (!normalizedSearch) return true;
+    if (!user || !show?.show_id) return;
 
-    return (show.show_name || "").toLowerCase().includes(normalizedSearch);
-  });
-}, [shows, filterBy, searchTerm]);
+    setRemovingShowId(show.show_id);
+
+    try {
+      const { error } = await supabase
+        .from("user_shows_new")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("show_id", show.show_id);
+
+      if (error) throw error;
+
+      setShows((prev) =>
+        prev.filter((item) => String(item.show_id) !== String(show.show_id))
+      );
+    } catch (error) {
+      console.error("Failed removing show from My Shows:", error);
+      alert(error.message || "Failed removing show");
+    } finally {
+      setRemovingShowId(null);
+    }
+  }
+
+  const filteredShows = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return shows.filter((show) => {
+      const matchesFilter =
+        filterBy === "all"
+          ? true
+          : filterBy === "watchlist"
+          ? show.isWatchlist
+          : filterBy === "inprogress"
+          ? show.isInProgress
+          : filterBy === "completed"
+          ? show.isCompleted
+          : filterBy === "archived"
+          ? show.isArchived
+          : filterBy === "airing"
+          ? show.isAiringSoon
+          : true;
+
+      if (!matchesFilter) return false;
+
+      if (!normalizedSearch) return true;
+
+      return (show.show_name || "").toLowerCase().includes(normalizedSearch);
+    });
+  }, [shows, filterBy, searchTerm]);
 
   const displayedShows = useMemo(() => {
     return [...filteredShows].sort((a, b) =>
@@ -335,17 +374,17 @@ const filteredShows = useMemo(() => {
     );
   }, [filteredShows]);
 
-const counts = useMemo(
-  () => ({
-    all: shows.length,
-    watchlist: shows.filter((show) => show.isWatchlist).length,
-    inprogress: shows.filter((show) => show.isInProgress).length,
-    completed: shows.filter((show) => show.isCompleted).length,
-    archived: shows.filter((show) => show.isArchived).length,
-    airing: shows.filter((show) => show.isAiringSoon).length,
-  }),
-  [shows]
-);
+  const counts = useMemo(
+    () => ({
+      all: shows.length,
+      watchlist: shows.filter((show) => show.isWatchlist).length,
+      inprogress: shows.filter((show) => show.isInProgress).length,
+      completed: shows.filter((show) => show.isCompleted).length,
+      archived: shows.filter((show) => show.isArchived).length,
+      airing: shows.filter((show) => show.isAiringSoon).length,
+    }),
+    [shows]
+  );
 
   if (loading) {
     return (
@@ -374,13 +413,13 @@ const counts = useMemo(
         }}
       >
         {[
-  ["all", `All (${counts.all})`],
-  ["watchlist", `Watchlist (${counts.watchlist})`],
-  ["inprogress", `In Progress (${counts.inprogress})`],
-  ["completed", `Completed (${counts.completed})`],
-  ["archived", `Archived (${counts.archived})`],
-  ["airing", `Airing (${counts.airing})`],
-].map(([value, label]) => (
+          ["all", `All (${counts.all})`],
+          ["watchlist", `Watchlist (${counts.watchlist})`],
+          ["inprogress", `In Progress (${counts.inprogress})`],
+          ["completed", `Completed (${counts.completed})`],
+          ["archived", `Archived (${counts.archived})`],
+          ["airing", `Airing (${counts.airing})`],
+        ].map(([value, label]) => (
           <button
             key={value}
             className="msd-btn msd-btn-secondary"
@@ -507,6 +546,16 @@ const counts = useMemo(
                       : `Airing: ${show.nextEpisodeDate}`}
                   </div>
                 ) : null}
+
+                <button
+                  type="button"
+                  className="msd-btn msd-btn-secondary"
+                  onClick={(e) => handleRemoveShow(e, show)}
+                  disabled={removingShowId === show.show_id}
+                  style={{ width: "100%", marginTop: 10 }}
+                >
+                  {removingShowId === show.show_id ? "Removing..." : "Remove"}
+                </button>
               </div>
             </Link>
           ))}
