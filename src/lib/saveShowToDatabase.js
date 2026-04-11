@@ -66,6 +66,40 @@ function normalizeGenres(genresValue) {
     .filter(Boolean);
 }
 
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
+  if (!rows.length) return;
+
+  const chunks = chunkArray(rows, batchSize);
+
+  for (const chunk of chunks) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(chunk, { onConflict });
+
+    if (error) throw error;
+  }
+}
+
+function dedupeByKey(rows, getKey) {
+  const map = new Map();
+
+  for (const row of rows) {
+    const key = getKey(row);
+    if (!key) continue;
+    map.set(key, row);
+  }
+
+  return [...map.values()];
+}
+
 function buildShowPayload(showDetails) {
   const tvdbId = Number(showDetails.tvdb_id || showDetails.id);
   if (!tvdbId) {
@@ -108,7 +142,10 @@ function buildShowPayload(showDetails) {
     relationship_types: normalizeTextArray(showDetails.relationship_types),
     settings: normalizeTextArray(showDetails.settings),
     poster_url:
-      showDetails.poster_url ?? showDetails.image_url ?? showDetails.image ?? null,
+      showDetails.poster_url ??
+      showDetails.image_url ??
+      showDetails.image ??
+      null,
     backdrop_url: showDetails.backdrop_url ?? showDetails.backdrop ?? null,
     banner_url: showDetails.banner_url ?? showDetails.banner ?? null,
     external_ids: showDetails.external_ids ?? {},
@@ -161,7 +198,7 @@ function buildSeasonRows(showId, episodes) {
 }
 
 function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
-  return episodes
+  const rows = episodes
     .filter((ep) => {
       const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
       const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
@@ -180,7 +217,9 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         season_type: "official",
         season_number: seasonNumber,
         episode_number: episodeNumber,
-        absolute_number: normalizeNumber(ep.absoluteNumber ?? ep.absolute_number),
+        absolute_number: normalizeNumber(
+          ep.absoluteNumber ?? ep.absolute_number
+        ),
         name: ep.name ?? `Episode ${episodeNumber}`,
         overview: ep.overview ?? null,
         aired_date: normalizeDate(ep.aired ?? ep.aired_date ?? null),
@@ -194,28 +233,66 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         last_synced_at: new Date().toISOString(),
       };
     });
+
+  return dedupeByKey(
+    rows,
+    (row) =>
+      `${row.show_id}|${row.season_type}|${row.season_number}|${row.episode_number}`
+  );
+}
+
+async function fetchJsonWithTimeout(url, timeoutMs = 45000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data?.message || `Request failed: ${res.status}`);
+    }
+
+    return data;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function fetchShowDetails(tvdbId) {
-  const res = await fetch(`/.netlify/functions/getShowDetails?tvdb_id=${encodeURIComponent(tvdbId)}`);
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Failed to fetch show details");
-  }
-
-  return data;
+  return fetchJsonWithTimeout(
+    `/.netlify/functions/getShowDetails?tvdb_id=${encodeURIComponent(tvdbId)}`
+  );
 }
 
 async function fetchShowEpisodes(tvdbId) {
-  const res = await fetch(`/.netlify/functions/getShowEpisodes?tvdb_id=${encodeURIComponent(tvdbId)}`);
-  const data = await res.json();
+  const data = await fetchJsonWithTimeout(
+    `/.netlify/functions/getShowEpisodes?tvdb_id=${encodeURIComponent(tvdbId)}`,
+    90000
+  );
 
-  if (!res.ok) {
-    throw new Error(data?.message || "Failed to fetch show episodes");
-  }
+  const episodes = Array.isArray(data) ? data : data?.episodes ?? [];
 
-  return Array.isArray(data) ? data : data?.episodes ?? [];
+  return dedupeByKey(
+    episodes,
+    (ep) => {
+      const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
+      const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
+      if (episodeNumber <= 0 || seasonNumber < 0) return null;
+      return `${seasonNumber}|${episodeNumber}`;
+    }
+  ).sort((a, b) => {
+    const seasonDiff =
+      Number(a.seasonNumber ?? a.season_number ?? 0) -
+      Number(b.seasonNumber ?? b.season_number ?? 0);
+
+    if (seasonDiff !== 0) return seasonDiff;
+
+    return (
+      Number(a.number ?? a.episode_number ?? 0) -
+      Number(b.number ?? b.episode_number ?? 0)
+    );
+  });
 }
 
 export async function saveShowToDatabase(show) {
@@ -230,7 +307,11 @@ export async function saveShowToDatabase(show) {
     fetchShowEpisodes(tvdbId),
   ]);
 
-  const showPayload = buildShowPayload({ ...show, ...showDetails, tvdb_id: tvdbId });
+  const showPayload = buildShowPayload({
+    ...show,
+    ...showDetails,
+    tvdb_id: tvdbId,
+  });
 
   const { data: savedShow, error: showError } = await supabase
     .from("shows")
@@ -242,15 +323,12 @@ export async function saveShowToDatabase(show) {
 
   const seasonRows = buildSeasonRows(savedShow.id, rawEpisodes);
 
-  if (seasonRows.length > 0) {
-    const { error: seasonsError } = await supabase
-      .from("seasons")
-      .upsert(seasonRows, {
-        onConflict: "show_id,season_type,season_number",
-      });
-
-    if (seasonsError) throw seasonsError;
-  }
+  await upsertInBatches(
+    "seasons",
+    seasonRows,
+    "show_id,season_type,season_number",
+    100
+  );
 
   const { data: savedSeasons, error: savedSeasonsError } = await supabase
     .from("seasons")
@@ -266,15 +344,12 @@ export async function saveShowToDatabase(show) {
 
   const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, rawEpisodes);
 
-  if (episodeRows.length > 0) {
-    const { error: episodesError } = await supabase
-      .from("episodes")
-      .upsert(episodeRows, {
-        onConflict: "show_id,season_type,season_number,episode_number",
-      });
-
-    if (episodesError) throw episodesError;
-  }
+  await upsertInBatches(
+    "episodes",
+    episodeRows,
+    "show_id,season_type,season_number,episode_number",
+    200
+  );
 
   return savedShow;
 }
