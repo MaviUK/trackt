@@ -202,345 +202,391 @@ export default function MyShowDetails() {
     [episodeRatings]
   );
 
-  useEffect(() => {
-    async function loadShow() {
-      setLoading(true);
-      setExtrasLoading(false);
+useEffect(() => {
+  let isCancelled = false;
 
+  async function loadShowOnce() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      if (isCancelled) return { found: true };
+      setCurrentUserId(null);
+      setShow(null);
+      setEpisodes([]);
+      setWatchedRows([]);
+      setExpandedSeasons({});
+      setCast([]);
+      setRecommendedShows([]);
+      setPeopleAlsoWatch([]);
+      setSavedShowTvdbIds(new Set());
+      setBurgrRatings([]);
+      setMyBurgrRating("");
+      setEpisodeRatings([]);
+      setSavingEpisodeRatingId(null);
+      setHoverEpisodeRatings({});
+      setOpenEpisodeRatingPickerId(null);
+      return { found: true };
+    }
+
+    if (isCancelled) return { found: true };
+    setCurrentUserId(user.id);
+
+    const tvdbId = Number(id);
+    if (Number.isNaN(tvdbId)) {
+      if (isCancelled) return { found: true };
+      setShow(null);
+      setEpisodes([]);
+      setWatchedRows([]);
+      return { found: false };
+    }
+
+    let userShowRow = null;
+    let showRecord = null;
+
+    const { data: userShowData } = await supabase
+      .from("user_shows_new")
+      .select(`
+        id,
+        user_id,
+        show_id,
+        watch_status,
+        archived_at,
+        added_at,
+        created_at,
+        shows!inner(
+          id,
+          tvdb_id,
+          name,
+          overview,
+          status,
+          poster_url,
+          first_aired,
+          network,
+          genres,
+          original_language,
+          relationship_types,
+          settings,
+          rating_average,
+          rating_count
+        )
+      `)
+      .eq("user_id", user.id)
+      .eq("shows.tvdb_id", tvdbId)
+      .maybeSingle();
+
+    if (userShowData?.shows) {
+      userShowRow = userShowData;
+      showRecord = userShowData.shows;
+    } else {
+      const { data: showData, error: showError } = await supabase
+        .from("shows")
+        .select(`
+          id,
+          tvdb_id,
+          name,
+          overview,
+          status,
+          poster_url,
+          first_aired,
+          network,
+          genres,
+          original_language,
+          relationship_types,
+          settings,
+          rating_average,
+          rating_count
+        `)
+        .eq("tvdb_id", tvdbId)
+        .maybeSingle();
+
+      if (showError) throw showError;
+      if (!showData) {
+        if (isCancelled) return { found: false };
+        return { found: false };
+      }
+
+      showRecord = showData;
+    }
+
+    const showId = showRecord.id;
+
+    const { data: savedShowsData } = await supabase
+      .from("user_shows_new")
+      .select(`shows!inner(tvdb_id)`)
+      .eq("user_id", user.id);
+
+    const savedTvdbIds = new Set(
+      (savedShowsData || [])
+        .map((row) => row?.shows?.tvdb_id)
+        .filter(Boolean)
+        .map(String)
+    );
+
+    const [episodeRes, burgrRows] = await Promise.all([
+      supabase
+        .from("episodes")
+        .select(`
+          id,
+          tvdb_id,
+          show_id,
+          season_number,
+          episode_number,
+          episode_code,
+          name,
+          overview,
+          aired_date,
+          image_url
+        `)
+        .eq("show_id", showId)
+        .order("season_number", { ascending: true })
+        .order("episode_number", { ascending: true }),
+      fetchBurgrRatings(showId),
+    ]);
+
+    const { data: episodeRows, error: episodeError } = episodeRes;
+    if (episodeError) throw episodeError;
+
+    const normalizedEpisodes = (episodeRows || []).map((row) => ({
+      id: row.id,
+      tvdb_episode_id: row.tvdb_id,
+      seasonNumber: row.season_number,
+      number: row.episode_number,
+      aired: row.aired_date,
+      airDate: row.aired_date,
+      name: row.name || "Untitled episode",
+      overview: row.overview || "",
+      image: row.image_url || null,
+      episode_code: row.episode_code,
+    }));
+
+    const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+    const watchedRowsData = await fetchWatchedRowsForShow(user.id, episodeIds);
+    const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
+
+    const seasonMap = {};
+    normalizedEpisodes.forEach((ep) => {
+      const seasonKey = Number(ep.seasonNumber ?? 0);
+      if (seasonKey === 0) return;
+      if (!(seasonKey in seasonMap)) seasonMap[seasonKey] = false;
+    });
+
+    if (targetEpisodeId) {
+      const targetEpisode = normalizedEpisodes.find(
+        (ep) => String(ep.id) === String(targetEpisodeId)
+      );
+      if (targetEpisode) {
+        seasonMap[Number(targetEpisode.seasonNumber ?? 0)] = true;
+      }
+    }
+
+    const mine = (burgrRows || []).find((row) => row.user_id === user.id);
+
+    if (isCancelled) return { found: true };
+
+    setSavedShowTvdbIds(savedTvdbIds);
+    setShow({
+      id: showRecord.id,
+      tvdb_id: showRecord.tvdb_id,
+      show_name: showRecord.name || "Unknown title",
+      overview: showRecord.overview || "",
+      poster_url: showRecord.poster_url || null,
+      first_aired: showRecord.first_aired || null,
+      status: showRecord.status || null,
+      network: showRecord.network || "",
+      original_language: showRecord.original_language || "",
+      genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
+      relationship_types: Array.isArray(showRecord.relationship_types)
+        ? showRecord.relationship_types
+        : [],
+      settings: Array.isArray(showRecord.settings)
+        ? showRecord.settings
+        : [],
+      rating_average:
+        showRecord.rating_average != null
+          ? Number(showRecord.rating_average)
+          : null,
+      rating_count:
+        showRecord.rating_count != null
+          ? Number(showRecord.rating_count)
+          : null,
+      watch_status: userShowRow?.watch_status || "not_added",
+      archived_at: userShowRow?.archived_at || null,
+      added_at: userShowRow?.added_at || null,
+      created_at: userShowRow?.created_at || null,
+    });
+
+    setEpisodes(normalizedEpisodes);
+    setWatchedRows(watchedRowsData || []);
+    setExpandedSeasons(seasonMap);
+    setBurgrRatings(burgrRows || []);
+    setMyBurgrRating(mine ? String(mine.rating) : "");
+    setEpisodeRatings(episodeRatingRows || []);
+    setSavingEpisodeRatingId(null);
+    setHoverEpisodeRatings({});
+    setOpenEpisodeRatingPickerId(null);
+
+    setCast([]);
+    setRecommendedShows([]);
+    setPeopleAlsoWatch([]);
+
+    try {
+      setExtrasLoading(true);
+
+      const extrasRes = await fetch(
+        `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
+      );
+      if (!extrasRes.ok) {
+        throw new Error(`Failed to load show extras (${extrasRes.status})`);
+      }
+
+      const extras = await extrasRes.json();
+
+      const castRows = Array.isArray(extras.cast) ? extras.cast : [];
+      const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
+        ? extras.peopleAlsoWatch
+        : [];
+      const fallbackRecommendations = Array.isArray(extras.recommendations)
+        ? extras.recommendations
+        : [];
+
+      const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
+        (item) =>
+          normalizeMappedShow({
+            ...item,
+            source: "tvdb",
+            tvdb_id:
+              item?.tvdb_id ??
+              item?.tvdbId ??
+              item?.show_id ??
+              item?.id ??
+              null,
+            name:
+              item?.name ||
+              item?.title ||
+              item?.show_name ||
+              "Unknown show",
+            first_air_date:
+              item?.first_air_date ||
+              item?.firstAired ||
+              item?.first_aired ||
+              "",
+            poster_url:
+              item?.poster_url ||
+              item?.posterUrl ||
+              item?.image_url ||
+              item?.image ||
+              item?.poster ||
+              "",
+          })
+      );
+
+      let mappedFallbackRecommendations = [];
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          setCurrentUserId(null);
-          setShow(null);
-          setEpisodes([]);
-          setWatchedRows([]);
-          setExpandedSeasons({});
-          setCast([]);
-          setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-          setSavedShowTvdbIds(new Set());
-          setBurgrRatings([]);
-          setMyBurgrRating("");
-          setEpisodeRatings([]);
-          setSavingEpisodeRatingId(null);
-          setHoverEpisodeRatings({});
-          setOpenEpisodeRatingPickerId(null);
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        const tvdbId = Number(id);
-        if (Number.isNaN(tvdbId)) {
-          setShow(null);
-          setEpisodes([]);
-          setWatchedRows([]);
-          return;
-        }
-
-        let userShowRow = null;
-        let showRecord = null;
-
-        const { data: userShowData } = await supabase
-          .from("user_shows_new")
-          .select(`
-            id,
-            user_id,
-            show_id,
-            watch_status,
-            archived_at,
-            added_at,
-            created_at,
-            shows!inner(
-              id,
-              tvdb_id,
-              name,
-              overview,
-              status,
-              poster_url,
-              first_aired,
-              network,
-              genres,
-              original_language,
-              relationship_types,
-              settings,
-              rating_average,
-              rating_count
-            )
-          `)
-          .eq("user_id", user.id)
-          .eq("shows.tvdb_id", tvdbId)
-          .maybeSingle();
-
-        if (userShowData?.shows) {
-          userShowRow = userShowData;
-          showRecord = userShowData.shows;
-        } else {
-          const { data: showData, error: showError } = await supabase
-            .from("shows")
-            .select(`
-              id,
-              tvdb_id,
-              name,
-              overview,
-              status,
-              poster_url,
-              first_aired,
-              network,
-              genres,
-              original_language,
-              relationship_types,
-              settings,
-              rating_average,
-              rating_count
-            `)
-            .eq("tvdb_id", tvdbId)
-            .maybeSingle();
-
-          if (showError) throw showError;
-          if (!showData) {
-            setShow(null);
-            setEpisodes([]);
-            setWatchedRows([]);
-            return;
-          }
-
-          showRecord = showData;
-        }
-
-        const showId = showRecord.id;
-
-        const { data: savedShowsData } = await supabase
-          .from("user_shows_new")
-          .select(`shows!inner(tvdb_id)`)
-          .eq("user_id", user.id);
-
-        const savedTvdbIds = new Set(
-          (savedShowsData || [])
-            .map((row) => row?.shows?.tvdb_id)
-            .filter(Boolean)
-            .map(String)
+        mappedFallbackRecommendations =
+          await enrichTmdbShowsWithMappings(fallbackRecommendations);
+      } catch (mappingError) {
+        console.error(
+          "Failed mapping fallback recommendations:",
+          mappingError
         );
+        mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
+          normalizeMappedShow({
+            ...item,
+            source: "tmdb",
+            poster_url:
+              item?.poster_url ||
+              item?.posterUrl ||
+              item?.image_url ||
+              item?.image ||
+              (item?.poster_path
+                ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                : ""),
+            poster_path: item?.poster_path || null,
+          })
+        );
+      }
 
-        const [episodeRes, burgrRows] = await Promise.all([
-          supabase
-            .from("episodes")
-            .select(`
-              id,
-              tvdb_id,
-              show_id,
-              season_number,
-              episode_number,
-              episode_code,
-              name,
-              overview,
-              aired_date,
-              image_url
-            `)
-            .eq("show_id", showId)
-            .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true }),
-          fetchBurgrRatings(showId),
-        ]);
-
-        const { data: episodeRows, error: episodeError } = episodeRes;
-        if (episodeError) throw episodeError;
-
-        const normalizedEpisodes = (episodeRows || []).map((row) => ({
-          id: row.id,
-          tvdb_episode_id: row.tvdb_id,
-          seasonNumber: row.season_number,
-          number: row.episode_number,
-          aired: row.aired_date,
-          airDate: row.aired_date,
-          name: row.name || "Untitled episode",
-          overview: row.overview || "",
-          image: row.image_url || null,
-          episode_code: row.episode_code,
-        }));
-
-        const episodeIds = normalizedEpisodes.map((ep) => ep.id);
-        const watchedRowsData = await fetchWatchedRowsForShow(user.id, episodeIds);
-        const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
-
-        const seasonMap = {};
-        normalizedEpisodes.forEach((ep) => {
-          const seasonKey = Number(ep.seasonNumber ?? 0);
-          if (seasonKey === 0) return;
-          if (!(seasonKey in seasonMap)) seasonMap[seasonKey] = false;
+      const filteredTvdbPeopleAlsoWatch =
+        normalizedTvdbPeopleAlsoWatch.filter((item) => {
+          const recTvdbId =
+            item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+          if (!recTvdbId) return true;
+          return !savedTvdbIds.has(String(recTvdbId));
         });
 
-        if (targetEpisodeId) {
-          const targetEpisode = normalizedEpisodes.find(
-            (ep) => String(ep.id) === String(targetEpisodeId)
-          );
-          if (targetEpisode) {
-            seasonMap[Number(targetEpisode.seasonNumber ?? 0)] = true;
-          }
-        }
-
-        const mine = (burgrRows || []).find((row) => row.user_id === user.id);
-
-        setSavedShowTvdbIds(savedTvdbIds);
-        setShow({
-          id: showRecord.id,
-          tvdb_id: showRecord.tvdb_id,
-          show_name: showRecord.name || "Unknown title",
-          overview: showRecord.overview || "",
-          poster_url: showRecord.poster_url || null,
-          first_aired: showRecord.first_aired || null,
-          status: showRecord.status || null,
-          network: showRecord.network || "",
-          original_language: showRecord.original_language || "",
-          genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
-          relationship_types: Array.isArray(showRecord.relationship_types)
-            ? showRecord.relationship_types
-            : [],
-          settings: Array.isArray(showRecord.settings)
-            ? showRecord.settings
-            : [],
-          rating_average:
-            showRecord.rating_average != null
-              ? Number(showRecord.rating_average)
-              : null,
-          rating_count:
-            showRecord.rating_count != null
-              ? Number(showRecord.rating_count)
-              : null,
-          watch_status: userShowRow?.watch_status || "not_added",
-          archived_at: userShowRow?.archived_at || null,
-          added_at: userShowRow?.added_at || null,
-          created_at: userShowRow?.created_at || null,
+      const filteredFallbackRecommendations =
+        mappedFallbackRecommendations.filter((item) => {
+          const recTvdbId =
+            item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+          if (!recTvdbId) return true;
+          return !savedTvdbIds.has(String(recTvdbId));
         });
 
-        setEpisodes(normalizedEpisodes);
-        setWatchedRows(watchedRowsData || []);
-        setExpandedSeasons(seasonMap);
-        setBurgrRatings(burgrRows || []);
-        setMyBurgrRating(mine ? String(mine.rating) : "");
-        setEpisodeRatings(episodeRatingRows || []);
-        setSavingEpisodeRatingId(null);
-        setHoverEpisodeRatings({});
-        setOpenEpisodeRatingPickerId(null);
-
+      if (!isCancelled) {
+        setCast(castRows);
+        setPeopleAlsoWatch(filteredTvdbPeopleAlsoWatch);
+        setRecommendedShows(
+          filteredTvdbPeopleAlsoWatch.length > 0
+            ? filteredTvdbPeopleAlsoWatch
+            : filteredFallbackRecommendations
+        );
+      }
+    } catch (extrasError) {
+      console.error("Failed loading TVDB extras:", extrasError);
+      if (!isCancelled) {
         setCast([]);
         setRecommendedShows([]);
         setPeopleAlsoWatch([]);
+      }
+    } finally {
+      if (!isCancelled) {
+        setExtrasLoading(false);
+      }
+    }
 
-        try {
-          setExtrasLoading(true);
+    return { found: true };
+  }
 
-          const extrasRes = await fetch(
-            `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
-          );
-          if (!extrasRes.ok) {
-            throw new Error(`Failed to load show extras (${extrasRes.status})`);
-          }
+  async function loadShowWithRetry() {
+    setLoading(true);
+    setExtrasLoading(false);
 
-          const extras = await extrasRes.json();
+    try {
+      const maxAttempts = 6;
 
-          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
-          const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
-            ? extras.peopleAlsoWatch
-            : [];
-          const fallbackRecommendations = Array.isArray(extras.recommendations)
-            ? extras.recommendations
-            : [];
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const result = await loadShowOnce();
 
-          const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
-            (item) =>
-              normalizeMappedShow({
-                ...item,
-                source: "tvdb",
-                tvdb_id:
-                  item?.tvdb_id ??
-                  item?.tvdbId ??
-                  item?.show_id ??
-                  item?.id ??
-                  null,
-                name:
-                  item?.name ||
-                  item?.title ||
-                  item?.show_name ||
-                  "Unknown show",
-                first_air_date:
-                  item?.first_air_date ||
-                  item?.firstAired ||
-                  item?.first_aired ||
-                  "",
-                poster_url:
-                  item?.poster_url ||
-                  item?.posterUrl ||
-                  item?.image_url ||
-                  item?.image ||
-                  item?.poster ||
-                  "",
-              })
-          );
-
-          let mappedFallbackRecommendations = [];
-          try {
-            mappedFallbackRecommendations =
-              await enrichTmdbShowsWithMappings(fallbackRecommendations);
-          } catch (mappingError) {
-            console.error(
-              "Failed mapping fallback recommendations:",
-              mappingError
-            );
-            mappedFallbackRecommendations = fallbackRecommendations.map(
-              (item) =>
-                normalizeMappedShow({
-                  ...item,
-                  source: "tmdb",
-                  poster_url:
-                    item?.poster_url ||
-                    item?.posterUrl ||
-                    item?.image_url ||
-                    item?.image ||
-                    (item?.poster_path
-                      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-                      : ""),
-                  poster_path: item?.poster_path || null,
-                })
-            );
-          }
-
-          const filteredTvdbPeopleAlsoWatch =
-            normalizedTvdbPeopleAlsoWatch.filter((item) => {
-              const recTvdbId =
-                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-              if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
-            });
-
-          const filteredFallbackRecommendations =
-            mappedFallbackRecommendations.filter((item) => {
-              const recTvdbId =
-                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-              if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
-            });
-
-          setCast(castRows);
-          setPeopleAlsoWatch(filteredTvdbPeopleAlsoWatch);
-          setRecommendedShows(
-            filteredTvdbPeopleAlsoWatch.length > 0
-              ? filteredTvdbPeopleAlsoWatch
-              : filteredFallbackRecommendations
-          );
-        } catch (extrasError) {
-          console.error("Failed loading TVDB extras:", extrasError);
-          setCast([]);
-          setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-        } finally {
-          setExtrasLoading(false);
+        if (result?.found) {
+          return;
         }
-      } catch (error) {
-        console.error("Failed loading show:", error);
+
+        if (attempt < maxAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!isCancelled) {
+        setShow(null);
+        setEpisodes([]);
+        setWatchedRows([]);
+        setExpandedSeasons({});
+        setCast([]);
+        setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
+        setSavedShowTvdbIds(new Set());
+        setBurgrRatings([]);
+        setMyBurgrRating("");
+        setEpisodeRatings([]);
+        setSavingEpisodeRatingId(null);
+        setHoverEpisodeRatings({});
+        setOpenEpisodeRatingPickerId(null);
+      }
+    } catch (error) {
+      console.error("Failed loading show:", error);
+      if (!isCancelled) {
         setCurrentUserId(null);
         setShow(null);
         setEpisodes([]);
@@ -556,13 +602,20 @@ export default function MyShowDetails() {
         setSavingEpisodeRatingId(null);
         setHoverEpisodeRatings({});
         setOpenEpisodeRatingPickerId(null);
-      } finally {
+      }
+    } finally {
+      if (!isCancelled) {
         setLoading(false);
       }
     }
+  }
 
-    loadShow();
-  }, [id, targetEpisodeId]);
+  loadShowWithRetry();
+
+  return () => {
+    isCancelled = true;
+  };
+}, [id, targetEpisodeId]);
 
   useEffect(() => {
     if (targetEpisodeId) return;
