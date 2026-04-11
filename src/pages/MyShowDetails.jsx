@@ -557,19 +557,10 @@ export default function MyShowDetails() {
     loadShow();
   }, [id, targetEpisodeId]);
 
-  useEffect(() => {
-    if (!targetEpisodeId || loading) return;
-
-    const timer = setTimeout(() => {
-      const el = document.getElementById(`episode-${targetEpisodeId}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("episode-highlight");
-      setTimeout(() => el.classList.remove("episode-highlight"), 2500);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
+useEffect(() => {
+  if (targetEpisodeId) return;
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}, [id, targetEpisodeId]);
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
