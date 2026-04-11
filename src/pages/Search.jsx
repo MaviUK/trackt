@@ -4,6 +4,21 @@ import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { addShowToUserList } from "../lib/userShows";
 
+function withTimeout(promise, ms, message) {
+  let timerId;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = setTimeout(() => {
+      reject(new Error(message));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.finally(() => clearTimeout(timerId)),
+    timeoutPromise,
+  ]);
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
 
@@ -91,7 +106,6 @@ export default function Search() {
         throw new Error(data?.message || "Search failed");
       }
 
-      // ✅ FILTER OUT TMDB RESULTS
       const results = (Array.isArray(data) ? data : []).filter(
         (show) => !!show.tvdb_id
       );
@@ -160,24 +174,36 @@ export default function Search() {
     }
 
     const tvdbId = String(show.tvdb_id);
+
+    if (!tvdbId) {
+      setError("This show is missing a TVDB id and cannot be added.");
+      return;
+    }
+
     setAddingId(tvdbId);
     setError("");
 
     try {
-      await addShowToUserList({
-        tvdb_id: Number(show.tvdb_id),
-        name: show.name || show.show_name || "Unknown Show",
-        poster_url: show.image_url || show.poster_url || null,
-        overview: show.overview || null,
-        first_air_date: show.first_air_time || show.first_aired || null,
-        status: show.status || null,
-      });
+      await withTimeout(
+        addShowToUserList({
+          tvdb_id: Number(show.tvdb_id),
+          name: show.name || show.show_name || "Unknown Show",
+          poster_url: show.image_url || show.poster_url || null,
+          overview: show.overview || null,
+          first_air_date: show.first_air_time || show.first_aired || null,
+          status: show.status || null,
+        }),
+        30000,
+        "Add show timed out. This show may be too large and needs the sync logic in userShows.js updated."
+      );
 
       setSavedIds((prev) => {
         const next = new Set(prev);
         next.add(tvdbId);
         return next;
       });
+
+      await markAlreadySaved(shows);
     } catch (err) {
       console.error("Failed to add show:", err);
       setError(err.message || "Failed to add show.");
@@ -259,7 +285,13 @@ export default function Search() {
 
             return (
               <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "88px 1fr", gap: "14px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "88px 1fr",
+                    gap: "14px",
+                  }}
+                >
                   <div>
                     <Link to={detailHref}>
                       {poster ? (
@@ -274,7 +306,14 @@ export default function Search() {
                           }}
                         />
                       ) : (
-                        <div style={{ width: "88px", height: "128px", background: "#111827" }} />
+                        <div
+                          style={{
+                            width: "88px",
+                            height: "128px",
+                            background: "#111827",
+                            borderRadius: "12px",
+                          }}
+                        />
                       )}
                     </Link>
 
@@ -291,7 +330,10 @@ export default function Search() {
                   </div>
 
                   <div>
-                    <Link to={detailHref} style={{ textDecoration: "none", color: "inherit" }}>
+                    <Link
+                      to={detailHref}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
                       <div style={{ fontWeight: "800", fontSize: "1.05rem" }}>
                         {show.name}
                       </div>
@@ -299,7 +341,8 @@ export default function Search() {
 
                     {(show.first_air_time || show.first_aired) && (
                       <p style={{ color: "#cbd5e1" }}>
-                        First aired: {formatDate(show.first_air_time || show.first_aired)}
+                        First aired:{" "}
+                        {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
