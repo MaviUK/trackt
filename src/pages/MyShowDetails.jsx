@@ -393,7 +393,7 @@ userShowRow = userShowData || null;
         showRecord.rating_count != null
           ? Number(showRecord.rating_count)
           : null,
-      watch_status: userShowRow?.watch_status || "not_added",
+   watch_status: userShowRow?.watch_status || "watchlist",
       archived_at: userShowRow?.archived_at || null,
       added_at: userShowRow?.added_at || null,
       created_at: userShowRow?.created_at || null,
