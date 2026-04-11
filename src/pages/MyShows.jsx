@@ -302,30 +302,32 @@ export default function MyShows() {
     loadShows();
   }, []);
 
-  const filteredShows = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+const filteredShows = useMemo(() => {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return shows.filter((show) => {
-      const matchesFilter =
-        filterBy === "all"
-          ? true
-          : filterBy === "watchlist"
-          ? show.isWatchlist
-          : filterBy === "inprogress"
-          ? show.isInProgress
-          : filterBy === "completed"
-          ? show.isCompleted
-          : filterBy === "archived"
-          ? show.isArchived
-          : true;
+  return shows.filter((show) => {
+    const matchesFilter =
+      filterBy === "all"
+        ? true
+        : filterBy === "watchlist"
+        ? show.isWatchlist
+        : filterBy === "inprogress"
+        ? show.isInProgress
+        : filterBy === "completed"
+        ? show.isCompleted
+        : filterBy === "archived"
+        ? show.isArchived
+        : filterBy === "airing"
+        ? show.isAiringSoon
+        : true;
 
-      if (!matchesFilter) return false;
+    if (!matchesFilter) return false;
 
-      if (!normalizedSearch) return true;
+    if (!normalizedSearch) return true;
 
-      return (show.show_name || "").toLowerCase().includes(normalizedSearch);
-    });
-  }, [shows, filterBy, searchTerm]);
+    return (show.show_name || "").toLowerCase().includes(normalizedSearch);
+  });
+}, [shows, filterBy, searchTerm]);
 
   const displayedShows = useMemo(() => {
     return [...filteredShows].sort((a, b) =>
