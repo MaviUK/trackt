@@ -49,27 +49,44 @@ function chunkArray(items, size) {
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
-  const batches = chunkArray(showIds, 8);
+  const batches = chunkArray(showIds, 4);
   const allEpisodes = [];
+  const pageSize = 1000;
 
   for (const batch of batches) {
-    const { data, error } = await supabase
-      .from("episodes")
-      .select(`
-        id,
-        show_id,
-        season_number,
-        episode_number,
-        name,
-        aired_date
-      `)
-      .in("show_id", batch)
-      .order("show_id", { ascending: true })
-      .order("season_number", { ascending: true })
-      .order("episode_number", { ascending: true });
+    let from = 0;
+    let done = false;
 
-    if (error) throw error;
-    allEpisodes.push(...(data || []));
+    while (!done) {
+      const to = from + pageSize - 1;
+
+      const { data, error } = await supabase
+        .from("episodes")
+        .select(`
+          id,
+          show_id,
+          season_number,
+          episode_number,
+          name,
+          aired_date
+        `)
+        .in("show_id", batch)
+        .order("show_id", { ascending: true })
+        .order("season_number", { ascending: true })
+        .order("episode_number", { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const rows = data || [];
+      allEpisodes.push(...rows);
+
+      if (rows.length < pageSize) {
+        done = true;
+      } else {
+        from += pageSize;
+      }
+    }
   }
 
   return allEpisodes;
