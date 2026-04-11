@@ -22,39 +22,19 @@ function makeEpisodeCode(ep) {
 }
 
 function createWatchedLookup(rows) {
-  const lookup = {
-    byEpisodeId: new Set(),
-    byTvdbEpisodeId: new Set(),
+  return {
+    byEpisodeId: new Set(
+      (rows || [])
+        .map((row) => row?.episode_id)
+        .filter(Boolean)
+        .map(String)
+    ),
   };
-
-  for (const row of rows || []) {
-    if (row?.episode_id != null) {
-      lookup.byEpisodeId.add(String(row.episode_id));
-    }
-
-    if (row?.tvdb_episode_id != null) {
-      lookup.byTvdbEpisodeId.add(String(row.tvdb_episode_id));
-    }
-  }
-
-  return lookup;
 }
 
 function isEpisodeWatched(ep, watchedLookup) {
-  if (!ep || !watchedLookup) return false;
-
-  if (ep.id != null && watchedLookup.byEpisodeId.has(String(ep.id))) {
-    return true;
-  }
-
-  if (
-    ep.tvdb_episode_id != null &&
-    watchedLookup.byTvdbEpisodeId.has(String(ep.tvdb_episode_id))
-  ) {
-    return true;
-  }
-
-  return false;
+  if (!ep?.id) return false;
+  return watchedLookup.byEpisodeId.has(String(ep.id));
 }
 
 function isFuture(dateString) {
@@ -98,7 +78,7 @@ function sortSeasonGroups(a, b) {
 async function fetchWatchedRows(userId) {
   const { data, error } = await supabase
     .from("watched_episodes")
-    .select("episode_id, tvdb_episode_id")
+    .select("episode_id")
     .eq("user_id", userId);
 
   if (error) throw error;
@@ -792,11 +772,9 @@ export default function MyShowDetails() {
 
     const watched = isEpisodeWatched(ep, watchedLookup);
     const previousRows = watchedRows;
-
     const optimisticRow = {
       user_id: user.id,
       episode_id: ep.id,
-      tvdb_episode_id: ep.tvdb_episode_id ?? null,
     };
 
     if (watched) {
@@ -808,14 +786,9 @@ export default function MyShowDetails() {
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
-        const alreadyExists = next.some(
-          (row) => String(row?.episode_id ?? "") === String(ep.id)
-        );
-
-        if (!alreadyExists) {
+        if (!next.some((row) => String(row?.episode_id ?? "") === String(ep.id))) {
           next.push(optimisticRow);
         }
-
         return next;
       });
     }
@@ -836,7 +809,6 @@ export default function MyShowDetails() {
             {
               user_id: user.id,
               episode_id: ep.id,
-              tvdb_episode_id: ep.tvdb_episode_id ?? null,
             },
             { onConflict: "user_id,episode_id" }
           );
@@ -884,7 +856,6 @@ export default function MyShowDetails() {
       const rowsToUpsert = episodesToMark.map((ep) => ({
         user_id: user.id,
         episode_id: ep.id,
-        tvdb_episode_id: ep.tvdb_episode_id ?? null,
       }));
 
       setWatchedRows((prev) => {
@@ -1030,7 +1001,9 @@ export default function MyShowDetails() {
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id
-  )}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(
+  )}&sourceYear=${encodeURIComponent(
+    sourceYear
+  )}&sourceRating=${encodeURIComponent(
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
