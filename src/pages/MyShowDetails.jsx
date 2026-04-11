@@ -251,6 +251,7 @@ export default function MyShowDetails() {
             user_id,
             show_id,
             watch_status,
+            archived_at,
             added_at,
             created_at,
             shows!inner(
@@ -325,25 +326,25 @@ export default function MyShowDetails() {
         );
 
         const [episodeRes, burgrRows] = await Promise.all([
-  supabase
-    .from("episodes")
-    .select(`
-      id,
-      tvdb_id,
-      show_id,
-      season_number,
-      episode_number,
-      episode_code,
-      name,
-      overview,
-      aired_date,
-      image_url
-    `)
-    .eq("show_id", showId)
-    .order("season_number", { ascending: true })
-    .order("episode_number", { ascending: true }),
-  fetchBurgrRatings(showId),
-]);
+          supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showId)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true }),
+          fetchBurgrRatings(showId),
+        ]);
 
         const { data: episodeRows, error: episodeError } = episodeRes;
         if (episodeError) throw episodeError;
@@ -361,9 +362,9 @@ export default function MyShowDetails() {
           episode_code: row.episode_code,
         }));
 
-const episodeIds = normalizedEpisodes.map((ep) => ep.id);
-const watchedRowsData = await fetchWatchedRowsForShow(user.id, episodeIds);
-const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
+        const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+        const watchedRowsData = await fetchWatchedRowsForShow(user.id, episodeIds);
+        const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
 
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
@@ -410,6 +411,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
               ? Number(showRecord.rating_count)
               : null,
           watch_status: userShowRow?.watch_status || "not_added",
+          archived_at: userShowRow?.archived_at || null,
           added_at: userShowRow?.added_at || null,
           created_at: userShowRow?.created_at || null,
         });
@@ -633,6 +635,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
     async function syncWatchStatus() {
       if (!currentUserId || !show?.id) return;
       if (show.watch_status === "not_added") return;
+      if (show.watch_status === "archived") return;
       if (savingShowAction) return;
 
       const desiredStatus = stats.watched > 0 ? "watching" : "watchlist";
@@ -641,7 +644,10 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
       try {
         const { error } = await supabase
           .from("user_shows_new")
-          .update({ watch_status: desiredStatus })
+          .update({
+            watch_status: desiredStatus,
+            archived_at: null,
+          })
           .eq("user_id", currentUserId)
           .eq("show_id", show.id);
 
@@ -652,6 +658,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
             ? {
                 ...prev,
                 watch_status: desiredStatus,
+                archived_at: null,
               }
             : prev
         );
@@ -688,6 +695,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
   const sourceLanguage = show?.original_language || "";
 
   const isRemoved = show?.watch_status === "not_added";
+  const isArchived = show?.watch_status === "archived";
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -726,6 +734,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
             user_id: user.id,
             show_id: show.id,
             watch_status: restoredStatus,
+            archived_at: null,
           },
           { onConflict: "user_id,show_id" }
         );
@@ -737,6 +746,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
             ? {
                 ...prev,
                 watch_status: restoredStatus,
+                archived_at: null,
               }
             : prev
         );
@@ -754,6 +764,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
             ? {
                 ...prev,
                 watch_status: "not_added",
+                archived_at: null,
               }
             : prev
         );
@@ -761,6 +772,69 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
     } catch (error) {
       console.error("Failed toggling remove show:", error);
       alert(error.message || "Failed updating show");
+    } finally {
+      setSavingShowAction(false);
+    }
+  }
+
+  async function handleToggleArchiveShow() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !show?.id || savingShowAction || isRemoved) return;
+
+    setSavingShowAction(true);
+
+    try {
+      if (isArchived) {
+        const restoredStatus = stats.watched > 0 ? "watching" : "watchlist";
+
+        const { error } = await supabase
+          .from("user_shows_new")
+          .update({
+            watch_status: restoredStatus,
+            archived_at: null,
+          })
+          .eq("user_id", user.id)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: restoredStatus,
+                archived_at: null,
+              }
+            : prev
+        );
+      } else {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .update({
+            watch_status: "archived",
+            archived_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "archived",
+                archived_at: new Date().toISOString(),
+              }
+            : prev
+        );
+      }
+    } catch (error) {
+      console.error("Failed toggling archive show:", error);
+      alert(error.message || "Failed updating archive status");
     } finally {
       setSavingShowAction(false);
     }
@@ -826,72 +900,69 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
   }
 
   async function handleWatchUpToHere(targetEpisode) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return;
+    if (!user) return;
 
-  const previousRows = watchedRows;
+    const previousRows = watchedRows;
 
-  try {
-    const mainEpisodes = [...episodes]
-      .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
-      .sort((a, b) => {
-        const seasonDiff =
-          Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
-        if (seasonDiff !== 0) return seasonDiff;
+    try {
+      const mainEpisodes = [...episodes]
+        .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+        .sort((a, b) => {
+          const seasonDiff =
+            Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+          if (seasonDiff !== 0) return seasonDiff;
 
-        return Number(a.number ?? 0) - Number(b.number ?? 0);
+          return Number(a.number ?? 0) - Number(b.number ?? 0);
+        });
+
+      const targetIndex = mainEpisodes.findIndex(
+        (ep) => String(ep.id) === String(targetEpisode.id)
+      );
+
+      if (targetIndex === -1) return;
+
+      const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
+
+      const rowsToUpsert = episodesToMark.map((ep) => ({
+        user_id: user.id,
+        episode_id: ep.id,
+      }));
+
+      setWatchedRows((prev) => {
+        const next = [...(prev || [])];
+        const existing = new Set(next.map((r) => String(r.episode_id)));
+
+        for (const row of rowsToUpsert) {
+          if (!existing.has(String(row.episode_id))) {
+            next.push(row);
+            existing.add(String(row.episode_id));
+          }
+        }
+
+        return next;
       });
 
-    const targetIndex = mainEpisodes.findIndex(
-      (ep) => String(ep.id) === String(targetEpisode.id)
-    );
+      const batchSize = 100;
 
-    if (targetIndex === -1) return;
+      for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
+        const batch = rowsToUpsert.slice(i, i + batchSize);
 
-    const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(batch, { onConflict: "user_id,episode_id" });
 
-    const rowsToUpsert = episodesToMark.map((ep) => ({
-      user_id: user.id,
-      episode_id: ep.id,
-    }));
-
-    // optimistic UI
-    setWatchedRows((prev) => {
-      const next = [...(prev || [])];
-      const existing = new Set(next.map((r) => String(r.episode_id)));
-
-      for (const row of rowsToUpsert) {
-        if (!existing.has(String(row.episode_id))) {
-          next.push(row);
-          existing.add(String(row.episode_id));
-        }
+        if (error) throw error;
       }
-
-      return next;
-    });
-
-    // ✅ FIX: batch inserts (VERY IMPORTANT)
-    const batchSize = 100;
-
-    for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
-      const batch = rowsToUpsert.slice(i, i + batchSize);
-
-      const { error } = await supabase
-        .from("watched_episodes")
-        .upsert(batch, { onConflict: "user_id,episode_id" });
-
-      if (error) throw error;
+    } catch (error) {
+      console.error("Failed watch up to here:", error);
+      setWatchedRows(previousRows);
+      alert("Failed to save watched episodes");
     }
-
-  } catch (error) {
-    console.error("Failed watch up to here:", error);
-    setWatchedRows(previousRows);
-    alert("Failed to save watched episodes");
   }
-}
 
   async function handleSelectBurgrRating(value) {
     const {
@@ -1028,7 +1099,7 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
               />
             ) : null}
 
-            <div className="msd-actions" style={{ marginTop: "12px" }}>
+            <div className="msd-actions" style={{ marginTop: "12px", flexDirection: "column" }}>
               <button
                 type="button"
                 className="msd-btn msd-btn-secondary"
@@ -1040,6 +1111,20 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
                   : isRemoved
                   ? "Add Show"
                   : "Remove Show"}
+              </button>
+
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleArchiveShow}
+                disabled={savingShowAction || isRemoved}
+                title={isRemoved ? "Add the show first before archiving it" : ""}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isArchived
+                  ? "Unarchive Show"
+                  : "Archive Show"}
               </button>
             </div>
           </div>
@@ -1070,6 +1155,8 @@ const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
                 List status:{" "}
                 {show.watch_status === "watchlist"
                   ? "watchlist"
+                  : show.watch_status === "archived"
+                  ? "archived"
                   : show.watch_status || "not added"}
               </div>
             </div>
