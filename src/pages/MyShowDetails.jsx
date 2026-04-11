@@ -242,75 +242,57 @@ useEffect(() => {
       return { found: false };
     }
 
-    let userShowRow = null;
-    let showRecord = null;
+let userShowRow = null;
+let showRecord = null;
 
-    const { data: userShowData } = await supabase
-      .from("user_shows_new")
-      .select(`
-        id,
-        user_id,
-        show_id,
-        watch_status,
-        archived_at,
-        added_at,
-        created_at,
-        shows!inner(
-          id,
-          tvdb_id,
-          name,
-          overview,
-          status,
-          poster_url,
-          first_aired,
-          network,
-          genres,
-          original_language,
-          relationship_types,
-          settings,
-          rating_average,
-          rating_count
-        )
-      `)
-      .eq("user_id", user.id)
-      .eq("shows.tvdb_id", tvdbId)
-      .maybeSingle();
+const { data: showData, error: showError } = await supabase
+  .from("shows")
+  .select(`
+    id,
+    tvdb_id,
+    name,
+    overview,
+    status,
+    poster_url,
+    first_aired,
+    network,
+    genres,
+    original_language,
+    relationship_types,
+    settings,
+    rating_average,
+    rating_count
+  `)
+  .eq("tvdb_id", tvdbId)
+  .maybeSingle();
 
-    if (userShowData?.shows) {
-      userShowRow = userShowData;
-      showRecord = userShowData.shows;
-    } else {
-      const { data: showData, error: showError } = await supabase
-        .from("shows")
-        .select(`
-          id,
-          tvdb_id,
-          name,
-          overview,
-          status,
-          poster_url,
-          first_aired,
-          network,
-          genres,
-          original_language,
-          relationship_types,
-          settings,
-          rating_average,
-          rating_count
-        `)
-        .eq("tvdb_id", tvdbId)
-        .maybeSingle();
+if (showError) throw showError;
+if (!showData) {
+  if (isCancelled) return { found: false };
+  return { found: false };
+}
 
-      if (showError) throw showError;
-      if (!showData) {
-        if (isCancelled) return { found: false };
-        return { found: false };
-      }
+showRecord = showData;
 
-      showRecord = showData;
-    }
+const showId = showRecord.id;
 
-    const showId = showRecord.id;
+const { data: userShowData, error: userShowError } = await supabase
+  .from("user_shows_new")
+  .select(`
+    id,
+    user_id,
+    show_id,
+    watch_status,
+    archived_at,
+    added_at,
+    created_at
+  `)
+  .eq("user_id", user.id)
+  .eq("show_id", showId)
+  .maybeSingle();
+
+if (userShowError) throw userShowError;
+userShowRow = userShowData || null;
 
     const { data: savedShowsData } = await supabase
       .from("user_shows_new")
