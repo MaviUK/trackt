@@ -78,8 +78,8 @@ async function fetchEpisodesForShowIds(showIds) {
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState("airingnext");
   const [filterBy, setFilterBy] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   async function loadShows() {
     try {
@@ -189,12 +189,7 @@ export default function MyShows() {
           watchedEpisodeIds.has(String(ep.id))
         ).length;
 
-        const watchedAiredMainCount = airedMainEpisodes.filter((ep) =>
-          watchedEpisodeIds.has(String(ep.id))
-        ).length;
-
         const totalMainEpisodes = mainEpisodes.length;
-        const totalAiredMainEpisodes = airedMainEpisodes.length;
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -238,9 +233,7 @@ export default function MyShows() {
           nextEpisodeDate,
           daysToNextEpisode,
           watchedMainCount,
-          watchedAiredMainCount,
           totalMainEpisodes,
-          totalAiredMainEpisodes,
           status,
           isWatchlist,
           isCompleted,
@@ -264,56 +257,37 @@ export default function MyShows() {
   }, []);
 
   const filteredShows = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
     return shows.filter((show) => {
-      if (filterBy === "all") return !show.isArchived;
-      if (filterBy === "airing") return show.isAiring && !show.isArchived;
-      if (filterBy === "watchlist") return show.isWatchlist && !show.isArchived;
-      if (filterBy === "completed") return show.isCompleted && !show.isArchived;
-      if (filterBy === "airingsoon") return show.isAiringSoon && !show.isArchived;
-      if (filterBy === "archived") return show.isArchived;
-      return true;
+      const matchesFilter =
+        filterBy === "all"
+          ? !show.isArchived
+          : filterBy === "airing"
+          ? show.isAiring && !show.isArchived
+          : filterBy === "watchlist"
+          ? show.isWatchlist && !show.isArchived
+          : filterBy === "completed"
+          ? show.isCompleted && !show.isArchived
+          : filterBy === "airingsoon"
+          ? show.isAiringSoon && !show.isArchived
+          : filterBy === "archived"
+          ? show.isArchived
+          : true;
+
+      if (!matchesFilter) return false;
+
+      if (!normalizedSearch) return true;
+
+      return (show.show_name || "").toLowerCase().includes(normalizedSearch);
     });
-  }, [shows, filterBy]);
+  }, [shows, filterBy, searchTerm]);
 
-  const sortedShows = useMemo(() => {
-    const result = [...filteredShows].sort((a, b) => {
-      if (sortBy === "airingnext") {
-        const aHasDate = !!a.nextEpisodeDate;
-        const bHasDate = !!b.nextEpisodeDate;
-
-        if (aHasDate && bHasDate) {
-          return new Date(a.nextEpisodeDate) - new Date(b.nextEpisodeDate);
-        }
-        if (aHasDate) return -1;
-        if (bHasDate) return 1;
-
-        return (a.show_name || "").localeCompare(b.show_name || "");
-      }
-
-      if (sortBy === "alphabetical") {
-        return (a.show_name || "").localeCompare(b.show_name || "");
-      }
-
-      if (sortBy === "recent") {
-        return (
-          new Date(b.added_at || b.created_at || 0) -
-          new Date(a.added_at || a.created_at || 0)
-        );
-      }
-
-      if (sortBy === "firstaired") {
-        return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
-      }
-
-      if (sortBy === "progress") {
-        return b.watchedMainCount - a.watchedMainCount;
-      }
-
-      return 0;
-    });
-
-    return result;
-  }, [filteredShows, sortBy]);
+  const displayedShows = useMemo(() => {
+    return [...filteredShows].sort((a, b) =>
+      (a.show_name || "").localeCompare(b.show_name || "")
+    );
+  }, [filteredShows]);
 
   const counts = useMemo(
     () => ({
@@ -348,7 +322,14 @@ export default function MyShows() {
         <p>Track your saved shows and progress.</p>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 20,
+        }}
+      >
         {[
           ["all", `All (${counts.all})`],
           ["airing", `Airing (${counts.airing})`],
@@ -369,28 +350,26 @@ export default function MyShows() {
         ))}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: 24,
-        }}
-      >
-        <label>
-          Sort by{" "}
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="airingnext">Airing Next</option>
-            <option value="alphabetical">Alphabetical</option>
-            <option value="recent">Recently Added</option>
-            <option value="firstaired">First Aired</option>
-            <option value="progress">Most Watched</option>
-          </select>
-        </label>
+      <div style={{ marginBottom: 24, maxWidth: 420 }}>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search my shows..."
+          style={{
+            width: "100%",
+            padding: "14px 16px",
+            borderRadius: 14,
+            border: "1px solid #26324a",
+            background: "#182235",
+            color: "#f8fafc",
+            fontSize: "1rem",
+            outline: "none",
+          }}
+        />
       </div>
 
-      {sortedShows.length === 0 ? (
+      {displayedShows.length === 0 ? (
         <div className="show-card">
           <p>No shows found for this filter.</p>
         </div>
@@ -402,7 +381,7 @@ export default function MyShows() {
             gap: 20,
           }}
         >
-          {sortedShows.map((show) => (
+          {displayedShows.map((show) => (
             <Link
               key={show.show_id}
               to={`/my-shows/${show.tvdb_id}`}
