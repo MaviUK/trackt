@@ -1,414 +1,1636 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getShowStatus } from "../lib/showStatus";
+import { formatDate } from "../lib/date";
+import "./MyShowDetails.css";
+import {
+  enrichTmdbShowsWithMappings,
+  getMappedShowHref,
+  normalizeMappedShow,
+} from "../lib/tmdbMappings";
 
-function isAired(dateValue) {
-  if (!dateValue) return false;
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return false;
-  return date <= new Date();
+function makeEpisodeCode(ep) {
+  if (Number(ep?.seasonNumber) === 0) {
+    if (!ep?.number) return "Special";
+    return `Special ${ep.number}`;
+  }
+
+  if (!ep?.seasonNumber || !ep?.number) return "Episode";
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
 }
 
-function toStatusEpisodeShape(ep) {
+function createWatchedLookup(rows) {
   return {
-    seasonNumber: ep.season_number,
-    number: ep.episode_number,
-    aired: ep.aired_date,
-    airDate: ep.aired_date,
-    name: ep.name,
+    byEpisodeId: new Set(
+      (rows || [])
+        .map((row) => row?.episode_id)
+        .filter(Boolean)
+        .map(String)
+    ),
   };
 }
 
-export default function MyShows() {
-  const [shows, setShows] = useState([]);
+function isEpisodeWatched(ep, watchedLookup) {
+  if (!ep?.id) return false;
+  return watchedLookup.byEpisodeId.has(String(ep.id));
+}
+
+function isFuture(dateString) {
+  if (!dateString) return false;
+  const d = new Date(dateString);
+  return !Number.isNaN(d.getTime()) && d > new Date();
+}
+
+function getDaysUntil(dateString) {
+  if (!dateString) return null;
+  const now = new Date();
+  const target = new Date(dateString);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  );
+
+  return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
+}
+
+function getYear(dateString) {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
+  return String(d.getFullYear());
+}
+
+function sortSeasonGroups(a, b) {
+  const aNum = Number(a[0]);
+  const bNum = Number(b[0]);
+
+  if (aNum === 0 && bNum !== 0) return -1;
+  if (bNum === 0 && aNum !== 0) return 1;
+  return aNum - bNum;
+}
+
+async function fetchWatchedRowsForShow(userId, showEpisodeIds) {
+  if (!userId || !showEpisodeIds?.length) return [];
+
+  const { data, error } = await supabase
+    .from("watched_episodes")
+    .select("episode_id")
+    .eq("user_id", userId)
+    .in("episode_id", showEpisodeIds);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchBurgrRatings(showId) {
+  const { data, error } = await supabase
+    .from("burgr_ratings")
+    .select("user_id, show_id, rating")
+    .eq("show_id", showId);
+
+  if (error) {
+    console.warn("burgr_ratings load failed:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+async function fetchEpisodeRatings(showEpisodeIds) {
+  if (!showEpisodeIds?.length) return [];
+
+  const { data, error } = await supabase
+    .from("episode_ratings")
+    .select("user_id, episode_id, rating")
+    .in("episode_id", showEpisodeIds);
+
+  if (error) {
+    console.warn("episode_ratings load failed:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+function buildEpisodeRatingsMap(rows, userId) {
+  const map = new Map();
+
+  for (const row of rows || []) {
+    if (!row?.episode_id) continue;
+    if (row.user_id !== userId) continue;
+    map.set(String(row.episode_id), String(row.rating));
+  }
+
+  return map;
+}
+
+function buildEpisodeAverageRatingsMap(rows) {
+  const grouped = new Map();
+
+  for (const row of rows || []) {
+    const episodeId = String(row?.episode_id || "");
+    const rating = Number(row?.rating);
+
+    if (!episodeId || Number.isNaN(rating)) continue;
+
+    if (!grouped.has(episodeId)) grouped.set(episodeId, []);
+    grouped.get(episodeId).push(rating);
+  }
+
+  const averages = new Map();
+
+  for (const [episodeId, ratings] of grouped.entries()) {
+    const avg = ratings.reduce((sum, n) => sum + n, 0) / ratings.length;
+    averages.set(episodeId, {
+      avg: avg.toFixed(1),
+      count: ratings.length,
+    });
+  }
+
+  return averages;
+}
+
+function getRestoredStatusFromProgress(watchedCount) {
+  return watchedCount > 0 ? "watching" : "watchlist";
+}
+
+export default function MyShowDetails() {
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const targetEpisodeId = searchParams.get("episode");
+
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState("airingnext");
-  const [filterBy, setFilterBy] = useState("all");
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const [savingBurgr, setSavingBurgr] = useState(false);
+  const [savingShowAction, setSavingShowAction] = useState(false);
 
-  async function loadShows() {
-    try {
+  const [show, setShow] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [watchedRows, setWatchedRows] = useState([]);
+  const [expandedSeasons, setExpandedSeasons] = useState({});
+
+  const [cast, setCast] = useState([]);
+  const [recommendedShows, setRecommendedShows] = useState([]);
+  const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
+  const [savedShowTvdbIds, setSavedShowTvdbIds] = useState(new Set());
+
+  const [burgrRatings, setBurgrRatings] = useState([]);
+  const [myBurgrRating, setMyBurgrRating] = useState("");
+  const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
+
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [episodeRatings, setEpisodeRatings] = useState([]);
+  const [savingEpisodeRatingId, setSavingEpisodeRatingId] = useState(null);
+  const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
+  const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
+    useState(null);
+
+  const watchedLookup = useMemo(
+    () => createWatchedLookup(watchedRows),
+    [watchedRows]
+  );
+
+  const myEpisodeRatings = useMemo(
+    () => buildEpisodeRatingsMap(episodeRatings, currentUserId),
+    [episodeRatings, currentUserId]
+  );
+
+  const episodeAverageRatings = useMemo(
+    () => buildEpisodeAverageRatingsMap(episodeRatings),
+    [episodeRatings]
+  );
+
+  useEffect(() => {
+    async function loadShow() {
       setLoading(true);
+      setExtrasLoading(false);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
+        if (!user) {
+          setCurrentUserId(null);
+          setShow(null);
+          setEpisodes([]);
+          setWatchedRows([]);
+          setExpandedSeasons({});
+          setCast([]);
+          setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
+          setSavedShowTvdbIds(new Set());
+          setBurgrRatings([]);
+          setMyBurgrRating("");
+          setEpisodeRatings([]);
+          setSavingEpisodeRatingId(null);
+          setHoverEpisodeRatings({});
+          setOpenEpisodeRatingPickerId(null);
+          return;
+        }
 
-      if (!user) {
-        setShows([]);
-        return;
-      }
+        setCurrentUserId(user.id);
 
-      const { data: userShows, error: userShowsError } = await supabase
-        .from("user_shows_new")
-        .select(`
-          id,
-          user_id,
-          show_id,
-          watch_status,
-          added_at,
-          created_at,
-          shows!inner(
-            id,
-            tvdb_id,
-            name,
-            overview,
-            status,
-            poster_url,
-            first_aired
-          )
-        `)
-        .eq("user_id", user.id);
+        const tvdbId = Number(id);
+        if (Number.isNaN(tvdbId)) {
+          setShow(null);
+          setEpisodes([]);
+          setWatchedRows([]);
+          return;
+        }
 
-      if (userShowsError) throw userShowsError;
+        let userShowRow = null;
+        let showRecord = null;
 
-      const normalizedUserShows = (userShows || []).map((row) => ({
-        id: row.id,
-        user_id: row.user_id,
-        show_id: row.show_id,
-        watch_status: row.watch_status || "watching",
-        added_at: row.added_at,
-        created_at: row.created_at,
-        tvdb_id: row.shows.tvdb_id,
-        show_name: row.shows.name || "Unknown title",
-        overview: row.shows.overview || "",
-        status: row.shows.status || null,
-        poster_url: row.shows.poster_url || null,
-        first_aired: row.shows.first_aired || null,
-      }));
-
-      const showIds = normalizedUserShows.map((show) => show.show_id).filter(Boolean);
-
-      if (!showIds.length) {
-        setShows([]);
-        return;
-      }
-
-      const [watchedResp, episodesResp] = await Promise.all([
-        supabase
-          .from("watched_episodes")
-          .select("episode_id")
-          .eq("user_id", user.id),
-
-        supabase
-          .from("episodes")
+        const { data: userShowData } = await supabase
+          .from("user_shows_new")
           .select(`
             id,
+            user_id,
             show_id,
-            season_number,
-            episode_number,
-            name,
-            aired_date
+            watch_status,
+            added_at,
+            created_at,
+            shows!inner(
+              id,
+              tvdb_id,
+              name,
+              overview,
+              status,
+              poster_url,
+              first_aired,
+              network,
+              genres,
+              original_language,
+              relationship_types,
+              settings,
+              rating_average,
+              rating_count
+            )
           `)
-          .in("show_id", showIds)
-          .order("show_id", { ascending: true })
-          .order("season_number", { ascending: true })
-          .order("episode_number", { ascending: true }),
-      ]);
+          .eq("user_id", user.id)
+          .eq("shows.tvdb_id", tvdbId)
+          .maybeSingle();
 
-      if (watchedResp.error) throw watchedResp.error;
-      if (episodesResp.error) throw episodesResp.error;
+        if (userShowData?.shows) {
+          userShowRow = userShowData;
+          showRecord = userShowData.shows;
+        } else {
+          const { data: showData, error: showError } = await supabase
+            .from("shows")
+            .select(`
+              id,
+              tvdb_id,
+              name,
+              overview,
+              status,
+              poster_url,
+              first_aired,
+              network,
+              genres,
+              original_language,
+              relationship_types,
+              settings,
+              rating_average,
+              rating_count
+            `)
+            .eq("tvdb_id", tvdbId)
+            .maybeSingle();
 
-      const watchedEpisodeIds = new Set(
-        (watchedResp.data || [])
-          .map((row) => row.episode_id)
-          .filter(Boolean)
-          .map(String)
-      );
+          if (showError) throw showError;
+          if (!showData) {
+            setShow(null);
+            setEpisodes([]);
+            setWatchedRows([]);
+            return;
+          }
 
-      const episodesByShowId = {};
-      for (const ep of episodesResp.data || []) {
-        const key = ep.show_id;
-        if (!episodesByShowId[key]) episodesByShowId[key] = [];
-        episodesByShowId[key].push(ep);
-      }
+          showRecord = showData;
+        }
 
-      const updatedShows = normalizedUserShows.map((userShow) => {
-        const showEpisodes = episodesByShowId[userShow.show_id] || [];
+        const showId = showRecord.id;
 
-        const airedEpisodes = showEpisodes.filter((ep) => isAired(ep.aired_date));
-        const futureEpisodes = showEpisodes.filter(
-          (ep) => ep.aired_date && !isAired(ep.aired_date)
+        const { data: savedShowsData } = await supabase
+          .from("user_shows_new")
+          .select(`shows!inner(tvdb_id)`)
+          .eq("user_id", user.id);
+
+        const savedTvdbIds = new Set(
+          (savedShowsData || [])
+            .map((row) => row?.shows?.tvdb_id)
+            .filter(Boolean)
+            .map(String)
         );
 
-        const watchedAiredCount = airedEpisodes.filter((ep) =>
-          watchedEpisodeIds.has(String(ep.id))
+        const [episodeRes, burgrRows] = await Promise.all([
+          supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showId)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true }),
+          fetchBurgrRatings(showId),
+        ]);
+
+        const { data: episodeRows, error: episodeError } = episodeRes;
+        if (episodeError) throw episodeError;
+
+        const normalizedEpisodes = (episodeRows || []).map((row) => ({
+          id: row.id,
+          tvdb_episode_id: row.tvdb_id,
+          seasonNumber: row.season_number,
+          number: row.episode_number,
+          aired: row.aired_date,
+          airDate: row.aired_date,
+          name: row.name || "Untitled episode",
+          overview: row.overview || "",
+          image: row.image_url || null,
+          episode_code: row.episode_code,
+        }));
+
+        const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+
+        const [watchedRowsData, episodeRatingRows] = await Promise.all([
+          fetchWatchedRowsForShow(user.id, episodeIds),
+          fetchEpisodeRatings(episodeIds),
+        ]);
+
+        const seasonMap = {};
+        normalizedEpisodes.forEach((ep) => {
+          const seasonKey = Number(ep.seasonNumber ?? 0);
+          if (seasonKey === 0) return;
+          if (!(seasonKey in seasonMap)) seasonMap[seasonKey] = false;
+        });
+
+        if (targetEpisodeId) {
+          const targetEpisode = normalizedEpisodes.find(
+            (ep) => String(ep.id) === String(targetEpisodeId)
+          );
+          if (targetEpisode) {
+            seasonMap[Number(targetEpisode.seasonNumber ?? 0)] = true;
+          }
+        }
+
+        const mine = (burgrRows || []).find((row) => row.user_id === user.id);
+
+        setSavedShowTvdbIds(savedTvdbIds);
+        setShow({
+          id: showRecord.id,
+          tvdb_id: showRecord.tvdb_id,
+          show_name: showRecord.name || "Unknown title",
+          overview: showRecord.overview || "",
+          poster_url: showRecord.poster_url || null,
+          first_aired: showRecord.first_aired || null,
+          status: showRecord.status || null,
+          network: showRecord.network || "",
+          original_language: showRecord.original_language || "",
+          genres: Array.isArray(showRecord.genres) ? showRecord.genres : [],
+          relationship_types: Array.isArray(showRecord.relationship_types)
+            ? showRecord.relationship_types
+            : [],
+          settings: Array.isArray(showRecord.settings)
+            ? showRecord.settings
+            : [],
+          rating_average:
+            showRecord.rating_average != null
+              ? Number(showRecord.rating_average)
+              : null,
+          rating_count:
+            showRecord.rating_count != null
+              ? Number(showRecord.rating_count)
+              : null,
+          watch_status: userShowRow?.watch_status || "not_added",
+          added_at: userShowRow?.added_at || null,
+          created_at: userShowRow?.created_at || null,
+        });
+
+        setEpisodes(normalizedEpisodes);
+        setWatchedRows(watchedRowsData || []);
+        setExpandedSeasons(seasonMap);
+        setBurgrRatings(burgrRows || []);
+        setMyBurgrRating(mine ? String(mine.rating) : "");
+        setEpisodeRatings(episodeRatingRows || []);
+        setSavingEpisodeRatingId(null);
+        setHoverEpisodeRatings({});
+        setOpenEpisodeRatingPickerId(null);
+
+        setCast([]);
+        setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
+
+        try {
+          setExtrasLoading(true);
+
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${showRecord.tvdb_id}`
+          );
+          if (!extrasRes.ok) {
+            throw new Error(`Failed to load show extras (${extrasRes.status})`);
+          }
+
+          const extras = await extrasRes.json();
+
+          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
+          const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
+            ? extras.peopleAlsoWatch
+            : [];
+          const fallbackRecommendations = Array.isArray(extras.recommendations)
+            ? extras.recommendations
+            : [];
+
+          const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
+            (item) =>
+              normalizeMappedShow({
+                ...item,
+                source: "tvdb",
+                tvdb_id:
+                  item?.tvdb_id ??
+                  item?.tvdbId ??
+                  item?.show_id ??
+                  item?.id ??
+                  null,
+                name:
+                  item?.name ||
+                  item?.title ||
+                  item?.show_name ||
+                  "Unknown show",
+                first_air_date:
+                  item?.first_air_date ||
+                  item?.firstAired ||
+                  item?.first_aired ||
+                  "",
+                poster_url:
+                  item?.poster_url ||
+                  item?.posterUrl ||
+                  item?.image_url ||
+                  item?.image ||
+                  item?.poster ||
+                  "",
+              })
+          );
+
+          let mappedFallbackRecommendations = [];
+          try {
+            mappedFallbackRecommendations =
+              await enrichTmdbShowsWithMappings(fallbackRecommendations);
+          } catch (mappingError) {
+            console.error(
+              "Failed mapping fallback recommendations:",
+              mappingError
+            );
+            mappedFallbackRecommendations = fallbackRecommendations.map(
+              (item) =>
+                normalizeMappedShow({
+                  ...item,
+                  source: "tmdb",
+                  poster_url:
+                    item?.poster_url ||
+                    item?.posterUrl ||
+                    item?.image_url ||
+                    item?.image ||
+                    (item?.poster_path
+                      ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                      : ""),
+                  poster_path: item?.poster_path || null,
+                })
+            );
+          }
+
+          const filteredTvdbPeopleAlsoWatch =
+            normalizedTvdbPeopleAlsoWatch.filter((item) => {
+              const recTvdbId =
+                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+              if (!recTvdbId) return true;
+              return !savedTvdbIds.has(String(recTvdbId));
+            });
+
+          const filteredFallbackRecommendations =
+            mappedFallbackRecommendations.filter((item) => {
+              const recTvdbId =
+                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+              if (!recTvdbId) return true;
+              return !savedTvdbIds.has(String(recTvdbId));
+            });
+
+          setCast(castRows);
+          setPeopleAlsoWatch(filteredTvdbPeopleAlsoWatch);
+          setRecommendedShows(
+            filteredTvdbPeopleAlsoWatch.length > 0
+              ? filteredTvdbPeopleAlsoWatch
+              : filteredFallbackRecommendations
+          );
+        } catch (extrasError) {
+          console.error("Failed loading TVDB extras:", extrasError);
+          setCast([]);
+          setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
+        } finally {
+          setExtrasLoading(false);
+        }
+      } catch (error) {
+        console.error("Failed loading show:", error);
+        setCurrentUserId(null);
+        setShow(null);
+        setEpisodes([]);
+        setWatchedRows([]);
+        setExpandedSeasons({});
+        setCast([]);
+        setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
+        setSavedShowTvdbIds(new Set());
+        setBurgrRatings([]);
+        setMyBurgrRating("");
+        setEpisodeRatings([]);
+        setSavingEpisodeRatingId(null);
+        setHoverEpisodeRatings({});
+        setOpenEpisodeRatingPickerId(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadShow();
+  }, [id, targetEpisodeId]);
+
+  useEffect(() => {
+    if (targetEpisodeId) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [id, targetEpisodeId]);
+
+  useEffect(() => {
+    if (!targetEpisodeId || loading) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`episode-${targetEpisodeId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("episode-highlight");
+      setTimeout(() => el.classList.remove("episode-highlight"), 2500);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [episodes, expandedSeasons, targetEpisodeId, loading]);
+
+  const groupedSeasons = useMemo(() => {
+    const grouped = {};
+
+    for (const ep of episodes) {
+      const seasonKey = Number(ep.seasonNumber ?? 0);
+      if (seasonKey === 0) continue;
+
+      if (!grouped[seasonKey]) grouped[seasonKey] = [];
+      grouped[seasonKey].push(ep);
+    }
+
+    return Object.entries(grouped)
+      .sort(sortSeasonGroups)
+      .map(([seasonNumber, seasonEpisodes]) => {
+        const watchedCount = seasonEpisodes.filter((ep) =>
+          isEpisodeWatched(ep, watchedLookup)
         ).length;
 
-        const totalAiredEpisodes = airedEpisodes.length;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const upcomingEpisodes = futureEpisodes
-          .filter((ep) => ep.aired_date)
-          .filter((ep) => {
-            const airDate = new Date(ep.aired_date);
-            airDate.setHours(0, 0, 0, 0);
-            return airDate >= today;
-          })
-          .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
-
-        const nextEpisodeDate =
-          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
-
-        const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
-        const status = getShowStatus(
-          {
-            ...userShow,
-            first_aired: userShow.first_aired,
-          },
-          statusEpisodes
-        );
-
-        const isCompleted =
-          totalAiredEpisodes > 0 && watchedAiredCount >= totalAiredEpisodes;
-
         return {
-          ...userShow,
-          nextEpisodeDate,
-          status,
-          isCompleted,
+          seasonNumber: Number(seasonNumber),
+          label: `Season ${seasonNumber}`,
+          episodes: seasonEpisodes,
+          watchedCount,
+          totalCount: seasonEpisodes.length,
+          complete:
+            seasonEpisodes.length > 0 &&
+            watchedCount === seasonEpisodes.length,
         };
       });
+  }, [episodes, watchedLookup]);
 
-      setShows(updatedShows);
+  const stats = useMemo(() => {
+    const mainEpisodes = episodes.filter(
+      (ep) => Number(ep.seasonNumber ?? 0) !== 0
+    );
+
+    const total = mainEpisodes.length;
+    const watched = mainEpisodes.filter((ep) =>
+      isEpisodeWatched(ep, watchedLookup)
+    ).length;
+    const pct = total > 0 ? Math.round((watched / total) * 100) : 0;
+    const nextEpisode = mainEpisodes.find(
+      (ep) => !isEpisodeWatched(ep, watchedLookup) && isFuture(ep.aired)
+    );
+
+    return { total, watched, pct, nextEpisode };
+  }, [episodes, watchedLookup]);
+
+  useEffect(() => {
+    async function syncWatchStatus() {
+      if (!currentUserId || !show?.id) return;
+      if (show.watch_status === "not_added") return;
+      if (show.watch_status === "archived") return;
+      if (savingShowAction) return;
+
+      const desiredStatus = stats.watched > 0 ? "watching" : "watchlist";
+      if (show.watch_status === desiredStatus) return;
+
+      try {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .update({ watch_status: desiredStatus })
+          .eq("user_id", currentUserId)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: desiredStatus,
+              }
+            : prev
+        );
+      } catch (error) {
+        console.error("Failed syncing watch status:", error);
+      }
+    }
+
+    syncWatchStatus();
+  }, [
+    currentUserId,
+    show?.id,
+    show?.watch_status,
+    stats.watched,
+    savingShowAction,
+  ]);
+
+  const burgrStats = useMemo(() => {
+    const ratings = burgrRatings
+      .map((r) => Number(r.rating))
+      .filter((n) => !Number.isNaN(n));
+    const avg =
+      ratings.length > 0
+        ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1)
+        : null;
+    return { avg, count: ratings.length };
+  }, [burgrRatings]);
+
+  const sourceYear = getYear(show?.first_aired);
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
+  const sourceLanguage = show?.original_language || "";
+
+  const isRemoved = show?.watch_status === "not_added";
+
+  function toggleSeason(seasonNumber) {
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
+  }
+
+  async function refreshBurgrRatings(showId, userId) {
+    const fresh = await fetchBurgrRatings(showId);
+    setBurgrRatings(fresh);
+    const mine = (fresh || []).find((row) => row.user_id === userId);
+    setMyBurgrRating(mine ? String(mine.rating) : "");
+  }
+
+  async function refreshEpisodeRatings(showEpisodeIds) {
+    const fresh = await fetchEpisodeRatings(showEpisodeIds);
+    setEpisodeRatings(fresh);
+  }
+
+  async function handleToggleRemoveShow() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !show?.id || savingShowAction) return;
+
+    setSavingShowAction(true);
+
+    try {
+      if (isRemoved) {
+        const restoredStatus = getRestoredStatusFromProgress(stats.watched);
+
+        const { error } = await supabase.from("user_shows_new").upsert(
+          {
+            user_id: user.id,
+            show_id: show.id,
+            watch_status: restoredStatus,
+          },
+          { onConflict: "user_id,show_id" }
+        );
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: restoredStatus,
+              }
+            : prev
+        );
+      } else {
+        const { error } = await supabase
+          .from("user_shows_new")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("show_id", show.id);
+
+        if (error) throw error;
+
+        setShow((prev) =>
+          prev
+            ? {
+                ...prev,
+                watch_status: "not_added",
+              }
+            : prev
+        );
+      }
     } catch (error) {
-      console.error("LOAD SHOWS FAILED:", error);
-      setShows([]);
+      console.error("Failed toggling remove show:", error);
+      alert(error.message || "Failed updating show");
     } finally {
-      setLoading(false);
+      setSavingShowAction(false);
     }
   }
 
-  useEffect(() => {
-    loadShows();
-  }, []);
+  async function handleArchiveShow() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const filteredShows = useMemo(() => {
-    return shows.filter((show) => {
-      const watchStatus = show.watch_status || "watching";
+    if (!user || !show?.id || savingShowAction) return;
 
-      if (filterBy === "all") return watchStatus !== "stopped";
-      if (filterBy === "stopped") return watchStatus === "stopped";
-      if (filterBy === "completed")
-        return show.isCompleted && watchStatus !== "stopped";
-      if (filterBy === "inprogress")
-        return !show.isCompleted && watchStatus !== "stopped";
-      if (filterBy === "airing")
-        return show.status === "Airing" && watchStatus !== "stopped";
-      if (filterBy === "ended")
-        return show.status === "Ended" && watchStatus !== "stopped";
-      if (filterBy === "upcoming")
-        return show.status === "Upcoming" && watchStatus !== "stopped";
+    setSavingShowAction(true);
 
-      return true;
-    });
-  }, [shows, filterBy]);
+    try {
+      const nextStatus =
+        show.watch_status === "archived"
+          ? getRestoredStatusFromProgress(stats.watched)
+          : "archived";
 
-  const sortedShows = useMemo(() => {
-    const result = [...filteredShows].sort((a, b) => {
-      if (sortBy === "airingnext") {
-        const aHasDate = !!a.nextEpisodeDate;
-        const bHasDate = !!b.nextEpisodeDate;
+      const { error } = await supabase.from("user_shows_new").upsert(
+        {
+          user_id: user.id,
+          show_id: show.id,
+          watch_status: nextStatus,
+        },
+        { onConflict: "user_id,show_id" }
+      );
 
-        if (aHasDate && bHasDate) {
-          return new Date(a.nextEpisodeDate) - new Date(b.nextEpisodeDate);
+      if (error) throw error;
+
+      setShow((prev) =>
+        prev
+          ? {
+              ...prev,
+              watch_status: nextStatus,
+            }
+          : prev
+      );
+    } catch (error) {
+      console.error("Failed updating archive status:", error);
+      alert(error.message || "Failed updating archive status");
+    } finally {
+      setSavingShowAction(false);
+    }
+  }
+
+  async function handleMarkWatched(ep) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || ep?.id == null) return;
+
+    const watched = isEpisodeWatched(ep, watchedLookup);
+    const previousRows = watchedRows;
+    const optimisticRow = {
+      user_id: user.id,
+      episode_id: ep.id,
+    };
+
+    if (watched) {
+      setWatchedRows((prev) =>
+        (prev || []).filter(
+          (row) => String(row?.episode_id ?? "") !== String(ep.id)
+        )
+      );
+    } else {
+      setWatchedRows((prev) => {
+        const next = [...(prev || [])];
+        if (
+          !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
+        ) {
+          next.push(optimisticRow);
         }
-        if (aHasDate) return -1;
-        if (bHasDate) return 1;
+        return next;
+      });
+    }
 
-        return (a.show_name || "").localeCompare(b.show_name || "");
+    try {
+      if (watched) {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("episode_id", ep.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(
+            {
+              user_id: user.id,
+              episode_id: ep.id,
+            },
+            { onConflict: "user_id,episode_id" }
+          );
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error("Failed toggling watched state:", error);
+      setWatchedRows(previousRows);
+      alert(error.message || "Failed updating watched status");
+    }
+  }
+
+  async function handleWatchUpToHere(targetEpisode) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const previousRows = watchedRows;
+
+    try {
+      const mainEpisodes = [...episodes]
+        .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+        .sort((a, b) => {
+          const seasonDiff =
+            Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+          if (seasonDiff !== 0) return seasonDiff;
+
+          return Number(a.number ?? 0) - Number(b.number ?? 0);
+        });
+
+      const targetIndex = mainEpisodes.findIndex(
+        (ep) => String(ep.id) === String(targetEpisode.id)
+      );
+
+      if (targetIndex === -1) {
+        throw new Error("Could not find target episode in show episode list");
       }
 
-      if (sortBy === "alphabetical") {
-        return (a.show_name || "").localeCompare(b.show_name || "");
+      const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
+      if (episodesToMark.length === 0) return;
+
+      const rowsToUpsert = episodesToMark.map((ep) => ({
+        user_id: user.id,
+        episode_id: ep.id,
+      }));
+
+      setWatchedRows((prev) => {
+        const next = [...(prev || [])];
+        const existingIds = new Set(
+          next
+            .map((row) => row?.episode_id)
+            .filter((value) => value != null)
+            .map((value) => String(value))
+        );
+
+        for (const row of rowsToUpsert) {
+          if (!existingIds.has(String(row.episode_id))) {
+            next.push(row);
+            existingIds.add(String(row.episode_id));
+          }
+        }
+
+        return next;
+      });
+
+      const batchSize = 100;
+
+      for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
+        const batch = rowsToUpsert.slice(i, i + batchSize);
+
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(batch, { onConflict: "user_id,episode_id" });
+
+        if (error) throw error;
       }
+    } catch (error) {
+      console.error("Failed watch up to here:", error);
+      setWatchedRows(previousRows);
+      alert(error.message || "Failed watch up to here");
+    }
+  }
 
-      if (sortBy === "recent") {
-        return new Date(b.added_at || b.created_at || 0) - new Date(a.added_at || a.created_at || 0);
-      }
+  async function handleSelectBurgrRating(value) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !show?.id || savingBurgr) return;
 
-      if (sortBy === "firstaired") {
-        return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
-      }
+    const rating = Number(value);
+    if (Number.isNaN(rating) || rating < 1 || rating > 10) return;
 
-      return 0;
-    });
+    const previousRating = myBurgrRating;
+    setMyBurgrRating(String(rating));
+    setSavingBurgr(true);
 
-    return result;
-  }, [filteredShows, sortBy]);
+    try {
+      const { error } = await supabase.from("burgr_ratings").upsert(
+        { user_id: user.id, show_id: show.id, rating },
+        { onConflict: "user_id,show_id" }
+      );
+      if (error) throw error;
+      await refreshBurgrRatings(show.id, user.id);
+    } catch (error) {
+      console.error("Failed saving Burgr rating:", error);
+      setMyBurgrRating(previousRating);
+      alert(error.message || "Failed saving Burgr rating");
+    } finally {
+      setSavingBurgr(false);
+    }
+  }
 
-  const counts = useMemo(
-    () => ({
-      all: shows.filter((show) => (show.watch_status || "watching") !== "stopped")
-        .length,
-      inprogress: shows.filter(
-        (show) =>
-          !show.isCompleted && (show.watch_status || "watching") !== "stopped"
-      ).length,
-      completed: shows.filter(
-        (show) =>
-          show.isCompleted && (show.watch_status || "watching") !== "stopped"
-      ).length,
-      airing: shows.filter(
-        (show) =>
-          show.status === "Airing" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      ended: shows.filter(
-        (show) =>
-          show.status === "Ended" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      upcoming: shows.filter(
-        (show) =>
-          show.status === "Upcoming" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      stopped: shows.filter(
-        (show) => (show.watch_status || "watching") === "stopped"
-      ).length,
-    }),
-    [shows]
-  );
+  async function handleSelectEpisodeRating(ep, value) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || !ep?.id || savingEpisodeRatingId) return;
+
+    const rating = Number(value);
+    if (Number.isNaN(rating) || rating < 1 || rating > 10) return;
+
+    setSavingEpisodeRatingId(ep.id);
+
+    const previousRows = episodeRatings;
+
+    const optimisticRows = [
+      ...(episodeRatings || []).filter(
+        (row) =>
+          !(
+            String(row.episode_id) === String(ep.id) && row.user_id === user.id
+          )
+      ),
+      {
+        user_id: user.id,
+        episode_id: ep.id,
+        rating,
+      },
+    ];
+
+    setEpisodeRatings(optimisticRows);
+
+    try {
+      const { error } = await supabase.from("episode_ratings").upsert(
+        {
+          user_id: user.id,
+          episode_id: ep.id,
+          rating,
+        },
+        { onConflict: "user_id,episode_id" }
+      );
+
+      if (error) throw error;
+
+      await refreshEpisodeRatings(episodes.map((episode) => episode.id));
+      setOpenEpisodeRatingPickerId(null);
+    } catch (error) {
+      console.error("Failed saving episode rating:", error);
+      setEpisodeRatings(previousRows);
+      alert(error.message || "Failed saving episode rating");
+    } finally {
+      setSavingEpisodeRatingId(null);
+    }
+  }
+
+  function handleOpenEpisodeRatingPicker(epId) {
+    setOpenEpisodeRatingPickerId((prev) => (prev === epId ? null : epId));
+  }
 
   if (loading) {
     return (
-      <div className="page">
-        <div className="page-header">
-          <h1>My Shows</h1>
-          <p>Loading your saved shows...</p>
+      <div className="msd-page">
+        <div className="msd-shell">
+          <div className="msd-loading">Loading show...</div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="page">
-      <div className="page-header">
-        <h1>My Shows</h1>
-        <p>Track your saved shows and progress.</p>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        {[
-          ["all", `All (${counts.all})`],
-          ["inprogress", `In Progress (${counts.inprogress})`],
-          ["completed", `Completed (${counts.completed})`],
-          ["airing", `Airing (${counts.airing})`],
-          ["ended", `Ended (${counts.ended})`],
-          ["upcoming", `Upcoming (${counts.upcoming})`],
-          ["stopped", `Stopped (${counts.stopped})`],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            className="msd-btn msd-btn-secondary"
-            type="button"
-            onClick={() => setFilterBy(value)}
-            style={{ opacity: filterBy === value ? 1 : 0.7 }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: 24,
-        }}
-      >
-        <label>
-          Sort by{" "}
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="airingnext">Airing Next</option>
-            <option value="alphabetical">Alphabetical</option>
-            <option value="recent">Recently Added</option>
-            <option value="firstaired">First Aired</option>
-          </select>
-        </label>
-      </div>
-
-      {sortedShows.length === 0 ? (
-        <div className="show-card">
-          <p>No shows found for this filter.</p>
+  if (!show) {
+    return (
+      <div className="msd-page">
+        <div className="msd-shell">
+          <div className="msd-empty">
+            <p>Show not found.</p>
+            <Link to="/my-shows" className="msd-back-link">
+              Back to My Shows
+            </Link>
+          </div>
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 20,
-          }}
-        >
-          {sortedShows.map((show) => (
-            <Link
-              key={show.show_id}
-              to={`/my-shows/${show.tvdb_id}`}
-              style={{
-                textDecoration: "none",
-                color: "inherit",
-                display: "block",
-              }}
-            >
-              <div
-                style={{
-                  border: "1px solid #26324a",
-                  borderRadius: 18,
-                  padding: 12,
-                  transition: "0.2s ease",
-                  cursor: "pointer",
-                  height: "100%",
-                }}
-              >
-                {show.poster_url ? (
-                  <img
-                    src={show.poster_url}
-                    alt={show.show_name}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "2 / 3",
-                      objectFit: "cover",
-                      borderRadius: 14,
-                      display: "block",
-                      background: "#111827",
-                      marginBottom: 12,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "2 / 3",
-                      borderRadius: 14,
-                      background: "#111827",
-                      marginBottom: 12,
-                    }}
-                  />
-                )}
+      </div>
+    );
+  }
 
-                <div
-                  style={{
-                    color: "#f8fafc",
-                    fontWeight: 800,
-                    fontSize: "1rem",
-                    lineHeight: 1.25,
-                  }}
+  const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
+  const baseContext = `sourceShowId=${encodeURIComponent(
+    show.tvdb_id
+  )}&sourceYear=${encodeURIComponent(
+    sourceYear
+  )}&sourceRating=${encodeURIComponent(
+    sourceRating
+  )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
+
+  return (
+    <div className="msd-page">
+      <div className="msd-shell">
+        <Link to="/my-shows" className="msd-back-link">
+          ← Back to My Shows
+        </Link>
+
+        <section className="msd-hero">
+          <div>
+            {show.poster_url ? (
+              <img
+                src={show.poster_url}
+                alt={show.show_name}
+                className="msd-poster"
+              />
+            ) : null}
+
+            <div className="msd-actions" style={{ marginTop: "12px" }}>
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleRemoveShow}
+                disabled={savingShowAction}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isRemoved
+                    ? "Add Show"
+                    : "Remove Show"}
+              </button>
+
+              {!isRemoved ? (
+                <button
+                  type="button"
+                  className="msd-btn msd-btn-secondary"
+                  onClick={handleArchiveShow}
+                  disabled={savingShowAction}
                 >
-                  {show.show_name}
+                  {savingShowAction
+                    ? "Saving..."
+                    : show.watch_status === "archived"
+                      ? "Unarchive Show"
+                      : "Archive Show"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="msd-hero-main">
+            <h1 className="msd-title">{show.show_name}</h1>
+            {show.overview ? (
+              <p className="msd-overview">{show.overview}</p>
+            ) : null}
+
+            <div className="msd-meta">
+              {show.first_aired ? (
+                <div>First aired: {formatDate(show.first_aired)}</div>
+              ) : null}
+              {stats.nextEpisode ? (
+                <div>
+                  Next episode: {formatDate(stats.nextEpisode.aired)} (
+                  {getDaysUntil(stats.nextEpisode.aired) === 0
+                    ? "TODAY"
+                    : getDaysUntil(stats.nextEpisode.aired) === 1
+                      ? "IN 1 DAY"
+                      : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
+                  )
+                </div>
+              ) : null}
+              {show.status ? <div>Status: {show.status}</div> : null}
+              <div>
+                List status:{" "}
+                {show.watch_status === "archived"
+                  ? "archived"
+                  : show.watch_status === "watchlist"
+                    ? "watchlist"
+                    : show.watch_status || "not added"}
+              </div>
+            </div>
+
+            <div className="msd-stats-row msd-stats-row-top">
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Watched</span>
+                <strong className="msd-stat-value">{stats.watched}</strong>
+              </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Total</span>
+                <strong className="msd-stat-value">{stats.total}</strong>
+              </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Progress</span>
+                <strong className="msd-stat-value">{stats.pct}%</strong>
+              </div>
+            </div>
+
+            <div className="msd-stat-box msd-stat-box-full">
+              <span className="msd-stat-label">Your Burgr Rating</span>
+              <div className="msd-burgr-form msd-burgr-form-compact">
+                <div className="msd-burgr-picker msd-burgr-picker-compact">
+                  {Array.from({ length: 10 }, (_, index) => {
+                    const value = index + 1;
+                    const filled = value <= activeBurgrRating;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`msd-burger-btn ${
+                          filled ? "is-filled" : "is-empty"
+                        }`}
+                        onMouseEnter={() => setHoverBurgrRating(value)}
+                        onMouseLeave={() => setHoverBurgrRating(0)}
+                        onClick={() => handleSelectBurgrRating(value)}
+                        aria-label={`Rate ${value} out of 10 burgers`}
+                        title={`${value}/10`}
+                        disabled={savingBurgr}
+                      >
+                        <img
+                          src="/burger-rating.png"
+                          alt=""
+                          className="msd-burger-icon msd-burger-icon-small"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="msd-burgr-picker-footer msd-burgr-picker-footer-compact">
+                  <span className="msd-burgr-current">
+                    {savingBurgr
+                      ? "Saving..."
+                      : myBurgrRating
+                        ? `${myBurgrRating}/10`
+                        : "Select"}
+                  </span>
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
+            </div>
+
+            <div className="msd-stats-row msd-stats-row-rest">
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Average Burgrs</span>
+                <strong className="msd-stat-value">
+                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Network</span>
+                <strong className="msd-stat-value">
+                  {show.network ? (
+                    <Link
+                      to={`/search?network=${encodeURIComponent(
+                        show.network
+                      )}&${baseContext}`}
+                      className="msd-link"
+                    >
+                      {show.network}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Genre</span>
+                <strong className="msd-stat-value">
+                  {show.genres?.length > 0
+                    ? show.genres.map((genre, index) => (
+                        <span key={genre}>
+                          <Link
+                            to={`/search?genre=${encodeURIComponent(
+                              genre
+                            )}&${baseContext}`}
+                            className="msd-link"
+                          >
+                            {genre}
+                          </Link>
+                          {index < show.genres.length - 1 ? ", " : ""}
+                        </span>
+                      ))
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+
+            {(show.relationship_types?.length > 0 ||
+              show.settings?.length > 0) && (
+              <div
+                className="msd-stats-row msd-stats-row-rest"
+                style={{ marginTop: "12px" }}
+              >
+                <div className="msd-stat-box">
+                  <span className="msd-stat-label">Relationship Types</span>
+                  <strong className="msd-stat-value">
+                    {show.relationship_types?.length > 0
+                      ? show.relationship_types.map((value, index) => (
+                          <span key={value}>
+                            <Link
+                              to={`/search?relationshipType=${encodeURIComponent(
+                                value
+                              )}&${baseContext}`}
+                              className="msd-link"
+                            >
+                              {value}
+                            </Link>
+                            {index < show.relationship_types.length - 1
+                              ? ", "
+                              : ""}
+                          </span>
+                        ))
+                      : "—"}
+                  </strong>
+                </div>
+
+                <div className="msd-stat-box msd-stat-box-rest-wide">
+                  <span className="msd-stat-label">Settings</span>
+                  <strong className="msd-stat-value">
+                    {show.settings?.length > 0
+                      ? show.settings.map((value, index) => (
+                          <span key={value}>
+                            <Link
+                              to={`/search?setting=${encodeURIComponent(
+                                value
+                              )}&${baseContext}`}
+                              className="msd-link"
+                            >
+                              {value}
+                            </Link>
+                            {index < show.settings.length - 1 ? ", " : ""}
+                          </span>
+                        ))
+                      : "—"}
+                  </strong>
+                </div>
+              </div>
+            )}
+
+            <div className="msd-progress">
+              <div
+                className="msd-progress-fill"
+                style={{ width: `${stats.pct}%` }}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="msd-episodes-section">
+          <h2 className="msd-section-title">Episodes</h2>
+          <div className="msd-seasons">
+            {groupedSeasons.map((season) => (
+              <section
+                key={season.seasonNumber}
+                className={`msd-season-card ${
+                  season.complete ? "msd-season-complete" : ""
+                }`}
+              >
+                <button
+                  type="button"
+                  className="msd-season-toggle"
+                  onClick={() => toggleSeason(season.seasonNumber)}
+                >
+                  <div>
+                    <div className="msd-season-title">{season.label}</div>
+                    <div className="msd-season-subtitle">
+                      {season.watchedCount}/{season.totalCount} watched
+                    </div>
+                  </div>
+                  <div className="msd-season-toggle-right">
+                    {season.complete ? (
+                      <span className="msd-season-badge">Completed</span>
+                    ) : null}
+                    <span className="msd-season-chevron">
+                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                    </span>
+                  </div>
+                </button>
+
+                {expandedSeasons[season.seasonNumber] && (
+                  <div className="msd-episode-list">
+                    {season.episodes.map((ep) => {
+                      const watched = isEpisodeWatched(ep, watchedLookup);
+                      const myEpisodeRating = Number(
+                        myEpisodeRatings.get(String(ep.id)) || 0
+                      );
+                      const hoverEpisodeRating = Number(
+                        hoverEpisodeRatings[String(ep.id)] || 0
+                      );
+                      const activeEpisodeRating =
+                        hoverEpisodeRating || myEpisodeRating;
+                      const averageEpisodeRating = episodeAverageRatings.get(
+                        String(ep.id)
+                      );
+                      const savingThisEpisode = savingEpisodeRatingId === ep.id;
+                      const isPickerOpen = openEpisodeRatingPickerId === ep.id;
+
+                      return (
+                        <article
+                          id={`episode-${ep.id}`}
+                          key={ep.id}
+                          className={`msd-episode-card ${
+                            watched ? "msd-episode-watched" : ""
+                          }`}
+                        >
+                          <div className="msd-episode-top">
+                            <div>
+                              <h3 className="msd-episode-title">
+                                {makeEpisodeCode(ep)} - {ep.name}
+                              </h3>
+                              <div className="msd-episode-date">
+                                Air date: {formatDate(ep.aired)}
+                              </div>
+                            </div>
+                            {watched ? (
+                              <span className="msd-watched-pill">Watched</span>
+                            ) : null}
+                          </div>
+
+                          {ep.overview ? (
+                            <p className="msd-episode-overview">{ep.overview}</p>
+                          ) : null}
+
+                          <div className="msd-episode-rating-box">
+                            <div className="msd-episode-rating-header">
+                              <span className="msd-stat-label">
+                                Your Episode Rating
+                              </span>
+                              <span className="msd-episode-rating-meta">
+                                {savingThisEpisode
+                                  ? "Saving..."
+                                  : myEpisodeRating
+                                    ? `${myEpisodeRating}/10`
+                                    : "Not rated"}
+                              </span>
+                            </div>
+
+                            <div className="msd-episode-rating-desktop">
+                              <div className="msd-burgr-picker msd-burgr-picker-compact">
+                                {Array.from({ length: 10 }, (_, index) => {
+                                  const value = index + 1;
+                                  const filled = value <= activeEpisodeRating;
+
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      className={`msd-burger-btn ${
+                                        filled ? "is-filled" : "is-empty"
+                                      }`}
+                                      onMouseEnter={() =>
+                                        setHoverEpisodeRatings((prev) => ({
+                                          ...prev,
+                                          [ep.id]: value,
+                                        }))
+                                      }
+                                      onMouseLeave={() =>
+                                        setHoverEpisodeRatings((prev) => ({
+                                          ...prev,
+                                          [ep.id]: 0,
+                                        }))
+                                      }
+                                      onClick={() =>
+                                        handleSelectEpisodeRating(ep, value)
+                                      }
+                                      aria-label={`Rate episode ${value} out of 10 burgers`}
+                                      title={`${value}/10`}
+                                      disabled={savingThisEpisode}
+                                    >
+                                      <img
+                                        src="/burger-rating.png"
+                                        alt=""
+                                        className="msd-burger-icon msd-burger-icon-small"
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="msd-episode-rating-mobile">
+                              <button
+                                type="button"
+                                className="msd-btn msd-btn-secondary msd-rating-trigger"
+                                onClick={() =>
+                                  handleOpenEpisodeRatingPicker(ep.id)
+                                }
+                                disabled={savingThisEpisode}
+                              >
+                                {savingThisEpisode
+                                  ? "Saving..."
+                                  : myEpisodeRating
+                                    ? `Rate Episode (${myEpisodeRating}/10)`
+                                    : "Rate Episode"}
+                              </button>
+
+                              {isPickerOpen ? (
+                                <div className="msd-mobile-rating-sheet">
+                                  <div className="msd-mobile-rating-grid">
+                                    {Array.from({ length: 10 }, (_, index) => {
+                                      const value = index + 1;
+                                      const selected =
+                                        value === myEpisodeRating;
+
+                                      return (
+                                        <button
+                                          key={value}
+                                          type="button"
+                                          className={`msd-mobile-rating-option ${
+                                            selected ? "is-selected" : ""
+                                          }`}
+                                          onClick={() =>
+                                            handleSelectEpisodeRating(ep, value)
+                                          }
+                                          disabled={savingThisEpisode}
+                                        >
+                                          <img
+                                            src="/burger-rating.png"
+                                            alt=""
+                                            className="msd-burger-icon msd-burger-icon-small"
+                                          />
+                                          <span>{value}/10</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div className="msd-episode-rating-footer">
+                              <span className="msd-muted">
+                                Average:{" "}
+                                {averageEpisodeRating
+                                  ? `${averageEpisodeRating.avg}/10`
+                                  : "—"}
+                                {averageEpisodeRating
+                                  ? ` (${averageEpisodeRating.count})`
+                                  : ""}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="msd-actions">
+                            <button
+                              type="button"
+                              className={`msd-btn ${
+                                watched
+                                  ? "msd-btn-secondary"
+                                  : "msd-btn-primary"
+                              }`}
+                              onClick={() => handleMarkWatched(ep)}
+                            >
+                              {watched ? "Mark Unwatched" : "Mark Watched"}
+                            </button>
+
+                            <button
+                              type="button"
+                              className="msd-btn msd-btn-secondary"
+                              onClick={() => handleWatchUpToHere(ep)}
+                            >
+                              Watch up to here
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        </section>
+
+        <section className="msd-panel msd-panel-spaced">
+          <h2 className="msd-section-title">Cast</h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading cast...</p>
+          ) : cast.length > 0 ? (
+            <div className="msd-cast-grid">
+              {cast.map((member, index) => {
+                const actorName = member.personName || "Unknown actor";
+                const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
+
+                return (
+                  <Link
+                    key={member.id || `${member.personName}-${index}`}
+                    to={linkTarget}
+                    className="msd-cast-card"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    {member.image ? (
+                      <img
+                        src={member.image}
+                        alt={actorName}
+                        className="msd-cast-image"
+                      />
+                    ) : null}
+                    <div className="msd-cast-name">{actorName}</div>
+                    <div className="msd-cast-role">
+                      {member.characterName || "Cast"}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No cast available.</p>
+          )}
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">
+            {peopleAlsoWatch.length > 0
+              ? "People Also Watch"
+              : "Recommended Shows"}
+          </h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-grid">
+              {recommendedShows.map((rec, index) => {
+                const showName = rec.name || rec.title || "Unknown show";
+                const linkTarget = getMappedShowHref(rec);
+                const posterSrc =
+                  rec.poster_url ||
+                  rec.posterUrl ||
+                  rec.image_url ||
+                  rec.image ||
+                  (rec.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+                    : "/no-image.png");
+
+                return (
+                  <Link
+                    key={rec.id || `${showName}-${index}`}
+                    to={linkTarget}
+                    className="msd-rec-card"
+                  >
+                    <img
+                      src={posterSrc}
+                      alt={showName}
+                      className="msd-rec-image"
+                    />
+                    <div className="msd-rec-title">{showName}</div>
+                    {rec.first_aired || rec.firstAired || rec.first_air_date ? (
+                      <div className="msd-rec-date">
+                        {formatDate(
+                          rec.first_aired ||
+                            rec.firstAired ||
+                            rec.first_air_date
+                        )}
+                      </div>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
