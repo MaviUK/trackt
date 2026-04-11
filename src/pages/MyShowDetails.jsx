@@ -801,29 +801,16 @@ export default function MyShowDetails() {
 
     if (watched) {
       setWatchedRows((prev) =>
-        (prev || []).filter((row) => {
-          const matchesEpisodeId =
-            String(row?.episode_id ?? "") === String(ep.id);
-          const matchesTvdbEpisodeId =
-            ep.tvdb_episode_id != null &&
-            String(row?.tvdb_episode_id ?? "") === String(ep.tvdb_episode_id);
-
-          return !(matchesEpisodeId || matchesTvdbEpisodeId);
-        })
+        (prev || []).filter(
+          (row) => String(row?.episode_id ?? "") !== String(ep.id)
+        )
       );
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
-
-        const alreadyExists = next.some((row) => {
-          const matchesEpisodeId =
-            String(row?.episode_id ?? "") === String(ep.id);
-          const matchesTvdbEpisodeId =
-            ep.tvdb_episode_id != null &&
-            String(row?.tvdb_episode_id ?? "") === String(ep.tvdb_episode_id);
-
-          return matchesEpisodeId || matchesTvdbEpisodeId;
-        });
+        const alreadyExists = next.some(
+          (row) => String(row?.episode_id ?? "") === String(ep.id)
+        );
 
         if (!alreadyExists) {
           next.push(optimisticRow);
@@ -835,42 +822,27 @@ export default function MyShowDetails() {
 
     try {
       if (watched) {
-        const deletePromises = [
-          supabase
-            .from("watched_episodes")
-            .delete()
-            .eq("user_id", user.id)
-            .eq("episode_id", ep.id),
-        ];
+        const { error } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("episode_id", ep.id);
 
-        if (ep.tvdb_episode_id != null) {
-          deletePromises.push(
-            supabase
-              .from("watched_episodes")
-              .delete()
-              .eq("user_id", user.id)
-              .eq("tvdb_episode_id", ep.tvdb_episode_id)
-          );
-        }
-
-        const results = await Promise.all(deletePromises);
-        const failed = results.find((result) => result.error);
-        if (failed?.error) throw failed.error;
+        if (error) throw error;
       } else {
-        const { error } = await supabase.from("watched_episodes").upsert(
-          {
-            user_id: user.id,
-            episode_id: ep.id,
-            tvdb_episode_id: ep.tvdb_episode_id ?? null,
-          },
-          { onConflict: "user_id,episode_id" }
-        );
+        const { error } = await supabase
+          .from("watched_episodes")
+          .upsert(
+            {
+              user_id: user.id,
+              episode_id: ep.id,
+              tvdb_episode_id: ep.tvdb_episode_id ?? null,
+            },
+            { onConflict: "user_id,episode_id" }
+          );
 
         if (error) throw error;
       }
-
-      const freshRows = await fetchWatchedRows(user.id);
-      setWatchedRows(freshRows);
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
@@ -917,31 +889,17 @@ export default function MyShowDetails() {
 
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
-        const existingEpisodeIds = new Set(
+        const existingIds = new Set(
           next
             .map((row) => row?.episode_id)
             .filter((value) => value != null)
             .map((value) => String(value))
         );
-        const existingTvdbEpisodeIds = new Set(
-          next
-            .map((row) => row?.tvdb_episode_id)
-            .filter((value) => value != null)
-            .map((value) => String(value))
-        );
 
         for (const row of rowsToUpsert) {
-          const hasEpisodeId = existingEpisodeIds.has(String(row.episode_id));
-          const hasTvdbEpisodeId =
-            row.tvdb_episode_id != null &&
-            existingTvdbEpisodeIds.has(String(row.tvdb_episode_id));
-
-          if (!hasEpisodeId && !hasTvdbEpisodeId) {
+          if (!existingIds.has(String(row.episode_id))) {
             next.push(row);
-            existingEpisodeIds.add(String(row.episode_id));
-            if (row.tvdb_episode_id != null) {
-              existingTvdbEpisodeIds.add(String(row.tvdb_episode_id));
-            }
+            existingIds.add(String(row.episode_id));
           }
         }
 
@@ -953,9 +911,6 @@ export default function MyShowDetails() {
         .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
 
       if (error) throw error;
-
-      const freshRows = await fetchWatchedRows(user.id);
-      setWatchedRows(freshRows);
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
@@ -1075,9 +1030,7 @@ export default function MyShowDetails() {
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id
-  )}&sourceYear=${encodeURIComponent(
-    sourceYear
-  )}&sourceRating=${encodeURIComponent(
+  )}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
