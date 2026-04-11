@@ -148,77 +148,82 @@ export default function MyShows() {
         episodesByShowId[key].push(ep);
       }
 
-      const updatedShows = normalizedUserShows.map((userShow) => {
-        const showEpisodes = episodesByShowId[userShow.show_id] || [];
+const updatedShows = normalizedUserShows.map((userShow) => {
+  const showEpisodes = episodesByShowId[userShow.show_id] || [];
 
-        const airedEpisodes = showEpisodes.filter((ep) => isAired(ep.aired_date));
-        const futureEpisodes = showEpisodes.filter(
-          (ep) => ep.aired_date && !isAired(ep.aired_date)
-        );
+  const mainEpisodes = showEpisodes.filter(
+    (ep) => Number(ep.season_number ?? 0) !== 0
+  );
 
-        const watchedAiredCount = airedEpisodes.filter((ep) =>
-          watchedEpisodeIds.has(String(ep.id))
-        ).length;
+  const airedMainEpisodes = mainEpisodes.filter((ep) => isAired(ep.aired_date));
+  const futureMainEpisodes = mainEpisodes.filter(
+    (ep) => ep.aired_date && !isAired(ep.aired_date)
+  );
 
-        const watchedTotalCount = showEpisodes.filter((ep) =>
-          watchedEpisodeIds.has(String(ep.id))
-        ).length;
+  const watchedMainCount = mainEpisodes.filter((ep) =>
+    watchedEpisodeIds.has(String(ep.id))
+  ).length;
 
-        const totalAiredEpisodes = airedEpisodes.length;
-        const totalEpisodeCount = showEpisodes.length;
+  const watchedAiredMainCount = airedMainEpisodes.filter((ep) =>
+    watchedEpisodeIds.has(String(ep.id))
+  ).length;
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+  const totalMainEpisodes = mainEpisodes.length;
+  const totalAiredMainEpisodes = airedMainEpisodes.length;
 
-        const upcomingEpisodes = futureEpisodes
-          .filter((ep) => ep.aired_date)
-          .filter((ep) => {
-            const airDate = new Date(ep.aired_date);
-            airDate.setHours(0, 0, 0, 0);
-            return airDate >= today;
-          })
-          .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-        const nextEpisodeDate =
-          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
+  const upcomingEpisodes = futureMainEpisodes
+    .filter((ep) => ep.aired_date)
+    .filter((ep) => {
+      const airDate = new Date(ep.aired_date);
+      airDate.setHours(0, 0, 0, 0);
+      return airDate >= today;
+    })
+    .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
 
-        const daysToNextEpisode = daysUntil(nextEpisodeDate);
+  const nextEpisodeDate =
+    upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
 
-        const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
-        const status = getShowStatus(
-          {
-            ...userShow,
-            first_aired: userShow.first_aired,
-          },
-          statusEpisodes
-        );
+  const daysToNextEpisode = daysUntil(nextEpisodeDate);
 
-        const isWatchlist = watchedTotalCount === 0;
-        const isCompleted =
-          totalEpisodeCount > 0 && watchedTotalCount >= totalEpisodeCount;
-        const isArchived = userShow.watch_status === "archived";
-        const isAiring = !!nextEpisodeDate;
-        const isAiringSoon =
-          daysToNextEpisode != null &&
-          daysToNextEpisode >= 0 &&
-          daysToNextEpisode <= 30;
+  const statusEpisodes = mainEpisodes.map(toStatusEpisodeShape);
 
-        return {
-          ...userShow,
-          nextEpisodeDate,
-          daysToNextEpisode,
-          watchedAiredCount,
-          watchedTotalCount,
-          totalAiredEpisodes,
-          totalEpisodeCount,
-          status,
-          isWatchlist,
-          isCompleted,
-          isArchived,
-          isAiring,
-          isAiringSoon,
-        };
-      });
+  const status = getShowStatus(
+    {
+      ...userShow,
+      first_aired: userShow.first_aired,
+    },
+    statusEpisodes
+  );
+
+  const isWatchlist = watchedMainCount === 0;
+  const isCompleted =
+    totalMainEpisodes > 0 && watchedMainCount >= totalMainEpisodes;
+  const isArchived = userShow.watch_status === "archived";
+  const isAiring = !!nextEpisodeDate;
+  const isAiringSoon =
+    daysToNextEpisode != null &&
+    daysToNextEpisode >= 0 &&
+    daysToNextEpisode <= 30;
+
+  return {
+    ...userShow,
+    nextEpisodeDate,
+    daysToNextEpisode,
+    watchedMainCount,
+    watchedAiredMainCount,
+    totalMainEpisodes,
+    totalAiredMainEpisodes,
+    status,
+    isWatchlist,
+    isCompleted,
+    isArchived,
+    isAiring,
+    isAiringSoon,
+  };
+});
 
       setShows(updatedShows);
     } catch (error) {
@@ -275,9 +280,9 @@ export default function MyShows() {
         return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
       }
 
-      if (sortBy === "progress") {
-        return b.watchedTotalCount - a.watchedTotalCount;
-      }
+     if (sortBy === "progress") {
+  return b.watchedMainCount - a.watchedMainCount;
+}
 
       return 0;
     });
@@ -431,16 +436,16 @@ export default function MyShows() {
                 </div>
 
                 <div style={{ color: "#a5b4cc", fontSize: "0.9rem" }}>
-                  {show.isArchived
-                    ? "Archived"
-                    : show.isCompleted
-                    ? `Completed (${show.watchedTotalCount}/${show.totalEpisodeCount})`
-                    : show.isWatchlist
-                    ? "Watchlist"
-                    : show.nextEpisodeDate
-                    ? `Next: ${show.nextEpisodeDate}`
-                    : show.status || "Saved"}
-                </div>
+  {show.isArchived
+    ? "Archived"
+    : show.isCompleted
+    ? `Completed (${show.watchedMainCount}/${show.totalMainEpisodes})`
+    : show.isWatchlist
+    ? "Watchlist"
+    : show.nextEpisodeDate
+    ? `Next: ${show.nextEpisodeDate}`
+    : show.status || "Saved"}
+</div>
               </div>
             </Link>
           ))}
