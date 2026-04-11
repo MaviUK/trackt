@@ -20,6 +20,23 @@ function toStatusEpisodeShape(ep) {
   };
 }
 
+function daysUntil(dateValue) {
+  if (!dateValue) return null;
+  const now = new Date();
+  const target = new Date(dateValue);
+
+  if (Number.isNaN(target.getTime())) return null;
+
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  );
+
+  return Math.ceil((targetStart - nowStart) / 86400000);
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +66,7 @@ export default function MyShows() {
           user_id,
           show_id,
           watch_status,
+          archived_at,
           added_at,
           created_at,
           shows!inner(
@@ -70,6 +88,7 @@ export default function MyShows() {
         user_id: row.user_id,
         show_id: row.show_id,
         watch_status: row.watch_status || "watching",
+        archived_at: row.archived_at || null,
         added_at: row.added_at,
         created_at: row.created_at,
         tvdb_id: row.shows.tvdb_id,
@@ -80,7 +99,9 @@ export default function MyShows() {
         first_aired: row.shows.first_aired || null,
       }));
 
-      const showIds = normalizedUserShows.map((show) => show.show_id).filter(Boolean);
+      const showIds = normalizedUserShows
+        .map((show) => show.show_id)
+        .filter(Boolean);
 
       if (!showIds.length) {
         setShows([]);
@@ -138,6 +159,10 @@ export default function MyShows() {
           watchedEpisodeIds.has(String(ep.id))
         ).length;
 
+        const watchedTotalCount = showEpisodes.filter((ep) =>
+          watchedEpisodeIds.has(String(ep.id))
+        ).length;
+
         const totalAiredEpisodes = airedEpisodes.length;
 
         const today = new Date();
@@ -155,6 +180,8 @@ export default function MyShows() {
         const nextEpisodeDate =
           upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
 
+        const daysToNextEpisode = daysUntil(nextEpisodeDate);
+
         const statusEpisodes = showEpisodes.map(toStatusEpisodeShape);
         const status = getShowStatus(
           {
@@ -167,11 +194,28 @@ export default function MyShows() {
         const isCompleted =
           totalAiredEpisodes > 0 && watchedAiredCount >= totalAiredEpisodes;
 
+        const isWatchlist = watchedTotalCount === 0;
+        const isArchived = userShow.watch_status === "archived";
+        const isAiring = !!nextEpisodeDate;
+        const isAiringSoon =
+          daysToNextEpisode != null &&
+          daysToNextEpisode >= 0 &&
+          daysToNextEpisode <= 30;
+
         return {
           ...userShow,
           nextEpisodeDate,
+          daysToNextEpisode,
+          watchedAiredCount,
+          watchedTotalCount,
+          totalAiredEpisodes,
+          totalEpisodeCount: showEpisodes.length,
           status,
           isCompleted,
+          isWatchlist,
+          isArchived,
+          isAiring,
+          isAiringSoon,
         };
       });
 
@@ -190,21 +234,12 @@ export default function MyShows() {
 
   const filteredShows = useMemo(() => {
     return shows.filter((show) => {
-      const watchStatus = show.watch_status || "watching";
-
-      if (filterBy === "all") return watchStatus !== "stopped";
-      if (filterBy === "stopped") return watchStatus === "stopped";
-      if (filterBy === "completed")
-        return show.isCompleted && watchStatus !== "stopped";
-      if (filterBy === "inprogress")
-        return !show.isCompleted && watchStatus !== "stopped";
-      if (filterBy === "airing")
-        return show.status === "Airing" && watchStatus !== "stopped";
-      if (filterBy === "ended")
-        return show.status === "Ended" && watchStatus !== "stopped";
-      if (filterBy === "upcoming")
-        return show.status === "Upcoming" && watchStatus !== "stopped";
-
+      if (filterBy === "all") return !show.isArchived;
+      if (filterBy === "airing") return show.isAiring && !show.isArchived;
+      if (filterBy === "watchlist") return show.isWatchlist && !show.isArchived;
+      if (filterBy === "completed") return show.isCompleted && !show.isArchived;
+      if (filterBy === "airingsoon") return show.isAiringSoon && !show.isArchived;
+      if (filterBy === "archived") return show.isArchived;
       return true;
     });
   }, [shows, filterBy]);
@@ -229,11 +264,18 @@ export default function MyShows() {
       }
 
       if (sortBy === "recent") {
-        return new Date(b.added_at || b.created_at || 0) - new Date(a.added_at || a.created_at || 0);
+        return (
+          new Date(b.added_at || b.created_at || 0) -
+          new Date(a.added_at || a.created_at || 0)
+        );
       }
 
       if (sortBy === "firstaired") {
         return new Date(a.first_aired || 0) - new Date(b.first_aired || 0);
+      }
+
+      if (sortBy === "progress") {
+        return b.watchedAiredCount - a.watchedAiredCount;
       }
 
       return 0;
@@ -244,34 +286,15 @@ export default function MyShows() {
 
   const counts = useMemo(
     () => ({
-      all: shows.filter((show) => (show.watch_status || "watching") !== "stopped")
+      all: shows.filter((show) => !show.isArchived).length,
+      airing: shows.filter((show) => show.isAiring && !show.isArchived).length,
+      watchlist: shows.filter((show) => show.isWatchlist && !show.isArchived)
         .length,
-      inprogress: shows.filter(
-        (show) =>
-          !show.isCompleted && (show.watch_status || "watching") !== "stopped"
-      ).length,
-      completed: shows.filter(
-        (show) =>
-          show.isCompleted && (show.watch_status || "watching") !== "stopped"
-      ).length,
-      airing: shows.filter(
-        (show) =>
-          show.status === "Airing" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      ended: shows.filter(
-        (show) =>
-          show.status === "Ended" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      upcoming: shows.filter(
-        (show) =>
-          show.status === "Upcoming" &&
-          (show.watch_status || "watching") !== "stopped"
-      ).length,
-      stopped: shows.filter(
-        (show) => (show.watch_status || "watching") === "stopped"
-      ).length,
+      completed: shows.filter((show) => show.isCompleted && !show.isArchived)
+        .length,
+      airingsoon: shows.filter((show) => show.isAiringSoon && !show.isArchived)
+        .length,
+      archived: shows.filter((show) => show.isArchived).length,
     }),
     [shows]
   );
@@ -297,12 +320,11 @@ export default function MyShows() {
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
         {[
           ["all", `All (${counts.all})`],
-          ["inprogress", `In Progress (${counts.inprogress})`],
-          ["completed", `Completed (${counts.completed})`],
           ["airing", `Airing (${counts.airing})`],
-          ["ended", `Ended (${counts.ended})`],
-          ["upcoming", `Upcoming (${counts.upcoming})`],
-          ["stopped", `Stopped (${counts.stopped})`],
+          ["watchlist", `Watchlist (${counts.watchlist})`],
+          ["completed", `Completed (${counts.completed})`],
+          ["airingsoon", `Airing Soon (${counts.airingsoon})`],
+          ["archived", `Archived (${counts.archived})`],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -332,6 +354,7 @@ export default function MyShows() {
             <option value="alphabetical">Alphabetical</option>
             <option value="recent">Recently Added</option>
             <option value="firstaired">First Aired</option>
+            <option value="progress">Most Watched</option>
           </select>
         </label>
       </div>
@@ -400,9 +423,22 @@ export default function MyShows() {
                     fontWeight: 800,
                     fontSize: "1rem",
                     lineHeight: 1.25,
+                    marginBottom: 8,
                   }}
                 >
                   {show.show_name}
+                </div>
+
+                <div style={{ color: "#a5b4cc", fontSize: "0.9rem" }}>
+                  {show.isArchived
+                    ? "Archived"
+                    : show.isCompleted
+                    ? "Completed"
+                    : show.isWatchlist
+                    ? "Watchlist"
+                    : show.nextEpisodeDate
+                    ? `Next: ${show.nextEpisodeDate}`
+                    : show.status || "Saved"}
                 </div>
               </div>
             </Link>
