@@ -75,11 +75,14 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
-async function fetchWatchedRows(userId) {
+async function fetchWatchedRowsForShow(userId, showEpisodeIds) {
+  if (!userId || !showEpisodeIds?.length) return [];
+
   const { data, error } = await supabase
     .from("watched_episodes")
     .select("episode_id")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .in("episode_id", showEpisodeIds);
 
   if (error) throw error;
   return data || [];
@@ -321,27 +324,26 @@ export default function MyShowDetails() {
             .map(String)
         );
 
-        const [episodeRes, watchedRowsData, burgrRows] = await Promise.all([
-          supabase
-            .from("episodes")
-            .select(`
-              id,
-              tvdb_id,
-              show_id,
-              season_number,
-              episode_number,
-              episode_code,
-              name,
-              overview,
-              aired_date,
-              image_url
-            `)
-            .eq("show_id", showId)
-            .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true }),
-          fetchWatchedRows(user.id),
-          fetchBurgrRatings(showId),
-        ]);
+        const [episodeRes, burgrRows] = await Promise.all([
+  supabase
+    .from("episodes")
+    .select(`
+      id,
+      tvdb_id,
+      show_id,
+      season_number,
+      episode_number,
+      episode_code,
+      name,
+      overview,
+      aired_date,
+      image_url
+    `)
+    .eq("show_id", showId)
+    .order("season_number", { ascending: true })
+    .order("episode_number", { ascending: true }),
+  fetchBurgrRatings(showId),
+]);
 
         const { data: episodeRows, error: episodeError } = episodeRes;
         if (episodeError) throw episodeError;
@@ -359,8 +361,9 @@ export default function MyShowDetails() {
           episode_code: row.episode_code,
         }));
 
-        const episodeIds = normalizedEpisodes.map((ep) => ep.id);
-        const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
+const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+const watchedRowsData = await fetchWatchedRowsForShow(user.id, episodeIds);
+const episodeRatingRows = await fetchEpisodeRatings(episodeIds);
 
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
