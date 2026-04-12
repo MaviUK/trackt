@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -20,9 +20,7 @@ function clamp(value, min, max) {
 function formatDobForInput(value) {
   if (!value) return "";
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
 
   if (/^\d{2}-\d{2}-\d{4}$/.test(value)) {
     const [day, month, year] = value.split("-");
@@ -35,6 +33,7 @@ function formatDobForInput(value) {
   const year = parsed.getFullYear();
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const day = String(parsed.getDate()).padStart(2, "0");
+
   return `${year}-${month}-${day}`;
 }
 
@@ -45,15 +44,16 @@ export default function ProfileEdit() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState(null);
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState("");
+
   const [form, setForm] = useState({
     username: "",
     full_name: "",
-    avatar_url: "",
     avatar_zoom: 1,
     avatar_x: 50,
     avatar_y: 50,
@@ -67,6 +67,21 @@ export default function ProfileEdit() {
     youtube_url: "",
     website_url: "",
   });
+
+  const previewAvatarUrl = useMemo(() => {
+    if (selectedAvatarFile) {
+      return URL.createObjectURL(selectedAvatarFile);
+    }
+    return existingAvatarUrl || "";
+  }, [selectedAvatarFile, existingAvatarUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (selectedAvatarFile) {
+        URL.revokeObjectURL(previewAvatarUrl);
+      }
+    };
+  }, [selectedAvatarFile, previewAvatarUrl]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -113,10 +128,11 @@ export default function ProfileEdit() {
         if (profileError) throw profileError;
 
         if (data) {
+          setExistingAvatarUrl(data.avatar_url || "");
+
           setForm({
             username: data.username || "",
             full_name: data.full_name || "",
-            avatar_url: data.avatar_url || "",
             avatar_zoom: Number(data.avatar_zoom ?? 1),
             avatar_x: Number(data.avatar_x ?? 50),
             avatar_y: Number(data.avatar_y ?? 50),
@@ -148,6 +164,7 @@ export default function ProfileEdit() {
 
       const { startX, startY, startAvatarX, startAvatarY } =
         dragStateRef.current;
+
       const rect = previewRef.current.getBoundingClientRect();
 
       const deltaX = event.clientX - startX;
@@ -186,7 +203,7 @@ export default function ProfileEdit() {
   }
 
   function handleAvatarPointerDown(event) {
-    if (!form.avatar_url) return;
+    if (!previewAvatarUrl) return;
 
     event.preventDefault();
 
@@ -201,7 +218,7 @@ export default function ProfileEdit() {
   }
 
   function handleAvatarWheel(event) {
-    if (!form.avatar_url) return;
+    if (!previewAvatarUrl) return;
 
     event.preventDefault();
 
@@ -220,64 +237,62 @@ export default function ProfileEdit() {
   function zoomAvatar(amount) {
     setForm((prev) => ({
       ...prev,
-      avatar_zoom: clamp(Number((prev.avatar_zoom + amount).toFixed(2)), 1, 2.5),
+      avatar_zoom: clamp(
+        Number((prev.avatar_zoom + amount).toFixed(2)),
+        1,
+        2.5
+      ),
     }));
   }
 
-  async function handleImageUpload(event) {
+  function handleImageSelect(event) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
     setError("");
     setMessage("");
 
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    setSelectedAvatarFile(file);
 
-      if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in.");
+    setForm((prev) => ({
+      ...prev,
+      avatar_zoom: 1,
+      avatar_x: 50,
+      avatar_y: 50,
+    }));
 
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
-      const filePath = `${user.id}/avatar-${Date.now()}.${safeExtension}`;
+    setMessage("Image selected. Drag it into position, then save profile.");
+  }
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
-      const publicUrl = publicUrlData?.publicUrl || "";
-
-      if (!publicUrl) {
-        throw new Error("Could not get uploaded image URL.");
-      }
-
-      setForm((prev) => ({
-        ...prev,
-        avatar_url: publicUrl,
-        avatar_zoom: 1,
-        avatar_x: 50,
-        avatar_y: 50,
-      }));
-
-      setMessage("Image uploaded. Drag the image to position it, then save.");
-    } catch (err) {
-      console.error("Avatar upload failed:", err);
-      setError(err.message || "Failed to upload image.");
-    } finally {
-      setUploading(false);
+  async function uploadAvatarIfNeeded(userId) {
+    if (!selectedAvatarFile) {
+      return existingAvatarUrl || null;
     }
+
+    const extension =
+      selectedAvatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
+    const filePath = `${userId}/avatar-${Date.now()}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, selectedAvatarFile, {
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicUrlData?.publicUrl || "";
+
+    if (!publicUrl) {
+      throw new Error("Could not get uploaded image URL.");
+    }
+
+    return publicUrl;
   }
 
   async function handleSubmit(event) {
@@ -300,11 +315,13 @@ export default function ProfileEdit() {
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
 
+      const avatarUrl = await uploadAvatarIfNeeded(user.id);
+
       const payload = {
         id: user.id,
         username: cleanedUsername || null,
         full_name: cleanedFullName || null,
-        avatar_url: form.avatar_url.trim() || null,
+        avatar_url: avatarUrl || null,
         avatar_zoom: Number(form.avatar_zoom) || 1,
         avatar_x: Number(form.avatar_x) || 50,
         avatar_y: Number(form.avatar_y) || 50,
@@ -426,7 +443,7 @@ export default function ProfileEdit() {
             }}
           >
             <div>
-              {form.avatar_url ? (
+              {previewAvatarUrl ? (
                 <>
                   <div
                     ref={previewRef}
@@ -437,19 +454,26 @@ export default function ProfileEdit() {
                       height: 200,
                       borderRadius: "999px",
                       overflow: "hidden",
-                      background: "#111827",
                       position: "relative",
                       cursor: isDragging ? "grabbing" : "grab",
                       userSelect: "none",
                       touchAction: "none",
-                      border: "1px solid rgba(148,163,184,0.2)",
+                      border: "1px solid rgba(148,163,184,0.25)",
+                      backgroundColor: "#e5e7eb",
+                      backgroundImage:
+                        "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+                      backgroundSize: "20px 20px",
+                      backgroundPosition:
+                        "0 0, 0 10px, 10px -10px, -10px 0px",
                     }}
                   >
                     <img
-                      src={form.avatar_url}
-                      alt="Profile"
+                      src={previewAvatarUrl}
+                      alt="Profile preview"
                       draggable={false}
                       style={{
+                        position: "absolute",
+                        inset: 0,
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
@@ -477,6 +501,7 @@ export default function ProfileEdit() {
                     >
                       − Zoom out
                     </button>
+
                     <button
                       type="button"
                       onClick={() => zoomAvatar(0.1)}
@@ -527,15 +552,13 @@ export default function ProfileEdit() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleImageUpload}
-                disabled={uploading || saving}
+                onChange={handleImageSelect}
+                disabled={saving}
                 style={{ color: "#cbd5e1" }}
               />
 
               <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
-                {uploading
-                  ? "Uploading image..."
-                  : "PNG, JPG, WEBP supported."}
+                PNG, JPG, WEBP supported.
               </div>
             </div>
           </div>
@@ -685,7 +708,7 @@ export default function ProfileEdit() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button
               type="submit"
-              disabled={saving || uploading}
+              disabled={saving}
               style={primaryButtonStyle}
             >
               {saving ? "Saving..." : "Save Profile"}
