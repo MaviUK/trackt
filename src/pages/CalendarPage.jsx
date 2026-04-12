@@ -66,7 +66,6 @@ export default function CalendarPage() {
             )
           `)
           .eq("user_id", user.id)
-          .neq("watch_status", "archived")
           .order("added_at", { ascending: true });
 
         if (showsError) {
