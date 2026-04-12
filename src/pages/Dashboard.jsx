@@ -41,21 +41,14 @@ function isBeforeToday(dateStr) {
 function formatMinutes(totalMinutes) {
   const minutes = Number(totalMinutes) || 0;
 
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
+  if (minutes < 60) return `${minutes}m`;
 
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
   const mins = minutes % 60;
 
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-
-  if (hours > 0 && mins > 0) {
-    return `${hours}h ${mins}m`;
-  }
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
 
   return `${hours}h`;
 }
@@ -69,6 +62,10 @@ function getDisplayEpisodeCode(ep) {
 function isEpisodeWatched(ep, watchedEpisodeIds) {
   if (!ep?.id) return false;
   return watchedEpisodeIds.has(String(ep.id));
+}
+
+function isFirstEpisode(ep) {
+  return Number(ep?.seasonNumber) === 1 && Number(ep?.number) === 1;
 }
 
 function DashboardEpisodeItem({
@@ -323,21 +320,45 @@ export default function Dashboard() {
           });
         }
 
+        const watchedShowIds = new Set();
+
+        for (const show of safeShows) {
+          const showEpisodes = episodesLookup[show.show_id] || [];
+          const hasWatchedEpisode = showEpisodes.some((ep) =>
+            isEpisodeWatched(ep, watchedIds)
+          );
+
+          if (hasWatchedEpisode) {
+            watchedShowIds.add(show.show_id);
+          }
+        }
+
         const thisWeekItems = [];
         for (const row of airingWeekResp.data || []) {
           const show = showLookup[row.show_id];
           if (!show) continue;
 
+          if (show.watch_status === "archived") continue;
+
+          const episode = {
+            id: row.id,
+            show_id: row.show_id,
+            seasonNumber: row.season_number,
+            number: row.episode_number,
+            name: row.name || "Untitled episode",
+            aired: row.aired_date,
+          };
+
+          const hasStartedShow = watchedShowIds.has(row.show_id);
+          const allowUnstartedBecausePilot = isFirstEpisode(episode);
+
+          if (!hasStartedShow && !allowUnstartedBecausePilot) {
+            continue;
+          }
+
           thisWeekItems.push({
             show,
-            episode: {
-              id: row.id,
-              show_id: row.show_id,
-              seasonNumber: row.season_number,
-              number: row.episode_number,
-              name: row.name || "Untitled episode",
-              aired: row.aired_date,
-            },
+            episode,
           });
         }
 
@@ -367,8 +388,11 @@ export default function Dashboard() {
     let watchedMinutes = 0;
 
     for (const show of shows) {
-      const episodes = episodesByShow[show.show_id] || [];
+      if (show.watch_status === "archived") {
+        continue;
+      }
 
+      const episodes = episodesByShow[show.show_id] || [];
       const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
 
       const watchedEpisodesForShow = episodes.filter((ep) =>
@@ -401,7 +425,7 @@ export default function Dashboard() {
     });
 
     return {
-      totalShows: shows.length,
+      totalShows: shows.filter((show) => show.watch_status !== "archived").length,
       completedCount,
       inProgressCount,
       watchedMinutes,
