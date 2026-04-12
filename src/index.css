@@ -898,7 +898,7 @@ textarea:focus {
   }
 
   .page {
-  padding: 16px 12px calc(var(--mobile-nav-height) + 154px + env(safe-area-inset-bottom));
+  padding: 16px 12px calc(var(--mobile-nav-height) + 48px + env(safe-area-inset-bottom));
 }
 
   .page-header {
