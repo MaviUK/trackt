@@ -29,6 +29,12 @@ function isFirstEpisode(ep) {
   return Number(ep?.seasonNumber) === 1 && Number(ep?.episodeNumber) === 1;
 }
 
+function isArchivedStatus(value) {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "archived" || normalized === "archive";
+}
+
 export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
@@ -75,13 +81,15 @@ export default function CalendarPage() {
           return;
         }
 
-        const safeShows = (userShows || []).map((row) => ({
-          show_id: row.show_id,
-          tvdb_id: row.shows.tvdb_id,
-          show_name: row.shows.name || "Unknown title",
-          poster_url: row.shows.poster_url || null,
-          watch_status: row.watch_status || null,
-        }));
+        const safeShows = (userShows || [])
+          .filter((row) => !isArchivedStatus(row.watch_status))
+          .map((row) => ({
+            show_id: row.show_id,
+            tvdb_id: row.shows.tvdb_id,
+            show_name: row.shows.name || "Unknown title",
+            poster_url: row.shows.poster_url || null,
+            watch_status: row.watch_status || null,
+          }));
 
         const showIds = safeShows.map((show) => show.show_id).filter(Boolean);
         const showLookup = {};
