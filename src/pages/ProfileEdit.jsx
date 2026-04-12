@@ -43,6 +43,54 @@ function distanceBetweenTouches(touchA, touchB) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Failed to load image."));
+    img.src = src;
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function buildCroppedAvatarDataUrl(imageSrc, zoom, offsetX, offsetY) {
+  const img = await loadImage(imageSrc);
+
+  const size = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Could not prepare avatar image.");
+  }
+
+  ctx.clearRect(0, 0, size, size);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+
+  ctx.translate(size / 2 + offsetX * (size / 200), size / 2 + offsetY * (size / 200));
+  ctx.scale(zoom, zoom);
+
+  ctx.drawImage(img, -size / 2, -size / 2, size, size);
+  ctx.restore();
+
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
 export default function ProfileEdit() {
   const navigate = useNavigate();
   const previewRef = useRef(null);
@@ -55,7 +103,7 @@ export default function ProfileEdit() {
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
-  const [selectedAvatarFile, setSelectedAvatarFile] = useState(null);
+  const [selectedAvatarDataUrl, setSelectedAvatarDataUrl] = useState("");
   const [existingAvatarUrl, setExistingAvatarUrl] = useState("");
 
   const [form, setForm] = useState({
@@ -76,19 +124,8 @@ export default function ProfileEdit() {
   });
 
   const previewAvatarUrl = useMemo(() => {
-    if (selectedAvatarFile) {
-      return URL.createObjectURL(selectedAvatarFile);
-    }
-    return existingAvatarUrl || "";
-  }, [selectedAvatarFile, existingAvatarUrl]);
-
-  useEffect(() => {
-    return () => {
-      if (previewAvatarUrl && previewAvatarUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(previewAvatarUrl);
-      }
-    };
-  }, [previewAvatarUrl]);
+    return selectedAvatarDataUrl || existingAvatarUrl || "";
+  }, [selectedAvatarDataUrl, existingAvatarUrl]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -172,22 +209,29 @@ export default function ProfileEdit() {
     }));
   }
 
-  function handleImageSelect(event) {
+  async function handleImageSelect(event) {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setError("");
     setMessage("");
-    setSelectedAvatarFile(file);
 
-    setForm((prev) => ({
-      ...prev,
-      avatar_zoom: 1,
-      avatar_x: 0,
-      avatar_y: 0,
-    }));
+    try {
+      const dataUrl = await fileToDataUrl(file);
 
-    setMessage("Image selected. Drag to move it. Pinch on mobile to zoom, then save.");
+      setSelectedAvatarDataUrl(dataUrl);
+      setForm((prev) => ({
+        ...prev,
+        avatar_zoom: 1,
+        avatar_x: 0,
+        avatar_y: 0,
+      }));
+
+      setMessage("Image selected. Drag to move it. Pinch on mobile to zoom, then save.");
+    } catch (err) {
+      console.error("Failed to select image:", err);
+      setError(err.message || "Failed to load selected image.");
+    }
   }
 
   function handlePointerDown(event) {
@@ -310,48 +354,14 @@ export default function ProfileEdit() {
     pinchStateRef.current = null;
   }
 
-  async function uploadAvatarIfNeeded(userId) {
-    if (!selectedAvatarFile) {
-      return existingAvatarUrl || null;
-    }
-
-    const extension =
-      selectedAvatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
-    const safeExtension = extension.replace(/[^a-z0-9]/g, "") || "jpg";
-    const filePath = `${userId}/avatar-${Date.now()}.${safeExtension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, selectedAvatarFile, {
-        cacheControl: "3600",
-        upsert: true,
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data: publicUrlData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(filePath);
-
-    const publicUrl = publicUrlData?.publicUrl || "";
-
-    if (!publicUrl) {
-      throw new Error("Could not get uploaded image URL.");
-    }
-
-    return publicUrl;
-  }
-
   async function saveProfileRow(userId, payload) {
-    const { error: updateError, data: updatedRows } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from("profiles")
       .update(payload)
       .eq("id", userId)
       .select("id");
 
-    if (updateError) {
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
     if (updatedRows && updatedRows.length > 0) {
       return;
@@ -362,9 +372,7 @@ export default function ProfileEdit() {
       ...payload,
     });
 
-    if (insertError) {
-      throw insertError;
-    }
+    if (insertError) throw insertError;
   }
 
   async function handleSubmit(event) {
@@ -387,15 +395,24 @@ export default function ProfileEdit() {
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
 
-      const avatarUrl = await uploadAvatarIfNeeded(user.id);
+      let avatarUrlToSave = existingAvatarUrl || null;
+
+      if (previewAvatarUrl) {
+        avatarUrlToSave = await buildCroppedAvatarDataUrl(
+          previewAvatarUrl,
+          Number(form.avatar_zoom) || 1,
+          Number(form.avatar_x) || 0,
+          Number(form.avatar_y) || 0
+        );
+      }
 
       const payload = {
         username: cleanedUsername || null,
         full_name: cleanedFullName || null,
-        avatar_url: avatarUrl || null,
-        avatar_zoom: Number(form.avatar_zoom) || 1,
-        avatar_x: Number(form.avatar_x) || 0,
-        avatar_y: Number(form.avatar_y) || 0,
+        avatar_url: avatarUrlToSave,
+        avatar_zoom: 1,
+        avatar_x: 0,
+        avatar_y: 0,
         dob: form.dob || null,
         gender: form.gender.trim() || null,
         country: cleanedCountry || null,
@@ -410,14 +427,15 @@ export default function ProfileEdit() {
 
       await saveProfileRow(user.id, payload);
 
-      setExistingAvatarUrl(avatarUrl || "");
-      setSelectedAvatarFile(null);
+      setExistingAvatarUrl(avatarUrlToSave || "");
+      setSelectedAvatarDataUrl("");
       setMessage("Profile updated.");
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
       console.error("Failed to save profile:", err);
       setError(err.message || "Failed to save profile.");
+      alert(err.message || "Failed to save profile.");
     } finally {
       setSaving(false);
     }
