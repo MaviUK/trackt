@@ -129,19 +129,21 @@ function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
       onClick={onChoose}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      className="rankd-image-card"
+      className="rankd-poster-button"
       aria-label={`Choose ${show.show_name}`}
       title={show.show_name}
     >
-      {show.poster_url ? (
-        <img
-          src={show.poster_url}
-          alt={show.show_name}
-          className="rankd-image-poster"
-        />
-      ) : (
-        <div className="rankd-image-placeholder">{show.show_name}</div>
-      )}
+      <div className="rankd-poster-frame">
+        {show.poster_url ? (
+          <img
+            src={show.poster_url}
+            alt={show.show_name}
+            className="rankd-poster-image"
+          />
+        ) : (
+          <div className="rankd-poster-placeholder">{show.show_name}</div>
+        )}
+      </div>
     </button>
   );
 }
@@ -492,9 +494,7 @@ export default function Rankd() {
       <div className="page-shell">
         <div className="page-header">
           <h1>Rank'd</h1>
-          <p>
-            Choose the better show each round. Tap the poster or swipe to vote.
-          </p>
+          <p>Tap a poster or swipe left or right to choose.</p>
         </div>
 
         {error ? (
@@ -521,8 +521,8 @@ export default function Rankd() {
             alignItems: "start",
           }}
         >
-          <div className="section-card rankd-duel-shell">
-            <div className="rankd-duel-layout">
+          <div className="section-card rankd-battle-shell">
+            <div className="rankd-battle-layout">
               <RankCard
                 show={currentPair[0]}
                 onChoose={() => handleChoice(currentPair[0].show_id)}
@@ -530,12 +530,7 @@ export default function Rankd() {
                 onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
               />
 
-              <div className="rankd-vs-wrap">
-                <div className="rankd-vs">VS</div>
-                <div className="rankd-vs-name">{currentPair[0]?.show_name}</div>
-                <div className="rankd-vs-sub">tap image or swipe</div>
-                <div className="rankd-vs-name">{currentPair[1]?.show_name}</div>
-              </div>
+              <div className="rankd-battle-vs">VS</div>
 
               <RankCard
                 show={currentPair[1]}
@@ -629,7 +624,9 @@ export default function Rankd() {
                     <div style={{ fontWeight: 800, marginBottom: 4 }}>
                       #{index + 1} {show.show_name}
                     </div>
-                    <div style={{ color: "var(--text-muted)", fontSize: ".92rem" }}>
+                    <div
+                      style={{ color: "var(--text-muted)", fontSize: ".92rem" }}
+                    >
                       {show.watchedMainCount} watched • {show.rank_wins || 0} wins
                       {" • "}
                       {show.rank_losses || 0} losses
