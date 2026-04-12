@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
-import "./Dashboard.css";
 import ProfileEdit from "./pages/ProfileEdit";
+import "./Dashboard.css";
+
 
 function startOfToday() {
   const d = new Date();
