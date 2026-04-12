@@ -128,102 +128,38 @@ function RankCard({ show, label, onChoose, onTouchStart, onTouchEnd }) {
       onClick={onChoose}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      style={{
-        width: "100%",
-        border: "1px solid var(--border)",
-        borderRadius: 24,
-        background:
-          "linear-gradient(180deg, var(--panel) 0%, var(--bg-elevated) 100%)",
-        color: "var(--text)",
-        boxShadow: "var(--shadow)",
-        overflow: "hidden",
-        cursor: "pointer",
-        padding: 0,
-        textAlign: "left",
-      }}
+      className="rankd-show-card"
     >
-      <div
-        style={{
-          position: "relative",
-          aspectRatio: "2 / 3",
-          background: "#111827",
-        }}
-      >
+      <div className="rankd-show-poster-wrap">
         {show.poster_url ? (
           <img
             src={show.poster_url}
             alt={show.show_name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            className="rankd-show-poster"
           />
-        ) : null}
+        ) : (
+          <div className="rankd-show-poster-placeholder">No image</div>
+        )}
 
-        <div
-          style={{
-            position: "absolute",
-            top: 14,
-            left: 14,
-            padding: "8px 12px",
-            borderRadius: 999,
-            background: "rgba(11, 16, 32, 0.82)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            fontWeight: 800,
-            fontSize: ".85rem",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          {label}
-        </div>
+        <div className="rankd-show-badge">{label}</div>
       </div>
 
-      <div style={{ padding: 18 }}>
-        <div
-          style={{
-            fontSize: "1.15rem",
-            fontWeight: 800,
-            lineHeight: 1.2,
-            marginBottom: 8,
-          }}
-        >
-          {show.show_name}
-        </div>
+      <div className="rankd-show-body">
+        <div className="rankd-show-title">{show.show_name}</div>
 
-        <div
-          style={{
-            color: "var(--text-muted)",
-            fontSize: ".95rem",
-            marginBottom: 12,
-          }}
-        >
+        <div className="rankd-show-meta">
           {show.watchedMainCount} watched
           {show.totalMainEpisodes > 0
             ? ` • ${show.totalMainEpisodes} total`
             : ""}
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span
-            style={{
-              padding: "8px 10px",
-              borderRadius: 999,
-              background: "rgba(139, 92, 246, 0.14)",
-              border: "1px solid rgba(139, 92, 246, 0.28)",
-              fontSize: ".82rem",
-              fontWeight: 700,
-            }}
-          >
+        <div className="rankd-show-pills">
+          <span className="rankd-pill">
             Rating {Math.round(show.rank_rating || DEFAULT_RATING)}
           </span>
 
-          <span
-            style={{
-              padding: "8px 10px",
-              borderRadius: 999,
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid var(--border)",
-              fontSize: ".82rem",
-              fontWeight: 700,
-            }}
-          >
+          <span className="rankd-pill rankd-pill-secondary">
             {show.rank_comparisons || 0} matchups
           </span>
         </div>
@@ -617,25 +553,25 @@ export default function Rankd() {
                 alignItems: "stretch",
               }}
             >
-              <RankCard
-                show={currentPair[0]}
-                label="Swipe left to choose"
-                onChoose={() => handleChoice(currentPair[0].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-              />
+              <div className="rankd-matchup-card">
+  <div className="rankd-matchup-grid">
+    <RankCard
+      show={currentPair[0]}
+      label="Pick"
+      onChoose={() => handleChoice(currentPair[0].show_id)}
+      onTouchStart={buildTouchStartHandler()}
+      onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+    />
 
-              <RankCard
-                show={currentPair[1]}
-                label="Swipe right to choose"
-                onChoose={() => handleChoice(currentPair[1].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(
-                  currentPair[1].show_id,
-                  "right"
-                )}
-              />
-            </div>
+    <RankCard
+      show={currentPair[1]}
+      label="Pick"
+      onChoose={() => handleChoice(currentPair[1].show_id)}
+      onTouchStart={buildTouchStartHandler()}
+      onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+    />
+  </div>
+</div>
 
             <div
               style={{
