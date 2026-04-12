@@ -536,7 +536,7 @@ export default function Rankd() {
           </div>
         ) : null}
 
-        <div
+               <div
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr)",
@@ -545,33 +545,25 @@ export default function Rankd() {
           }}
         >
           <div className="section-card" style={{ padding: 20 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                gap: 18,
-                alignItems: "stretch",
-              }}
-            >
-              <div className="rankd-matchup-card">
-  <div className="rankd-matchup-grid">
-    <RankCard
-      show={currentPair[0]}
-      label="Pick"
-      onChoose={() => handleChoice(currentPair[0].show_id)}
-      onTouchStart={buildTouchStartHandler()}
-      onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-    />
+            <div className="rankd-matchup-card">
+              <div className="rankd-matchup-grid">
+                <RankCard
+                  show={currentPair[0]}
+                  label="Pick"
+                  onChoose={() => handleChoice(currentPair[0].show_id)}
+                  onTouchStart={buildTouchStartHandler()}
+                  onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+                />
 
-    <RankCard
-      show={currentPair[1]}
-      label="Pick"
-      onChoose={() => handleChoice(currentPair[1].show_id)}
-      onTouchStart={buildTouchStartHandler()}
-      onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
-    />
-  </div>
-</div>
+                <RankCard
+                  show={currentPair[1]}
+                  label="Pick"
+                  onChoose={() => handleChoice(currentPair[1].show_id)}
+                  onTouchStart={buildTouchStartHandler()}
+                  onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+                />
+              </div>
+            </div>
 
             <div
               style={{
