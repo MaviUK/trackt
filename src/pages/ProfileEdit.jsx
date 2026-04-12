@@ -189,26 +189,27 @@ export default function ProfileEdit() {
       const cleanedBio = form.bio.trim();
 
       const payload = {
-        id: user.id,
-        username: cleanedUsername || null,
-        full_name: cleanedFullName || null,
-        avatar_url: form.avatar_url.trim() || null,
-        dob: form.dob || null,
-        gender: form.gender.trim() || null,
-        country: cleanedCountry || null,
-        bio: cleanedBio || null,
-        instagram_url: normalizeUrl(form.instagram_url) || null,
-        x_url: normalizeUrl(form.x_url) || null,
-        tiktok_url: normalizeUrl(form.tiktok_url) || null,
-        youtube_url: normalizeUrl(form.youtube_url) || null,
-        website_url: normalizeUrl(form.website_url) || null,
-        updated_at: new Date().toISOString(),
-      };
+  id: user.id,
+  username: cleanedUsername || null,
+  full_name: cleanedFullName || null,
+  avatar_url: form.avatar_url.trim() || null,
+  dob: form.dob || null,
+  gender: form.gender.trim() || null,
+  country: cleanedCountry || null,
+  bio: cleanedBio || null,
+  instagram_url: normalizeUrl(form.instagram_url) || null,
+  x_url: normalizeUrl(form.x_url) || null,
+  tiktok_url: normalizeUrl(form.tiktok_url) || null,
+  youtube_url: normalizeUrl(form.youtube_url) || null,
+  website_url: normalizeUrl(form.website_url) || null,
+  updated_at: new Date().toISOString(),
+};
 
       const { error: upsertError } = await supabase
-        .from("profiles")
-        .upsert(payload);
+  .from("profiles")
+  .upsert(payload);
 
+      
       if (upsertError) {
         if (
           upsertError.message?.toLowerCase().includes("duplicate") ||
