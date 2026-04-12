@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import "./Rankd.css";
 
 const DEFAULT_RATING = 1200;
 const K_FACTOR = 32;
@@ -121,49 +122,26 @@ async function fetchEpisodesForShowIds(showIds) {
   return allEpisodes;
 }
 
-function RankCard({ show, label, onChoose, onTouchStart, onTouchEnd }) {
+function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
   return (
     <button
       type="button"
       onClick={onChoose}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
-      className="rankd-show-card"
+      className="rankd-image-card"
+      aria-label={`Choose ${show.show_name}`}
+      title={show.show_name}
     >
-      <div className="rankd-show-poster-wrap">
-        {show.poster_url ? (
-          <img
-            src={show.poster_url}
-            alt={show.show_name}
-            className="rankd-show-poster"
-          />
-        ) : (
-          <div className="rankd-show-poster-placeholder">No image</div>
-        )}
-
-        <div className="rankd-show-badge">{label}</div>
-      </div>
-
-      <div className="rankd-show-body">
-        <div className="rankd-show-title">{show.show_name}</div>
-
-        <div className="rankd-show-meta">
-          {show.watchedMainCount} watched
-          {show.totalMainEpisodes > 0
-            ? ` • ${show.totalMainEpisodes} total`
-            : ""}
-        </div>
-
-        <div className="rankd-show-pills">
-          <span className="rankd-pill">
-            Rating {Math.round(show.rank_rating || DEFAULT_RATING)}
-          </span>
-
-          <span className="rankd-pill rankd-pill-secondary">
-            {show.rank_comparisons || 0} matchups
-          </span>
-        </div>
-      </div>
+      {show.poster_url ? (
+        <img
+          src={show.poster_url}
+          alt={show.show_name}
+          className="rankd-image-poster"
+        />
+      ) : (
+        <div className="rankd-image-placeholder">{show.show_name}</div>
+      )}
     </button>
   );
 }
@@ -515,8 +493,7 @@ export default function Rankd() {
         <div className="page-header">
           <h1>Rank'd</h1>
           <p>
-            Choose the better show each round. Your ranking updates after every
-            pick.
+            Choose the better show each round. Tap the poster or swipe to vote.
           </p>
         </div>
 
@@ -536,7 +513,7 @@ export default function Rankd() {
           </div>
         ) : null}
 
-               <div
+        <div
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr)",
@@ -544,53 +521,28 @@ export default function Rankd() {
             alignItems: "start",
           }}
         >
-          <div className="section-card" style={{ padding: 20 }}>
-            <div className="rankd-matchup-card">
-              <div className="rankd-matchup-grid">
-                <RankCard
-                  show={currentPair[0]}
-                  label="Pick"
-                  onChoose={() => handleChoice(currentPair[0].show_id)}
-                  onTouchStart={buildTouchStartHandler()}
-                  onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-                />
+          <div className="section-card rankd-duel-shell">
+            <div className="rankd-duel-layout">
+              <RankCard
+                show={currentPair[0]}
+                onChoose={() => handleChoice(currentPair[0].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+              />
 
-                <RankCard
-                  show={currentPair[1]}
-                  label="Pick"
-                  onChoose={() => handleChoice(currentPair[1].show_id)}
-                  onTouchStart={buildTouchStartHandler()}
-                  onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
-                />
+              <div className="rankd-vs-wrap">
+                <div className="rankd-vs">VS</div>
+                <div className="rankd-vs-name">{currentPair[0]?.show_name}</div>
+                <div className="rankd-vs-sub">tap image or swipe</div>
+                <div className="rankd-vs-name">{currentPair[1]?.show_name}</div>
               </div>
-            </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                justifyContent: "center",
-                marginTop: 18,
-              }}
-            >
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={() => handleChoice(currentPair[0].show_id)}
-                disabled={saving}
-              >
-                Pick {currentPair[0]?.show_name}
-              </button>
-
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={() => handleChoice(currentPair[1].show_id)}
-                disabled={saving}
-              >
-                Pick {currentPair[1]?.show_name}
-              </button>
+              <RankCard
+                show={currentPair[1]}
+                onChoose={() => handleChoice(currentPair[1].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+              />
             </div>
           </div>
 
