@@ -517,19 +517,24 @@ export default function Dashboard() {
       <section className="dashboard-card profile-card">
         <div className="profile-header-row">
           <div className="profile-main">
-            {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={profile?.username || profile?.full_name || "Profile"}
-                className="profile-avatar"
-              />
-            ) : (
-              <div className="profile-avatar profile-avatar-placeholder">
-                {(profile?.username || profile?.full_name || "U")
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
-            )}
+           {profile?.avatar_url ? (
+  <img
+    src={profile.avatar_url}
+    alt={profile?.username || profile?.full_name || "Profile"}
+    className="profile-avatar"
+    style={{
+      objectFit: "cover",
+      objectPosition: `${profile?.avatar_x ?? 50}% ${profile?.avatar_y ?? 50}%`,
+      transform: `scale(${profile?.avatar_zoom ?? 1})`,
+    }}
+  />
+) : (
+  <div className="profile-avatar profile-avatar-placeholder">
+    {(profile?.username || profile?.full_name || "U")
+      .charAt(0)
+      .toUpperCase()}
+  </div>
+)}
 
             <div className="profile-meta">
               <h2>{profile?.username || profile?.full_name || "Set your profile"}</h2>
