@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import "./index.css";
+import ProfileEdit from "./pages/ProfileEdit";
 
 import Search from "./pages/Search";
 import Login from "./pages/Login";
@@ -88,6 +89,7 @@ function App() {
         <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
         <Route path="/ready/:id" element={<ReadyShowPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/profile/edit" element={<ProfileEdit />} />
       </Routes>
     </BrowserRouter>
   );
