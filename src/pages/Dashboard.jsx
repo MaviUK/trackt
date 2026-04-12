@@ -26,47 +26,16 @@ function startOfToday() {
   return startOfDay(new Date());
 }
 
-function startOfTomorrow() {
+function endOfNextSixDays() {
   const d = startOfToday();
-  d.setDate(d.getDate() + 1);
-  return d;
-}
-
-function startOfWeek(date = new Date()) {
-  const d = startOfDay(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday start
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-function endOfWeek(date = new Date()) {
-  const d = startOfWeek(date);
   d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  return endOfDay(d);
 }
 
 function isBeforeToday(dateStr) {
   const date = parseDate(dateStr);
   if (!date) return false;
   return date < startOfToday();
-}
-
-function isWithinLastDays(dateStr, days, { includeToday = true } = {}) {
-  const date = parseDate(dateStr);
-  if (!date) return false;
-
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const rangeStart = new Date(todayStart);
-  rangeStart.setDate(rangeStart.getDate() - days);
-
-  if (includeToday) {
-    return date >= rangeStart && date <= endOfDay(now);
-  }
-
-  return date >= rangeStart && date < todayStart;
 }
 
 function formatMinutes(totalMinutes) {
@@ -105,7 +74,7 @@ function isEpisodeWatched(ep, watchedEpisodeIds) {
 function DashboardEpisodeItem({
   show,
   episode,
-  dateLabel = "Aired",
+  dateLabel = "Airs",
   dateValue,
 }) {
   return (
@@ -182,53 +151,49 @@ export default function Dashboard() {
           return;
         }
 
-        const weekStart = startOfWeek();
-        const weekEnd = endOfWeek();
+        const rangeStart = startOfToday();
+        const rangeEnd = endOfNextSixDays();
 
         const [profileResp, showsResp] = await Promise.all([
           supabase
             .from("profiles")
-            .select(
-              `
-                id,
-                username,
-                full_name,
-                avatar_url,
-                dob,
-                gender,
-                country,
-                bio,
-                instagram_url,
-                x_url,
-                tiktok_url,
-                youtube_url,
-                website_url
-              `
-            )
+            .select(`
+              id,
+              username,
+              full_name,
+              avatar_url,
+              dob,
+              gender,
+              country,
+              bio,
+              instagram_url,
+              x_url,
+              tiktok_url,
+              youtube_url,
+              website_url
+            `)
             .eq("id", user.id)
             .maybeSingle(),
 
           supabase
             .from("user_shows_new")
-            .select(
-              `
+            .select(`
+              id,
+              user_id,
+              show_id,
+              watch_status,
+              added_at,
+              created_at,
+              shows!inner(
                 id,
-                user_id,
-                show_id,
-                watch_status,
-                added_at,
-                created_at,
-                shows!inner(
-                  id,
-                  tvdb_id,
-                  name,
-                  overview,
-                  status,
-                  poster_url,
-                  first_aired
-                )
-              `
-            )
+                tvdb_id,
+                name,
+                overview,
+                status,
+                poster_url,
+                first_aired
+              )
+            `)
             .eq("user_id", user.id)
             .order("added_at", { ascending: false }),
         ]);
@@ -274,21 +239,19 @@ export default function Dashboard() {
           showIds.length
             ? supabase
                 .from("episodes")
-                .select(
-                  `
-                    id,
-                    show_id,
-                    season_number,
-                    episode_number,
-                    name,
-                    aired_date,
-                    overview,
-                    image_url,
-                    episode_code,
-                    created_at,
-                    runtime_minutes
-                  `
-                )
+                .select(`
+                  id,
+                  show_id,
+                  season_number,
+                  episode_number,
+                  name,
+                  aired_date,
+                  overview,
+                  image_url,
+                  episode_code,
+                  created_at,
+                  runtime_minutes
+                `)
                 .in("show_id", showIds)
                 .order("show_id", { ascending: true })
                 .order("season_number", { ascending: true })
@@ -298,19 +261,17 @@ export default function Dashboard() {
           showIds.length
             ? supabase
                 .from("episodes")
-                .select(
-                  `
-                    id,
-                    show_id,
-                    season_number,
-                    episode_number,
-                    name,
-                    aired_date
-                  `
-                )
+                .select(`
+                  id,
+                  show_id,
+                  season_number,
+                  episode_number,
+                  name,
+                  aired_date
+                `)
                 .in("show_id", showIds)
-                .gte("aired_date", weekStart.toISOString().slice(0, 10))
-                .lte("aired_date", weekEnd.toISOString().slice(0, 10))
+                .gte("aired_date", rangeStart.toISOString().slice(0, 10))
+                .lte("aired_date", rangeEnd.toISOString().slice(0, 10))
                 .order("aired_date", { ascending: true })
                 .order("season_number", { ascending: true })
                 .order("episode_number", { ascending: true })
@@ -401,10 +362,6 @@ export default function Dashboard() {
   }, []);
 
   const dashboardData = useMemo(() => {
-    const recentlyAired = [];
-    const continueWatching = [];
-    const recentlyAdded = [];
-
     let completedCount = 0;
     let inProgressCount = 0;
     let watchedMinutes = 0;
@@ -426,83 +383,18 @@ export default function Dashboard() {
         isEpisodeWatched(ep, watchedEpisodeIds)
       ).length;
 
-      const recentUnwatchedEpisodes = episodes.filter(
-        (ep) =>
-          isWithinLastDays(ep.aired, 7, { includeToday: false }) &&
-          !isEpisodeWatched(ep, watchedEpisodeIds)
-      );
-
-      const recentlyAddedEpisodes = episodes.filter((ep) => {
-        const createdRecently = isWithinLastDays(ep.created_at, 7, {
-          includeToday: true,
-        });
-
-        const airDate = parseDate(ep.aired);
-        const notAiredYet = airDate && airDate > new Date();
-
-        return createdRecently && notAiredYet;
-      });
-
-      const latestRecentlyAddedEpisode =
-        [...recentlyAddedEpisodes].sort((a, b) => {
-          const aTime = parseDate(a.created_at)?.getTime() ?? 0;
-          const bTime = parseDate(b.created_at)?.getTime() ?? 0;
-          return bTime - aTime;
-        })[0] || null;
-
       const isComplete =
         airedBeforeToday.length > 0 &&
         watchedAiredBeforeTodayCount >= airedBeforeToday.length;
-
-      const nextContinueEpisode =
-        watchedAiredBeforeTodayCount > 0 && !isComplete
-          ? airedBeforeToday[watchedAiredBeforeTodayCount] || null
-          : null;
 
       if (isComplete) {
         completedCount += 1;
       } else if (watchedAiredBeforeTodayCount > 0) {
         inProgressCount += 1;
       }
-
-      for (const episode of recentUnwatchedEpisodes) {
-        recentlyAired.push({ show, episode });
-      }
-
-      if (nextContinueEpisode) {
-        continueWatching.push({
-          show,
-          episode: nextContinueEpisode,
-        });
-      }
-
-      if (latestRecentlyAddedEpisode) {
-        recentlyAdded.push({
-          show,
-          episode: latestRecentlyAddedEpisode,
-        });
-      }
     }
 
-    recentlyAired.sort((a, b) => {
-      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
-      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
-      return bDate - aDate;
-    });
-
-    continueWatching.sort((a, b) => {
-      const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
-      const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
-      return bDate - aDate;
-    });
-
-    recentlyAdded.sort((a, b) => {
-      const aDate = parseDate(a.episode.created_at)?.getTime() ?? 0;
-      const bDate = parseDate(b.episode.created_at)?.getTime() ?? 0;
-      return bDate - aDate;
-    });
-
-    airingThisWeekItems.sort((a, b) => {
+    const sortedAiring = [...airingThisWeekItems].sort((a, b) => {
       const aDate = parseDate(a.episode.aired)?.getTime() ?? 0;
       const bDate = parseDate(b.episode.aired)?.getTime() ?? 0;
       return aDate - bDate;
@@ -513,10 +405,7 @@ export default function Dashboard() {
       completedCount,
       inProgressCount,
       watchedMinutes,
-      airingThisWeek: airingThisWeekItems.slice(0, 20),
-      recentlyAired: recentlyAired.slice(0, 12),
-      continueWatching: continueWatching.slice(0, 12),
-      recentlyAdded: recentlyAdded.slice(0, 12),
+      airingThisWeek: sortedAiring.slice(0, 20),
     };
   }, [shows, watchedEpisodeIds, episodesByShow, airingThisWeekItems]);
 
@@ -584,7 +473,7 @@ export default function Dashboard() {
           </div>
 
           {dashboardData.airingThisWeek.length === 0 ? (
-            <p className="empty-state">No episodes airing this week.</p>
+            <p className="empty-state">No episodes airing in the next 7 days.</p>
           ) : (
             <div className="dashboard-list">
               {dashboardData.airingThisWeek.map(({ show, episode }) => (
@@ -594,76 +483,6 @@ export default function Dashboard() {
                   episode={episode}
                   dateLabel="Airs"
                   dateValue={episode.aired}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card">
-          <div className="card-header">
-            <h2>Recently Aired</h2>
-          </div>
-
-          {dashboardData.recentlyAired.length === 0 ? (
-            <p className="empty-state">
-              No unwatched episodes aired in the last 7 days.
-            </p>
-          ) : (
-            <div className="dashboard-list">
-              {dashboardData.recentlyAired.map(({ show, episode }) => (
-                <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-recent`}
-                  show={show}
-                  episode={episode}
-                  dateLabel="Aired"
-                  dateValue={episode.aired}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card">
-          <div className="card-header">
-            <h2>Continue Watching</h2>
-          </div>
-
-          {dashboardData.continueWatching.length === 0 ? (
-            <p className="empty-state">No shows ready to continue.</p>
-          ) : (
-            <div className="dashboard-list">
-              {dashboardData.continueWatching.map(({ show, episode }) => (
-                <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-continue`}
-                  show={show}
-                  episode={episode}
-                  dateLabel="Aired"
-                  dateValue={episode.aired}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="dashboard-card">
-          <div className="card-header">
-            <h2>Recently Added Episodes</h2>
-          </div>
-
-          {dashboardData.recentlyAdded.length === 0 ? (
-            <p className="empty-state">
-              No upcoming episodes have been added in the last 7 days.
-            </p>
-          ) : (
-            <div className="dashboard-list">
-              {dashboardData.recentlyAdded.map(({ show, episode }) => (
-                <DashboardEpisodeItem
-                  key={`${show.tvdb_id}-${episode.id}-added`}
-                  show={show}
-                  episode={episode}
-                  dateLabel="Added"
-                  dateValue={episode.created_at}
                 />
               ))}
             </div>
