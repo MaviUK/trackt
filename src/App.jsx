@@ -16,6 +16,7 @@ import MyShowDetails from "./pages/MyShowDetails";
 import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
+import Rankd from "./pages/Rankd";
 
 function HomeIcon() {
   return (
@@ -117,6 +118,41 @@ function CalendarIcon() {
   );
 }
 
+function RankdIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M8 6h8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 10h12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4 14h16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 18h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function DesktopNav() {
   return (
     <div className="nav-wrap desktop-nav">
@@ -141,6 +177,13 @@ function DesktopNav() {
           className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
         >
           My Shows
+        </NavLink>
+
+        <NavLink
+          to="/rankd"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Rank'd
         </NavLink>
 
         <NavLink
@@ -173,7 +216,9 @@ function MobileBottomNav() {
       <NavLink
         to="/"
         end
-        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
       >
         <span className="mobile-nav-icon">
           <HomeIcon />
@@ -183,7 +228,9 @@ function MobileBottomNav() {
 
       <NavLink
         to="/search"
-        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
       >
         <span className="mobile-nav-icon">
           <SearchIcon />
@@ -193,7 +240,9 @@ function MobileBottomNav() {
 
       <NavLink
         to="/my-shows"
-        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
       >
         <span className="mobile-nav-icon">
           <ShowsIcon />
@@ -202,8 +251,22 @@ function MobileBottomNav() {
       </NavLink>
 
       <NavLink
+        to="/rankd"
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
+      >
+        <span className="mobile-nav-icon">
+          <RankdIcon />
+        </span>
+        <span className="mobile-nav-label">Rank'd</span>
+      </NavLink>
+
+      <NavLink
         to="/calendar"
-        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
       >
         <span className="mobile-nav-icon">
           <CalendarIcon />
@@ -229,6 +292,7 @@ function AppLayout() {
         <Route path="/actor/:name" element={<ActorPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/profile/edit" element={<ProfileEdit />} />
+        <Route path="/rankd" element={<Rankd />} />
       </Routes>
 
       <MobileBottomNav />
