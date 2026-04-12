@@ -1,3 +1,28 @@
+
+html,
+body,
+#root {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-y: auto;
+}
+
+@media (max-width: 640px) {
+  .page,
+  .page-shell,
+  .dashboard-grid,
+  .dashboard-card,
+  .section-card,
+  .show-list {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
 :root {
   --bg: #0b1020;
   --bg-elevated: #0f172a;
