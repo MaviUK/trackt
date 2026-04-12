@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -13,14 +13,42 @@ function normalizeUrl(value) {
   return `https://${trimmed}`;
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function formatDobForInput(value) {
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  if (/^\d{2}-\d{2}-\d{4}$/.test(value)) {
+    const [day, month, year] = value.split("-");
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function ProfileEdit() {
   const navigate = useNavigate();
+  const previewRef = useRef(null);
+  const dragStateRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
   const [form, setForm] = useState({
     username: "",
@@ -92,7 +120,7 @@ export default function ProfileEdit() {
             avatar_zoom: Number(data.avatar_zoom ?? 1),
             avatar_x: Number(data.avatar_x ?? 50),
             avatar_y: Number(data.avatar_y ?? 50),
-            dob: data.dob || "",
+            dob: formatDobForInput(data.dob),
             gender: data.gender || "",
             country: data.country || "",
             bio: data.bio || "",
@@ -114,10 +142,85 @@ export default function ProfileEdit() {
     loadProfile();
   }, [navigate]);
 
+  useEffect(() => {
+    function handlePointerMove(event) {
+      if (!dragStateRef.current || !previewRef.current) return;
+
+      const { startX, startY, startAvatarX, startAvatarY } =
+        dragStateRef.current;
+      const rect = previewRef.current.getBoundingClientRect();
+
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+
+      const movementXPercent = (deltaX / rect.width) * (100 / form.avatar_zoom);
+      const movementYPercent =
+        (deltaY / rect.height) * (100 / form.avatar_zoom);
+
+      setForm((prev) => ({
+        ...prev,
+        avatar_x: clamp(startAvatarX - movementXPercent, 0, 100),
+        avatar_y: clamp(startAvatarY - movementYPercent, 0, 100),
+      }));
+    }
+
+    function handlePointerUp() {
+      dragStateRef.current = null;
+      setIsDragging(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [form.avatar_zoom]);
+
   function updateField(name, value) {
     setForm((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  }
+
+  function handleAvatarPointerDown(event) {
+    if (!form.avatar_url) return;
+
+    event.preventDefault();
+
+    dragStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startAvatarX: form.avatar_x,
+      startAvatarY: form.avatar_y,
+    };
+
+    setIsDragging(true);
+  }
+
+  function handleAvatarWheel(event) {
+    if (!form.avatar_url) return;
+
+    event.preventDefault();
+
+    const direction = event.deltaY > 0 ? -0.08 : 0.08;
+
+    setForm((prev) => ({
+      ...prev,
+      avatar_zoom: clamp(
+        Number((prev.avatar_zoom + direction).toFixed(2)),
+        1,
+        2.5
+      ),
+    }));
+  }
+
+  function zoomAvatar(amount) {
+    setForm((prev) => ({
+      ...prev,
+      avatar_zoom: clamp(Number((prev.avatar_zoom + amount).toFixed(2)), 1, 2.5),
     }));
   }
 
@@ -163,9 +266,12 @@ export default function ProfileEdit() {
       setForm((prev) => ({
         ...prev,
         avatar_url: publicUrl,
+        avatar_zoom: 1,
+        avatar_x: 50,
+        avatar_y: 50,
       }));
 
-      setMessage("Image uploaded. Save profile to keep changes.");
+      setMessage("Image uploaded. Drag the image to position it, then save.");
     } catch (err) {
       console.error("Avatar upload failed:", err);
       setError(err.message || "Failed to upload image.");
@@ -313,49 +419,88 @@ export default function ProfileEdit() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "120px 1fr",
-              gap: 20,
+              gridTemplateColumns: "220px 1fr",
+              gap: 24,
               alignItems: "start",
               marginBottom: 24,
             }}
           >
             <div>
               {form.avatar_url ? (
-                <div
-                  style={{
-                    width: 110,
-                    height: 110,
-                    borderRadius: "999px",
-                    overflow: "hidden",
-                    background: "#111827",
-                    position: "relative",
-                  }}
-                >
-                  <img
-                    src={form.avatar_url}
-                    alt="Profile"
+                <>
+                  <div
+                    ref={previewRef}
+                    onPointerDown={handleAvatarPointerDown}
+                    onWheel={handleAvatarWheel}
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      objectPosition: `${form.avatar_x}% ${form.avatar_y}%`,
-                      transform: `scale(${form.avatar_zoom})`,
-                      transformOrigin: "center",
-                      display: "block",
+                      width: 200,
+                      height: 200,
+                      borderRadius: "999px",
+                      overflow: "hidden",
+                      background: "#111827",
+                      position: "relative",
+                      cursor: isDragging ? "grabbing" : "grab",
+                      userSelect: "none",
+                      touchAction: "none",
+                      border: "1px solid rgba(148,163,184,0.2)",
                     }}
-                  />
-                </div>
+                  >
+                    <img
+                      src={form.avatar_url}
+                      alt="Profile"
+                      draggable={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        objectPosition: `${form.avatar_x}% ${form.avatar_y}%`,
+                        transform: `scale(${form.avatar_zoom})`,
+                        transformOrigin: "center",
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      marginTop: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => zoomAvatar(-0.1)}
+                      style={smallButtonStyle}
+                    >
+                      − Zoom out
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => zoomAvatar(0.1)}
+                      style={smallButtonStyle}
+                    >
+                      + Zoom in
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
+                    Drag image to position it. Use mouse wheel or zoom buttons.
+                  </div>
+                </>
               ) : (
                 <div
                   style={{
-                    width: 110,
-                    height: 110,
+                    width: 200,
+                    height: 200,
                     borderRadius: "999px",
                     background: "#1e293b",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 36,
+                    fontSize: 64,
                     fontWeight: 800,
                     color: "#fff",
                   }}
@@ -388,63 +533,10 @@ export default function ProfileEdit() {
               />
 
               <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
-                {uploading ? "Uploading image..." : "PNG, JPG, WEBP supported."}
+                {uploading
+                  ? "Uploading image..."
+                  : "PNG, JPG, WEBP supported."}
               </div>
-
-              {form.avatar_url ? (
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={labelStyle}>
-                      Zoom: {Number(form.avatar_zoom).toFixed(2)}
-                    </label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="2.5"
-                      step="0.01"
-                      value={form.avatar_zoom}
-                      onChange={(e) =>
-                        updateField("avatar_zoom", Number(e.target.value))
-                      }
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={labelStyle}>
-                      Horizontal Position: {form.avatar_x}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={form.avatar_x}
-                      onChange={(e) =>
-                        updateField("avatar_x", Number(e.target.value))
-                      }
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>
-                      Vertical Position: {form.avatar_y}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={form.avatar_y}
-                      onChange={(e) =>
-                        updateField("avatar_y", Number(e.target.value))
-                      }
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -649,4 +741,14 @@ const secondaryLinkStyle = {
   color: "#f8fafc",
   fontWeight: 700,
   textDecoration: "none",
+};
+
+const smallButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid #334155",
+  background: "#182235",
+  color: "#f8fafc",
+  fontWeight: 700,
+  cursor: "pointer",
 };
