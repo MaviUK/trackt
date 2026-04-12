@@ -409,58 +409,67 @@ export default function Dashboard() {
     loadDashboard();
   }, []);
 
-  const dashboardData = useMemo(() => {
-    let completedCount = 0;
-    let inProgressCount = 0;
-    let watchedMinutes = 0;
+const dashboardData = useMemo(() => {
+  let completedCount = 0;
+  let inProgressCount = 0;
+  let watchedMinutes = 0;
 
-    for (const show of shows) {
-      if (isArchivedStatus(show.watch_status)) continue;
+  for (const show of shows) {
+    const isArchived = isArchivedStatus(show.watch_status);
+    const episodes = episodesByShow[show.show_id] || [];
 
-      const episodes = episodesByShow[show.show_id] || [];
-      const airedBeforeToday = episodes.filter((ep) => isBeforeToday(ep.aired));
+    const mainEpisodes = episodes.filter(
+      (ep) => Number(ep.seasonNumber ?? 0) !== 0
+    );
 
-      const watchedEpisodesForShow = episodes.filter((ep) =>
-        isEpisodeWatched(ep, watchedEpisodeIds)
-      );
+    const watchedMainEpisodes = mainEpisodes.filter((ep) =>
+      isEpisodeWatched(ep, watchedEpisodeIds)
+    );
 
-      for (const watchedEp of watchedEpisodesForShow) {
-        watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
-      }
+    const watchedMainCount = watchedMainEpisodes.length;
+    const totalMainEpisodes = mainEpisodes.length;
 
-      const watchedAiredBeforeTodayCount = airedBeforeToday.filter((ep) =>
-        isEpisodeWatched(ep, watchedEpisodeIds)
-      ).length;
-
-      const isComplete =
-        airedBeforeToday.length > 0 &&
-        watchedAiredBeforeTodayCount >= airedBeforeToday.length;
-
-      if (isComplete) {
-        completedCount += 1;
-      } else if (watchedAiredBeforeTodayCount > 0) {
-        inProgressCount += 1;
-      }
+    for (const watchedEp of watchedMainEpisodes) {
+      watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
     }
 
-    const today = startOfToday();
-    const end = new Date(today);
-    end.setDate(today.getDate() + 7);
+    const isCompleted =
+      totalMainEpisodes > 0 &&
+      watchedMainCount >= totalMainEpisodes &&
+      !isArchived;
 
-    const airingThisWeek = upcomingItems.filter((item) => {
-      const d = new Date(item.episode.aired);
-      return d >= today && d < end;
-    });
+    const isInProgress =
+      watchedMainCount > 0 &&
+      watchedMainCount < totalMainEpisodes &&
+      !isArchived;
 
-    return {
-      totalShows: shows.filter((show) => !isArchivedStatus(show.watch_status))
-        .length,
-      completedCount,
-      inProgressCount,
-      watchedMinutes,
-      airingThisWeek,
-    };
-  }, [shows, watchedEpisodeIds, episodesByShow, upcomingItems]);
+    if (isCompleted) {
+      completedCount += 1;
+    }
+
+    if (isInProgress) {
+      inProgressCount += 1;
+    }
+  }
+
+  const today = startOfToday();
+  const end = new Date(today);
+  end.setDate(today.getDate() + 7);
+
+  const airingThisWeek = upcomingItems.filter((item) => {
+    const d = new Date(item.episode.aired);
+    return d >= today && d < end;
+  });
+
+  return {
+    totalShows: shows.filter((show) => !isArchivedStatus(show.watch_status))
+      .length,
+    completedCount,
+    inProgressCount,
+    watchedMinutes,
+    airingThisWeek,
+  };
+}, [shows, watchedEpisodeIds, episodesByShow, upcomingItems]);
 
   if (loading) {
     return (
