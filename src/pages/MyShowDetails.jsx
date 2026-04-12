@@ -306,8 +306,7 @@ export default function MyShowDetails() {
 
       const { data: showData, error: showError } = await supabase
         .from("shows")
-        .select(
-          `
+        .select(`
           id,
           tvdb_id,
           name,
@@ -322,8 +321,7 @@ export default function MyShowDetails() {
           settings,
           rating_average,
           rating_count
-        `
-        )
+        `)
         .eq("tvdb_id", tvdbId)
         .maybeSingle();
 
@@ -342,8 +340,7 @@ export default function MyShowDetails() {
 
       const { data: userShowData, error: userShowError } = await supabase
         .from("user_shows_new")
-        .select(
-          `
+        .select(`
           id,
           user_id,
           show_id,
@@ -351,8 +348,7 @@ export default function MyShowDetails() {
           archived_at,
           added_at,
           created_at
-        `
-        )
+        `)
         .eq("user_id", user.id)
         .eq("show_id", showId)
         .maybeSingle();
@@ -361,8 +357,7 @@ export default function MyShowDetails() {
 
       const { data: episodeRows, error: episodeError } = await supabase
         .from("episodes")
-        .select(
-          `
+        .select(`
           id,
           tvdb_id,
           show_id,
@@ -373,8 +368,7 @@ export default function MyShowDetails() {
           overview,
           aired_date,
           image_url
-        `
-        )
+        `)
         .eq("show_id", showId)
         .order("season_number", { ascending: true })
         .order("episode_number", { ascending: true });
@@ -444,12 +438,18 @@ export default function MyShowDetails() {
         setExpandedSeasons(seasonMap);
       }
 
-      return { found: true, user, showId, tvdbId, episodeIds: normalizedEpisodes.map((ep) => ep.id) };
+      return {
+        found: true,
+        user,
+        showId,
+        tvdbId,
+        episodeIds: normalizedEpisodes.map((ep) => ep.id),
+      };
     }
 
     async function loadSecondaryData(user, showId, episodeIds, tvdbId) {
       try {
-        const [savedShowsData, burgrRows, allWatchedRows, episodeRatingRows] =
+        const [savedShowsResult, burgrRows, allWatchedRows, episodeRatingRows] =
           await Promise.all([
             supabase
               .from("user_shows_new")
@@ -462,8 +462,10 @@ export default function MyShowDetails() {
 
         if (isCancelled) return;
 
+        const savedShowsData = savedShowsResult?.data || [];
+
         const savedTvdbIds = new Set(
-          ((savedShowsData?.data || []) as any[])
+          savedShowsData
             .map((row) => row?.shows?.tvdb_id)
             .filter(Boolean)
             .map(String)
