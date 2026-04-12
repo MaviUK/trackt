@@ -25,6 +25,10 @@ function getEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function isFirstEpisode(ep) {
+  return Number(ep?.seasonNumber) === 1 && Number(ep?.episodeNumber) === 1;
+}
+
 export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
@@ -62,6 +66,7 @@ export default function CalendarPage() {
             )
           `)
           .eq("user_id", user.id)
+          .neq("watch_status", "archived")
           .order("added_at", { ascending: true });
 
         if (showsError) {
@@ -76,6 +81,7 @@ export default function CalendarPage() {
           tvdb_id: row.shows.tvdb_id,
           show_name: row.shows.name || "Unknown title",
           poster_url: row.shows.poster_url || null,
+          watch_status: row.watch_status || null,
         }));
 
         const showIds = safeShows.map((show) => show.show_id).filter(Boolean);
@@ -85,11 +91,19 @@ export default function CalendarPage() {
           showLookup[show.show_id] = show;
         }
 
-        const today = startOfToday();
-        const collected = [];
+        if (showIds.length === 0) {
+          setItems([]);
+          setLoading(false);
+          return;
+        }
 
-        if (showIds.length > 0) {
-          const { data: episodeRows, error: episodesError } = await supabase
+        const today = startOfToday();
+
+        const [
+          { data: episodeRows, error: episodesError },
+          { data: watchedRows, error: watchedError },
+        ] = await Promise.all([
+          supabase
             .from("episodes")
             .select(`
               id,
@@ -103,43 +117,88 @@ export default function CalendarPage() {
             .gte("aired_date", today.toISOString().slice(0, 10))
             .order("aired_date", { ascending: true })
             .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true });
+            .order("episode_number", { ascending: true }),
 
-          if (episodesError) {
-            console.error("Failed to load calendar episodes:", episodesError);
-            setItems([]);
-            setLoading(false);
-            return;
-          }
+          supabase
+            .from("watched_episodes")
+            .select(`
+              id,
+              show_id,
+              episode_id,
+              user_id
+            `)
+            .eq("user_id", user.id)
+            .in("show_id", showIds),
+        ]);
 
-          for (const row of episodeRows || []) {
-            const show = showLookup[row.show_id];
-            if (!show) continue;
-
-            const airValue = row.aired_date;
-            if (!airValue) continue;
-
-            const airDate = new Date(airValue);
-            if (Number.isNaN(airDate.getTime())) continue;
-
-            const airDay = new Date(airDate);
-            airDay.setHours(0, 0, 0, 0);
-
-            if (airDay < today) continue;
-
-            collected.push({
-              showId: row.show_id,
-              showTvdbId: String(show.tvdb_id),
-              showName: show.show_name,
-              posterUrl: show.poster_url,
-              episodeId: row.id,
-              episodeName: row.name,
-              seasonNumber: row.season_number,
-              episodeNumber: row.episode_number,
-              aired: row.aired_date,
-            });
-          }
+        if (episodesError) {
+          console.error("Failed to load calendar episodes:", episodesError);
+          setItems([]);
+          setLoading(false);
+          return;
         }
+
+        if (watchedError) {
+          console.error("Failed to load watched episodes:", watchedError);
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const watchedShowIds = new Set(
+          (watchedRows || []).map((row) => row.show_id).filter(Boolean)
+        );
+
+        const episodesByShow = {};
+
+        for (const row of episodeRows || []) {
+          const show = showLookup[row.show_id];
+          if (!show) continue;
+
+          const airValue = row.aired_date;
+          if (!airValue) continue;
+
+          const airDate = new Date(airValue);
+          if (Number.isNaN(airDate.getTime())) continue;
+
+          const airDay = new Date(airDate);
+          airDay.setHours(0, 0, 0, 0);
+
+          if (airDay < today) continue;
+
+          if (!episodesByShow[row.show_id]) {
+            episodesByShow[row.show_id] = [];
+          }
+
+          episodesByShow[row.show_id].push({
+            showId: row.show_id,
+            showTvdbId: String(show.tvdb_id),
+            showName: show.show_name,
+            posterUrl: show.poster_url,
+            watchStatus: show.watch_status,
+            episodeId: row.id,
+            episodeName: row.name,
+            seasonNumber: row.season_number,
+            episodeNumber: row.episode_number,
+            aired: row.aired_date,
+          });
+        }
+
+        const collected = [];
+
+        Object.values(episodesByShow).forEach((showEpisodes) => {
+          if (!showEpisodes.length) return;
+
+          const firstUpcomingEpisode = showEpisodes[0];
+          const hasStartedWatching = watchedShowIds.has(firstUpcomingEpisode.showId);
+
+          const shouldIncludeShow =
+            hasStartedWatching || isFirstEpisode(firstUpcomingEpisode);
+
+          if (!shouldIncludeShow) return;
+
+          collected.push(...showEpisodes);
+        });
 
         collected.sort((a, b) => new Date(a.aired) - new Date(b.aired));
         setItems(collected);
