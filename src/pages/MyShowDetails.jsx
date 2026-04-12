@@ -21,14 +21,6 @@ function makeEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
-function chunkArray(items, size) {
-  const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function createWatchedLookup(rows) {
   return {
     byEpisodeId: new Set(
@@ -83,30 +75,24 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
-async function fetchEpisodeRatings(showId) {
-  if (!showId) return [];
+async function fetchWatchedRowsForShow(userId, showId) {
+  if (!userId || !showId) return [];
 
   const { data, error } = await supabase
-    .from("episode_ratings")
-    .select(`
-      user_id,
+    .from("watched_episodes")
+    .select(
+      `
       episode_id,
-      rating,
       episodes!inner(
         show_id
       )
-    `)
+    `
+    )
+    .eq("user_id", userId)
     .eq("episodes.show_id", showId);
 
-  if (error) {
-    console.warn("episode_ratings load failed:", error);
-    return [];
-  }
-
+  if (error) throw error;
   return data || [];
-}
-
-  return allRows;
 }
 
 async function fetchBurgrRatings(showId) {
@@ -123,27 +109,29 @@ async function fetchBurgrRatings(showId) {
   return data || [];
 }
 
-async function fetchEpisodeRatings(showEpisodeIds) {
-  if (!showEpisodeIds?.length) return [];
+async function fetchEpisodeRatings(showId) {
+  if (!showId) return [];
 
-  const batches = chunkArray(showEpisodeIds, 100);
-  const allRows = [];
+  const { data, error } = await supabase
+    .from("episode_ratings")
+    .select(
+      `
+      user_id,
+      episode_id,
+      rating,
+      episodes!inner(
+        show_id
+      )
+    `
+    )
+    .eq("episodes.show_id", showId);
 
-  for (const batch of batches) {
-    const { data, error } = await supabase
-      .from("episode_ratings")
-      .select("user_id, episode_id, rating")
-      .in("episode_id", batch);
-
-    if (error) {
-      console.warn("episode_ratings load failed:", error);
-      return [];
-    }
-
-    allRows.push(...(data || []));
+  if (error) {
+    console.warn("episode_ratings load failed:", error);
+    return [];
   }
 
-  return allRows;
+  return data || [];
 }
 
 function buildEpisodeRatingsMap(rows, userId) {
@@ -275,7 +263,8 @@ export default function MyShowDetails() {
 
       const { data: showData, error: showError } = await supabase
         .from("shows")
-        .select(`
+        .select(
+          `
           id,
           tvdb_id,
           name,
@@ -290,7 +279,8 @@ export default function MyShowDetails() {
           settings,
           rating_average,
           rating_count
-        `)
+        `
+        )
         .eq("tvdb_id", tvdbId)
         .maybeSingle();
 
@@ -305,7 +295,8 @@ export default function MyShowDetails() {
 
       const { data: userShowData, error: userShowError } = await supabase
         .from("user_shows_new")
-        .select(`
+        .select(
+          `
           id,
           user_id,
           show_id,
@@ -313,7 +304,8 @@ export default function MyShowDetails() {
           archived_at,
           added_at,
           created_at
-        `)
+        `
+        )
         .eq("user_id", user.id)
         .eq("show_id", showId)
         .maybeSingle();
@@ -336,7 +328,8 @@ export default function MyShowDetails() {
       const [episodeRes, burgrRows] = await Promise.all([
         supabase
           .from("episodes")
-          .select(`
+          .select(
+            `
             id,
             tvdb_id,
             show_id,
@@ -347,7 +340,8 @@ export default function MyShowDetails() {
             overview,
             aired_date,
             image_url
-          `)
+          `
+          )
           .eq("show_id", showId)
           .order("season_number", { ascending: true })
           .order("episode_number", { ascending: true }),
@@ -370,12 +364,10 @@ export default function MyShowDetails() {
         episode_code: row.episode_code,
       }));
 
-const episodeIds = normalizedEpisodes.map((ep) => ep.id);
-
-const [watchedRowsData, episodeRatingRows] = await Promise.all([
-  fetchWatchedRowsForShow(user.id, showId),
-  fetchEpisodeRatings(showId),
-]);
+      const [watchedRowsData, episodeRatingRows] = await Promise.all([
+        fetchWatchedRowsForShow(user.id, showId),
+        fetchEpisodeRatings(showId),
+      ]);
 
       const seasonMap = {};
       normalizedEpisodes.forEach((ep) => {
@@ -776,8 +768,8 @@ const [watchedRowsData, episodeRatingRows] = await Promise.all([
     setMyBurgrRating(mine ? String(mine.rating) : "");
   }
 
-  async function refreshEpisodeRatings(showEpisodeIds) {
-    const fresh = await fetchEpisodeRatings(showEpisodeIds);
+  async function refreshEpisodeRatings(showId) {
+    const fresh = await fetchEpisodeRatings(showId);
     setEpisodeRatings(fresh);
   }
 
@@ -1102,7 +1094,7 @@ const [watchedRowsData, episodeRatingRows] = await Promise.all([
 
       if (error) throw error;
 
-      await refreshEpisodeRatings(episodes.map((episode) => episode.id));
+      await refreshEpisodeRatings(show.id);
       setOpenEpisodeRatingPickerId(null);
     } catch (error) {
       console.error("Failed saving episode rating:", error);
