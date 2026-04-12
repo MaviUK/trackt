@@ -49,16 +49,11 @@ function isWatchlistStatus(value) {
 function formatMinutes(totalMinutes) {
   const minutes = Number(totalMinutes) || 0;
 
-  if (minutes < 60) return `${minutes}m`;
-
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
   const mins = minutes % 60;
 
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-
-  return `${hours}h`;
+  return `${days}d ${hours}h ${mins}m`;
 }
 
 function chunkArray(items, size) {
