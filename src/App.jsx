@@ -1,24 +1,125 @@
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  NavLink,
+  useLocation,
+} from "react-router-dom";
 import "./index.css";
-import { supabase } from "./lib/supabase";
-
 import ProfileEdit from "./pages/ProfileEdit";
+
 import Search from "./pages/Search";
 import Login from "./pages/Login";
 import ShowDetails from "./pages/ShowDetails";
 import MyShows from "./pages/MyShows";
 import MyShowDetails from "./pages/MyShowDetails";
-import AiringNextPage from "./pages/airingnext";
-import ReadyToWatchPage from "./pages/readytowatch";
-import ReadyShowPage from "./pages/readyShow";
 import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
 
-function AppNav({ isLoggedIn }) {
+function HomeIcon() {
   return (
-    <div className="nav-wrap">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M3 10.5 12 3l9 7.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 9.5V20h13V9.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle
+        cx="11"
+        cy="11"
+        r="6.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M16 16l5 5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ShowsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="2.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M7 3v4M17 3v4M3 9h18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="16"
+        rx="2.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M8 3v4M16 3v4M3 9h18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 13h3M13 13h3M8 17h3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DesktopNav() {
+  return (
+    <div className="nav-wrap desktop-nav">
       <nav className="top-tabs">
         <NavLink
           to="/"
@@ -43,241 +144,102 @@ function AppNav({ isLoggedIn }) {
         </NavLink>
 
         <NavLink
-          to="/airing-next"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Airing Next
-        </NavLink>
-
-        <NavLink
-          to="/ready-to-watch"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Ready To Watch
-        </NavLink>
-
-        {!isLoggedIn && (
-          <NavLink
-            to="/login"
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            Login
-          </NavLink>
-        )}
-
-        <NavLink
           to="/calendar"
           className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
         >
           Calendar
+        </NavLink>
+
+        <NavLink
+          to="/login"
+          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+        >
+          Login
         </NavLink>
       </nav>
     </div>
   );
 }
 
-function HomeRoute({ sessionLoading, isLoggedIn }) {
-  if (sessionLoading) {
-    return <div className="page">Loading...</div>;
+function MobileBottomNav() {
+  const location = useLocation();
+
+  if (location.pathname === "/login") {
+    return null;
   }
 
-  return isLoggedIn ? <Dashboard /> : <Navigate to="/login" replace />;
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <NavLink
+        to="/"
+        end
+        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+      >
+        <span className="mobile-nav-icon">
+          <HomeIcon />
+        </span>
+        <span className="mobile-nav-label">Home</span>
+      </NavLink>
+
+      <NavLink
+        to="/search"
+        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+      >
+        <span className="mobile-nav-icon">
+          <SearchIcon />
+        </span>
+        <span className="mobile-nav-label">Search</span>
+      </NavLink>
+
+      <NavLink
+        to="/my-shows"
+        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+      >
+        <span className="mobile-nav-icon">
+          <ShowsIcon />
+        </span>
+        <span className="mobile-nav-label">Shows</span>
+      </NavLink>
+
+      <NavLink
+        to="/calendar"
+        className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}
+      >
+        <span className="mobile-nav-icon">
+          <CalendarIcon />
+        </span>
+        <span className="mobile-nav-label">Calendar</span>
+      </NavLink>
+    </nav>
+  );
 }
 
-function LoginRoute({ sessionLoading, isLoggedIn }) {
-  if (sessionLoading) {
-    return <div className="page">Loading...</div>;
-  }
+function AppLayout() {
+  return (
+    <>
+      <DesktopNav />
 
-  return isLoggedIn ? <Navigate to="/" replace /> : <Login />;
-}
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/show/:id" element={<ShowDetails />} />
+        <Route path="/my-shows" element={<MyShows />} />
+        <Route path="/my-shows/:id" element={<MyShowDetails />} />
+        <Route path="/actor/:name" element={<ActorPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/profile/edit" element={<ProfileEdit />} />
+      </Routes>
 
-function ProtectedRoute({ sessionLoading, isLoggedIn, children }) {
-  if (sessionLoading) {
-    return <div className="page">Loading...</div>;
-  }
-
-  return isLoggedIn ? children : <Navigate to="/login" replace />;
+      <MobileBottomNav />
+    </>
+  );
 }
 
 function App() {
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      setIsLoggedIn(!!session);
-      setSessionLoading(false);
-    }
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-      setSessionLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
   return (
     <BrowserRouter>
-      <AppNav isLoggedIn={isLoggedIn} />
-
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <HomeRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            />
-          }
-        />
-
-        <Route
-          path="/login"
-          element={
-            <LoginRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            />
-          }
-        />
-
-        <Route
-          path="/search"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <Search />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/show/:id"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <ShowDetails />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/my-shows"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <MyShows />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/my-shows/:id"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <MyShowDetails />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/actor/:name"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <ActorPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/airing-next"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <AiringNextPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/ready-to-watch"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <ReadyToWatchPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/ready/:id"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <ReadyShowPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <CalendarPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/profile/edit"
-          element={
-            <ProtectedRoute
-              sessionLoading={sessionLoading}
-              isLoggedIn={isLoggedIn}
-            >
-              <ProfileEdit />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <AppLayout />
     </BrowserRouter>
   );
 }
