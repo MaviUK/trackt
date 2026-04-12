@@ -37,10 +37,17 @@ function formatDobForInput(value) {
   return `${year}-${month}-${day}`;
 }
 
+function distanceBetweenTouches(touchA, touchB) {
+  const dx = touchA.clientX - touchB.clientX;
+  const dy = touchA.clientY - touchB.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export default function ProfileEdit() {
   const navigate = useNavigate();
   const previewRef = useRef(null);
   const dragStateRef = useRef(null);
+  const pinchStateRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,8 +62,8 @@ export default function ProfileEdit() {
     username: "",
     full_name: "",
     avatar_zoom: 1,
-    avatar_x: 50,
-    avatar_y: 50,
+    avatar_x: 0,
+    avatar_y: 0,
     dob: "",
     gender: "",
     country: "",
@@ -77,11 +84,11 @@ export default function ProfileEdit() {
 
   useEffect(() => {
     return () => {
-      if (selectedAvatarFile) {
+      if (previewAvatarUrl && previewAvatarUrl.startsWith("blob:")) {
         URL.revokeObjectURL(previewAvatarUrl);
       }
     };
-  }, [selectedAvatarFile, previewAvatarUrl]);
+  }, [previewAvatarUrl]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -134,8 +141,8 @@ export default function ProfileEdit() {
             username: data.username || "",
             full_name: data.full_name || "",
             avatar_zoom: Number(data.avatar_zoom ?? 1),
-            avatar_x: Number(data.avatar_x ?? 50),
-            avatar_y: Number(data.avatar_y ?? 50),
+            avatar_x: Number(data.avatar_x ?? 0),
+            avatar_y: Number(data.avatar_y ?? 0),
             dob: formatDobForInput(data.dob),
             gender: data.gender || "",
             country: data.country || "",
@@ -158,90 +165,10 @@ export default function ProfileEdit() {
     loadProfile();
   }, [navigate]);
 
-  useEffect(() => {
-    function handlePointerMove(event) {
-      if (!dragStateRef.current || !previewRef.current) return;
-
-      const { startX, startY, startAvatarX, startAvatarY } =
-        dragStateRef.current;
-
-      const rect = previewRef.current.getBoundingClientRect();
-
-      const deltaX = event.clientX - startX;
-      const deltaY = event.clientY - startY;
-
-      const movementXPercent = (deltaX / rect.width) * (100 / form.avatar_zoom);
-      const movementYPercent =
-        (deltaY / rect.height) * (100 / form.avatar_zoom);
-
-      setForm((prev) => ({
-        ...prev,
-        avatar_x: clamp(startAvatarX - movementXPercent, 0, 100),
-        avatar_y: clamp(startAvatarY - movementYPercent, 0, 100),
-      }));
-    }
-
-    function handlePointerUp() {
-      dragStateRef.current = null;
-      setIsDragging(false);
-    }
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [form.avatar_zoom]);
-
   function updateField(name, value) {
     setForm((prev) => ({
       ...prev,
       [name]: value,
-    }));
-  }
-
-  function handleAvatarPointerDown(event) {
-    if (!previewAvatarUrl) return;
-
-    event.preventDefault();
-
-    dragStateRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      startAvatarX: form.avatar_x,
-      startAvatarY: form.avatar_y,
-    };
-
-    setIsDragging(true);
-  }
-
-  function handleAvatarWheel(event) {
-    if (!previewAvatarUrl) return;
-
-    event.preventDefault();
-
-    const direction = event.deltaY > 0 ? -0.08 : 0.08;
-
-    setForm((prev) => ({
-      ...prev,
-      avatar_zoom: clamp(
-        Number((prev.avatar_zoom + direction).toFixed(2)),
-        1,
-        2.5
-      ),
-    }));
-  }
-
-  function zoomAvatar(amount) {
-    setForm((prev) => ({
-      ...prev,
-      avatar_zoom: clamp(
-        Number((prev.avatar_zoom + amount).toFixed(2)),
-        1,
-        2.5
-      ),
     }));
   }
 
@@ -251,17 +178,136 @@ export default function ProfileEdit() {
 
     setError("");
     setMessage("");
-
     setSelectedAvatarFile(file);
 
     setForm((prev) => ({
       ...prev,
       avatar_zoom: 1,
-      avatar_x: 50,
-      avatar_y: 50,
+      avatar_x: 0,
+      avatar_y: 0,
     }));
 
-    setMessage("Image selected. Drag it into position, then save profile.");
+    setMessage("Image selected. Drag to move it. Pinch on mobile to zoom, then save.");
+  }
+
+  function handlePointerDown(event) {
+    if (!previewAvatarUrl || !previewRef.current) return;
+
+    event.preventDefault();
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startAvatarX: form.avatar_x,
+      startAvatarY: form.avatar_y,
+    };
+
+    setIsDragging(true);
+  }
+
+  function handlePointerMove(event) {
+    if (!dragStateRef.current || !previewRef.current) return;
+    if (dragStateRef.current.pointerId !== event.pointerId) return;
+
+    const rect = previewRef.current.getBoundingClientRect();
+    const deltaX = event.clientX - dragStateRef.current.startX;
+    const deltaY = event.clientY - dragStateRef.current.startY;
+
+    const scaledWidth = rect.width * form.avatar_zoom;
+    const scaledHeight = rect.height * form.avatar_zoom;
+
+    const maxOffsetX = Math.max(0, (scaledWidth - rect.width) / 2);
+    const maxOffsetY = Math.max(0, (scaledHeight - rect.height) / 2);
+
+    const nextX = dragStateRef.current.startAvatarX + deltaX;
+    const nextY = dragStateRef.current.startAvatarY + deltaY;
+
+    setForm((prev) => ({
+      ...prev,
+      avatar_x: clamp(nextX, -maxOffsetX, maxOffsetX),
+      avatar_y: clamp(nextY, -maxOffsetY, maxOffsetY),
+    }));
+  }
+
+  function endPointerDrag(event) {
+    if (!dragStateRef.current) return;
+    if (event && dragStateRef.current.pointerId !== event.pointerId) return;
+
+    dragStateRef.current = null;
+    setIsDragging(false);
+  }
+
+  function handleWheel(event) {
+    if (!previewAvatarUrl || !previewRef.current) return;
+
+    event.preventDefault();
+
+    const rect = previewRef.current.getBoundingClientRect();
+    const nextZoom = clamp(
+      Number((form.avatar_zoom + (event.deltaY > 0 ? -0.08 : 0.08)).toFixed(2)),
+      1,
+      4
+    );
+
+    const scaledWidth = rect.width * nextZoom;
+    const scaledHeight = rect.height * nextZoom;
+
+    const maxOffsetX = Math.max(0, (scaledWidth - rect.width) / 2);
+    const maxOffsetY = Math.max(0, (scaledHeight - rect.height) / 2);
+
+    setForm((prev) => ({
+      ...prev,
+      avatar_zoom: nextZoom,
+      avatar_x: clamp(prev.avatar_x, -maxOffsetX, maxOffsetX),
+      avatar_y: clamp(prev.avatar_y, -maxOffsetY, maxOffsetY),
+    }));
+  }
+
+  function handleTouchStart(event) {
+    if (!previewAvatarUrl) return;
+    if (event.touches.length !== 2) return;
+
+    const distance = distanceBetweenTouches(event.touches[0], event.touches[1]);
+
+    pinchStateRef.current = {
+      startDistance: distance,
+      startZoom: form.avatar_zoom,
+    };
+  }
+
+  function handleTouchMove(event) {
+    if (!previewAvatarUrl || !previewRef.current) return;
+
+    if (event.touches.length === 2 && pinchStateRef.current) {
+      event.preventDefault();
+
+      const rect = previewRef.current.getBoundingClientRect();
+      const distance = distanceBetweenTouches(event.touches[0], event.touches[1]);
+      const zoomRatio = distance / pinchStateRef.current.startDistance;
+      const nextZoom = clamp(
+        Number((pinchStateRef.current.startZoom * zoomRatio).toFixed(2)),
+        1,
+        4
+      );
+
+      const scaledWidth = rect.width * nextZoom;
+      const scaledHeight = rect.height * nextZoom;
+
+      const maxOffsetX = Math.max(0, (scaledWidth - rect.width) / 2);
+      const maxOffsetY = Math.max(0, (scaledHeight - rect.height) / 2);
+
+      setForm((prev) => ({
+        ...prev,
+        avatar_zoom: nextZoom,
+        avatar_x: clamp(prev.avatar_x, -maxOffsetX, maxOffsetX),
+        avatar_y: clamp(prev.avatar_y, -maxOffsetY, maxOffsetY),
+      }));
+    }
+  }
+
+  function handleTouchEnd() {
+    pinchStateRef.current = null;
   }
 
   async function uploadAvatarIfNeeded(userId) {
@@ -277,6 +323,7 @@ export default function ProfileEdit() {
     const { error: uploadError } = await supabase.storage
       .from("avatars")
       .upload(filePath, selectedAvatarFile, {
+        cacheControl: "3600",
         upsert: true,
       });
 
@@ -293,6 +340,31 @@ export default function ProfileEdit() {
     }
 
     return publicUrl;
+  }
+
+  async function saveProfileRow(userId, payload) {
+    const { error: updateError, data: updatedRows } = await supabase
+      .from("profiles")
+      .update(payload)
+      .eq("id", userId)
+      .select("id");
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    if (updatedRows && updatedRows.length > 0) {
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("profiles").insert({
+      id: userId,
+      ...payload,
+    });
+
+    if (insertError) {
+      throw insertError;
+    }
   }
 
   async function handleSubmit(event) {
@@ -318,13 +390,12 @@ export default function ProfileEdit() {
       const avatarUrl = await uploadAvatarIfNeeded(user.id);
 
       const payload = {
-        id: user.id,
         username: cleanedUsername || null,
         full_name: cleanedFullName || null,
         avatar_url: avatarUrl || null,
         avatar_zoom: Number(form.avatar_zoom) || 1,
-        avatar_x: Number(form.avatar_x) || 50,
-        avatar_y: Number(form.avatar_y) || 50,
+        avatar_x: Number(form.avatar_x) || 0,
+        avatar_y: Number(form.avatar_y) || 0,
         dob: form.dob || null,
         gender: form.gender.trim() || null,
         country: cleanedCountry || null,
@@ -337,23 +408,13 @@ export default function ProfileEdit() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: upsertError } = await supabase
-        .from("profiles")
-        .upsert(payload);
+      await saveProfileRow(user.id, payload);
 
-      if (upsertError) {
-        if (
-          upsertError.message?.toLowerCase().includes("duplicate") ||
-          upsertError.message?.toLowerCase().includes("unique")
-        ) {
-          throw new Error("That username is already taken.");
-        }
-
-        throw upsertError;
-      }
-
+      setExistingAvatarUrl(avatarUrl || "");
+      setSelectedAvatarFile(null);
       setMessage("Profile updated.");
-      navigate("/dashboard");
+
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       console.error("Failed to save profile:", err);
       setError(err.message || "Failed to save profile.");
@@ -447,8 +508,14 @@ export default function ProfileEdit() {
                 <>
                   <div
                     ref={previewRef}
-                    onPointerDown={handleAvatarPointerDown}
-                    onWheel={handleAvatarWheel}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={endPointerDrag}
+                    onPointerCancel={endPointerDrag}
+                    onWheel={handleWheel}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                     style={{
                       width: 200,
                       height: 200,
@@ -473,12 +540,12 @@ export default function ProfileEdit() {
                       draggable={false}
                       style={{
                         position: "absolute",
-                        inset: 0,
+                        top: "50%",
+                        left: "50%",
                         width: "100%",
                         height: "100%",
                         objectFit: "cover",
-                        objectPosition: `${form.avatar_x}% ${form.avatar_y}%`,
-                        transform: `scale(${form.avatar_zoom})`,
+                        transform: `translate(calc(-50% + ${form.avatar_x}px), calc(-50% + ${form.avatar_y}px)) scale(${form.avatar_zoom})`,
                         transformOrigin: "center",
                         display: "block",
                         pointerEvents: "none",
@@ -486,33 +553,8 @@ export default function ProfileEdit() {
                     />
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      marginTop: 12,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => zoomAvatar(-0.1)}
-                      style={smallButtonStyle}
-                    >
-                      − Zoom out
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => zoomAvatar(0.1)}
-                      style={smallButtonStyle}
-                    >
-                      + Zoom in
-                    </button>
-                  </div>
-
                   <div style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
-                    Drag image to position it. Use mouse wheel or zoom buttons.
+                    Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
                   </div>
                 </>
               ) : (
@@ -764,14 +806,4 @@ const secondaryLinkStyle = {
   color: "#f8fafc",
   fontWeight: 700,
   textDecoration: "none",
-};
-
-const smallButtonStyle = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #334155",
-  background: "#182235",
-  color: "#f8fafc",
-  fontWeight: 700,
-  cursor: "pointer",
 };
