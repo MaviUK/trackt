@@ -6,10 +6,7 @@ function normalizeUrl(value) {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
 
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://")
-  ) {
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return trimmed;
   }
 
@@ -25,23 +22,23 @@ export default function ProfileEdit() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
- const [form, setForm] = useState({
-  username: "",
-  full_name: "",
-  avatar_url: "",
-  avatar_zoom: 1,
-  avatar_x: 50,
-  avatar_y: 50,
-  dob: "",
-  gender: "",
-  country: "",
-  bio: "",
-  instagram_url: "",
-  x_url: "",
-  tiktok_url: "",
-  youtube_url: "",
-  website_url: "",
-});
+  const [form, setForm] = useState({
+    username: "",
+    full_name: "",
+    avatar_url: "",
+    avatar_zoom: 1,
+    avatar_x: 50,
+    avatar_y: 50,
+    dob: "",
+    gender: "",
+    country: "",
+    bio: "",
+    instagram_url: "",
+    x_url: "",
+    tiktok_url: "",
+    youtube_url: "",
+    website_url: "",
+  });
 
   useEffect(() => {
     async function loadProfile() {
@@ -69,6 +66,9 @@ export default function ProfileEdit() {
             username,
             full_name,
             avatar_url,
+            avatar_zoom,
+            avatar_x,
+            avatar_y,
             dob,
             gender,
             country,
@@ -89,6 +89,9 @@ export default function ProfileEdit() {
             username: data.username || "",
             full_name: data.full_name || "",
             avatar_url: data.avatar_url || "",
+            avatar_zoom: Number(data.avatar_zoom ?? 1),
+            avatar_x: Number(data.avatar_x ?? 50),
+            avatar_y: Number(data.avatar_y ?? 50),
             dob: data.dob || "",
             gender: data.gender || "",
             country: data.country || "",
@@ -192,27 +195,29 @@ export default function ProfileEdit() {
       const cleanedBio = form.bio.trim();
 
       const payload = {
-  id: user.id,
-  username: cleanedUsername || null,
-  full_name: cleanedFullName || null,
-  avatar_url: form.avatar_url.trim() || null,
-  dob: form.dob || null,
-  gender: form.gender.trim() || null,
-  country: cleanedCountry || null,
-  bio: cleanedBio || null,
-  instagram_url: normalizeUrl(form.instagram_url) || null,
-  x_url: normalizeUrl(form.x_url) || null,
-  tiktok_url: normalizeUrl(form.tiktok_url) || null,
-  youtube_url: normalizeUrl(form.youtube_url) || null,
-  website_url: normalizeUrl(form.website_url) || null,
-  updated_at: new Date().toISOString(),
-};
+        id: user.id,
+        username: cleanedUsername || null,
+        full_name: cleanedFullName || null,
+        avatar_url: form.avatar_url.trim() || null,
+        avatar_zoom: Number(form.avatar_zoom) || 1,
+        avatar_x: Number(form.avatar_x) || 50,
+        avatar_y: Number(form.avatar_y) || 50,
+        dob: form.dob || null,
+        gender: form.gender.trim() || null,
+        country: cleanedCountry || null,
+        bio: cleanedBio || null,
+        instagram_url: normalizeUrl(form.instagram_url) || null,
+        x_url: normalizeUrl(form.x_url) || null,
+        tiktok_url: normalizeUrl(form.tiktok_url) || null,
+        youtube_url: normalizeUrl(form.youtube_url) || null,
+        website_url: normalizeUrl(form.website_url) || null,
+        updated_at: new Date().toISOString(),
+      };
 
       const { error: upsertError } = await supabase
-  .from("profiles")
-  .upsert(payload);
+        .from("profiles")
+        .upsert(payload);
 
-      
       if (upsertError) {
         if (
           upsertError.message?.toLowerCase().includes("duplicate") ||
@@ -310,24 +315,36 @@ export default function ProfileEdit() {
               display: "grid",
               gridTemplateColumns: "120px 1fr",
               gap: 20,
-              alignItems: "center",
+              alignItems: "start",
               marginBottom: 24,
             }}
           >
             <div>
               {form.avatar_url ? (
-                <img
-                  src={form.avatar_url}
-                  alt="Profile"
+                <div
                   style={{
                     width: 110,
                     height: 110,
                     borderRadius: "999px",
-                    objectFit: "cover",
-                    display: "block",
+                    overflow: "hidden",
                     background: "#111827",
+                    position: "relative",
                   }}
-                />
+                >
+                  <img
+                    src={form.avatar_url}
+                    alt="Profile"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      objectPosition: `${form.avatar_x}% ${form.avatar_y}%`,
+                      transform: `scale(${form.avatar_zoom})`,
+                      transformOrigin: "center",
+                      display: "block",
+                    }}
+                  />
+                </div>
               ) : (
                 <div
                   style={{
@@ -343,7 +360,9 @@ export default function ProfileEdit() {
                     color: "#fff",
                   }}
                 >
-                  {(form.username || form.full_name || "U").charAt(0).toUpperCase()}
+                  {(form.username || form.full_name || "U")
+                    .charAt(0)
+                    .toUpperCase()}
                 </div>
               )}
             </div>
@@ -371,6 +390,61 @@ export default function ProfileEdit() {
               <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
                 {uploading ? "Uploading image..." : "PNG, JPG, WEBP supported."}
               </div>
+
+              {form.avatar_url ? (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>
+                      Zoom: {Number(form.avatar_zoom).toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="2.5"
+                      step="0.01"
+                      value={form.avatar_zoom}
+                      onChange={(e) =>
+                        updateField("avatar_zoom", Number(e.target.value))
+                      }
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>
+                      Horizontal Position: {form.avatar_x}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={form.avatar_x}
+                      onChange={(e) =>
+                        updateField("avatar_x", Number(e.target.value))
+                      }
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>
+                      Vertical Position: {form.avatar_y}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={form.avatar_y}
+                      onChange={(e) =>
+                        updateField("avatar_y", Number(e.target.value))
+                      }
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
