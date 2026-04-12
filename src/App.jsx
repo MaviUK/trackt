@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import "./index.css";
-import ProfileEdit from "./pages/ProfileEdit";
+import { supabase } from "./lib/supabase";
 
+import ProfileEdit from "./pages/ProfileEdit";
 import Search from "./pages/Search";
 import Login from "./pages/Login";
 import ShowDetails from "./pages/ShowDetails";
@@ -14,7 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
 
-function AppNav() {
+function AppNav({ isLoggedIn }) {
   return (
     <div className="nav-wrap">
       <nav className="top-tabs">
@@ -54,12 +56,14 @@ function AppNav() {
           Ready To Watch
         </NavLink>
 
-        <NavLink
-          to="/login"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Login
-        </NavLink>
+        {!isLoggedIn && (
+          <NavLink
+            to="/login"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Login
+          </NavLink>
+        )}
 
         <NavLink
           to="/calendar"
@@ -72,24 +76,207 @@ function AppNav() {
   );
 }
 
+function HomeRoute({ sessionLoading, isLoggedIn }) {
+  if (sessionLoading) {
+    return <div className="page">Loading...</div>;
+  }
+
+  return isLoggedIn ? <Dashboard /> : <Navigate to="/login" replace />;
+}
+
+function LoginRoute({ sessionLoading, isLoggedIn }) {
+  if (sessionLoading) {
+    return <div className="page">Loading...</div>;
+  }
+
+  return isLoggedIn ? <Navigate to="/" replace /> : <Login />;
+}
+
+function ProtectedRoute({ sessionLoading, isLoggedIn, children }) {
+  if (sessionLoading) {
+    return <div className="page">Loading...</div>;
+  }
+
+  return isLoggedIn ? children : <Navigate to="/login" replace />;
+}
+
 function App() {
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      setIsLoggedIn(!!session);
+      setSessionLoading(false);
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+      setSessionLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
-      <AppNav />
+      <AppNav isLoggedIn={isLoggedIn} />
 
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/show/:id" element={<ShowDetails />} />
-        <Route path="/my-shows" element={<MyShows />} />
-        <Route path="/my-shows/:id" element={<MyShowDetails />} />
-        <Route path="/actor/:name" element={<ActorPage />} />
-        <Route path="/airing-next" element={<AiringNextPage />} />
-        <Route path="/ready-to-watch" element={<ReadyToWatchPage />} />
-        <Route path="/ready/:id" element={<ReadyShowPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/profile/edit" element={<ProfileEdit />} />
+        <Route
+          path="/"
+          element={
+            <HomeRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            />
+          }
+        />
+
+        <Route
+          path="/login"
+          element={
+            <LoginRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            />
+          }
+        />
+
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <Search />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/show/:id"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <ShowDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-shows"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <MyShows />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/my-shows/:id"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <MyShowDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/actor/:name"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <ActorPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/airing-next"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <AiringNextPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/ready-to-watch"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <ReadyToWatchPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/ready/:id"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <ReadyShowPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <CalendarPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute
+              sessionLoading={sessionLoading}
+              isLoggedIn={isLoggedIn}
+            >
+              <ProfileEdit />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
