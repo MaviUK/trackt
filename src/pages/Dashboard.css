@@ -1,3 +1,14 @@
+@media (max-width: 640px) {
+  .dashboard-page,
+  .dashboard-shell,
+  .dashboard-content {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding-bottom: 120px !important;
+  }
+}
+
 .page {
   padding: 24px;
   color: #f8fafc;
