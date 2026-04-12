@@ -83,22 +83,28 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
-async function fetchWatchedRowsForShow(userId, showEpisodeIds) {
-  if (!userId || !showEpisodeIds?.length) return [];
+async function fetchEpisodeRatings(showId) {
+  if (!showId) return [];
 
-  const batches = chunkArray(showEpisodeIds, 100);
-  const allRows = [];
+  const { data, error } = await supabase
+    .from("episode_ratings")
+    .select(`
+      user_id,
+      episode_id,
+      rating,
+      episodes!inner(
+        show_id
+      )
+    `)
+    .eq("episodes.show_id", showId);
 
-  for (const batch of batches) {
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
-      .in("episode_id", batch);
-
-    if (error) throw error;
-    allRows.push(...(data || []));
+  if (error) {
+    console.warn("episode_ratings load failed:", error);
+    return [];
   }
+
+  return data || [];
+}
 
   return allRows;
 }
