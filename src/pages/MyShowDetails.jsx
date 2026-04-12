@@ -370,12 +370,12 @@ export default function MyShowDetails() {
         episode_code: row.episode_code,
       }));
 
-      const episodeIds = normalizedEpisodes.map((ep) => ep.id);
+const episodeIds = normalizedEpisodes.map((ep) => ep.id);
 
-      const [watchedRowsData, episodeRatingRows] = await Promise.all([
-        fetchWatchedRowsForShow(user.id, episodeIds),
-        fetchEpisodeRatings(episodeIds),
-      ]);
+const [watchedRowsData, episodeRatingRows] = await Promise.all([
+  fetchWatchedRowsForShow(user.id, showId),
+  fetchEpisodeRatings(showId),
+]);
 
       const seasonMap = {};
       normalizedEpisodes.forEach((ep) => {
