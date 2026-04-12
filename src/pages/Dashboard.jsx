@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
+import "./Dashboard.css";
 
 function parseDate(dateStr) {
   if (!dateStr) return null;
