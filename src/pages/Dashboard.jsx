@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
+import ProfileEdit from "./pages/ProfileEdit";
 
 function startOfToday() {
   const d = new Date();
