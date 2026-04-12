@@ -25,20 +25,23 @@ export default function ProfileEdit() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({
-    username: "",
-    full_name: "",
-    avatar_url: "",
-    dob: "",
-    gender: "",
-    country: "",
-    bio: "",
-    instagram_url: "",
-    x_url: "",
-    tiktok_url: "",
-    youtube_url: "",
-    website_url: "",
-  });
+ const [form, setForm] = useState({
+  username: "",
+  full_name: "",
+  avatar_url: "",
+  avatar_zoom: 1,
+  avatar_x: 50,
+  avatar_y: 50,
+  dob: "",
+  gender: "",
+  country: "",
+  bio: "",
+  instagram_url: "",
+  x_url: "",
+  tiktok_url: "",
+  youtube_url: "",
+  website_url: "",
+});
 
   useEffect(() => {
     async function loadProfile() {
