@@ -29,10 +29,19 @@ function isFirstEpisode(ep) {
   return Number(ep?.seasonNumber) === 1 && Number(ep?.episodeNumber) === 1;
 }
 
+function normalizeStatus(value) {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
+}
+
 function isArchivedStatus(value) {
-  if (!value) return false;
-  const normalized = String(value).trim().toLowerCase();
-  return normalized === "archived" || normalized === "archive";
+  const status = normalizeStatus(value);
+  return status === "archived" || status === "archive";
+}
+
+function isWatchlistStatus(value) {
+  const status = normalizeStatus(value);
+  return status === "watchlist" || status === "plan_to_watch";
 }
 
 export default function CalendarPage() {
@@ -106,37 +115,21 @@ export default function CalendarPage() {
 
         const today = startOfToday();
 
-        const [
-          { data: episodeRows, error: episodesError },
-          { data: watchedRows, error: watchedError },
-        ] = await Promise.all([
-          supabase
-            .from("episodes")
-            .select(`
-              id,
-              show_id,
-              name,
-              season_number,
-              episode_number,
-              aired_date
-            `)
-            .in("show_id", showIds)
-            .gte("aired_date", today.toISOString().slice(0, 10))
-            .order("aired_date", { ascending: true })
-            .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true }),
-
-          supabase
-            .from("watched_episodes")
-            .select(`
-              id,
-              show_id,
-              episode_id,
-              user_id
-            `)
-            .eq("user_id", user.id)
-            .in("show_id", showIds),
-        ]);
+        const { data: episodeRows, error: episodesError } = await supabase
+          .from("episodes")
+          .select(`
+            id,
+            show_id,
+            name,
+            season_number,
+            episode_number,
+            aired_date
+          `)
+          .in("show_id", showIds)
+          .gte("aired_date", today.toISOString().slice(0, 10))
+          .order("aired_date", { ascending: true })
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true });
 
         if (episodesError) {
           console.error("Failed to load calendar episodes:", episodesError);
@@ -144,17 +137,6 @@ export default function CalendarPage() {
           setLoading(false);
           return;
         }
-
-        if (watchedError) {
-          console.error("Failed to load watched episodes:", watchedError);
-          setItems([]);
-          setLoading(false);
-          return;
-        }
-
-        const watchedShowIds = new Set(
-          (watchedRows || []).map((row) => row.show_id).filter(Boolean)
-        );
 
         const episodesByShow = {};
 
@@ -197,12 +179,17 @@ export default function CalendarPage() {
           if (!showEpisodes.length) return;
 
           const firstUpcomingEpisode = showEpisodes[0];
-          const hasStartedWatching = watchedShowIds.has(firstUpcomingEpisode.showId);
+          const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
 
-          const shouldIncludeShow =
-            hasStartedWatching || isFirstEpisode(firstUpcomingEpisode);
+          if (isArchivedStatus(status)) {
+            return;
+          }
 
-          if (!shouldIncludeShow) return;
+          if (isWatchlistStatus(status)) {
+            if (!isFirstEpisode(firstUpcomingEpisode)) {
+              return;
+            }
+          }
 
           collected.push(...showEpisodes);
         });
