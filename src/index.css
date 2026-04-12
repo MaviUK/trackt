@@ -21,7 +21,7 @@
   --radius-md: 18px;
   --radius-sm: 12px;
   --max-width: 1200px;
-  --mobile-nav-height: 82px;
+  --mobile-nav-height: 92px;
 }
 
 * {
@@ -898,8 +898,8 @@ textarea:focus {
   }
 
   .page {
-    padding: 16px 12px calc(var(--mobile-nav-height) + 28px);
-  }
+  padding: 16px 12px calc(var(--mobile-nav-height) + 48px + env(safe-area-inset-bottom));
+}
 
   .page-header {
     margin-bottom: 20px;
