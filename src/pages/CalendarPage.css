@@ -146,7 +146,7 @@
 
 @media (max-width: 640px) {
   .calendar-page {
-    padding: 16px 12px 24px;
+    padding: 16px 12px calc(var(--mobile-nav-height) + 48px + env(safe-area-inset-bottom));
   }
 
   .calendar-header {
