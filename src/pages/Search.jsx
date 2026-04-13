@@ -23,12 +23,14 @@ function withTimeout(promise, ms, message) {
 async function verifyShowWasActuallySaved(tvdbId, userId) {
   const { data, error } = await supabase
     .from("user_shows_new")
-    .select(`
+    .select(
+      `
       id,
       shows!inner(
         tvdb_id
       )
-    `)
+    `
+    )
     .eq("user_id", userId)
     .eq("shows.tvdb_id", Number(tvdbId))
     .maybeSingle();
@@ -240,12 +242,17 @@ export default function Search() {
             gap: "10px",
             marginBottom: "20px",
             width: "100%",
+            boxSizing: "border-box",
           }}
         >
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleManualSearch();
+              }
+            }}
             placeholder="Search for a show"
             style={{
               flex: 1,
@@ -261,6 +268,7 @@ export default function Search() {
           />
 
           <button
+            type="button"
             onClick={handleManualSearch}
             disabled={loading}
             className="msd-btn msd-btn-secondary"
@@ -283,11 +291,7 @@ export default function Search() {
             const tvdbId = String(show.tvdb_id);
             const isSaved = savedIds.has(tvdbId);
             const isAdding = addingId === tvdbId;
-
-            const detailHref = isSaved
-              ? `/my-shows/${tvdbId}`
-              : `/show/${tvdbId}`;
-
+            const detailHref = isSaved ? `/my-shows/${tvdbId}` : `/show/${tvdbId}`;
             const poster = show.image_url || show.poster_url;
 
             return (
@@ -325,6 +329,7 @@ export default function Search() {
                     </Link>
 
                     <button
+                      type="button"
                       onClick={(e) => handleAddShow(e, show)}
                       disabled={isSaved || isAdding}
                       className={`msd-btn ${
