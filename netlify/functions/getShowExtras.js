@@ -5,6 +5,8 @@ const TMDB_BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/original";
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
+let cachedArtworkTypes = null;
+let cachedArtworkTypesExpiresAt = 0;
 
 function jsonResponse(statusCode, body) {
   return {
@@ -133,23 +135,139 @@ function normalizeStringArray(values) {
     .filter(Boolean);
 }
 
-function extractTvdbBanner(seriesData) {
+async function getArtworkTypesMap() {
+  const now = Date.now();
+
+  if (cachedArtworkTypes && now < cachedArtworkTypesExpiresAt) {
+    return cachedArtworkTypes;
+  }
+
+  try {
+    const json = await tvdbGet("/artwork/types");
+    const rows = Array.isArray(json?.data) ? json.data : [];
+
+    const map = new Map();
+
+    for (const row of rows) {
+      const id = Number(row?.id);
+      if (!Number.isFinite(id)) continue;
+
+      const name = String(
+        row?.name || row?.type || row?.slug || row?.imageFormat || ""
+      ).toLowerCase();
+
+      map.set(id, {
+        id,
+        name,
+      });
+    }
+
+    cachedArtworkTypes = map;
+    cachedArtworkTypesExpiresAt = now + 24 * 60 * 60 * 1000;
+
+    return map;
+  } catch (error) {
+    console.error("artwork types fetch failed:", error);
+    return new Map();
+  }
+}
+
+function artworkTypeScore(typeName) {
+  const value = String(typeName || "").toLowerCase();
+
+  if (value.includes("banner")) return 100;
+  if (value.includes("fanart")) return 90;
+  if (value.includes("background")) return 80;
+  if (value.includes("series")) return 30;
+  if (value.includes("poster")) return 10;
+
+  return 0;
+}
+
+function imageWidthScore(width, height) {
+  const w = Number(width) || 0;
+  const h = Number(height) || 0;
+
+  if (!w || !h) return 0;
+
+  const ratio = w / h;
+
+  if (ratio >= 2.5) return 40;
+  if (ratio >= 1.7) return 30;
+  if (ratio >= 1.3) return 20;
+  if (ratio >= 1.0) return 10;
+
+  return 0;
+}
+
+function artworkStatusScore(status) {
+  const value = String(status || "").toLowerCase();
+  if (value.includes("approved")) return 10;
+  return 0;
+}
+
+function extractArtworkImage(item) {
   return pickImage(
-    seriesData?.banner,
-    seriesData?.banner_url,
-    seriesData?.bannerUrl,
-    seriesData?.fanart,
-    seriesData?.fanart_url,
-    seriesData?.fanartUrl,
-    seriesData?.background,
-    seriesData?.background_url,
-    seriesData?.backgroundUrl,
-    seriesData?.artworks?.find?.((item) => item?.type === "banner")?.image,
-    seriesData?.artworks?.find?.((item) => item?.type === "fanart")?.image
+    item?.image,
+    item?.image_url,
+    item?.thumbnail,
+    item?.fileName,
+    item?.url
   );
 }
 
-function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
+async function getSeriesBannerFromArtworks(tvdbId) {
+  try {
+    const [typesMap, artworksJson] = await Promise.all([
+      getArtworkTypesMap(),
+      tvdbGet(`/series/${tvdbId}/artworks`),
+    ]);
+
+    const artworks = Array.isArray(artworksJson?.data) ? artworksJson.data : [];
+
+    if (!artworks.length) {
+      return null;
+    }
+
+    const candidates = artworks
+      .map((item) => {
+        const typeId = Number(
+          item?.type ??
+            item?.typeId ??
+            item?.artworkType ??
+            item?.artworkTypeId ??
+            0
+        );
+
+        const typeName = typesMap.get(typeId)?.name || "";
+        const image = extractArtworkImage(item);
+
+        if (!image) return null;
+
+        const score =
+          artworkTypeScore(typeName) +
+          imageWidthScore(item?.width, item?.height) +
+          artworkStatusScore(item?.status?.name || item?.status);
+
+        return {
+          image,
+          typeName,
+          width: Number(item?.width) || 0,
+          height: Number(item?.height) || 0,
+          score,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    return candidates[0]?.image || null;
+  } catch (error) {
+    console.error("series artworks fetch failed:", error);
+    return null;
+  }
+}
+
+function normalizeShow(seriesData, tvdbId, bannerUrl = null, tmdbBackdropUrl = null) {
   if (!seriesData || typeof seriesData !== "object") return null;
 
   const companies = Array.isArray(seriesData?.companies)
@@ -173,8 +291,29 @@ function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
       ? Number(seriesData.score)
       : null;
 
-  const tvdbBanner = extractTvdbBanner(seriesData);
-  const backdropUrl = tmdbBackdropUrl || tvdbBanner || null;
+  const posterUrl = pickImage(
+    seriesData?.image,
+    seriesData?.image_url,
+    seriesData?.poster,
+    seriesData?.poster_url,
+    seriesData?.thumbnail
+  );
+
+  const finalBannerUrl =
+    tmdbBackdropUrl ||
+    bannerUrl ||
+    pickImage(
+      seriesData?.banner,
+      seriesData?.banner_url,
+      seriesData?.bannerUrl,
+      seriesData?.fanart,
+      seriesData?.fanart_url,
+      seriesData?.fanartUrl,
+      seriesData?.background,
+      seriesData?.background_url,
+      seriesData?.backgroundUrl
+    ) ||
+    null;
 
   return {
     tvdb_id: tvdbId,
@@ -184,20 +323,19 @@ function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
       seriesData?.translations?.name ||
       "Unknown title",
     overview:
-      seriesData?.overview || seriesData?.translations?.overview || "",
+      seriesData?.overview ||
+      seriesData?.translations?.overview ||
+      "",
     status: seriesData?.status?.name || seriesData?.status || null,
-    poster_url: pickImage(
-      seriesData?.image,
-      seriesData?.image_url,
-      seriesData?.poster,
-      seriesData?.poster_url,
-      seriesData?.thumbnail
-    ),
-    banner_url: tvdbBanner,
-    backdrop_url: backdropUrl,
-    background_url: backdropUrl,
+    poster_url: posterUrl,
+    banner_url: finalBannerUrl,
+    backdrop_url: finalBannerUrl,
+    background_url: finalBannerUrl,
     first_aired:
-      seriesData?.firstAired || seriesData?.first_aired || seriesData?.year || null,
+      seriesData?.firstAired ||
+      seriesData?.first_aired ||
+      seriesData?.year ||
+      null,
     network:
       originalNetwork?.name ||
       seriesData?.originalNetwork?.name ||
@@ -205,7 +343,9 @@ function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
       "",
     genres,
     original_language:
-      seriesData?.originalLanguage || seriesData?.original_language || "",
+      seriesData?.originalLanguage ||
+      seriesData?.original_language ||
+      "",
     relationship_types: relationshipTypes,
     settings,
     rating_average: score,
@@ -227,7 +367,10 @@ function normalizeEpisodes(seriesData, tvdbId) {
       id: ep?.id || `${tvdbId}-ep-${index}`,
       tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
       season_number:
-        ep?.seasonNumber ?? ep?.season_number ?? ep?.airedSeason ?? 0,
+        ep?.seasonNumber ??
+        ep?.season_number ??
+        ep?.airedSeason ??
+        0,
       episode_number:
         ep?.number ??
         ep?.episodeNumber ??
@@ -235,10 +378,17 @@ function normalizeEpisodes(seriesData, tvdbId) {
         ep?.airedEpisodeNumber ??
         0,
       episode_code:
-        ep?.productionCode || ep?.episodeCode || ep?.episode_code || null,
+        ep?.productionCode ||
+        ep?.episodeCode ||
+        ep?.episode_code ||
+        null,
       name: ep?.name || "Untitled episode",
       overview: ep?.overview || "",
-      aired_date: ep?.aired || ep?.airDate || ep?.aired_date || null,
+      aired_date:
+        ep?.aired ||
+        ep?.airDate ||
+        ep?.aired_date ||
+        null,
       image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
     }))
     .sort((a, b) => {
@@ -262,7 +412,10 @@ async function getSeriesEpisodesDefault(tvdbId) {
         id: ep?.id || `${tvdbId}-ep-default-${index}`,
         tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
         season_number:
-          ep?.seasonNumber ?? ep?.season_number ?? ep?.airedSeason ?? 0,
+          ep?.seasonNumber ??
+          ep?.season_number ??
+          ep?.airedSeason ??
+          0,
         episode_number:
           ep?.number ??
           ep?.episodeNumber ??
@@ -270,10 +423,17 @@ async function getSeriesEpisodesDefault(tvdbId) {
           ep?.airedEpisodeNumber ??
           0,
         episode_code:
-          ep?.productionCode || ep?.episodeCode || ep?.episode_code || null,
+          ep?.productionCode ||
+          ep?.episodeCode ||
+          ep?.episode_code ||
+          null,
         name: ep?.name || "Untitled episode",
         overview: ep?.overview || "",
-        aired_date: ep?.aired || ep?.airDate || ep?.aired_date || null,
+        aired_date:
+          ep?.aired ||
+          ep?.airDate ||
+          ep?.aired_date ||
+          null,
         image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
       }))
       .sort((a, b) => {
@@ -364,7 +524,10 @@ function buildRecommendationItem(item, index, prefix = "rec") {
   );
 
   const firstAired =
-    item?.firstAired || item?.first_aired || item?.year || null;
+    item?.firstAired ||
+    item?.first_aired ||
+    item?.year ||
+    null;
 
   return {
     id: item?.id || `${prefix}-${index}`,
@@ -459,8 +622,10 @@ async function getPeopleAlsoWatch(tvdbId) {
             item?.poster_url,
             item?.posterUrl
           ),
-          first_aired: item?.firstAired || item?.first_aired || item?.year || null,
-          firstAired: item?.firstAired || item?.first_aired || item?.year || null,
+          first_aired:
+            item?.firstAired || item?.first_aired || item?.year || null,
+          firstAired:
+            item?.firstAired || item?.first_aired || item?.year || null,
         }))
         .filter((item) => item.tvdb_id && item.name)
     ).slice(0, 12);
@@ -548,10 +713,6 @@ async function getTmdbRecommendations(tvdbId) {
           posterUrl: item?.poster_path
             ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
             : null,
-          backdrop_path: item?.backdrop_path || "",
-          backdrop_url: item?.backdrop_path
-            ? `${TMDB_BACKDROP_BASE_URL}${item.backdrop_path}`
-            : null,
         }))
         .filter((item) => item.name)
     ).slice(0, 12);
@@ -589,7 +750,9 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
         }
       ),
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${encodeURIComponent(apiKey)}`,
+        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${encodeURIComponent(
+          apiKey
+        )}`,
         {
           headers: { Accept: "application/json" },
         }
@@ -624,7 +787,8 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
       );
     }
 
-    const providerRegion = providersJson?.results?.GB || providersJson?.results?.US || null;
+    const providerRegion =
+      providersJson?.results?.GB || providersJson?.results?.US || null;
 
     const providerItems = [
       ...(Array.isArray(providerRegion?.flatrate) ? providerRegion.flatrate : []),
@@ -695,13 +859,20 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-    const {
-      providers,
-      trailer,
-      backdropUrl: tmdbBackdropUrl,
-    } = await getTmdbProvidersTrailerAndBackdrop(tvdbId);
+    const [
+      { providers, trailer, backdropUrl: tmdbBackdropUrl },
+      tvdbBannerUrl,
+    ] = await Promise.all([
+      getTmdbProvidersTrailerAndBackdrop(tvdbId),
+      getSeriesBannerFromArtworks(tvdbId),
+    ]);
 
-    const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
+    const show = normalizeShow(
+      seriesData,
+      tvdbId,
+      tvdbBannerUrl,
+      tmdbBackdropUrl
+    );
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
     const fetchedEpisodes = await getSeriesEpisodesDefault(tvdbId);
@@ -753,7 +924,7 @@ export async function handler(event) {
         castCount: cast.length,
         providerCount: providers.length,
         hasTrailer: !!trailer,
-        hasBanner: !!show?.banner_url,
+        hasTvdbArtworkBanner: !!tvdbBannerUrl,
         hasBackdrop: !!show?.backdrop_url,
       },
     });
