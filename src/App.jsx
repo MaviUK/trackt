@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -157,53 +157,96 @@ function RankdIcon() {
   );
 }
 
-function DesktopNav({ session }) {
+
+function UserProfileLink({ session, profile, className = "top-profile-link" }) {
+  if (!session) return null;
+
+  const displayName =
+    profile?.username ||
+    profile?.full_name ||
+    session.user?.user_metadata?.username ||
+    session.user?.user_metadata?.full_name ||
+    session.user?.email?.split("@")[0] ||
+    "Profile";
+
+  const avatarUrl =
+    profile?.avatar_url ||
+    session.user?.user_metadata?.avatar_url ||
+    "";
+
+  const initial = displayName.charAt(0).toUpperCase();
+
+  return (
+    <NavLink to="/profile/edit" className={className}>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={displayName}
+          className="top-profile-avatar"
+        />
+      ) : (
+        <div className="top-profile-avatar top-profile-avatar-placeholder">
+          {initial}
+        </div>
+      )}
+      <span className="top-profile-text">
+        <span className="top-profile-name">{displayName}</span>
+      </span>
+    </NavLink>
+  );
+}
+
+function DesktopNav({ session, profile }) {
   if (!session) return null;
 
   return (
     <div className="nav-wrap desktop-nav">
-      <nav className="top-tabs">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Dashboard
-        </NavLink>
+      <div className="top-header-bar">
+        <nav className="top-tabs">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Dashboard
+          </NavLink>
 
-        <NavLink
-          to="/search"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Search
-        </NavLink>
+          <NavLink
+            to="/search"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Search
+          </NavLink>
 
-        <NavLink
-          to="/my-shows"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          My Shows
-        </NavLink>
+          <NavLink
+            to="/my-shows"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            My Shows
+          </NavLink>
 
-        <NavLink
-          to="/rankd"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Rank'd
-        </NavLink>
+          <NavLink
+            to="/rankd"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Rank'd
+          </NavLink>
 
-        <NavLink
-          to="/calendar"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Calendar
-        </NavLink>
-      </nav>
+          <NavLink
+            to="/calendar"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Calendar
+          </NavLink>
+        </nav>
+
+        <UserProfileLink session={session} profile={profile} />
+      </div>
     </div>
   );
 }
 
-function MobileTopBanner({ session }) {
+function MobileTopBanner({ session, profile }) {
   const location = useLocation();
 
   if (!session || location.pathname === "/login") {
@@ -213,6 +256,11 @@ function MobileTopBanner({ session }) {
   return (
     <div className="mobile-top-banner-wrap">
       <BurgrsBanner />
+      <UserProfileLink
+        session={session}
+        profile={profile}
+        className="top-profile-link mobile-profile-link"
+      />
     </div>
   );
 }
@@ -316,6 +364,7 @@ function LoginRoute({ session }) {
 
 function AppLayout() {
   const [session, setSession] = useState(undefined);
+  const [profile, setProfile] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -341,14 +390,47 @@ function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      if (!session?.user?.id) {
+        setProfile(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Error loading header profile:", error);
+        setProfile(null);
+        return;
+      }
+
+      setProfile(data || null);
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id]);
+
   if (session === undefined) {
     return null;
   }
 
   return (
     <>
-      <DesktopNav session={session} />
-      <MobileTopBanner session={session} />
+      <DesktopNav session={session} profile={profile} />
+      <MobileTopBanner session={session} profile={profile} />
 
       <Routes>
         <Route path="/" element={<AuthRedirect session={session} />} />

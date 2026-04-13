@@ -514,40 +514,6 @@ export default function Dashboard() {
         <p>Your TV tracking at a glance.</p>
       </div>
 
-      <section className="dashboard-card profile-card">
-        <div className="profile-header-row">
-          <div className="profile-main">
-           {profile?.avatar_url ? (
-  <img
-    src={profile.avatar_url}
-    alt={profile?.username || profile?.full_name || "Profile"}
-    className="profile-avatar"
-    style={{
-      objectFit: "cover",
-      objectPosition: `${profile?.avatar_x ?? 50}% ${profile?.avatar_y ?? 50}%`,
-      transform: `scale(${profile?.avatar_zoom ?? 1})`,
-    }}
-  />
-) : (
-  <div className="profile-avatar profile-avatar-placeholder">
-    {(profile?.username || profile?.full_name || "U")
-      .charAt(0)
-      .toUpperCase()}
-  </div>
-)}
-
-            <div className="profile-meta">
-              <h2>{profile?.username || profile?.full_name || "Set your profile"}</h2>
-              {profile?.country ? <p>{profile.country}</p> : null}
-              {profile?.bio ? <small>{profile.bio}</small> : null}
-            </div>
-          </div>
-
-          <Link to="/profile/edit" className="profile-edit-button">
-            Edit
-          </Link>
-        </div>
-      </section>
 
       <div className="stats-scroll-row">
         <div className="stats-grid stats-grid-scroll">
