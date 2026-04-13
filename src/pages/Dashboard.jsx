@@ -139,7 +139,7 @@ async function fetchAllWatchedEpisodeRows(userId) {
   return allRows;
 }
 
-async function fetchTrendingShows() {
+async function fetchTrendingShows(existingTmdbIds = []) {
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
@@ -147,7 +147,13 @@ async function fetchTrendingShows() {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  return payload?.shows || [];
+  const existingSet = new Set(
+    (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
+  );
+
+  return (payload?.shows || []).filter(
+    (show) => show?.id && !existingSet.has(String(show.id))
+  );
 }
 
 function DashboardEpisodeItem({
@@ -253,7 +259,7 @@ export default function Dashboard() {
           setUpcomingItems([]);
 
           try {
-            const trending = await fetchTrendingShows();
+            const trending = await fetchTrendingShows([]);
             setTrendingShows(trending);
           } catch (error) {
             console.error("Error loading trending shows:", error);
@@ -298,6 +304,7 @@ export default function Dashboard() {
               shows!inner(
                 id,
                 tvdb_id,
+                tmdb_id,
                 name,
                 overview,
                 status,
@@ -325,6 +332,7 @@ export default function Dashboard() {
           added_at: row.added_at,
           created_at: row.created_at,
           tvdb_id: row.shows.tvdb_id,
+          tmdb_id: row.shows.tmdb_id,
           show_name: row.shows.name || "Unknown title",
           overview: row.shows.overview || "",
           status: row.shows.status || null,
@@ -459,7 +467,9 @@ export default function Dashboard() {
 
         let trending = [];
         try {
-          trending = await fetchTrendingShows();
+          trending = await fetchTrendingShows(
+            normalizedShows.map((show) => show.tmdb_id)
+          );
         } catch (error) {
           console.error("Error loading trending shows:", error);
         }
