@@ -202,18 +202,9 @@ function TrendingShowCard({ show }) {
         />
       ) : (
         <div className="trending-card-image trending-card-image-placeholder">
-          {show.name?.charAt(0)?.toUpperCase() || "?"}
+          ?
         </div>
       )}
-
-      <div className="trending-card-body">
-        <strong className="trending-card-title">{show.name}</strong>
-        {show.year ? (
-          <span className="trending-card-meta">{show.year}</span>
-        ) : (
-          <span className="trending-card-meta">TV Series</span>
-        )}
-      </div>
     </Link>
   );
 }
