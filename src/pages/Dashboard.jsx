@@ -665,37 +665,17 @@ export default function Dashboard() {
         )}
       </section>
 
-      <section className="dashboard-card">
-        <div className="card-header">
-          <section className="trending-section">
-  <div className="card-header trending-header">
-    <h2>Premiering Soon</h2>
-  </div>
-
-  {premieringSoonShows.length === 0 ? (
-    <p className="empty-state">No new shows premiering soon.</p>
-  ) : (
-    <div className="trending-row">
-      {premieringSoonShows.map((show) => (
-        <PremieringSoonCard
-          key={show.tmdb_id || show.id}
-          show={show}
-        />
-      ))}
-    </div>
-  )}
-</section>
+      <section className="trending-section">
+        <div className="card-header trending-header">
+          <h2>Premiering Soon</h2>
         </div>
 
         {premieringSoonShows.length === 0 ? (
           <p className="empty-state">No new shows premiering soon.</p>
         ) : (
-          <div className="dashboard-list">
+          <div className="trending-row">
             {premieringSoonShows.map((show) => (
-              <PremieringSoonItem
-                key={show.tmdb_id || show.id}
-                show={show}
-              />
+              <PremieringSoonCard key={show.tmdb_id || show.id} show={show} />
             ))}
           </div>
         )}
@@ -748,4 +728,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+} its the layout i want like trending not source from tmdb for this file please full updated file thanks
