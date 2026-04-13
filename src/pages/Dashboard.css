@@ -402,3 +402,13 @@
     margin-top: 12px;
   }
 }
+
+@media (max-width: 640px) {
+  .trending-row {
+    margin-bottom: 4px;
+  }
+
+  .trending-section {
+    margin-bottom: 4px;
+  }
+}
