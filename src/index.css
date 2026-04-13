@@ -1376,3 +1376,144 @@ textarea:focus {
   display: inline-block;
   margin-top: 6px;
 }
+
+/* PROFILE EDIT */
+
+.profile-edit-card {
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: var(--shadow);
+}
+
+.profile-edit-avatar-column {
+  min-width: 0;
+}
+
+.profile-edit-avatar-preview,
+.profile-edit-avatar-placeholder {
+  margin: 0 auto;
+}
+
+.profile-edit-avatar-help {
+  line-height: 1.45;
+}
+
+.profile-edit-image-controls {
+  min-width: 0;
+}
+
+.profile-edit-file-input {
+  max-width: 100%;
+}
+
+.profile-edit-actions > * {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .mobile-profile-link {
+    min-width: 72px;
+    padding: 6px 8px;
+    gap: 4px;
+    border-radius: 18px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: none;
+  }
+
+  .mobile-profile-link .top-profile-text {
+    align-items: center;
+  }
+
+  .mobile-profile-link .top-profile-name {
+    max-width: 72px;
+    text-align: center;
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .profile-edit-page {
+    padding-top: calc(var(--mobile-top-banner-height) + 14px);
+  }
+
+  .profile-edit-header h1 {
+    font-size: 1.7rem;
+  }
+
+  .profile-edit-header p {
+    font-size: 0.92rem;
+  }
+
+  .profile-edit-card {
+    border-radius: 18px;
+  }
+
+  .profile-edit-back-link-wrap a {
+    font-size: 0.98rem;
+  }
+
+  .profile-edit-top-grid {
+    margin-bottom: 18px !important;
+  }
+
+  .profile-edit-avatar-preview,
+  .profile-edit-avatar-placeholder {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .profile-edit-avatar-help {
+    text-align: center;
+    font-size: 0.82rem !important;
+    max-width: 26rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .profile-edit-image-controls {
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+  }
+
+  .profile-edit-image-controls label {
+    font-size: 1rem;
+  }
+
+  .profile-edit-file-input {
+    display: block;
+    width: 100%;
+    font-size: 0.95rem;
+  }
+
+  .profile-edit-fields-grid,
+  .profile-edit-socials-grid {
+    gap: 14px !important;
+  }
+
+  .profile-edit-fields-grid input,
+  .profile-edit-socials-grid input,
+  .profile-edit-form textarea {
+    min-height: 54px;
+    font-size: 16px !important;
+  }
+
+  .profile-edit-form input[type="date"] {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .profile-edit-form textarea {
+    min-height: 116px;
+  }
+
+  .profile-edit-actions {
+    gap: 10px !important;
+  }
+
+  .profile-edit-actions > * {
+    width: 100%;
+  }
+}
