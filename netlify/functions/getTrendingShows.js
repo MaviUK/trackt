@@ -35,58 +35,43 @@ function normalizeShow(series) {
 
 export async function handler() {
   try {
-    const responses = await Promise.allSettled([
-      tvdbFetch("/series/filter", {
-        sort: "score",
-        sortType: "desc",
-        page: 0,
-      }),
-      tvdbFetch("/series/filter", {
-        sort: "score",
-        sortType: "desc",
-        page: 1,
-      }),
-    ]);
+    const res = await fetch(
+      "https://api.themoviedb.org/3/trending/tv/week?language=en-US",
+      {
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
+        },
+      }
+    );
 
-    const rawShows = responses
-      .filter((result) => result.status === "fulfilled")
-      .flatMap((result) => result.value?.data || []);
+    const json = await res.json();
 
-    const deduped = [];
-    const seen = new Set();
-
-    for (const series of rawShows) {
-      const normalized = normalizeShow(series);
-
-      if (!normalized.id || seen.has(String(normalized.id))) continue;
-
-      seen.add(String(normalized.id));
-      deduped.push(normalized);
+    if (!res.ok) {
+      return {
+        statusCode: res.status,
+        body: JSON.stringify(json),
+      };
     }
+
+    const shows = (json.results || []).map((show) => ({
+      tmdb_id: show.id,
+      name: show.name,
+      image: show.poster_path
+        ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+        : null,
+      overview: show.overview || "",
+      year: show.first_air_date ? show.first_air_date.slice(0, 4) : null,
+    }));
 
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({
-        shows: deduped.slice(0, 30),
-      }),
+      body: JSON.stringify({ shows }),
     };
   } catch (error) {
-    console.error("getTrendingShows error:", error);
-
     return {
       statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({
-        message: "Failed to load trending shows",
-        error: error.message,
-      }),
+      body: JSON.stringify({ message: error.message }),
     };
   }
 }
