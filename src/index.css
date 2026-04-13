@@ -50,6 +50,7 @@ body {
   --radius-md: 18px;
   --radius-sm: 12px;
   --max-width: 1200px;
+  --mobile-top-banner-height: 92px;
   --mobile-nav-height: 72px;
 }
 
@@ -220,6 +221,67 @@ textarea {
   color: #fff;
 }
 
+/* MOBILE TOP BANNER */
+
+.mobile-top-banner-wrap {
+  display: none;
+}
+
+.burgrs-banner {
+  position: relative;
+  height: var(--mobile-top-banner-height);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 184, 0, 0.18), transparent 38%),
+    linear-gradient(180deg, #0f172a 0%, #0b1020 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.burgrs-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(11, 16, 32, 0.9),
+    rgba(11, 16, 32, 0.2),
+    rgba(11, 16, 32, 0.9)
+  );
+  pointer-events: none;
+}
+
+.burgrs-banner-center {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.burgrs-banner-burger {
+  position: absolute;
+  width: 74px;
+  opacity: 0.2;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+  user-select: none;
+}
+
+.burgrs-banner-title {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 2.1rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  text-align: center;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
 /* MOBILE BOTTOM NAV */
 
 .mobile-bottom-nav {
@@ -227,7 +289,7 @@ textarea {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 72px;
+  height: var(--mobile-nav-height);
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
@@ -941,6 +1003,15 @@ textarea:focus {
     display: none;
   }
 
+  .mobile-top-banner-wrap {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 350;
+    display: block;
+  }
+
   .mobile-bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -967,7 +1038,7 @@ textarea:focus {
   }
 
   .page {
-    padding: 16px 12px
+    padding: calc(var(--mobile-top-banner-height) + 16px) 12px
       calc(var(--mobile-nav-height) + 48px + env(safe-area-inset-bottom));
   }
 
@@ -1131,7 +1202,8 @@ textarea:focus {
 }
 
 @media (min-width: 641px) {
-  .mobile-bottom-nav {
+  .mobile-bottom-nav,
+  .mobile-top-banner-wrap {
     display: none !important;
   }
 }
@@ -1164,6 +1236,14 @@ textarea:focus {
   .mobile-nav-icon svg {
     width: 16px;
     height: 16px;
+  }
+
+  .burgrs-banner-title {
+    font-size: 1.9rem;
+  }
+
+  .burgrs-banner-burger {
+    width: 64px;
   }
 }
 
