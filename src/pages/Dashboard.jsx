@@ -4,17 +4,10 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
 
-
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-function parseDate(dateStr) {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getDisplayEpisodeCode(ep) {
@@ -146,6 +139,23 @@ async function fetchAllWatchedEpisodeRows(userId) {
   return allRows;
 }
 
+async function fetchTrendingShows(existingTvdbIds = []) {
+  const response = await fetch("/.netlify/functions/getTrendingShows");
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload?.message || "Failed to load trending shows");
+  }
+
+  const existingSet = new Set(
+    (existingTvdbIds || []).map((id) => String(id)).filter(Boolean)
+  );
+
+  return (payload?.shows || []).filter(
+    (show) => show?.id && !existingSet.has(String(show.id))
+  );
+}
+
 function DashboardEpisodeItem({
   show,
   episode,
@@ -180,6 +190,34 @@ function DashboardEpisodeItem({
   );
 }
 
+function TrendingShowCard({ show }) {
+  return (
+    <Link to={`/show/${show.id}`} className="trending-card">
+      {show.image ? (
+        <img
+          src={show.image}
+          alt={show.name}
+          className="trending-card-image"
+          loading="lazy"
+        />
+      ) : (
+        <div className="trending-card-image trending-card-image-placeholder">
+          {show.name?.charAt(0)?.toUpperCase() || "?"}
+        </div>
+      )}
+
+      <div className="trending-card-body">
+        <strong className="trending-card-title">{show.name}</strong>
+        {show.year ? (
+          <span className="trending-card-meta">{show.year}</span>
+        ) : (
+          <span className="trending-card-meta">TV Series</span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 function StatCard({ label, value, to = null }) {
   const content = (
     <>
@@ -205,6 +243,7 @@ export default function Dashboard() {
   const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(new Set());
   const [episodesByShow, setEpisodesByShow] = useState({});
   const [upcomingItems, setUpcomingItems] = useState([]);
+  const [trendingShows, setTrendingShows] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -222,6 +261,15 @@ export default function Dashboard() {
           setWatchedEpisodeIds(new Set());
           setEpisodesByShow({});
           setUpcomingItems([]);
+
+          try {
+            const trending = await fetchTrendingShows([]);
+            setTrendingShows(trending);
+          } catch (error) {
+            console.error("Error loading trending shows:", error);
+            setTrendingShows([]);
+          }
+
           setLoading(false);
           return;
         }
@@ -298,136 +346,142 @@ export default function Dashboard() {
           .map((show) => show.show_id)
           .filter(Boolean);
 
-        if (!showIds.length) {
-          setProfile(profileResp.data || null);
-          setShows([]);
-          setWatchedEpisodeIds(new Set());
-          setEpisodesByShow({});
-          setUpcomingItems([]);
-          setLoading(false);
-          return;
-        }
+        let watchedIds = new Set();
+        let episodesLookup = {};
+        let collectedUpcoming = [];
 
-        const [watchedRows, allEpisodes] = await Promise.all([
-          fetchAllWatchedEpisodeRows(user.id),
-          fetchEpisodesForShowIds(showIds),
-        ]);
+        if (showIds.length) {
+          const [watchedRows, allEpisodes] = await Promise.all([
+            fetchAllWatchedEpisodeRows(user.id),
+            fetchEpisodesForShowIds(showIds),
+          ]);
 
-        const watchedIds = new Set(
-          (watchedRows || [])
-            .map((row) => row.episode_id)
-            .filter(Boolean)
-            .map(String)
-        );
-
-        const episodesLookup = {};
-        for (const row of allEpisodes || []) {
-          if (!episodesLookup[row.show_id]) {
-            episodesLookup[row.show_id] = [];
-          }
-
-          episodesLookup[row.show_id].push({
-            id: row.id,
-            show_id: row.show_id,
-            seasonNumber: row.season_number,
-            number: row.episode_number,
-            episodeNumber: row.episode_number,
-            name: row.name || "Untitled episode",
-            aired: row.aired_date,
-            overview: row.overview || "",
-            image: row.image_url || null,
-            episodeCode: row.episode_code || null,
-            created_at: row.created_at || null,
-            runtime_minutes: Number(row.runtime_minutes) || 0,
-          });
-        }
-
-        const showLookup = {};
-        for (const show of normalizedShows) {
-          showLookup[show.show_id] = show;
-        }
-
-        const today = startOfToday();
-        const upcomingByShow = {};
-
-        for (const row of allEpisodes || []) {
-          const show = showLookup[row.show_id];
-          if (!show) continue;
-          if (!row.aired_date) continue;
-
-          const airDate = new Date(row.aired_date);
-          if (Number.isNaN(airDate.getTime())) continue;
-
-          const airDay = new Date(airDate);
-          airDay.setHours(0, 0, 0, 0);
-
-          if (airDay < today) continue;
-
-          if (!upcomingByShow[row.show_id]) {
-            upcomingByShow[row.show_id] = [];
-          }
-
-          upcomingByShow[row.show_id].push({
-            id: row.id,
-            show_id: row.show_id,
-            showTvdbId: String(show.tvdb_id),
-            showName: show.show_name,
-            posterUrl: show.poster_url,
-            watchStatus: show.watch_status,
-            seasonNumber: row.season_number,
-            episodeNumber: row.episode_number,
-            name: row.name || "Untitled episode",
-            aired: row.aired_date,
-          });
-        }
-
-        const collectedUpcoming = [];
-
-        Object.values(upcomingByShow).forEach((showEpisodes) => {
-          if (!showEpisodes.length) return;
-
-          showEpisodes.sort((a, b) => new Date(a.aired) - new Date(b.aired));
-
-          const firstUpcomingEpisode = showEpisodes[0];
-          const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
-
-          if (isArchivedStatus(status)) {
-            return;
-          }
-
-          if (isWatchlistStatus(status) && !isFirstEpisode(firstUpcomingEpisode)) {
-            return;
-          }
-
-          collectedUpcoming.push(
-            ...showEpisodes.map((ep) => ({
-              show: {
-                tvdb_id: ep.showTvdbId,
-                show_name: ep.showName,
-                poster_url: ep.posterUrl,
-              },
-              episode: {
-                id: ep.id,
-                show_id: ep.show_id,
-                seasonNumber: ep.seasonNumber,
-                number: ep.episodeNumber,
-                episodeNumber: ep.episodeNumber,
-                name: ep.name,
-                aired: ep.aired,
-              },
-            }))
+          watchedIds = new Set(
+            (watchedRows || [])
+              .map((row) => row.episode_id)
+              .filter(Boolean)
+              .map(String)
           );
-        });
 
-        collectedUpcoming.sort(
-          (a, b) => new Date(a.episode.aired) - new Date(b.episode.aired)
-        );
+          for (const row of allEpisodes || []) {
+            if (!episodesLookup[row.show_id]) {
+              episodesLookup[row.show_id] = [];
+            }
+
+            episodesLookup[row.show_id].push({
+              id: row.id,
+              show_id: row.show_id,
+              seasonNumber: row.season_number,
+              number: row.episode_number,
+              episodeNumber: row.episode_number,
+              name: row.name || "Untitled episode",
+              aired: row.aired_date,
+              overview: row.overview || "",
+              image: row.image_url || null,
+              episodeCode: row.episode_code || null,
+              created_at: row.created_at || null,
+              runtime_minutes: Number(row.runtime_minutes) || 0,
+            });
+          }
+
+          const showLookup = {};
+          for (const show of normalizedShows) {
+            showLookup[show.show_id] = show;
+          }
+
+          const today = startOfToday();
+          const upcomingByShow = {};
+
+          for (const row of allEpisodes || []) {
+            const show = showLookup[row.show_id];
+            if (!show) continue;
+            if (!row.aired_date) continue;
+
+            const airDate = new Date(row.aired_date);
+            if (Number.isNaN(airDate.getTime())) continue;
+
+            const airDay = new Date(airDate);
+            airDay.setHours(0, 0, 0, 0);
+
+            if (airDay < today) continue;
+
+            if (!upcomingByShow[row.show_id]) {
+              upcomingByShow[row.show_id] = [];
+            }
+
+            upcomingByShow[row.show_id].push({
+              id: row.id,
+              show_id: row.show_id,
+              showTvdbId: String(show.tvdb_id),
+              showName: show.show_name,
+              posterUrl: show.poster_url,
+              watchStatus: show.watch_status,
+              seasonNumber: row.season_number,
+              episodeNumber: row.episode_number,
+              name: row.name || "Untitled episode",
+              aired: row.aired_date,
+            });
+          }
+
+          Object.values(upcomingByShow).forEach((showEpisodes) => {
+            if (!showEpisodes.length) return;
+
+            showEpisodes.sort((a, b) => new Date(a.aired) - new Date(b.aired));
+
+            const firstUpcomingEpisode = showEpisodes[0];
+            const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
+
+            if (isArchivedStatus(status)) {
+              return;
+            }
+
+            if (
+              isWatchlistStatus(status) &&
+              !isFirstEpisode(firstUpcomingEpisode)
+            ) {
+              return;
+            }
+
+            collectedUpcoming.push(
+              ...showEpisodes.map((ep) => ({
+                show: {
+                  tvdb_id: ep.showTvdbId,
+                  show_name: ep.showName,
+                  poster_url: ep.posterUrl,
+                },
+                episode: {
+                  id: ep.id,
+                  show_id: ep.show_id,
+                  seasonNumber: ep.seasonNumber,
+                  number: ep.episodeNumber,
+                  episodeNumber: ep.episodeNumber,
+                  name: ep.name,
+                  aired: ep.aired,
+                },
+              }))
+            );
+          });
+
+          collectedUpcoming.sort(
+            (a, b) => new Date(a.episode.aired) - new Date(b.episode.aired)
+          );
+        }
+
+        let trending = [];
+        try {
+          trending = await fetchTrendingShows(
+            normalizedShows.map((show) => show.tvdb_id)
+          );
+        } catch (error) {
+          console.error("Error loading trending shows:", error);
+        }
 
         setProfile(profileResp.data || null);
         setShows(normalizedShows);
         setWatchedEpisodeIds(watchedIds);
         setEpisodesByShow(episodesLookup);
         setUpcomingItems(collectedUpcoming);
+        setTrendingShows(trending);
       } catch (error) {
         console.error("Error loading dashboard:", error);
         setProfile(null);
@@ -435,6 +489,7 @@ export default function Dashboard() {
         setWatchedEpisodeIds(new Set());
         setEpisodesByShow({});
         setUpcomingItems([]);
+        setTrendingShows([]);
       } finally {
         setLoading(false);
       }
@@ -514,6 +569,23 @@ export default function Dashboard() {
         <p>Your TV tracking at a glance.</p>
       </div>
 
+      <section className="trending-section">
+        <div className="card-header trending-header">
+          <h2>Trending Shows</h2>
+        </div>
+
+        {trendingShows.length === 0 ? (
+          <p className="empty-state">
+            No trending shows available right now.
+          </p>
+        ) : (
+          <div className="trending-row">
+            {trendingShows.map((show) => (
+              <TrendingShowCard key={show.id} show={show} />
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="stats-scroll-row">
         <div className="stats-grid stats-grid-scroll">
