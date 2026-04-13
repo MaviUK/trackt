@@ -728,4 +728,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-} its the layout i want like trending not source from tmdb for this file please full updated file thanks
+} 
