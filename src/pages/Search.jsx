@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { addShowToUserList } from "../lib/userShows";
+import "./Search.css";
 
 function withTimeout(promise, ms, message) {
   let timerId;
