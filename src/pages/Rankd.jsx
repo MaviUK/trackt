@@ -492,10 +492,7 @@ export default function Rankd() {
   return (
     <div className="page">
       <div className="page-shell">
-        <div className="page-header">
-          <h1>Rank'd</h1>
-          <p>Tap a poster or swipe left or right to choose.</p>
-        </div>
+      
 
         {error ? (
           <div
