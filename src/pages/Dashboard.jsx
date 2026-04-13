@@ -156,6 +156,23 @@ async function fetchTrendingShows(existingTmdbIds = []) {
   );
 }
 
+async function fetchPremieringSoonShows(existingTmdbIds = []) {
+  const response = await fetch("/.netlify/functions/getPremieringSoonShows");
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload?.message || "Failed to load premiering soon shows");
+  }
+
+  const existingSet = new Set(
+    (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
+  );
+
+  return (payload?.shows || []).filter(
+    (show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id))
+  );
+}
+
 function DashboardEpisodeItem({
   show,
   episode,
@@ -228,6 +245,28 @@ function TrendingShowCard({ show }) {
   );
 }
 
+function PremieringSoonItem({ show }) {
+  return (
+    <Link to={`/show/${show.tvdb_id}`} className="dashboard-item">
+      {show.image ? (
+        <img
+          src={show.image}
+          alt={show.name}
+          className="dashboard-poster"
+        />
+      ) : (
+        <div className="dashboard-poster" />
+      )}
+
+      <div className="dashboard-item-info">
+        <strong>{show.name}</strong>
+        <span>S01E01</span>
+        <small>Airs: {formatDate(show.first_air_date)}</small>
+      </div>
+    </Link>
+  );
+}
+
 function StatCard({ label, value, to = null }) {
   const content = (
     <>
@@ -254,6 +293,7 @@ export default function Dashboard() {
   const [episodesByShow, setEpisodesByShow] = useState({});
   const [upcomingItems, setUpcomingItems] = useState([]);
   const [trendingShows, setTrendingShows] = useState([]);
+  const [premieringSoonShows, setPremieringSoonShows] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -273,11 +313,16 @@ export default function Dashboard() {
           setUpcomingItems([]);
 
           try {
-            const trending = await fetchTrendingShows([]);
+            const [trending, premieringSoon] = await Promise.all([
+              fetchTrendingShows([]),
+              fetchPremieringSoonShows([]),
+            ]);
             setTrendingShows(trending);
+            setPremieringSoonShows(premieringSoon);
           } catch (error) {
-            console.error("Error loading trending shows:", error);
+            console.error("Error loading external dashboard sections:", error);
             setTrendingShows([]);
+            setPremieringSoonShows([]);
           }
 
           setLoading(false);
@@ -353,6 +398,8 @@ export default function Dashboard() {
           poster_url: row.shows.poster_url || null,
           first_aired: row.shows.first_aired || null,
         }));
+
+        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id);
 
         const showIds = normalizedShows
           .map((show) => show.show_id)
@@ -480,12 +527,15 @@ export default function Dashboard() {
         }
 
         let trending = [];
+        let premieringSoon = [];
+
         try {
-          trending = await fetchTrendingShows(
-            normalizedShows.map((show) => show.tmdb_id)
-          );
+          [trending, premieringSoon] = await Promise.all([
+            fetchTrendingShows(existingTmdbIds),
+            fetchPremieringSoonShows(existingTmdbIds),
+          ]);
         } catch (error) {
-          console.error("Error loading trending shows:", error);
+          console.error("Error loading external dashboard sections:", error);
         }
 
         setProfile(profileResp.data || null);
@@ -494,6 +544,7 @@ export default function Dashboard() {
         setEpisodesByShow(episodesLookup);
         setUpcomingItems(collectedUpcoming);
         setTrendingShows(trending);
+        setPremieringSoonShows(premieringSoon);
       } catch (error) {
         console.error("Error loading dashboard:", error);
         setProfile(null);
@@ -502,6 +553,7 @@ export default function Dashboard() {
         setEpisodesByShow({});
         setUpcomingItems([]);
         setTrendingShows([]);
+        setPremieringSoonShows([]);
       } finally {
         setLoading(false);
       }
@@ -592,6 +644,25 @@ export default function Dashboard() {
           <div className="trending-row">
             {trendingShows.map((show) => (
               <TrendingShowCard key={show.tmdb_id || show.id} show={show} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="dashboard-card">
+        <div className="card-header">
+          <h2>Premiering Soon</h2>
+        </div>
+
+        {premieringSoonShows.length === 0 ? (
+          <p className="empty-state">No new shows premiering soon.</p>
+        ) : (
+          <div className="dashboard-list">
+            {premieringSoonShows.map((show) => (
+              <PremieringSoonItem
+                key={show.tmdb_id || show.id}
+                show={show}
+              />
             ))}
           </div>
         )}
