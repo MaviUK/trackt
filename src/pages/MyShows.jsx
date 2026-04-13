@@ -127,6 +127,18 @@ export default function MyShows() {
   const [loading, setLoading] = useState(true);
   const [filterBy, setFilterBy] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false
+  );
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= 768);
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   async function loadShows() {
     try {
@@ -422,8 +434,10 @@ export default function MyShows() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 20,
+            gridTemplateColumns: isMobile
+              ? "repeat(4, minmax(0, 1fr))"
+              : "repeat(auto-fill, minmax(160px, 1fr))",
+            gap: isMobile ? 10 : 20,
           }}
         >
           {displayedShows.map((show) => (
@@ -438,12 +452,13 @@ export default function MyShows() {
             >
               <div
                 style={{
-                  border: "1px solid #26324a",
-                  borderRadius: 18,
-                  padding: 12,
+                  border: isMobile ? "none" : "1px solid #26324a",
+                  borderRadius: isMobile ? 0 : 18,
+                  padding: isMobile ? 0 : 12,
                   transition: "0.2s ease",
                   cursor: "pointer",
                   height: "100%",
+                  background: "transparent",
                 }}
               >
                 {show.poster_url ? (
@@ -454,10 +469,10 @@ export default function MyShows() {
                       width: "100%",
                       aspectRatio: "2 / 3",
                       objectFit: "cover",
-                      borderRadius: 14,
+                      borderRadius: isMobile ? 10 : 14,
                       display: "block",
                       background: "#111827",
-                      marginBottom: 12,
+                      marginBottom: isMobile ? 0 : 12,
                     }}
                   />
                 ) : (
@@ -465,23 +480,25 @@ export default function MyShows() {
                     style={{
                       width: "100%",
                       aspectRatio: "2 / 3",
-                      borderRadius: 14,
+                      borderRadius: isMobile ? 10 : 14,
                       background: "#111827",
-                      marginBottom: 12,
+                      marginBottom: isMobile ? 0 : 12,
                     }}
                   />
                 )}
 
-                <div
-                  style={{
-                    color: "#f8fafc",
-                    fontWeight: 800,
-                    fontSize: "1rem",
-                    lineHeight: 1.25,
-                  }}
-                >
-                  {show.show_name}
-                </div>
+                {!isMobile && (
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontWeight: 800,
+                      fontSize: "1rem",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {show.show_name}
+                  </div>
+                )}
               </div>
             </Link>
           ))}
