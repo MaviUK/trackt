@@ -152,7 +152,7 @@ async function fetchTrendingShows(existingTmdbIds = []) {
   );
 
   return (payload?.shows || []).filter(
-    (show) => show?.id && !existingSet.has(String(show.id))
+    (show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id))
   );
 }
 
@@ -191,13 +191,27 @@ function DashboardEpisodeItem({
 }
 
 function TrendingShowCard({ show }) {
+  if (!show?.tvdb_id) {
+    return (
+      <div className="trending-card">
+        {show.image ? (
+          <img
+            src={show.image}
+            alt={show.name}
+            className="trending-card-image"
+            loading="lazy"
+          />
+        ) : (
+          <div className="trending-card-image trending-card-image-placeholder">
+            ?
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <a
-      href={`https://www.themoviedb.org/tv/${show.id}`}
-      target="_blank"
-      rel="noreferrer"
-      className="trending-card"
-    >
+    <Link to={`/show/${show.tvdb_id}`} className="trending-card">
       {show.image ? (
         <img
           src={show.image}
@@ -210,7 +224,7 @@ function TrendingShowCard({ show }) {
           ?
         </div>
       )}
-    </a>
+    </Link>
   );
 }
 
@@ -577,7 +591,7 @@ export default function Dashboard() {
         ) : (
           <div className="trending-row">
             {trendingShows.map((show) => (
-              <TrendingShowCard key={show.id} show={show} />
+              <TrendingShowCard key={show.tmdb_id || show.id} show={show} />
             ))}
           </div>
         )}
