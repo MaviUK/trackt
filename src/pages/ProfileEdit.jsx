@@ -491,18 +491,6 @@ export default function ProfileEdit() {
           padding: isMobile ? 16 : 24,
         }}
       >
-        <div className="profile-edit-back-link-wrap" style={{ marginBottom: isMobile ? 14 : 18 }}>
-          <Link
-            to="/dashboard"
-            style={{
-              color: "#a78bfa",
-              textDecoration: "none",
-              fontWeight: 700,
-            }}
-          >
-            ← Back to Dashboard
-          </Link>
-        </div>
 
         {error ? (
           <div
