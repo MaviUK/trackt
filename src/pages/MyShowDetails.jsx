@@ -1218,6 +1218,8 @@ export default function MyShowDetails() {
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
+  const mobileBannerImage = show.poster_url || "/no-image.png";
+
   return (
     <div className="msd-page">
       <div className="msd-shell">
@@ -1225,8 +1227,19 @@ export default function MyShowDetails() {
           ← Back to My Shows
         </Link>
 
+        <section className="msd-mobile-banner-wrap">
+          <div
+            className="msd-mobile-banner"
+            style={{
+              backgroundImage: `url(${mobileBannerImage})`,
+            }}
+          >
+            <div className="msd-mobile-banner-overlay" />
+          </div>
+        </section>
+
         <section className="msd-hero">
-          <div>
+          <div className="msd-hero-poster-wrap">
             {show.poster_url ? (
               <img
                 src={show.poster_url}
@@ -1235,10 +1248,7 @@ export default function MyShowDetails() {
               />
             ) : null}
 
-            <div
-              className="msd-actions"
-              style={{ marginTop: "12px", flexDirection: "column" }}
-            >
+            <div className="msd-actions msd-hero-actions">
               <button
                 type="button"
                 className="msd-btn msd-btn-secondary"
@@ -1268,13 +1278,33 @@ export default function MyShowDetails() {
             </div>
           </div>
 
-          <div className="msd-hero-main">
-            <h1 className="msd-title">{show.show_name}</h1>
+          <div className="msd-hero-main msd-hero-main-mobile">
+            <div className="msd-mobile-top-row">
+              <div className="msd-mobile-title-wrap">
+                <h1 className="msd-title">{show.show_name}</h1>
+                {show.first_aired ? (
+                  <div className="msd-mobile-year">
+                    {new Date(show.first_aired).getFullYear()}
+                  </div>
+                ) : null}
+              </div>
+
+              {show.poster_url ? (
+                <img
+                  src={show.poster_url}
+                  alt={show.show_name}
+                  className="msd-mobile-thumb"
+                />
+              ) : null}
+            </div>
+
             {show.overview ? (
-              <p className="msd-overview">{show.overview}</p>
+              <p className="msd-overview msd-overview-mobile">
+                {show.overview}
+              </p>
             ) : null}
 
-            <div className="msd-meta">
+            <div className="msd-meta msd-meta-mobile">
               {show.first_aired ? (
                 <div>First aired: {formatDate(show.first_aired)}</div>
               ) : null}
@@ -1463,11 +1493,40 @@ export default function MyShowDetails() {
                 style={{ width: `${stats.pct}%` }}
               />
             </div>
+
+            <div className="msd-actions msd-actions-mobile">
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleRemoveShow}
+                disabled={savingShowAction}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isRemoved
+                  ? "Add Show"
+                  : "Remove Show"}
+              </button>
+
+              <button
+                type="button"
+                className="msd-btn msd-btn-secondary"
+                onClick={handleToggleArchiveShow}
+                disabled={savingShowAction || isRemoved}
+                title={isRemoved ? "Add the show first before archiving it" : ""}
+              >
+                {savingShowAction
+                  ? "Saving..."
+                  : isArchived
+                  ? "Unarchive Show"
+                  : "Archive Show"}
+              </button>
+            </div>
           </div>
         </section>
 
         <section className="msd-episodes-section">
-          <h2 className="msd-section-title">Episodes</h2>
+          <h2 className="msd-section-title">Seasons</h2>
           <div className="msd-seasons">
             {groupedSeasons.map((season) => (
               <section
@@ -1699,7 +1758,7 @@ export default function MyShowDetails() {
           {extrasLoading ? (
             <p className="msd-muted">Loading cast...</p>
           ) : cast.length > 0 ? (
-            <div className="msd-cast-grid">
+            <div className="msd-cast-grid msd-cast-grid-mobile">
               {cast.map((member, index) => {
                 const actorName = member.personName || "Unknown actor";
                 const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
@@ -1708,20 +1767,19 @@ export default function MyShowDetails() {
                   <Link
                     key={member.id || `${member.personName}-${index}`}
                     to={linkTarget}
-                    className="msd-cast-card"
+                    className="msd-cast-card msd-cast-card-mobile"
                     style={{ textDecoration: "none", color: "inherit" }}
                   >
                     {member.image ? (
                       <img
                         src={member.image}
                         alt={actorName}
-                        className="msd-cast-image"
+                        className="msd-cast-image msd-cast-image-mobile"
                       />
-                    ) : null}
+                    ) : (
+                      <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                    )}
                     <div className="msd-cast-name">{actorName}</div>
-                    <div className="msd-cast-role">
-                      {member.characterName || "Cast"}
-                    </div>
                   </Link>
                 );
               })}
