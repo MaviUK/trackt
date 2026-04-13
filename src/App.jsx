@@ -259,7 +259,7 @@ function MobileBottomNav() {
         <span className="mobile-nav-icon">
           <RankdIcon />
         </span>
-        <span className="mobile-nav-label">Rank'd</span>
+        <span className="mobile-nav-label">Rank</span>
       </NavLink>
 
       <NavLink
@@ -271,7 +271,7 @@ function MobileBottomNav() {
         <span className="mobile-nav-icon">
           <CalendarIcon />
         </span>
-        <span className="mobile-nav-label">Calendar</span>
+        <span className="mobile-nav-label">Cal</span>
       </NavLink>
     </nav>
   );
