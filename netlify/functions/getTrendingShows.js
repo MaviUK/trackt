@@ -1,38 +1,3 @@
-import { tvdbFetch } from "./_tvdb.js";
-
-function pickImage(series) {
-  if (!series || typeof series !== "object") return null;
-
-  if (series.image) return series.image;
-  if (series.image_url) return series.image_url;
-  if (series.thumbnail) return series.thumbnail;
-
-  if (Array.isArray(series.artworks)) {
-    const poster =
-      series.artworks.find((art) => art?.type === 2)?.image ||
-      series.artworks.find((art) => art?.image)?.image ||
-      null;
-
-    if (poster) return poster;
-  }
-
-  return null;
-}
-
-function normalizeShow(series) {
-  return {
-    id: series?.id ?? null,
-    name: series?.name ?? series?.seriesName ?? "Unknown title",
-    image: pickImage(series),
-    score: Number(series?.score) || 0,
-    overview: series?.overview ?? "",
-    slug: series?.slug ?? null,
-    year:
-      series?.year ??
-      (series?.firstAired ? new Date(series.firstAired).getFullYear() : null),
-  };
-}
-
 export async function handler() {
   try {
     const res = await fetch(
@@ -50,13 +15,17 @@ export async function handler() {
     if (!res.ok) {
       return {
         statusCode: res.status,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
         body: JSON.stringify(json),
       };
     }
 
     const shows = (json.results || []).map((show) => ({
-      tmdb_id: show.id,
-      name: show.name,
+      id: show.id,
+      name: show.name || "Unknown title",
       image: show.poster_path
         ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
         : null,
@@ -66,12 +35,22 @@ export async function handler() {
 
     return {
       statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
       body: JSON.stringify({ shows }),
     };
   } catch (error) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+      body: JSON.stringify({
+        message: error.message || "Failed to load TMDB trending shows",
+      }),
     };
   }
 }
