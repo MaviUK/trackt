@@ -5,8 +5,6 @@ const TMDB_BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/original";
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
-let cachedArtworkTypes = null;
-let cachedArtworkTypesExpiresAt = 0;
 
 function jsonResponse(statusCode, body) {
   return {
@@ -133,138 +131,6 @@ function normalizeStringArray(values) {
       return null;
     })
     .filter(Boolean);
-}
-
-async function getArtworkTypesMap() {
-  const now = Date.now();
-
-  if (cachedArtworkTypes && now < cachedArtworkTypesExpiresAt) {
-    return cachedArtworkTypes;
-  }
-
-  try {
-    const json = await tvdbGet("/artwork/types");
-    const rows = Array.isArray(json?.data) ? json.data : [];
-
-    const map = new Map();
-
-    for (const row of rows) {
-      const id = Number(row?.id);
-      if (!Number.isFinite(id)) continue;
-
-      const name = String(
-        row?.name || row?.type || row?.slug || row?.imageFormat || ""
-      ).toLowerCase();
-
-      map.set(id, {
-        id,
-        name,
-      });
-    }
-
-    cachedArtworkTypes = map;
-    cachedArtworkTypesExpiresAt = now + 24 * 60 * 60 * 1000;
-
-    return map;
-  } catch (error) {
-    console.error("artwork types fetch failed:", error);
-    return new Map();
-  }
-}
-
-function artworkTypeScore(typeName) {
-  const value = String(typeName || "").toLowerCase();
-
-  if (value.includes("banner")) return 100;
-  if (value.includes("fanart")) return 90;
-  if (value.includes("background")) return 80;
-  if (value.includes("series")) return 30;
-  if (value.includes("poster")) return 10;
-
-  return 0;
-}
-
-function imageWidthScore(width, height) {
-  const w = Number(width) || 0;
-  const h = Number(height) || 0;
-
-  if (!w || !h) return 0;
-
-  const ratio = w / h;
-
-  if (ratio >= 2.5) return 40;
-  if (ratio >= 1.7) return 30;
-  if (ratio >= 1.3) return 20;
-  if (ratio >= 1.0) return 10;
-
-  return 0;
-}
-
-function artworkStatusScore(status) {
-  const value = String(status || "").toLowerCase();
-  if (value.includes("approved")) return 10;
-  return 0;
-}
-
-function extractArtworkImage(item) {
-  return pickImage(
-    item?.image,
-    item?.image_url,
-    item?.thumbnail,
-    item?.fileName,
-    item?.url
-  );
-}
-
-async function getSeriesBannerFromArtworks(tvdbId) {
-  try {
-    const [typesMap, artworksJson] = await Promise.all([
-      getArtworkTypesMap(),
-      tvdbGet(`/series/${tvdbId}/artworks`),
-    ]);
-
-    const artworks = Array.isArray(artworksJson?.data) ? artworksJson.data : [];
-
-    if (!artworks.length) {
-      return null;
-    }
-
-    const candidates = artworks
-      .map((item) => {
-        const typeId = Number(
-          item?.type ??
-            item?.typeId ??
-            item?.artworkType ??
-            item?.artworkTypeId ??
-            0
-        );
-
-        const typeName = typesMap.get(typeId)?.name || "";
-        const image = extractArtworkImage(item);
-
-        if (!image) return null;
-
-        const score =
-          artworkTypeScore(typeName) +
-          imageWidthScore(item?.width, item?.height) +
-          artworkStatusScore(item?.status?.name || item?.status);
-
-        return {
-          image,
-          typeName,
-          width: Number(item?.width) || 0,
-          height: Number(item?.height) || 0,
-          score,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score);
-
-    return candidates[0]?.image || null;
-  } catch (error) {
-    console.error("series artworks fetch failed:", error);
-    return null;
-  }
 }
 
 function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
@@ -773,7 +639,9 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
       providersJson?.results?.GB || providersJson?.results?.US || null;
 
     const providerItems = [
-      ...(Array.isArray(providerRegion?.flatrate) ? providerRegion.flatrate : []),
+      ...(Array.isArray(providerRegion?.flatrate)
+        ? providerRegion.flatrate
+        : []),
       ...(Array.isArray(providerRegion?.free) ? providerRegion.free : []),
       ...(Array.isArray(providerRegion?.ads) ? providerRegion.ads : []),
       ...(Array.isArray(providerRegion?.rent) ? providerRegion.rent : []),
@@ -791,7 +659,9 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
       .map((item) => ({
         id: item?.provider_id || item?.provider_name,
         name: item?.provider_name || "Unknown provider",
-        logo: item?.logo_path ? `${TMDB_IMAGE_BASE_URL}${item.logo_path}` : null,
+        logo: item?.logo_path
+          ? `${TMDB_IMAGE_BASE_URL}${item.logo_path}`
+          : null,
       }))
       .slice(0, 8);
 
