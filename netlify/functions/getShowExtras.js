@@ -267,7 +267,7 @@ async function getSeriesBannerFromArtworks(tvdbId) {
   }
 }
 
-function normalizeShow(seriesData, tvdbId, bannerUrl = null, tmdbBackdropUrl = null) {
+function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
   if (!seriesData || typeof seriesData !== "object") return null;
 
   const companies = Array.isArray(seriesData?.companies)
@@ -291,30 +291,6 @@ function normalizeShow(seriesData, tvdbId, bannerUrl = null, tmdbBackdropUrl = n
       ? Number(seriesData.score)
       : null;
 
-  const posterUrl = pickImage(
-    seriesData?.image,
-    seriesData?.image_url,
-    seriesData?.poster,
-    seriesData?.poster_url,
-    seriesData?.thumbnail
-  );
-
-  const finalBannerUrl =
-    tmdbBackdropUrl ||
-    bannerUrl ||
-    pickImage(
-      seriesData?.banner,
-      seriesData?.banner_url,
-      seriesData?.bannerUrl,
-      seriesData?.fanart,
-      seriesData?.fanart_url,
-      seriesData?.fanartUrl,
-      seriesData?.background,
-      seriesData?.background_url,
-      seriesData?.backgroundUrl
-    ) ||
-    null;
-
   return {
     tvdb_id: tvdbId,
     name:
@@ -327,10 +303,16 @@ function normalizeShow(seriesData, tvdbId, bannerUrl = null, tmdbBackdropUrl = n
       seriesData?.translations?.overview ||
       "",
     status: seriesData?.status?.name || seriesData?.status || null,
-    poster_url: posterUrl,
-    banner_url: finalBannerUrl,
-    backdrop_url: finalBannerUrl,
-    background_url: finalBannerUrl,
+    poster_url: pickImage(
+      seriesData?.image,
+      seriesData?.image_url,
+      seriesData?.poster,
+      seriesData?.poster_url,
+      seriesData?.thumbnail
+    ),
+    banner_url: tmdbBackdropUrl,
+    backdrop_url: tmdbBackdropUrl,
+    background_url: tmdbBackdropUrl,
     first_aired:
       seriesData?.firstAired ||
       seriesData?.first_aired ||
@@ -859,20 +841,10 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-    const [
-      { providers, trailer, backdropUrl: tmdbBackdropUrl },
-      tvdbBannerUrl,
-    ] = await Promise.all([
-      getTmdbProvidersTrailerAndBackdrop(tvdbId),
-      getSeriesBannerFromArtworks(tvdbId),
-    ]);
+    const { providers, trailer, backdropUrl: tmdbBackdropUrl } =
+      await getTmdbProvidersTrailerAndBackdrop(tvdbId);
 
-    const show = normalizeShow(
-      seriesData,
-      tvdbId,
-      tvdbBannerUrl,
-      tmdbBackdropUrl
-    );
+    const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
     const fetchedEpisodes = await getSeriesEpisodesDefault(tvdbId);
@@ -924,8 +896,7 @@ export async function handler(event) {
         castCount: cast.length,
         providerCount: providers.length,
         hasTrailer: !!trailer,
-        hasTvdbArtworkBanner: !!tvdbBannerUrl,
-        hasBackdrop: !!show?.backdrop_url,
+        hasTmdbBackdrop: !!show?.backdrop_url,
       },
     });
   } catch (error) {
