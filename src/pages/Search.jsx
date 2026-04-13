@@ -248,8 +248,7 @@ export default function Search() {
     : relationshipTypeFilter
     ? `Browse shows with ${relationshipTypeFilter}.`
     : settingFilter
-    ? `Browse shows set in ${settingFilter}.`
-    : "Find a show and add it to My Shows.";
+    ? `Browse shows set in ${settingFilter}.`;
 
   return (
     <div className="search-page">
@@ -281,9 +280,6 @@ export default function Search() {
         {error && <p className="search-error">{error}</p>}
 
         {!loading && !shows.length && !error && (
-          <div className="search-empty">
-            <p>No shows yet. Try searching for something.</p>
-          </div>
         )}
 
         <div className="search-results-list">
