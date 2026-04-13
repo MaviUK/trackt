@@ -103,6 +103,11 @@ export default function ProfileEdit() {
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= 640;
+  });
+
   const [selectedAvatarDataUrl, setSelectedAvatarDataUrl] = useState("");
   const [existingAvatarUrl, setExistingAvatarUrl] = useState("");
 
@@ -126,6 +131,23 @@ export default function ProfileEdit() {
   const previewAvatarUrl = useMemo(() => {
     return selectedAvatarDataUrl || existingAvatarUrl || "";
   }, [selectedAvatarDataUrl, existingAvatarUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const handleChange = (event) => setIsMobile(event.matches);
+
+    setIsMobile(mediaQuery.matches);
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
@@ -453,22 +475,23 @@ export default function ProfileEdit() {
   }
 
   return (
-    <div className="page">
-      <div className="page-header" style={{ marginBottom: 24 }}>
+    <div className="page profile-edit-page">
+      <div className="page-header profile-edit-header" style={{ marginBottom: isMobile ? 18 : 24 }}>
         <h1>Edit Profile</h1>
         <p>Update your photo, name, bio, and socials.</p>
       </div>
 
       <div
+        className="profile-edit-card"
         style={{
           maxWidth: 860,
           background: "#0f172a",
           border: "1px solid rgba(148,163,184,0.15)",
           borderRadius: 20,
-          padding: 24,
+          padding: isMobile ? 16 : 24,
         }}
       >
-        <div style={{ marginBottom: 18 }}>
+        <div className="profile-edit-back-link-wrap" style={{ marginBottom: isMobile ? 14 : 18 }}>
           <Link
             to="/dashboard"
             style={{
@@ -511,17 +534,18 @@ export default function ProfileEdit() {
           </div>
         ) : null}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="profile-edit-form">
           <div
+            className="profile-edit-top-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "220px 1fr",
-              gap: 24,
+              gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+              gap: isMobile ? 16 : 24,
               alignItems: "start",
               marginBottom: 24,
             }}
           >
-            <div>
+            <div className="profile-edit-avatar-column">
               {previewAvatarUrl ? (
                 <>
                   <div
@@ -534,9 +558,10 @@ export default function ProfileEdit() {
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
+                    className="profile-edit-avatar-preview"
                     style={{
-                      width: 200,
-                      height: 200,
+                      width: isMobile ? 180 : 200,
+                      height: isMobile ? 180 : 200,
                       borderRadius: "999px",
                       overflow: "hidden",
                       position: "relative",
@@ -571,15 +596,16 @@ export default function ProfileEdit() {
                     />
                   </div>
 
-                  <div style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
+                  <div className="profile-edit-avatar-help" style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
                     Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
                   </div>
                 </>
               ) : (
                 <div
+                  className="profile-edit-avatar-placeholder"
                   style={{
-                    width: 200,
-                    height: 200,
+                    width: isMobile ? 180 : 200,
+                    height: isMobile ? 180 : 200,
                     borderRadius: "999px",
                     background: "#1e293b",
                     display: "flex",
@@ -597,7 +623,7 @@ export default function ProfileEdit() {
               )}
             </div>
 
-            <div>
+            <div className="profile-edit-image-controls">
               <label
                 style={{
                   display: "block",
@@ -610,6 +636,7 @@ export default function ProfileEdit() {
               </label>
 
               <input
+                className="profile-edit-file-input"
                 type="file"
                 accept="image/*"
                 onChange={handleImageSelect}
@@ -624,9 +651,10 @@ export default function ProfileEdit() {
           </div>
 
           <div
+            className="profile-edit-fields-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
               gap: 16,
               marginBottom: 16,
             }}
@@ -702,9 +730,10 @@ export default function ProfileEdit() {
           </div>
 
           <div
+            className="profile-edit-socials-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
               gap: 16,
               marginBottom: 20,
             }}
@@ -765,7 +794,7 @@ export default function ProfileEdit() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="profile-edit-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
             <button
               type="submit"
               disabled={saving}
