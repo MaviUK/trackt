@@ -93,49 +93,28 @@
 
 .trending-section {
   margin-bottom: 20px;
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 20px;
-  padding: 20px;
+  padding: 0; /* remove box padding */
+  background: none;
+  border: none;
 }
 
 .trending-header {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .trending-row {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   overflow-x: auto;
   padding-bottom: 6px;
-  scroll-snap-type: x proximity;
 }
 
-.trending-row::-webkit-scrollbar {
-  height: 8px;
-}
-
-.trending-row::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
-  border-radius: 999px;
-}
-
+/* 4 items per screen */
 .trending-card {
-  min-width: 150px;
-  max-width: 150px;
-  flex: 0 0 150px;
-  text-decoration: none;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 16px;
+  flex: 0 0 calc(25% - 8px);
+  max-width: calc(25% - 8px);
+  border-radius: 12px;
   overflow: hidden;
-  scroll-snap-align: start;
-  transition: transform 0.18s ease, background 0.18s ease;
-}
-
-.trending-card:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .trending-card-image {
@@ -143,6 +122,7 @@
   aspect-ratio: 2 / 3;
   object-fit: cover;
   display: block;
+  border-radius: 12px;
   background: #1e293b;
 }
 
@@ -150,9 +130,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #f8fafc;
-  font-size: 32px;
-  font-weight: 700;
+  color: #fff;
+  font-size: 24px;
 }
 
 .trending-card-body {
