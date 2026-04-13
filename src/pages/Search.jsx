@@ -252,45 +252,41 @@ export default function Search() {
     : "Find a show and add it to My Shows.";
 
   return (
-    <div className="page">
-      <div className="page-shell">
-        <div className="page-header">
-          <h1>{pageTitle}</h1>
-          <p>{pageSubtitle}</p>
+    <div className="search-page">
+      <div className="search-shell">
+        <div className="search-page-header">
+          <h1 className="search-page-title">{pageTitle}</h1>
+          <p className="search-page-subtitle">{pageSubtitle}</p>
         </div>
 
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        <div className="search-bar">
           <input
+            className="search-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
             placeholder="Search for a show"
-            style={{
-              flex: 1,
-              height: "48px",
-              padding: "0 14px",
-              borderRadius: "14px",
-              border: "1px solid #26324a",
-              background: "#121a2b",
-              color: "#f8fafc",
-            }}
           />
 
           <button
             onClick={handleManualSearch}
             disabled={loading}
-            className="msd-btn msd-btn-secondary"
-            style={{ height: "48px", minWidth: "112px" }}
+            className="search-button"
+            type="button"
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
 
-        {error && (
-          <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
+        {error && <p className="search-error">{error}</p>}
+
+        {!loading && !shows.length && !error && (
+          <div className="search-empty">
+            <p>No shows yet. Try searching for something.</p>
+          </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div className="search-results-list">
           {shows.map((show) => {
             const tvdbId = String(show.tvdb_id);
             const isSaved = savedIds.has(tvdbId);
@@ -303,71 +299,52 @@ export default function Search() {
             const poster = show.image_url || show.poster_url;
 
             return (
-              <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "88px 1fr",
-                    gap: "14px",
-                  }}
-                >
-                  <div>
-                    <Link to={detailHref}>
+              <div key={tvdbId} className="search-result-card">
+                <div className="search-result-grid">
+                  <div className="search-poster-column">
+                    <Link to={detailHref} className="search-poster-link">
                       {poster ? (
                         <img
                           src={poster}
                           alt={show.name}
-                          style={{
-                            width: "88px",
-                            height: "128px",
-                            borderRadius: "12px",
-                            objectFit: "cover",
-                          }}
+                          className="search-result-poster"
                         />
                       ) : (
-                        <div
-                          style={{
-                            width: "88px",
-                            height: "128px",
-                            background: "#111827",
-                            borderRadius: "12px",
-                          }}
-                        />
+                        <div className="search-result-poster search-result-poster-placeholder" />
                       )}
                     </Link>
 
                     <button
                       onClick={(e) => handleAddShow(e, show)}
                       disabled={isSaved || isAdding}
-                      className={`msd-btn ${
-                        isSaved ? "msd-btn-success" : "msd-btn-primary"
+                      className={`search-add-button ${
+                        isSaved
+                          ? "search-add-button-saved"
+                          : "search-add-button-primary"
                       }`}
-                      style={{ width: "100%", marginTop: "10px" }}
+                      type="button"
                     >
                       {isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
                     </button>
                   </div>
 
-                  <div>
-                    <Link
-                      to={detailHref}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <div style={{ fontWeight: "800", fontSize: "1.05rem" }}>
-                        {show.name}
-                      </div>
+                  <div className="search-result-content">
+                    <Link to={detailHref} className="search-result-title-link">
+                      <div className="search-result-title">{show.name}</div>
                     </Link>
 
                     {(show.first_air_time || show.first_aired) && (
-                      <p style={{ color: "#cbd5e1" }}>
+                      <p className="search-result-meta">
                         First aired:{" "}
                         {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
                     {show.overview && (
-                      <p style={{ color: "#dbe4f3" }}>
-                        {show.overview.slice(0, 180)}...
+                      <p className="search-result-overview">
+                        {show.overview.length > 180
+                          ? `${show.overview.slice(0, 180)}...`
+                          : show.overview}
                       </p>
                     )}
                   </div>
