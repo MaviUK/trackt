@@ -139,7 +139,7 @@ async function fetchAllWatchedEpisodeRows(userId) {
   return allRows;
 }
 
-async function fetchTrendingShows(existingTvdbIds = []) {
+async function fetchTrendingShows() {
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
@@ -147,13 +147,7 @@ async function fetchTrendingShows(existingTvdbIds = []) {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  const existingSet = new Set(
-    (existingTvdbIds || []).map((id) => String(id)).filter(Boolean)
-  );
-
-  return (payload?.shows || []).filter(
-    (show) => show?.id && !existingSet.has(String(show.id))
-  );
+  return payload?.shows || [];
 }
 
 function DashboardEpisodeItem({
@@ -192,7 +186,12 @@ function DashboardEpisodeItem({
 
 function TrendingShowCard({ show }) {
   return (
-    <Link to={`/show/${show.id}`} className="trending-card">
+    <a
+      href={`https://www.themoviedb.org/tv/${show.id}`}
+      target="_blank"
+      rel="noreferrer"
+      className="trending-card"
+    >
       {show.image ? (
         <img
           src={show.image}
@@ -205,7 +204,7 @@ function TrendingShowCard({ show }) {
           ?
         </div>
       )}
-    </Link>
+    </a>
   );
 }
 
@@ -254,7 +253,7 @@ export default function Dashboard() {
           setUpcomingItems([]);
 
           try {
-            const trending = await fetchTrendingShows([]);
+            const trending = await fetchTrendingShows();
             setTrendingShows(trending);
           } catch (error) {
             console.error("Error loading trending shows:", error);
@@ -460,9 +459,7 @@ export default function Dashboard() {
 
         let trending = [];
         try {
-          trending = await fetchTrendingShows(
-            normalizedShows.map((show) => show.tvdb_id)
-          );
+          trending = await fetchTrendingShows();
         } catch (error) {
           console.error("Error loading trending shows:", error);
         }
@@ -566,9 +563,7 @@ export default function Dashboard() {
         </div>
 
         {trendingShows.length === 0 ? (
-          <p className="empty-state">
-            No trending shows available right now.
-          </p>
+          <p className="empty-state">No trending shows available right now.</p>
         ) : (
           <div className="trending-row">
             {trendingShows.map((show) => (
