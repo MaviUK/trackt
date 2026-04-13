@@ -398,7 +398,7 @@
   }
 }
 @media (max-width: 640px) {
-  .trending-section {
-    margin-top: 24px;
+  .trending-header h2 {
+    margin-top: 12px;
   }
 }
