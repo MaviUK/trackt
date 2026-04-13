@@ -245,24 +245,40 @@ function TrendingShowCard({ show }) {
   );
 }
 
-function PremieringSoonItem({ show }) {
+function PremieringSoonCard({ show }) {
+  if (!show?.tvdb_id) {
+    return (
+      <div className="trending-card">
+        {show.image ? (
+          <img
+            src={show.image}
+            alt={show.name}
+            className="trending-card-image"
+            loading="lazy"
+          />
+        ) : (
+          <div className="trending-card-image trending-card-image-placeholder">
+            ?
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <Link to={`/show/${show.tvdb_id}`} className="dashboard-item">
+    <Link to={`/show/${show.tvdb_id}`} className="trending-card">
       {show.image ? (
         <img
           src={show.image}
           alt={show.name}
-          className="dashboard-poster"
+          className="trending-card-image"
+          loading="lazy"
         />
       ) : (
-        <div className="dashboard-poster" />
+        <div className="trending-card-image trending-card-image-placeholder">
+          ?
+        </div>
       )}
-
-      <div className="dashboard-item-info">
-        <strong>{show.name}</strong>
-        <span>S01E01</span>
-        <small>Airs: {formatDate(show.first_air_date)}</small>
-      </div>
     </Link>
   );
 }
@@ -651,7 +667,24 @@ export default function Dashboard() {
 
       <section className="dashboard-card">
         <div className="card-header">
-          <h2>Premiering Soon</h2>
+          <section className="trending-section">
+  <div className="card-header trending-header">
+    <h2>Premiering Soon</h2>
+  </div>
+
+  {premieringSoonShows.length === 0 ? (
+    <p className="empty-state">No new shows premiering soon.</p>
+  ) : (
+    <div className="trending-row">
+      {premieringSoonShows.map((show) => (
+        <PremieringSoonCard
+          key={show.tmdb_id || show.id}
+          show={show}
+        />
+      ))}
+    </div>
+  )}
+</section>
         </div>
 
         {premieringSoonShows.length === 0 ? (
