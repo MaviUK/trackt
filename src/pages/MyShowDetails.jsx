@@ -1248,7 +1248,7 @@ export default function MyShowDetails() {
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
-  const bannerImage = mobileBannerUrl || show.poster_url || "/no-image.png";
+  const bannerImage = mobileBannerUrl || "/no-image.png";
 
   return (
     <div className="msd-page">
@@ -1257,16 +1257,18 @@ export default function MyShowDetails() {
           ← Back to My Shows
         </Link>
 
-        <section className="msd-mobile-banner-wrap">
-          <div
-            className="msd-mobile-banner"
-            style={{
-              backgroundImage: `url(${bannerImage})`,
-            }}
-          >
-            <div className="msd-mobile-banner-overlay" />
-          </div>
-        </section>
+        {mobileBannerUrl ? (
+  <section className="msd-mobile-banner-wrap">
+    <div
+      className="msd-mobile-banner"
+      style={{
+        backgroundImage: `url(${mobileBannerUrl})`,
+      }}
+    >
+      <div className="msd-mobile-banner-overlay" />
+    </div>
+  </section>
+) : null}
 
         <section className="msd-hero">
           <div className="msd-hero-poster-wrap">
