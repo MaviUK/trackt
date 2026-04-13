@@ -205,6 +205,20 @@ function DesktopNav() {
   );
 }
 
+function MobileTopBanner() {
+  const location = useLocation();
+
+  if (location.pathname === "/login") {
+    return null;
+  }
+
+  return (
+    <div className="mobile-top-banner-wrap">
+      <BurgrsBanner />
+    </div>
+  );
+}
+
 function MobileBottomNav() {
   const location = useLocation();
 
@@ -279,18 +293,10 @@ function MobileBottomNav() {
 }
 
 function AppLayout() {
-  const location = useLocation();
-  const showMobileBanner = location.pathname !== "/login";
-
   return (
     <>
       <DesktopNav />
-
-      {showMobileBanner && (
-        <div className="mobile-only">
-          <BurgrsBanner />
-        </div>
-      )}
+      <MobileTopBanner />
 
       <Routes>
         <Route path="/" element={<Dashboard />} />
