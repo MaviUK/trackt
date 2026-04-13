@@ -1,6 +1,7 @@
 const TVDB_BASE_URL = "https://api4.thetvdb.com/v4";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
+const TMDB_BACKDROP_BASE_URL = "https://image.tmdb.org/t/p/original";
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
@@ -132,10 +133,28 @@ function normalizeStringArray(values) {
     .filter(Boolean);
 }
 
-function normalizeShow(seriesData, tvdbId) {
+function extractTvdbBanner(seriesData) {
+  return pickImage(
+    seriesData?.banner,
+    seriesData?.banner_url,
+    seriesData?.bannerUrl,
+    seriesData?.fanart,
+    seriesData?.fanart_url,
+    seriesData?.fanartUrl,
+    seriesData?.background,
+    seriesData?.background_url,
+    seriesData?.backgroundUrl,
+    seriesData?.artworks?.find?.((item) => item?.type === "banner")?.image,
+    seriesData?.artworks?.find?.((item) => item?.type === "fanart")?.image
+  );
+}
+
+function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
   if (!seriesData || typeof seriesData !== "object") return null;
 
-  const companies = Array.isArray(seriesData?.companies) ? seriesData.companies : [];
+  const companies = Array.isArray(seriesData?.companies)
+    ? seriesData.companies
+    : [];
   const originalNetwork = companies.find(
     (company) =>
       company?.primaryCompanyType === 1 ||
@@ -154,6 +173,9 @@ function normalizeShow(seriesData, tvdbId) {
       ? Number(seriesData.score)
       : null;
 
+  const tvdbBanner = extractTvdbBanner(seriesData);
+  const backdropUrl = tmdbBackdropUrl || tvdbBanner || null;
+
   return {
     tvdb_id: tvdbId,
     name:
@@ -162,9 +184,7 @@ function normalizeShow(seriesData, tvdbId) {
       seriesData?.translations?.name ||
       "Unknown title",
     overview:
-      seriesData?.overview ||
-      seriesData?.translations?.overview ||
-      "",
+      seriesData?.overview || seriesData?.translations?.overview || "",
     status: seriesData?.status?.name || seriesData?.status || null,
     poster_url: pickImage(
       seriesData?.image,
@@ -173,11 +193,11 @@ function normalizeShow(seriesData, tvdbId) {
       seriesData?.poster_url,
       seriesData?.thumbnail
     ),
+    banner_url: tvdbBanner,
+    backdrop_url: backdropUrl,
+    background_url: backdropUrl,
     first_aired:
-      seriesData?.firstAired ||
-      seriesData?.first_aired ||
-      seriesData?.year ||
-      null,
+      seriesData?.firstAired || seriesData?.first_aired || seriesData?.year || null,
     network:
       originalNetwork?.name ||
       seriesData?.originalNetwork?.name ||
@@ -185,31 +205,29 @@ function normalizeShow(seriesData, tvdbId) {
       "",
     genres,
     original_language:
-      seriesData?.originalLanguage ||
-      seriesData?.original_language ||
-      "",
+      seriesData?.originalLanguage || seriesData?.original_language || "",
     relationship_types: relationshipTypes,
     settings,
     rating_average: score,
     rating_count:
-      seriesData?.scoreCount != null && !Number.isNaN(Number(seriesData.scoreCount))
+      seriesData?.scoreCount != null &&
+      !Number.isNaN(Number(seriesData.scoreCount))
         ? Number(seriesData.scoreCount)
         : null,
   };
 }
 
 function normalizeEpisodes(seriesData, tvdbId) {
-  const rawEpisodes = Array.isArray(seriesData?.episodes) ? seriesData.episodes : [];
+  const rawEpisodes = Array.isArray(seriesData?.episodes)
+    ? seriesData.episodes
+    : [];
 
   return rawEpisodes
     .map((ep, index) => ({
       id: ep?.id || `${tvdbId}-ep-${index}`,
       tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
       season_number:
-        ep?.seasonNumber ??
-        ep?.season_number ??
-        ep?.airedSeason ??
-        0,
+        ep?.seasonNumber ?? ep?.season_number ?? ep?.airedSeason ?? 0,
       episode_number:
         ep?.number ??
         ep?.episodeNumber ??
@@ -217,17 +235,10 @@ function normalizeEpisodes(seriesData, tvdbId) {
         ep?.airedEpisodeNumber ??
         0,
       episode_code:
-        ep?.productionCode ||
-        ep?.episodeCode ||
-        ep?.episode_code ||
-        null,
+        ep?.productionCode || ep?.episodeCode || ep?.episode_code || null,
       name: ep?.name || "Untitled episode",
       overview: ep?.overview || "",
-      aired_date:
-        ep?.aired ||
-        ep?.airDate ||
-        ep?.aired_date ||
-        null,
+      aired_date: ep?.aired || ep?.airDate || ep?.aired_date || null,
       image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
     }))
     .sort((a, b) => {
@@ -251,10 +262,7 @@ async function getSeriesEpisodesDefault(tvdbId) {
         id: ep?.id || `${tvdbId}-ep-default-${index}`,
         tvdb_id: ep?.id || ep?.tvdb_id || ep?.tvdbId || null,
         season_number:
-          ep?.seasonNumber ??
-          ep?.season_number ??
-          ep?.airedSeason ??
-          0,
+          ep?.seasonNumber ?? ep?.season_number ?? ep?.airedSeason ?? 0,
         episode_number:
           ep?.number ??
           ep?.episodeNumber ??
@@ -262,17 +270,10 @@ async function getSeriesEpisodesDefault(tvdbId) {
           ep?.airedEpisodeNumber ??
           0,
         episode_code:
-          ep?.productionCode ||
-          ep?.episodeCode ||
-          ep?.episode_code ||
-          null,
+          ep?.productionCode || ep?.episodeCode || ep?.episode_code || null,
         name: ep?.name || "Untitled episode",
         overview: ep?.overview || "",
-        aired_date:
-          ep?.aired ||
-          ep?.airDate ||
-          ep?.aired_date ||
-          null,
+        aired_date: ep?.aired || ep?.airDate || ep?.aired_date || null,
         image_url: pickImage(ep?.image, ep?.image_url, ep?.thumbnail),
       }))
       .sort((a, b) => {
@@ -363,10 +364,7 @@ function buildRecommendationItem(item, index, prefix = "rec") {
   );
 
   const firstAired =
-    item?.firstAired ||
-    item?.first_aired ||
-    item?.year ||
-    null;
+    item?.firstAired || item?.first_aired || item?.year || null;
 
   return {
     id: item?.id || `${prefix}-${index}`,
@@ -394,8 +392,12 @@ function dedupeRecommendations(items) {
 
 function normalizePeopleAlsoWatch(seriesData) {
   const candidates = [
-    ...(Array.isArray(seriesData?.peopleAlsoWatch) ? seriesData.peopleAlsoWatch : []),
-    ...(Array.isArray(seriesData?.people_also_watch) ? seriesData.people_also_watch : []),
+    ...(Array.isArray(seriesData?.peopleAlsoWatch)
+      ? seriesData.peopleAlsoWatch
+      : []),
+    ...(Array.isArray(seriesData?.people_also_watch)
+      ? seriesData.people_also_watch
+      : []),
   ];
 
   return dedupeRecommendations(
@@ -407,10 +409,16 @@ function normalizePeopleAlsoWatch(seriesData) {
 
 function normalizeRecommendations(seriesData) {
   const candidates = [
-    ...(Array.isArray(seriesData?.recommendations) ? seriesData.recommendations : []),
+    ...(Array.isArray(seriesData?.recommendations)
+      ? seriesData.recommendations
+      : []),
     ...(Array.isArray(seriesData?.similar) ? seriesData.similar : []),
-    ...(Array.isArray(seriesData?.relatedSeries) ? seriesData.relatedSeries : []),
-    ...(Array.isArray(seriesData?.related_series) ? seriesData.related_series : []),
+    ...(Array.isArray(seriesData?.relatedSeries)
+      ? seriesData.relatedSeries
+      : []),
+    ...(Array.isArray(seriesData?.related_series)
+      ? seriesData.related_series
+      : []),
   ];
 
   return dedupeRecommendations(
@@ -451,16 +459,8 @@ async function getPeopleAlsoWatch(tvdbId) {
             item?.poster_url,
             item?.posterUrl
           ),
-          first_aired:
-            item?.firstAired ||
-            item?.first_aired ||
-            item?.year ||
-            null,
-          firstAired:
-            item?.firstAired ||
-            item?.first_aired ||
-            item?.year ||
-            null,
+          first_aired: item?.firstAired || item?.first_aired || item?.year || null,
+          firstAired: item?.firstAired || item?.first_aired || item?.year || null,
         }))
         .filter((item) => item.tvdb_id && item.name)
     ).slice(0, 12);
@@ -548,6 +548,10 @@ async function getTmdbRecommendations(tvdbId) {
           posterUrl: item?.poster_path
             ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
             : null,
+          backdrop_path: item?.backdrop_path || "",
+          backdrop_url: item?.backdrop_path
+            ? `${TMDB_BACKDROP_BASE_URL}${item.backdrop_path}`
+            : null,
         }))
         .filter((item) => item.name)
     ).slice(0, 12);
@@ -557,19 +561,25 @@ async function getTmdbRecommendations(tvdbId) {
   }
 }
 
-async function getTmdbProvidersAndTrailer(tvdbId) {
+async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
   try {
     const apiKey = process.env.TMDB_API_KEY;
     if (!apiKey) {
-      return { providers: [], trailer: null };
+      return { providers: [], trailer: null, backdropUrl: null };
     }
 
     const tmdbId = await findTmdbTvIdByTvdbId(tvdbId);
     if (!tmdbId) {
-      return { providers: [], trailer: null };
+      return { providers: [], trailer: null, backdropUrl: null };
     }
 
-    const [providersRes, videosRes] = await Promise.all([
+    const [detailsRes, providersRes, videosRes] = await Promise.all([
+      fetch(
+        `${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${encodeURIComponent(apiKey)}`,
+        {
+          headers: { Accept: "application/json" },
+        }
+      ),
       fetch(
         `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${encodeURIComponent(
           apiKey
@@ -586,8 +596,17 @@ async function getTmdbProvidersAndTrailer(tvdbId) {
       ),
     ]);
 
+    const detailsJson = await readJsonSafe(detailsRes);
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
+
+    if (!detailsRes.ok) {
+      throw new Error(
+        `TMDB details failed (${detailsRes.status}): ${
+          detailsJson?.status_message || "Unknown error"
+        }`
+      );
+    }
 
     if (!providersRes.ok) {
       throw new Error(
@@ -605,10 +624,7 @@ async function getTmdbProvidersAndTrailer(tvdbId) {
       );
     }
 
-    const providerRegion =
-      providersJson?.results?.GB ||
-      providersJson?.results?.US ||
-      null;
+    const providerRegion = providersJson?.results?.GB || providersJson?.results?.US || null;
 
     const providerItems = [
       ...(Array.isArray(providerRegion?.flatrate) ? providerRegion.flatrate : []),
@@ -642,14 +658,10 @@ async function getTmdbProvidersAndTrailer(tvdbId) {
           video?.official
       ) ||
       videos.find(
-        (video) =>
-          video?.site === "YouTube" &&
-          video?.type === "Trailer"
+        (video) => video?.site === "YouTube" && video?.type === "Trailer"
       ) ||
       videos.find(
-        (video) =>
-          video?.site === "YouTube" &&
-          video?.type === "Teaser"
+        (video) => video?.site === "YouTube" && video?.type === "Teaser"
       ) ||
       null;
 
@@ -660,10 +672,14 @@ async function getTmdbProvidersAndTrailer(tvdbId) {
         }
       : null;
 
-    return { providers, trailer };
+    const backdropUrl = detailsJson?.backdrop_path
+      ? `${TMDB_BACKDROP_BASE_URL}${detailsJson.backdrop_path}`
+      : null;
+
+    return { providers, trailer, backdropUrl };
   } catch (error) {
-    console.error("TMDB providers/trailer failed:", error);
-    return { providers: [], trailer: null };
+    console.error("TMDB providers/trailer/backdrop failed:", error);
+    return { providers: [], trailer: null, backdropUrl: null };
   }
 }
 
@@ -679,11 +695,18 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-    const show = normalizeShow(seriesData, tvdbId);
+    const {
+      providers,
+      trailer,
+      backdropUrl: tmdbBackdropUrl,
+    } = await getTmdbProvidersTrailerAndBackdrop(tvdbId);
+
+    const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
     const fetchedEpisodes = await getSeriesEpisodesDefault(tvdbId);
-    const episodes = fetchedEpisodes.length > 0 ? fetchedEpisodes : inlineEpisodes;
+    const episodes =
+      fetchedEpisodes.length > 0 ? fetchedEpisodes : inlineEpisodes;
 
     const cast = normalizeCastFromSeries(seriesData);
 
@@ -708,10 +731,14 @@ export async function handler(event) {
         ? fallbackRecommendations
         : tmdbRecommendations;
 
-    const { providers, trailer } = await getTmdbProvidersAndTrailer(tvdbId);
-
     return jsonResponse(200, {
       show,
+      banner_url: show?.banner_url || null,
+      bannerUrl: show?.banner_url || null,
+      backdrop_url: show?.backdrop_url || null,
+      backdropUrl: show?.backdrop_url || null,
+      background_url: show?.background_url || null,
+      backgroundUrl: show?.background_url || null,
       episodes,
       cast,
       providers,
@@ -726,6 +753,8 @@ export async function handler(event) {
         castCount: cast.length,
         providerCount: providers.length,
         hasTrailer: !!trailer,
+        hasBanner: !!show?.banner_url,
+        hasBackdrop: !!show?.backdrop_url,
       },
     });
   } catch (error) {
@@ -734,6 +763,12 @@ export async function handler(event) {
     return jsonResponse(500, {
       error: error.message || "Failed to load show extras",
       show: null,
+      banner_url: null,
+      bannerUrl: null,
+      backdrop_url: null,
+      backdropUrl: null,
+      background_url: null,
+      backgroundUrl: null,
       episodes: [],
       cast: [],
       providers: [],
