@@ -239,6 +239,8 @@ textarea {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+   /* 👇 IMPORTANT */
+  align-self: center;
   gap: 6px;
   padding: 6px 4px;
   text-decoration: none;
