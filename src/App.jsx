@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
 import Rankd from "./pages/Rankd";
+import BurgrsBanner from "./components/BurgrsBanner";
 
 function HomeIcon() {
   return (
@@ -278,9 +279,18 @@ function MobileBottomNav() {
 }
 
 function AppLayout() {
+  const location = useLocation();
+  const showMobileBanner = location.pathname !== "/login";
+
   return (
     <>
       <DesktopNav />
+
+      {showMobileBanner && (
+        <div className="mobile-only">
+          <BurgrsBanner />
+        </div>
+      )}
 
       <Routes>
         <Route path="/" element={<Dashboard />} />
