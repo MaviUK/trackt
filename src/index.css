@@ -240,18 +240,22 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 4px;
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  transition: all 0.2s ease;
+
+  /* 👇 REMOVE BOX LOOK */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+
+  transition: opacity 0.2s ease;
 }
 
 .top-profile-link:hover,
 .top-profile-link.active {
-  background: var(--panel-hover);
-  border-color: var(--border-strong);
+  background: transparent;
+  border: none;
+  opacity: 0.8;
 }
 
 .top-profile-avatar {
