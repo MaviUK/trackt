@@ -75,6 +75,26 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
+function getBannerFromExtras(extras) {
+  if (!extras || typeof extras !== "object") return null;
+
+  return (
+    extras.banner_url ||
+    extras.bannerUrl ||
+    extras.backdrop_url ||
+    extras.backdropUrl ||
+    extras.background_url ||
+    extras.backgroundUrl ||
+    extras.hero_image ||
+    extras.heroImage ||
+    extras.artwork?.banner_url ||
+    extras.artwork?.bannerUrl ||
+    extras.artwork?.backdrop_url ||
+    extras.artwork?.backdropUrl ||
+    null
+  );
+}
+
 async function fetchAllWatchedRowsForUser(userId) {
   if (!userId) return [];
 
@@ -210,6 +230,7 @@ function emptyState() {
     savingEpisodeRatingId: null,
     hoverEpisodeRatings: {},
     openEpisodeRatingPickerId: null,
+    mobileBannerUrl: null,
   };
 }
 
@@ -243,6 +264,7 @@ export default function MyShowDetails() {
   const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
+  const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -285,6 +307,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(state.savingEpisodeRatingId);
           setHoverEpisodeRatings(state.hoverEpisodeRatings);
           setOpenEpisodeRatingPickerId(state.openEpisodeRatingPickerId);
+          setMobileBannerUrl(state.mobileBannerUrl);
         }
         return { found: true, user: null, showId: null, tvdbId: null };
       }
@@ -300,6 +323,7 @@ export default function MyShowDetails() {
           setEpisodes([]);
           setWatchedRows([]);
           setExpandedSeasons({});
+          setMobileBannerUrl(null);
         }
         return { found: false, user, showId: null, tvdbId: null };
       }
@@ -332,6 +356,7 @@ export default function MyShowDetails() {
           setEpisodes([]);
           setWatchedRows([]);
           setExpandedSeasons({});
+          setMobileBannerUrl(null);
         }
         return { found: false, user, showId: null, tvdbId };
       }
@@ -436,6 +461,7 @@ export default function MyShowDetails() {
 
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
+        setMobileBannerUrl(null);
       }
 
       return {
@@ -506,6 +532,8 @@ export default function MyShowDetails() {
           const fallbackRecommendations = Array.isArray(extras.recommendations)
             ? extras.recommendations
             : [];
+
+          const bannerFromExtras = getBannerFromExtras(extras);
 
           const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
             (item) =>
@@ -588,6 +616,7 @@ export default function MyShowDetails() {
                 ? filteredTvdbPeopleAlsoWatch
                 : filteredFallbackRecommendations
             );
+            setMobileBannerUrl(bannerFromExtras || null);
           }
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
@@ -595,6 +624,7 @@ export default function MyShowDetails() {
             setCast([]);
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
+            setMobileBannerUrl(null);
           }
         } finally {
           if (!isCancelled) {
@@ -613,6 +643,7 @@ export default function MyShowDetails() {
           setPeopleAlsoWatch([]);
           setSavedShowTvdbIds(new Set());
           setExtrasLoading(false);
+          setMobileBannerUrl(null);
         }
       }
     }
@@ -663,6 +694,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
+          setMobileBannerUrl(null);
         }
       } catch (error) {
         console.error("Failed loading show:", error);
@@ -681,6 +713,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
+          setMobileBannerUrl(null);
         }
       } finally {
         if (!isCancelled) {
@@ -1218,7 +1251,7 @@ export default function MyShowDetails() {
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
-  const mobileBannerImage = show.poster_url || "/no-image.png";
+  const bannerImage = mobileBannerUrl || show.poster_url || "/no-image.png";
 
   return (
     <div className="msd-page">
@@ -1231,7 +1264,7 @@ export default function MyShowDetails() {
           <div
             className="msd-mobile-banner"
             style={{
-              backgroundImage: `url(${mobileBannerImage})`,
+              backgroundImage: `url(${bannerImage})`,
             }}
           >
             <div className="msd-mobile-banner-overlay" />
