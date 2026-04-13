@@ -231,58 +231,54 @@ export default function Search() {
     }
   }
 
-  const pageTitle = genreFilter
-    ? `Genre: ${genreFilter}`
-    : networkFilter
-    ? `Network: ${networkFilter}`
-    : relationshipTypeFilter
-    ? `Relationship Type: ${relationshipTypeFilter}`
-    : settingFilter
-    ? `Setting: ${settingFilter}`
-    : "Search Shows";
-
-  const pageSubtitle = genreFilter
-    ? `Browse shows in ${genreFilter}.`
-    : networkFilter
-    ? `Browse shows from ${networkFilter}, newest first.`
-    : relationshipTypeFilter
-    ? `Browse shows with ${relationshipTypeFilter}.`
-    : settingFilter
-    ? `Browse shows set in ${settingFilter}.`;
-
   return (
-    <div className="search-page">
-      <div className="search-shell">
-        <div className="search-page-header">
-          <h1 className="search-page-title">{pageTitle}</h1>
-          <p className="search-page-subtitle">{pageSubtitle}</p>
-        </div>
-
-        <div className="search-bar">
+    <div className="page">
+      <div className="page-shell">
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            marginBottom: "20px",
+            width: "100%",
+          }}
+        >
           <input
-            className="search-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
             placeholder="Search for a show"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: "48px",
+              padding: "0 14px",
+              borderRadius: "14px",
+              border: "1px solid #26324a",
+              background: "#121a2b",
+              color: "#f8fafc",
+              boxSizing: "border-box",
+            }}
           />
 
           <button
             onClick={handleManualSearch}
             disabled={loading}
-            className="search-button"
-            type="button"
+            className="msd-btn msd-btn-secondary"
+            style={{
+              height: "48px",
+              minWidth: "112px",
+              flexShrink: 0,
+            }}
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
 
-        {error && <p className="search-error">{error}</p>}
-
-        {!loading && !shows.length && !error && (
+        {error && (
+          <p style={{ color: "#fca5a5", marginBottom: "16px" }}>{error}</p>
         )}
 
-        <div className="search-results-list">
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shows.map((show) => {
             const tvdbId = String(show.tvdb_id);
             const isSaved = savedIds.has(tvdbId);
@@ -295,52 +291,71 @@ export default function Search() {
             const poster = show.image_url || show.poster_url;
 
             return (
-              <div key={tvdbId} className="search-result-card">
-                <div className="search-result-grid">
-                  <div className="search-poster-column">
-                    <Link to={detailHref} className="search-poster-link">
+              <div key={tvdbId} className="show-card" style={{ padding: "14px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "88px 1fr",
+                    gap: "14px",
+                  }}
+                >
+                  <div>
+                    <Link to={detailHref}>
                       {poster ? (
                         <img
                           src={poster}
                           alt={show.name}
-                          className="search-result-poster"
+                          style={{
+                            width: "88px",
+                            height: "128px",
+                            borderRadius: "12px",
+                            objectFit: "cover",
+                          }}
                         />
                       ) : (
-                        <div className="search-result-poster search-result-poster-placeholder" />
+                        <div
+                          style={{
+                            width: "88px",
+                            height: "128px",
+                            background: "#111827",
+                            borderRadius: "12px",
+                          }}
+                        />
                       )}
                     </Link>
 
                     <button
                       onClick={(e) => handleAddShow(e, show)}
                       disabled={isSaved || isAdding}
-                      className={`search-add-button ${
-                        isSaved
-                          ? "search-add-button-saved"
-                          : "search-add-button-primary"
+                      className={`msd-btn ${
+                        isSaved ? "msd-btn-success" : "msd-btn-primary"
                       }`}
-                      type="button"
+                      style={{ width: "100%", marginTop: "10px" }}
                     >
                       {isSaved ? "Added" : isAdding ? "Adding..." : "Add"}
                     </button>
                   </div>
 
-                  <div className="search-result-content">
-                    <Link to={detailHref} className="search-result-title-link">
-                      <div className="search-result-title">{show.name}</div>
+                  <div>
+                    <Link
+                      to={detailHref}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <div style={{ fontWeight: "800", fontSize: "1.05rem" }}>
+                        {show.name}
+                      </div>
                     </Link>
 
                     {(show.first_air_time || show.first_aired) && (
-                      <p className="search-result-meta">
+                      <p style={{ color: "#cbd5e1" }}>
                         First aired:{" "}
                         {formatDate(show.first_air_time || show.first_aired)}
                       </p>
                     )}
 
                     {show.overview && (
-                      <p className="search-result-overview">
-                        {show.overview.length > 180
-                          ? `${show.overview.slice(0, 180)}...`
-                          : show.overview}
+                      <p style={{ color: "#dbe4f3" }}>
+                        {show.overview.slice(0, 180)}...
                       </p>
                     )}
                   </div>
