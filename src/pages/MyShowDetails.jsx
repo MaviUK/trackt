@@ -79,18 +79,15 @@ function getBannerFromExtras(extras) {
   if (!extras || typeof extras !== "object") return null;
 
   return (
-    extras.banner_url ||
-    extras.bannerUrl ||
     extras.backdrop_url ||
     extras.backdropUrl ||
+    extras.banner_url ||
+    extras.bannerUrl ||
     extras.background_url ||
     extras.backgroundUrl ||
-    extras.hero_image ||
-    extras.heroImage ||
-    extras.artwork?.banner_url ||
-    extras.artwork?.bannerUrl ||
-    extras.artwork?.backdrop_url ||
-    extras.artwork?.backdropUrl ||
+    extras.show?.backdrop_url ||
+    extras.show?.banner_url ||
+    extras.show?.background_url ||
     null
   );
 }
