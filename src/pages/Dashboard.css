@@ -99,7 +99,7 @@
 }
 
 .trending-header {
-  margin-bottom: 500px;
+  margin-bottom: 10px;
 }
 
 .trending-header h2,
@@ -395,5 +395,10 @@
 
   .dashboard-item-info small {
     font-size: 13px;
+  }
+}
+@media (max-width: 640px) {
+  .trending-section {
+    margin-top: 14px;
   }
 }
