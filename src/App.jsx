@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
   Route,
   NavLink,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 import "./index.css";
 import ProfileEdit from "./pages/ProfileEdit";
@@ -18,6 +20,7 @@ import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
 import Rankd from "./pages/Rankd";
 import BurgrsBanner from "./components/BurgrsBanner";
+import { supabase } from "./lib/supabase";
 
 function HomeIcon() {
   return (
@@ -154,7 +157,9 @@ function RankdIcon() {
   );
 }
 
-function DesktopNav() {
+function DesktopNav({ session }) {
+  if (!session) return null;
+
   return (
     <div className="nav-wrap desktop-nav">
       <nav className="top-tabs">
@@ -193,22 +198,15 @@ function DesktopNav() {
         >
           Calendar
         </NavLink>
-
-        <NavLink
-          to="/login"
-          className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-        >
-          Login
-        </NavLink>
       </nav>
     </div>
   );
 }
 
-function MobileTopBanner() {
+function MobileTopBanner({ session }) {
   const location = useLocation();
 
-  if (location.pathname === "/login") {
+  if (!session || location.pathname === "/login") {
     return null;
   }
 
@@ -219,10 +217,10 @@ function MobileTopBanner() {
   );
 }
 
-function MobileBottomNav() {
+function MobileBottomNav({ session }) {
   const location = useLocation();
 
-  if (location.pathname === "/login") {
+  if (!session || location.pathname === "/login") {
     return null;
   }
 
@@ -292,26 +290,139 @@ function MobileBottomNav() {
   );
 }
 
+function AuthRedirect({ session }) {
+  if (session) {
+    return <Dashboard />;
+  }
+
+  return <Navigate to="/login" replace />;
+}
+
+function ProtectedRoute({ session, children }) {
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+function LoginRoute({ session }) {
+  if (session) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Login />;
+}
+
 function AppLayout() {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (mounted) {
+        setSession(data.session ?? null);
+      }
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (session === undefined) {
+    return null;
+  }
+
   return (
     <>
-      <DesktopNav />
-      <MobileTopBanner />
+      <DesktopNav session={session} />
+      <MobileTopBanner session={session} />
 
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/show/:id" element={<ShowDetails />} />
-        <Route path="/my-shows" element={<MyShows />} />
-        <Route path="/my-shows/:id" element={<MyShowDetails />} />
-        <Route path="/actor/:name" element={<ActorPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/profile/edit" element={<ProfileEdit />} />
-        <Route path="/rankd" element={<Rankd />} />
+        <Route path="/" element={<AuthRedirect session={session} />} />
+        <Route path="/login" element={<LoginRoute session={session} />} />
+
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute session={session}>
+              <Search />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/show/:id"
+          element={
+            <ProtectedRoute session={session}>
+              <ShowDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-shows"
+          element={
+            <ProtectedRoute session={session}>
+              <MyShows />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-shows/:id"
+          element={
+            <ProtectedRoute session={session}>
+              <MyShowDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/actor/:name"
+          element={
+            <ProtectedRoute session={session}>
+              <ActorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute session={session}>
+              <CalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute session={session}>
+              <ProfileEdit />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rankd"
+          element={
+            <ProtectedRoute session={session}>
+              <Rankd />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      <MobileBottomNav />
+      <MobileBottomNav session={session} />
     </>
   );
 }
