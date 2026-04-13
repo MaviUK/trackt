@@ -111,6 +111,16 @@
     font-size: 14px;
   }
 
+  .page-shell {
+  padding-top: 24px;
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    padding-top: 140px;
+  }
+}
+
   .search-results {
     grid-template-columns: repeat(2, 1fr);
   }
