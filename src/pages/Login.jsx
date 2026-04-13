@@ -1,32 +1,66 @@
-import { useState } from "react"
-import { supabase } from "../lib/supabase"
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
 
 export default function Login() {
-  const [email, setEmail] = useState("")
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState("")
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (mounted) {
+        setSession(data.session ?? null);
+      }
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const login = async () => {
-    setError("")
+    setError("");
 
     if (!supabase) {
-      setError("Supabase environment variables are missing.")
-      return
+      setError("Supabase environment variables are missing.");
+      return;
     }
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin
-      }
-    })
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
 
     if (error) {
-      setError(error.message)
-      return
+      setError(error.message);
+      return;
     }
 
-    setSent(true)
+    setSent(true);
+  };
+
+  if (session === undefined) {
+    return null;
+  }
+
+  if (session) {
+    return <Navigate to="/" replace />;
   }
 
   return (
@@ -44,13 +78,11 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
           />
 
-          <button onClick={login}>
-            Send Login Link
-          </button>
+          <button onClick={login}>Send Login Link</button>
 
           {error && <p>{error}</p>}
         </>
       )}
     </div>
-  )
+  );
 }
