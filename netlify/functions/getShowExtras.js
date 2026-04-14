@@ -485,24 +485,50 @@ async function getPeopleAlsoWatch(tvdbId) {
 
 async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
   const apiKey = process.env.TMDB_API_KEY;
-  if (!apiKey) return null;
+
+  const debug = {
+    hasApiKey: !!apiKey,
+    findStatus: null,
+    findOk: false,
+    findResultCount: 0,
+    searchStatus: null,
+    searchOk: false,
+    searchResultCount: 0,
+    matchedBy: null,
+  };
+
+  if (!apiKey) {
+    return { tmdbId: null, debug };
+  }
 
   try {
-    const res = await fetch(
+    const findRes = await fetch(
       `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
         apiKey
       )}&external_source=tvdb_id`
     );
-    const json = await readJsonSafe(res);
 
-    if (res.ok && Array.isArray(json?.tv_results) && json.tv_results.length > 0) {
-      return json.tv_results[0].id;
+    debug.findStatus = findRes.status;
+    debug.findOk = findRes.ok;
+
+    const findJson = await readJsonSafe(findRes);
+    const findResults = Array.isArray(findJson?.tv_results)
+      ? findJson.tv_results
+      : [];
+
+    debug.findResultCount = findResults.length;
+
+    if (findRes.ok && findResults.length > 0) {
+      debug.matchedBy = "tvdb_id";
+      return { tmdbId: findResults[0].id, debug };
     }
   } catch (error) {
     console.error("TMDB find by TVDB id failed:", error);
   }
 
-  if (!showName) return null;
+  if (!showName) {
+    return { tmdbId: null, debug };
+  }
 
   try {
     const searchRes = await fetch(
@@ -510,15 +536,18 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
         apiKey
       )}&query=${encodeURIComponent(showName)}`
     );
-    const searchJson = await readJsonSafe(searchRes);
 
-    if (!searchRes.ok || !Array.isArray(searchJson?.results)) {
-      return null;
-    }
+    debug.searchStatus = searchRes.status;
+    debug.searchOk = searchRes.ok;
+
+    const searchJson = await readJsonSafe(searchRes);
+    const results = Array.isArray(searchJson?.results) ? searchJson.results : [];
+
+    debug.searchResultCount = results.length;
 
     const targetYear = firstAired ? String(firstAired).slice(0, 4) : "";
 
-    const ranked = [...searchJson.results].sort((a, b) => {
+    const ranked = [...results].sort((a, b) => {
       const aName = String(a?.name || a?.original_name || "").toLowerCase();
       const bName = String(b?.name || b?.original_name || "").toLowerCase();
       const wanted = String(showName).toLowerCase();
@@ -536,11 +565,15 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
       return Number(b?.popularity || 0) - Number(a?.popularity || 0);
     });
 
-    return ranked[0]?.id || null;
+    if (searchRes.ok && ranked.length > 0) {
+      debug.matchedBy = "search";
+      return { tmdbId: ranked[0].id, debug };
+    }
   } catch (error) {
     console.error("TMDB search fallback failed:", error);
-    return null;
   }
+
+  return { tmdbId: null, debug };
 }
 
 async function getTmdbProvidersTrailerAndBackdrop(
