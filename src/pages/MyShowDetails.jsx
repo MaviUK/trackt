@@ -59,6 +59,23 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
+function sortRankings(a, b) {
+  const aRating = Number(a?.rating ?? 1200);
+  const bRating = Number(b?.rating ?? 1200);
+
+  if (bRating !== aRating) return bRating - aRating;
+
+  const aWins = Number(a?.wins ?? 0);
+  const bWins = Number(b?.wins ?? 0);
+
+  if (bWins !== aWins) return bWins - aWins;
+
+  const aName = String(a?.show_name || "");
+  const bName = String(b?.show_name || "");
+
+  return aName.localeCompare(bName);
+}
+
 function getBannerFromExtras(extras) {
   if (!extras || typeof extras !== "object") return null;
 
@@ -209,8 +226,9 @@ function emptyState() {
     episodeRatings: [],
     savingEpisodeRatingId: null,
     hoverEpisodeRatings: {},
-    openEpisodeRatingPickerId: null,
-    mobileBannerUrl: null,
+   openEpisodeRatingPickerId: null,
+mobileBannerUrl: null,
+rankPosition: null,
   };
 }
 
@@ -246,9 +264,10 @@ export default function MyShowDetails() {
   const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
-  const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
-  const [expandedOverview, setExpandedOverview] = useState(false);
-  const [activeTab, setActiveTab] = useState("seasons");
+ const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
+const [expandedOverview, setExpandedOverview] = useState(false);
+const [activeTab, setActiveTab] = useState("seasons");
+const [rankPosition, setRankPosition] = useState(null);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
