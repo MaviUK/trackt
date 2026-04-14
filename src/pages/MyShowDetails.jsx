@@ -1429,47 +1429,6 @@ export default function MyShowDetails() {
               </div>
             </div>
 
-            <div className="msd-stats-row msd-stats-row-rest">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Network</span>
-                <strong className="msd-stat-value">
-                  {show.network ? (
-                    <Link
-                      to={`/search?network=${encodeURIComponent(
-                        show.network
-                      )}&${baseContext}`}
-                      className="msd-link"
-                    >
-                      {show.network}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </strong>
-              </div>
-
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Genre</span>
-                <strong className="msd-stat-value">
-                  {show.genres?.length > 0
-                    ? show.genres.map((genre, index) => (
-                        <span key={genre}>
-                          <Link
-                            to={`/search?genre=${encodeURIComponent(
-                              genre
-                            )}&${baseContext}`}
-                            className="msd-link"
-                          >
-                            {genre}
-                          </Link>
-                          {index < show.genres.length - 1 ? ", " : ""}
-                        </span>
-                      ))
-                    : "—"}
-                </strong>
-              </div>
-            </div>
-
             {(show.relationship_types?.length > 0 ||
               show.settings?.length > 0) && (
               <div
