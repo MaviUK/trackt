@@ -345,6 +345,49 @@ function normalizeCastFromSeries(seriesData) {
     }));
 }
 
+function normalizeCrewFromTmdb(creditsJson) {
+  const allowedJobs = new Set([
+    "Director",
+    "Writer",
+    "Screenplay",
+    "Executive Producer",
+    "Producer",
+    "Creator",
+  ]);
+
+  const seen = new Set();
+  const crew = Array.isArray(creditsJson?.crew) ? creditsJson.crew : [];
+
+  return crew
+    .filter((person) => allowedJobs.has(person?.job))
+    .filter((person) => {
+      const key = `${person?.id || "no-id"}-${person?.job || "no-job"}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((person, index) => ({
+      id: person?.id || `crew-${index}`,
+      personName: person?.name || "Unknown crew",
+      role: person?.job || "Crew",
+      image: person?.profile_path
+        ? `${TMDB_IMAGE_BASE_URL}${person.profile_path}`
+        : null,
+      sort:
+        person?.order != null && !Number.isNaN(Number(person.order))
+          ? Number(person.order)
+          : index,
+    }))
+    .sort((a, b) => a.sort - b.sort)
+    .slice(0, 18)
+    .map(({ id, personName, role, image }) => ({
+      id,
+      personName,
+      role,
+      image,
+    }));
+}
+
 function buildRecommendationItem(item, index, prefix = "rec") {
   const tvdbId =
     item?.tvdb_id ||
@@ -576,7 +619,7 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
   return { tmdbId: null, debug };
 }
 
-async function getTmdbProvidersTrailerAndBackdrop(
+async function getTmdbProvidersTrailerBackdropAndCrew(
   tvdbId,
   showName = "",
   firstAired = ""
@@ -588,6 +631,7 @@ async function getTmdbProvidersTrailerAndBackdrop(
         providers: [],
         trailer: null,
         backdropUrl: null,
+        crew: [],
         tmdbId: null,
         backdropCount: 0,
         tmdbLookupDebug: {
@@ -612,13 +656,14 @@ async function getTmdbProvidersTrailerAndBackdrop(
         providers: [],
         trailer: null,
         backdropUrl: null,
+        crew: [],
         tmdbId: null,
         backdropCount: 0,
         tmdbLookupDebug,
       };
     }
 
-    const [imagesRes, providersRes, videosRes] = await Promise.all([
+    const [imagesRes, providersRes, videosRes, creditsRes] = await Promise.all([
       fetch(
         `${TMDB_BASE_URL}/tv/${tmdbId}/images?api_key=${encodeURIComponent(
           apiKey
@@ -634,11 +679,17 @@ async function getTmdbProvidersTrailerAndBackdrop(
           apiKey
         )}`
       ),
+      fetch(
+        `${TMDB_BASE_URL}/tv/${tmdbId}/credits?api_key=${encodeURIComponent(
+          apiKey
+        )}`
+      ),
     ]);
 
     const imagesJson = await readJsonSafe(imagesRes);
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
+    const creditsJson = await readJsonSafe(creditsRes);
 
     const backdrops = Array.isArray(imagesJson?.backdrops)
       ? imagesJson.backdrops
@@ -707,10 +758,13 @@ async function getTmdbProvidersTrailerAndBackdrop(
         }
       : null;
 
+    const crew = normalizeCrewFromTmdb(creditsJson);
+
     return {
       providers,
       trailer,
       backdropUrl,
+      crew,
       tmdbId,
       backdropCount: backdrops.length,
       tmdbLookupDebug,
@@ -721,6 +775,7 @@ async function getTmdbProvidersTrailerAndBackdrop(
       providers: [],
       trailer: null,
       backdropUrl: null,
+      crew: [],
       tmdbId: null,
       backdropCount: 0,
       tmdbLookupDebug: null,
@@ -740,19 +795,20 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-   const {
-  providers,
-  trailer,
-  backdropUrl: tmdbBackdropUrl,
-  tmdbId,
-  backdropCount,
-  tmdbLookupDebug,
-} = await getTmdbProvidersTrailerAndBackdrop(
-  tvdbId,
-  seriesData?.name || "",
-  seriesData?.firstAired || seriesData?.first_aired || ""
-);
-    
+    const {
+      providers,
+      trailer,
+      backdropUrl: tmdbBackdropUrl,
+      crew,
+      tmdbId,
+      backdropCount,
+      tmdbLookupDebug,
+    } = await getTmdbProvidersTrailerBackdropAndCrew(
+      tvdbId,
+      seriesData?.name || "",
+      seriesData?.firstAired || seriesData?.first_aired || ""
+    );
+
     const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
@@ -786,26 +842,28 @@ export async function handler(event) {
       backgroundUrl: show?.background_url || null,
       episodes,
       cast,
+      crew,
       providers,
       trailer,
       peopleAlsoWatch,
       recommendations,
       debug: {
-  showFound: !!show,
-  inlineEpisodeCount: inlineEpisodes.length,
-  fetchedEpisodeCount: fetchedEpisodes.length,
-  episodeCount: episodes.length,
-  castCount: cast.length,
-  providerCount: providers.length,
-  hasTrailer: !!trailer,
-  hasTmdbBackdrop: !!show?.backdrop_url,
-  tmdbId: tmdbId || null,
-  tmdbBackdropCount: backdropCount || 0,
-  sourceShowName: seriesData?.name || null,
-  sourceFirstAired:
-    seriesData?.firstAired || seriesData?.first_aired || null,
-  tmdbLookupDebug,
-},
+        showFound: !!show,
+        inlineEpisodeCount: inlineEpisodes.length,
+        fetchedEpisodeCount: fetchedEpisodes.length,
+        episodeCount: episodes.length,
+        castCount: cast.length,
+        crewCount: crew.length,
+        providerCount: providers.length,
+        hasTrailer: !!trailer,
+        hasTmdbBackdrop: !!show?.backdrop_url,
+        tmdbId: tmdbId || null,
+        tmdbBackdropCount: backdropCount || 0,
+        sourceShowName: seriesData?.name || null,
+        sourceFirstAired:
+          seriesData?.firstAired || seriesData?.first_aired || null,
+        tmdbLookupDebug,
+      },
     });
   } catch (error) {
     console.error("getShowExtras failed:", error);
@@ -821,6 +879,7 @@ export async function handler(event) {
       backgroundUrl: null,
       episodes: [],
       cast: [],
+      crew: [],
       providers: [],
       trailer: null,
       peopleAlsoWatch: [],
