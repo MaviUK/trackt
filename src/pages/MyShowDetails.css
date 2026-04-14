@@ -6,7 +6,7 @@
 }
 
 .msd-shell {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -136,11 +136,6 @@
   height: 100%;
   background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
   border-radius: 999px;
-}
-
-.msd-episodes-section {
-  margin-top: 12px;
-  margin-bottom: 24px;
 }
 
 .msd-section-title {
@@ -537,10 +532,6 @@
   display: none;
 }
 
-.msd-mobile-banner-stats {
-  display: none;
-}
-
 .msd-overview-wrapper {
   position: relative;
   margin: 0 0 16px;
@@ -561,8 +552,7 @@
   display: block;
 }
 
-.msd-overview-dots,
-.msd-overview-expand {
+.msd-overview-dots {
   display: block;
   width: 100%;
   margin-top: 6px;
@@ -570,7 +560,6 @@
   border: 0;
   border-radius: 0;
   background: transparent !important;
-  background-color: transparent !important;
   color: rgba(255, 255, 255, 0.7);
   font-size: 1.4rem;
   line-height: 1;
@@ -586,24 +575,20 @@
 
 .msd-overview-dots:active,
 .msd-overview-dots:focus,
-.msd-overview-dots:focus-visible,
-.msd-overview-expand:active,
-.msd-overview-expand:focus,
-.msd-overview-expand:focus-visible {
+.msd-overview-dots:focus-visible {
   background: transparent !important;
-  background-color: transparent !important;
   outline: none;
   box-shadow: none;
 }
 
+/* tabs */
 .msd-content-tabs-section {
-  margin-top: 8px;
-  margin-bottom: 24px;
+  margin: 18px 0 24px;
 }
 
 .msd-content-tabs {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   overflow-x: auto;
   padding: 0 0 8px;
   scrollbar-width: none;
@@ -622,8 +607,9 @@
   color: #cbd5e1;
   border-radius: 999px;
   padding: 7px 12px;
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -634,28 +620,27 @@
 }
 
 .msd-content-tab.is-active {
-  background: linear-gradient(180deg, #2b3954 0%, #22304a 100%);
-  color: #fff;
-  border-color: #43597e;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  background: #2a3d63;
+  color: #ffffff;
+  border-color: #405883;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .msd-tab-panel {
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .msd-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
 }
 
 .msd-info-card {
   background: linear-gradient(180deg, #182235 0%, #141d2f 100%);
   border: 1px solid #2b3954;
   border-radius: 18px;
-  padding: 16px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  padding: 14px;
 }
 
 .msd-info-link {
@@ -717,25 +702,6 @@
 }
 
 @media (max-width: 768px) {
-  .msd-content-tab {
-    padding: 6px 10px;
-    font-size: 0.78rem;
-  }
-
-  .msd-content-tabs {
-    gap: 5px;
-  }
-}
-
-  .msd-shell {
-    max-width: 100%;
-    padding: 0 0 28px;
-  }
-
-  .msd-back-link {
-    display: none !important;
-  }
-
   .msd-episode-rating-desktop {
     display: none;
   }
@@ -744,10 +710,23 @@
     display: block;
   }
 
+  .msd-page {
+    padding: 0 0 140px;
+  }
+
+  .msd-shell {
+    max-width: 100%;
+    padding: 0 0 20px;
+  }
+
+  .msd-back-link {
+    display: none !important;
+  }
+
   .msd-mobile-banner-wrap {
     display: block;
     width: 100%;
-    margin: 0 0 12px;
+    margin: 0 0 8px;
   }
 
   .msd-mobile-banner {
@@ -764,61 +743,14 @@
     background: linear-gradient(180deg, #1b2333 0%, #0f172a 100%);
   }
 
-  .msd-mobile-banner-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(
-      to bottom,
-      rgba(3, 7, 18, 0.02) 0%,
-      rgba(3, 7, 18, 0.16) 50%,
-      rgba(3, 7, 18, 0.96) 100%
-    );
-  }
-
-  .msd-mobile-banner-stats {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    z-index: 2;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-end;
-  }
-
-  .msd-mobile-banner-stat {
-    min-width: 92px;
-    padding: 8px 10px;
-    border-radius: 12px;
-    background: rgba(4, 10, 24, 0.72);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    text-align: right;
-  }
-
-  .msd-mobile-banner-stat-label {
-    display: block;
-    font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.72);
-    margin-bottom: 2px;
-  }
-
-  .msd-mobile-banner-stat-value {
-    display: block;
-    font-size: 0.95rem;
-    color: #fff;
-    font-weight: 700;
-  }
-
   .msd-hero {
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    padding: 0 16px !important;
+    padding: 0 10px !important;
     display: block !important;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
 
   .msd-hero-poster-wrap {
@@ -840,8 +772,8 @@
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .msd-mobile-title-wrap {
@@ -871,9 +803,9 @@
 
   .msd-mobile-thumb {
     display: block;
-    width: 96px;
-    min-width: 96px;
-    height: 138px;
+    width: 92px;
+    min-width: 92px;
+    height: 132px;
     object-fit: cover;
     border-radius: 16px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
@@ -882,106 +814,14 @@
 
   .msd-overview-mobile {
     width: 100%;
-    margin: 0;
+    margin: 0 0 14px;
     font-size: 0.97rem;
     line-height: 1.55;
   }
 
-  .msd-episodes-section {
-    padding: 0 16px;
-    margin-top: 20px;
-  }
-
-  .msd-section-title {
-    font-size: 1.2rem;
-    margin-bottom: 14px;
-  }
-
-  .msd-season-card {
-    border-radius: 16px;
-  }
-
-  .msd-panel,
-  .msd-panel-spaced {
-    margin: 20px 16px 0;
-    border-radius: 18px;
-  }
-
-  .msd-cast-grid-mobile {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .msd-cast-card-mobile {
-    background: transparent !important;
-    border: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-
-  .msd-cast-image-mobile {
-    width: 100%;
-    aspect-ratio: 2 / 3;
-    object-fit: cover;
-    border-radius: 14px;
-    margin-bottom: 8px;
-  }
-
-  .msd-cast-placeholder {
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .msd-cast-name {
-    font-size: 0.88rem;
-    line-height: 1.25;
-    text-align: center;
-  }
-
-  .msd-cast-role {
-    display: none;
-  }
-
-  .msd-recommended-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .msd-content-tabs-section {
-    padding: 0 16px;
-  }
-
-  .msd-content-tabs {
-  display: flex;
-  gap: 6px; /* was 10px */
-  overflow-x: auto;
-  padding: 0 0 6px;
-}
-
-  .msd-content-tab {
-    padding: 10px 14px;
-    font-size: 0.9rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .msd-page {
-    padding: 0 0 140px;
-  }
-
-  .msd-title {
-    font-size: 1.9rem;
-  }
-
-  .msd-overview {
-    font-size: 0.98rem;
-  }
-
-  .msd-meta {
-    font-size: 0.95rem;
-  }
-
   .msd-stats-row {
     gap: 8px;
+    margin-bottom: 12px;
   }
 
   .msd-stat-box {
@@ -990,28 +830,47 @@
   }
 
   .msd-stat-label {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
   }
 
   .msd-stat-value {
     font-size: 1.15rem;
   }
 
+  .msd-content-tabs-section {
+    margin: 14px 10px 20px;
+  }
+
+  .msd-content-tabs {
+    gap: 5px;
+    padding-bottom: 6px;
+  }
+
+  .msd-content-tab {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .msd-tab-panel {
+    margin-top: 10px;
+  }
+
   .msd-section-title {
-    font-size: 1.8rem;
+    font-size: 1.15rem;
+    margin-bottom: 12px;
   }
 
   .msd-season-card {
+    border-radius: 16px;
     padding: 14px;
-    border-radius: 20px;
   }
 
   .msd-season-title {
-    font-size: 1.2rem;
+    font-size: 1.15rem;
   }
 
   .msd-season-subtitle {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
 
   .msd-season-toggle-right {
@@ -1020,7 +879,7 @@
 
   .msd-season-badge {
     padding: 6px 10px;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
   }
 
   .msd-episode-card {
@@ -1052,15 +911,74 @@
     border-radius: 10px;
   }
 
-  .msd-cast-grid,
-  .msd-recommended-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+  .msd-cast-grid-mobile {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
   }
 
-  .msd-panel {
-    padding: 16px;
-    border-radius: 20px;
+  .msd-cast-card-mobile {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .msd-cast-image-mobile {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 14px;
+    margin-bottom: 8px;
+  }
+
+  .msd-cast-placeholder {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .msd-cast-name {
+    font-size: 0.84rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .msd-cast-role {
+    display: none;
+  }
+
+  .msd-info-grid,
+  .msd-recommended-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .msd-panel,
+  .msd-panel-spaced {
+    margin: 18px 10px 0;
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .msd-bottom-action-bar {
+    gap: 8px;
+    padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .msd-bottom-action-btn {
+    min-height: 46px;
+    font-size: 0.9rem;
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .msd-title {
+    font-size: 1.55rem;
+  }
+
+  .msd-content-tab {
+    padding: 6px 9px;
+    font-size: 0.75rem;
   }
 }
 
