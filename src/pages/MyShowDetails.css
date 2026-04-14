@@ -621,7 +621,7 @@
   background: #182235;
   color: #cbd5e1;
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 7px 12px;
   font-size: 0.95rem;
   font-weight: 800;
   cursor: pointer;
@@ -717,9 +717,15 @@
 }
 
 @media (max-width: 768px) {
-  .msd-page {
-    padding: 0 0 140px;
+  .msd-content-tab {
+    padding: 6px 10px;
+    font-size: 0.78rem;
   }
+
+  .msd-content-tabs {
+    gap: 5px;
+  }
+}
 
   .msd-shell {
     max-width: 100%;
@@ -945,8 +951,11 @@
   }
 
   .msd-content-tabs {
-    gap: 8px;
-  }
+  display: flex;
+  gap: 6px; /* was 10px */
+  overflow-x: auto;
+  padding: 0 0 6px;
+}
 
   .msd-content-tab {
     padding: 10px 14px;
