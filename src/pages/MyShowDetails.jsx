@@ -92,9 +92,7 @@ function getBannerFromExtras(extras) {
   );
 }
 
-async function fetchAllWatchedRowsForUser(userId) {
-  if (!userId) return [];
-
+async function fetchAllWatchedRows() {
   const pageSize = 1000;
   let from = 0;
   let done = false;
@@ -105,8 +103,7 @@ async function fetchAllWatchedRowsForUser(userId) {
 
     const { data, error } = await supabase
       .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
+      .select("user_id, episode_id")
       .range(from, to);
 
     if (error) throw error;
@@ -216,6 +213,7 @@ function emptyState() {
     show: null,
     episodes: [],
     watchedRows: [],
+    communityWatchedRows: [],
     expandedSeasons: {},
     cast: [],
     recommendedShows: [],
@@ -244,6 +242,7 @@ export default function MyShowDetails() {
   const [show, setShow] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [watchedRows, setWatchedRows] = useState([]);
+  const [communityWatchedRows, setCommunityWatchedRows] = useState([]);
   const [expandedSeasons, setExpandedSeasons] = useState({});
 
   const [cast, setCast] = useState([]);
@@ -293,6 +292,7 @@ export default function MyShowDetails() {
           setShow(state.show);
           setEpisodes(state.episodes);
           setWatchedRows(state.watchedRows);
+          setCommunityWatchedRows(state.communityWatchedRows);
           setExpandedSeasons(state.expandedSeasons);
           setCast(state.cast);
           setRecommendedShows(state.recommendedShows);
@@ -319,6 +319,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setMobileBannerUrl(null);
         }
@@ -352,6 +353,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setMobileBannerUrl(null);
         }
@@ -472,16 +474,20 @@ export default function MyShowDetails() {
 
     async function loadSecondaryData(user, showId, episodeIds, tvdbId) {
       try {
-        const [savedShowsResult, burgrRows, allWatchedRows, episodeRatingRows] =
-          await Promise.all([
-            supabase
-              .from("user_shows_new")
-              .select(`shows!inner(tvdb_id)`)
-              .eq("user_id", user.id),
-            fetchBurgrRatings(showId),
-            fetchAllWatchedRowsForUser(user.id),
-            fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
-          ]);
+        const [
+          savedShowsResult,
+          burgrRows,
+          allWatchedRows,
+          episodeRatingRows,
+        ] = await Promise.all([
+          supabase
+            .from("user_shows_new")
+            .select(`shows!inner(tvdb_id)`)
+            .eq("user_id", user.id),
+          fetchBurgrRatings(showId),
+          fetchAllWatchedRows(),
+          fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
+        ]);
 
         if (isCancelled) return;
 
@@ -495,14 +501,19 @@ export default function MyShowDetails() {
         );
 
         const episodeIdSet = new Set((episodeIds || []).map(String));
-        const watchedRowsData = (allWatchedRows || []).filter((row) =>
+        const showWatchedRows = (allWatchedRows || []).filter((row) =>
           episodeIdSet.has(String(row.episode_id))
+        );
+
+        const myWatchedRows = showWatchedRows.filter(
+          (row) => String(row.user_id) === String(user.id)
         );
 
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
 
         setSavedShowTvdbIds(savedTvdbIds);
-        setWatchedRows(watchedRowsData || []);
+        setWatchedRows(myWatchedRows || []);
+        setCommunityWatchedRows(showWatchedRows || []);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
         setEpisodeRatings(episodeRatingRows || []);
@@ -632,6 +643,7 @@ export default function MyShowDetails() {
         console.error("Failed loading secondary show data:", secondaryError);
         if (!isCancelled) {
           setWatchedRows([]);
+          setCommunityWatchedRows([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
           setEpisodeRatings([]);
@@ -680,6 +692,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setCast([]);
           setRecommendedShows([]);
@@ -699,6 +712,7 @@ export default function MyShowDetails() {
           setShow(null);
           setEpisodes([]);
           setWatchedRows([]);
+          setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setCast([]);
           setRecommendedShows([]);
@@ -848,6 +862,55 @@ export default function MyShowDetails() {
         : null;
     return { avg, count: ratings.length };
   }, [burgrRatings]);
+
+  const communityStats = useMemo(() => {
+    const totalEpisodes = episodes.filter(
+      (ep) => Number(ep.seasonNumber ?? 0) !== 0
+    ).length;
+
+    const watchedByUser = new Map();
+
+    for (const row of communityWatchedRows || []) {
+      const userId = row?.user_id;
+      const episodeId = row?.episode_id;
+      if (!userId || !episodeId) continue;
+
+      if (!watchedByUser.has(String(userId))) {
+        watchedByUser.set(String(userId), new Set());
+      }
+
+      watchedByUser.get(String(userId)).add(String(episodeId));
+    }
+
+    let avgCompletion = null;
+
+    if (watchedByUser.size > 0 && totalEpisodes > 0) {
+      let totalPct = 0;
+
+      for (const [, watchedSet] of watchedByUser.entries()) {
+        totalPct += (watchedSet.size / totalEpisodes) * 100;
+      }
+
+      avgCompletion = Math.round(totalPct / watchedByUser.size);
+    }
+
+    const allEpisodeRatings = (episodeRatings || [])
+      .map((row) => Number(row?.rating))
+      .filter((value) => !Number.isNaN(value));
+
+    const avgRanksRating =
+      allEpisodeRatings.length > 0
+        ? (
+            allEpisodeRatings.reduce((sum, value) => sum + value, 0) /
+            allEpisodeRatings.length
+          ).toFixed(1)
+        : null;
+
+    return {
+      avgCompletion,
+      avgRanksRating,
+    };
+  }, [episodes, communityWatchedRows, episodeRatings]);
 
   const sourceYear = getYear(show?.first_aired);
   const sourceRating =
@@ -1011,6 +1074,7 @@ export default function MyShowDetails() {
 
     const watched = isEpisodeWatched(ep, watchedLookup);
     const previousRows = watchedRows;
+    const previousCommunityRows = communityWatchedRows;
     const optimisticRow = {
       user_id: user.id,
       episode_id: ep.id,
@@ -1022,11 +1086,33 @@ export default function MyShowDetails() {
           (row) => String(row?.episode_id ?? "") !== String(ep.id)
         )
       );
+      setCommunityWatchedRows((prev) =>
+        (prev || []).filter(
+          (row) =>
+            !(
+              String(row?.episode_id ?? "") === String(ep.id) &&
+              String(row?.user_id ?? "") === String(user.id)
+            )
+        )
+      );
     } else {
       setWatchedRows((prev) => {
         const next = [...(prev || [])];
         if (
           !next.some((row) => String(row?.episode_id ?? "") === String(ep.id))
+        ) {
+          next.push(optimisticRow);
+        }
+        return next;
+      });
+      setCommunityWatchedRows((prev) => {
+        const next = [...(prev || [])];
+        if (
+          !next.some(
+            (row) =>
+              String(row?.episode_id ?? "") === String(ep.id) &&
+              String(row?.user_id ?? "") === String(user.id)
+          )
         ) {
           next.push(optimisticRow);
         }
@@ -1059,6 +1145,7 @@ export default function MyShowDetails() {
     } catch (error) {
       console.error("Failed toggling watched state:", error);
       setWatchedRows(previousRows);
+      setCommunityWatchedRows(previousCommunityRows);
       alert(error.message || "Failed updating watched status");
     }
   }
@@ -1071,6 +1158,7 @@ export default function MyShowDetails() {
     if (!user) return;
 
     const previousRows = watchedRows;
+    const previousCommunityRows = communityWatchedRows;
 
     try {
       const mainEpisodes = [...episodes]
@@ -1110,6 +1198,23 @@ export default function MyShowDetails() {
         return next;
       });
 
+      setCommunityWatchedRows((prev) => {
+        const next = [...(prev || [])];
+        const existing = new Set(
+          next.map((r) => `${String(r.user_id)}:${String(r.episode_id)}`)
+        );
+
+        for (const row of rowsToUpsert) {
+          const key = `${String(row.user_id)}:${String(row.episode_id)}`;
+          if (!existing.has(key)) {
+            next.push(row);
+            existing.add(key);
+          }
+        }
+
+        return next;
+      });
+
       const batchSize = 100;
 
       for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
@@ -1124,6 +1229,7 @@ export default function MyShowDetails() {
     } catch (error) {
       console.error("Failed watch up to here:", error);
       setWatchedRows(previousRows);
+      setCommunityWatchedRows(previousCommunityRows);
       alert("Failed to save watched episodes");
     }
   }
@@ -1230,9 +1336,6 @@ export default function MyShowDetails() {
         <div className="msd-shell">
           <div className="msd-empty">
             <p>Show not found.</p>
-            <Link to="/my-shows" className="msd-back-link">
-              Back to My Shows
-            </Link>
           </div>
         </div>
       </div>
@@ -1248,27 +1351,50 @@ export default function MyShowDetails() {
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
-  const bannerImage = mobileBannerUrl || "/no-image.png";
-
   return (
     <div className="msd-page">
       <div className="msd-shell">
-        <Link to="/my-shows" className="msd-back-link">
-          ← Back to My Shows
-        </Link>
+        <section className="msd-mobile-banner-wrap">
+          <div
+            className={`msd-mobile-banner ${
+              mobileBannerUrl ? "" : "msd-mobile-banner-fallback"
+            }`}
+            style={
+              mobileBannerUrl
+                ? { backgroundImage: `url(${mobileBannerUrl})` }
+                : undefined
+            }
+          >
+            <div className="msd-mobile-banner-overlay" />
 
-        {mobileBannerUrl ? (
-  <section className="msd-mobile-banner-wrap">
-    <div
-      className="msd-mobile-banner"
-      style={{
-        backgroundImage: `url(${mobileBannerUrl})`,
-      }}
-    >
-      <div className="msd-mobile-banner-overlay" />
-    </div>
-  </section>
-) : null}
+            <div className="msd-mobile-banner-stats">
+              <div className="msd-mobile-banner-stat">
+                <span className="msd-mobile-banner-stat-label">Avg Score</span>
+                <strong className="msd-mobile-banner-stat-value">
+                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
+                </strong>
+              </div>
+
+              <div className="msd-mobile-banner-stat">
+                <span className="msd-mobile-banner-stat-label">Completion</span>
+                <strong className="msd-mobile-banner-stat-value">
+                  {communityStats.avgCompletion != null
+                    ? `${communityStats.avgCompletion}%`
+                    : "—"}
+                </strong>
+              </div>
+
+              <div className="msd-mobile-banner-stat">
+                <span className="msd-mobile-banner-stat-label">Avg Ranks</span>
+                <strong className="msd-mobile-banner-stat-value">
+                  {communityStats.avgRanksRating
+                    ? `${communityStats.avgRanksRating}/10`
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="msd-hero">
           <div className="msd-hero-poster-wrap">
@@ -1315,9 +1441,14 @@ export default function MyShowDetails() {
               <div className="msd-mobile-title-wrap">
                 <h1 className="msd-title">{show.show_name}</h1>
                 {show.first_aired ? (
-                  <div className="msd-mobile-year">
-                    {new Date(show.first_aired).getFullYear()}
-                  </div>
+                  <>
+                    <div className="msd-mobile-year">
+                      {new Date(show.first_aired).getFullYear()}
+                    </div>
+                    <div className="msd-mobile-first-aired">
+                      First aired: {formatDate(show.first_aired)}
+                    </div>
+                  </>
                 ) : null}
               </div>
 
@@ -1335,32 +1466,6 @@ export default function MyShowDetails() {
                 {show.overview}
               </p>
             ) : null}
-
-            <div className="msd-meta msd-meta-mobile">
-              {show.first_aired ? (
-                <div>First aired: {formatDate(show.first_aired)}</div>
-              ) : null}
-              {stats.nextEpisode ? (
-                <div>
-                  Next episode: {formatDate(stats.nextEpisode.aired)} (
-                  {getDaysUntil(stats.nextEpisode.aired) === 0
-                    ? "TODAY"
-                    : getDaysUntil(stats.nextEpisode.aired) === 1
-                    ? "IN 1 DAY"
-                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
-                  )
-                </div>
-              ) : null}
-              {show.status ? <div>Status: {show.status}</div> : null}
-              <div>
-                List status:{" "}
-                {show.watch_status === "watchlist"
-                  ? "watchlist"
-                  : show.watch_status === "archived"
-                  ? "archived"
-                  : show.watch_status || "not added"}
-              </div>
-            </div>
 
             <div className="msd-stats-row msd-stats-row-top">
               <div className="msd-stat-box">
@@ -1420,13 +1525,6 @@ export default function MyShowDetails() {
             </div>
 
             <div className="msd-stats-row msd-stats-row-rest">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Average Burgrs</span>
-                <strong className="msd-stat-value">
-                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
-                </strong>
-              </div>
-
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Network</span>
                 <strong className="msd-stat-value">
