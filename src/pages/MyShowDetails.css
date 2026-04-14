@@ -447,7 +447,8 @@
   text-decoration: none;
   color: inherit;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .msd-cast-card:hover,
@@ -458,7 +459,7 @@
 }
 
 .msd-cast-image,
-.msd-rec-poster {
+.msd-rec-image {
   width: 100%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
@@ -486,8 +487,90 @@
 }
 
 .episode-highlight {
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55), 0 0 30px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55),
+    0 0 30px rgba(139, 92, 246, 0.2);
   transition: box-shadow 0.25s ease;
+}
+
+.msd-episode-rating-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.msd-episode-rating-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.msd-episode-rating-meta {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.msd-episode-rating-footer {
+  margin-top: 8px;
+}
+
+.msd-episode-rating-desktop {
+  display: block;
+}
+
+.msd-episode-rating-mobile {
+  display: none;
+}
+
+.msd-rating-trigger {
+  width: 100%;
+}
+
+.msd-mobile-rating-sheet {
+  margin-top: 10px;
+}
+
+.msd-mobile-rating-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.msd-mobile-rating-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.msd-mobile-rating-option.is-selected {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.msd-mobile-banner-wrap {
+  display: none;
+}
+
+.msd-mobile-thumb,
+.msd-actions-mobile {
+  display: none;
+}
+
+.msd-mobile-first-aired {
+  display: none;
+}
+
+.msd-mobile-banner-stats {
+  display: none;
 }
 
 @media (max-width: 900px) {
@@ -510,22 +593,248 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
+  .msd-episode-rating-desktop {
+    display: none;
+  }
+
+  .msd-episode-rating-mobile {
+    display: block;
+  }
+
   .msd-page {
-    padding: 16px 12px 24px;
+    padding: 0;
+  }
+
+  .msd-shell {
+    max-width: 100%;
+    padding: 0 0 28px;
+  }
+
+  .msd-back-link {
+    display: none !important;
+  }
+
+  .msd-mobile-banner-wrap {
+    display: block;
+    width: 100%;
+    margin: 0 0 12px;
+  }
+
+  .msd-mobile-banner {
+    position: relative;
+    width: 100%;
+    height: 230px;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    overflow: hidden;
+  }
+
+  .msd-mobile-banner-fallback {
+    background: linear-gradient(180deg, #1b2333 0%, #0f172a 100%);
+  }
+
+  .msd-mobile-banner-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(3, 7, 18, 0.02) 0%,
+      rgba(3, 7, 18, 0.16) 45%,
+      rgba(3, 7, 18, 0.96) 100%
+    );
+  }
+
+  .msd-mobile-banner-stats {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  .msd-mobile-banner-stat {
+    min-width: 92px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(4, 10, 24, 0.72);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: right;
+  }
+
+  .msd-mobile-banner-stat-label {
+    display: block;
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.72);
+    margin-bottom: 2px;
+  }
+
+  .msd-mobile-banner-stat-value {
+    display: block;
+    font-size: 0.95rem;
+    color: #fff;
+    font-weight: 700;
   }
 
   .msd-hero {
-    grid-template-columns: 1fr;
-    padding: 16px;
-    border-radius: 22px;
-    gap: 16px;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 16px !important;
+    display: block !important;
+    margin-bottom: 18px;
   }
 
-  .msd-poster {
-    width: 120px;
-    height: 174px;
+  .msd-hero-poster-wrap {
+    display: none;
+  }
+
+  .msd-hero-main {
+    width: 100%;
+  }
+
+  .msd-hero-main-mobile {
+    width: 100%;
+    margin-top: -58px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .msd-mobile-top-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .msd-mobile-title-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .msd-title {
+    font-size: 1.7rem;
+    line-height: 1.05;
+    margin: 0 0 6px;
+  }
+
+  .msd-mobile-year {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .msd-mobile-first-aired {
+    display: block;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 500;
+  }
+
+  .msd-mobile-thumb {
+    display: block;
+    width: 96px;
+    min-width: 96px;
+    height: 138px;
+    object-fit: cover;
     border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .msd-overview-mobile {
+    width: 100%;
+    margin: 0 0 16px;
+    font-size: 0.97rem;
+    line-height: 1.55;
+  }
+
+  .msd-progress {
+    margin-top: 12px;
+  }
+
+  .msd-actions-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .msd-actions-mobile .msd-btn {
+    width: 100%;
+  }
+
+  .msd-episodes-section {
+    padding: 0 16px;
+    margin-top: 20px;
+  }
+
+  .msd-section-title {
+    font-size: 1.2rem;
+    margin-bottom: 14px;
+  }
+
+  .msd-season-card {
+    border-radius: 16px;
+  }
+
+  .msd-panel,
+  .msd-panel-spaced {
+    margin: 20px 16px 0;
+    border-radius: 18px;
+  }
+
+  .msd-cast-grid-mobile {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .msd-cast-card-mobile {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .msd-cast-image-mobile {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 14px;
+    margin-bottom: 8px;
+  }
+
+  .msd-cast-placeholder {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .msd-cast-name {
+    font-size: 0.88rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .msd-cast-role {
+    display: none;
+  }
+
+  .msd-recommended-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .msd-page {
+    padding: 0;
   }
 
   .msd-title {
@@ -621,291 +930,5 @@
   .msd-panel {
     padding: 16px;
     border-radius: 20px;
-  }
-
-  .msd-episode-rating-box {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.msd-episode-rating-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.msd-episode-rating-meta {
-  font-size: 0.9rem;
-  opacity: 0.85;
-}
-
-.msd-episode-rating-footer {
-  margin-top: 8px;
-}
-
-.msd-episode-rating-desktop {
-  display: block;
-}
-
-.msd-episode-rating-mobile {
-  display: none;
-}
-
-.msd-rating-trigger {
-  width: 100%;
-}
-
-.msd-mobile-rating-sheet {
-  margin-top: 10px;
-}
-
-.msd-mobile-rating-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.msd-mobile-rating-option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
-  cursor: pointer;
-}
-
-.msd-mobile-rating-option.is-selected {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-@media (max-width: 768px) {
-  .msd-episode-rating-desktop {
-    display: none;
-  }
-
-  .msd-episode-rating-mobile {
-    display: block;
-  }
-}
-}
-.msd-mobile-banner-wrap {
-  display: none;
-}
-
-.msd-mobile-thumb,
-.msd-actions-mobile {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .msd-page {
-    padding-top: 72px;
-  }
-
-  .msd-shell {
-    max-width: 100%;
-    padding: 0 0 28px;
-  }
-
-  .msd-back-link {
-    display: block;
-    margin: 0;
-    padding: 12px 16px 8px;
-  }
-
-  .msd-mobile-banner-wrap {
-    display: block;
-    width: 100%;
-    margin-bottom: 12px;
-  }
-
-  .msd-mobile-banner {
-    position: relative;
-    width: 100%;
-    height: 190px;
-    background-size: cover;
-    background-position: center center;
-    background-repeat: no-repeat;
-    overflow: hidden;
-  }
-
-  .msd-mobile-banner-fallback {
-    background: linear-gradient(180deg, #1b2333 0%, #0f172a 100%);
-  }
-
-  .msd-mobile-banner-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(3, 7, 18, 0.05) 0%,
-      rgba(3, 7, 18, 0.18) 40%,
-      rgba(3, 7, 18, 0.82) 100%
-    );
-  }
-
-  .msd-hero {
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    padding: 0 16px !important;
-    display: block !important;
-    margin-bottom: 18px;
-  }
-
-  .msd-hero-poster-wrap {
-    display: none;
-  }
-
-  .msd-hero-main {
-    width: 100%;
-  }
-
-  .msd-hero-main-mobile {
-    width: 100%;
-    margin-top: -34px;
-    position: relative;
-    z-index: 2;
-  }
-
-  .msd-mobile-top-row {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 14px;
-  }
-
-  .msd-mobile-title-wrap {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .msd-title {
-    font-size: 1.7rem;
-    line-height: 1.05;
-    margin: 0 0 6px;
-  }
-
-  .msd-mobile-year {
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.72);
-    font-weight: 600;
-  }
-
-  .msd-mobile-thumb {
-    display: block;
-    width: 92px;
-    min-width: 92px;
-    height: 132px;
-    object-fit: cover;
-    border-radius: 14px;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
-    border: 2px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .msd-overview-mobile {
-    width: 100%;
-    margin: 0 0 16px;
-    font-size: 0.97rem;
-    line-height: 1.55;
-  }
-
-  .msd-meta-mobile {
-    display: grid;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .msd-stats-row-top {
-    gap: 10px;
-  }
-
-  .msd-stat-box {
-    min-width: 0;
-  }
-
-  .msd-progress {
-    margin-top: 12px;
-  }
-
-  .msd-actions-mobile {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 14px;
-  }
-
-  .msd-actions-mobile .msd-btn {
-    width: 100%;
-  }
-
-  .msd-episodes-section {
-    padding: 0 16px;
-    margin-top: 20px;
-  }
-
-  .msd-section-title {
-    font-size: 1.2rem;
-    margin-bottom: 14px;
-  }
-
-  .msd-season-card {
-    border-radius: 16px;
-  }
-
-  .msd-panel,
-  .msd-panel-spaced {
-    margin: 20px 16px 0;
-    border-radius: 18px;
-  }
-
-  .msd-cast-grid-mobile {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .msd-cast-card-mobile {
-    background: transparent !important;
-    border: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-
-  .msd-cast-image-mobile {
-    width: 100%;
-    aspect-ratio: 2 / 3;
-    object-fit: cover;
-    border-radius: 14px;
-    margin-bottom: 8px;
-  }
-
-  .msd-cast-placeholder {
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .msd-cast-name {
-    font-size: 0.88rem;
-    line-height: 1.25;
-    text-align: center;
-  }
-
-  .msd-cast-role {
-    display: none;
-  }
-
-  .msd-recommended-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
