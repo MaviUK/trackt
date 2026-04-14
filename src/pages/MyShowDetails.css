@@ -624,9 +624,9 @@
  .msd-mobile-banner {
   position: relative;
   width: 100%;
-  height: 190px;
+  height: 250px;
   background-size: cover;
-  background-position: center 100px;
+  background-position: center 80px;
   background-repeat: no-repeat;
   overflow: hidden;
 }
