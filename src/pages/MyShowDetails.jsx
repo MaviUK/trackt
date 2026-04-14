@@ -1365,7 +1365,6 @@ export default function MyShowDetails() {
                 : undefined
             }
           >
-            <div className="msd-mobile-banner-overlay" />
 
             </div>
           </div>
