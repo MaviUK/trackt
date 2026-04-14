@@ -997,6 +997,17 @@
   letter-spacing: 6px;
   text-align: center;
   cursor: pointer;
+
+  /* ADD THESE 👇 */
+  outline: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+  .msd-overview-dots:focus,
+.msd-overview-dots:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 }
 
