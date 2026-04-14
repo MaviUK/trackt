@@ -1435,7 +1435,7 @@ export default function MyShowDetails() {
               ) : null}
             </div>
 
-            {show.overview ? (
+           {show.overview ? (
   <div className="msd-overview-wrapper">
     <p
       className={`msd-overview msd-overview-mobile ${
@@ -1445,14 +1445,14 @@ export default function MyShowDetails() {
       {show.overview}
     </p>
 
-    {!expandedOverview && (
-      <button
-        className="msd-overview-expand"
-        onClick={() => setExpandedOverview(true)}
-      >
-        ...
-      </button>
-    )}
+    <button
+      type="button"
+      className="msd-overview-dots"
+      onClick={() => setExpandedOverview((prev) => !prev)}
+      aria-label={expandedOverview ? "Collapse overview" : "Expand overview"}
+    >
+      •••
+    </button>
   </div>
 ) : null}
 
