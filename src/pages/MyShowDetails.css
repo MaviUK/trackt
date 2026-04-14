@@ -1018,4 +1018,53 @@
   outline: none;
   box-shadow: none;
 }
+  .msd-page {
+  min-height: 100vh;
+  background: #0b1020;
+  color: #f8fafc;
+  padding: 20px 16px 140px;
+}
+
+.msd-bottom-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 76px; /* sits just above your main bottom nav */
+  z-index: 120;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
+  background: rgba(11, 16, 32, 0.96);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.msd-bottom-action-btn {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid #2b3954;
+  background: #22304a;
+  color: #f8fafc;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.msd-bottom-action-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.msd-bottom-action-btn-primary {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #fff;
+}
+
+@media (min-width: 769px) {
+  .msd-bottom-action-bar {
+    display: none;
+  }
+}
 }
