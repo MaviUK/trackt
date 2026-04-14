@@ -565,7 +565,7 @@ export default function MyShowDetails() {
         setHoverEpisodeRatings({});
         setOpenEpisodeRatingPickerId(null);
 
-        try {
+                try {
           setExtrasLoading(true);
 
           const extrasRes = await fetch(
@@ -580,60 +580,60 @@ export default function MyShowDetails() {
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
           const fallbackRecommendations = Array.isArray(extras.recommendations)
-  ? extras.recommendations
-  : [];
+            ? extras.recommendations
+            : [];
 
-const bannerFromExtras = getBannerFromExtras(extras);
+          const bannerFromExtras = getBannerFromExtras(extras);
 
-let mappedTmdbRecommendations = [];
-try {
-  mappedTmdbRecommendations =
-    await enrichTmdbShowsWithMappings(fallbackRecommendations);
-} catch (mappingError) {
-  console.error("Failed mapping TMDB recommendations:", mappingError);
+          let mappedTmdbRecommendations = [];
+          try {
+            mappedTmdbRecommendations =
+              await enrichTmdbShowsWithMappings(fallbackRecommendations);
+          } catch (mappingError) {
+            console.error("Failed mapping TMDB recommendations:", mappingError);
 
-  mappedTmdbRecommendations = fallbackRecommendations.map((item) =>
-    normalizeMappedShow({
-      ...item,
-      source: "tmdb",
-      name:
-        item?.name ||
-        item?.title ||
-        item?.show_name ||
-        "Unknown show",
-      first_air_date:
-        item?.first_air_date ||
-        item?.firstAired ||
-        item?.first_aired ||
-        "",
-      poster_url:
-        item?.poster_url ||
-        item?.posterUrl ||
-        item?.image_url ||
-        item?.image ||
-        (item?.poster_path
-          ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-          : ""),
-      poster_path: item?.poster_path || null,
-    })
-  );
-}
+            mappedTmdbRecommendations = fallbackRecommendations.map((item) =>
+              normalizeMappedShow({
+                ...item,
+                source: "tmdb",
+                name:
+                  item?.name ||
+                  item?.title ||
+                  item?.show_name ||
+                  "Unknown show",
+                first_air_date:
+                  item?.first_air_date ||
+                  item?.firstAired ||
+                  item?.first_aired ||
+                  "",
+                poster_url:
+                  item?.poster_url ||
+                  item?.posterUrl ||
+                  item?.image_url ||
+                  item?.image ||
+                  (item?.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                    : ""),
+                poster_path: item?.poster_path || null,
+              })
+            );
+          }
 
-const filteredTmdbRecommendations = mappedTmdbRecommendations.filter((item) => {
-  const recTvdbId =
-    item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-  if (!recTvdbId) return true;
-  return !savedTvdbIds.has(String(recTvdbId));
-});
+          const filteredTmdbRecommendations =
+            mappedTmdbRecommendations.filter((item) => {
+              const recTvdbId =
+                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+              if (!recTvdbId) return true;
+              return !savedTvdbIds.has(String(recTvdbId));
+            });
 
-if (!isCancelled) {
-  setCast(castRows);
-  setCrew(crewRows);
-  setPeopleAlsoWatch([]);
-  setRecommendedShows(filteredTmdbRecommendations);
-  setMobileBannerUrl(bannerFromExtras || null);
-}
-          
+          if (!isCancelled) {
+            setCast(castRows);
+            setCrew(crewRows);
+            setPeopleAlsoWatch([]);
+            setRecommendedShows(filteredTmdbRecommendations);
+            setMobileBannerUrl(bannerFromExtras || null);
+          }
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           if (!isCancelled) {
