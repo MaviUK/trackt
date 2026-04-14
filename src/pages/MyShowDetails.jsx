@@ -1365,8 +1365,6 @@ export default function MyShowDetails() {
                 : undefined
             }
           >
-
-            </div>
           </div>
         </section>
 
