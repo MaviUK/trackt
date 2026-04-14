@@ -641,10 +641,14 @@
     background: linear-gradient(
       to bottom,
       rgba(3, 7, 18, 0.02) 0%,
-      rgba(3, 7, 18, 0.16) 45%,
+      rgba(3, 7, 18, 0.16) 50%,
       rgba(3, 7, 18, 0.96) 100%
     );
   }
+
+  .msd-mobile-banner-overlay {
+  z-index: 1;
+}
 
   .msd-mobile-banner-stats {
     position: absolute;
