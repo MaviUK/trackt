@@ -486,88 +486,13 @@ async function getPeopleAlsoWatch(tvdbId) {
 async function findTmdbTvIdByTvdbId(tvdbId) {
   const apiKey = process.env.TMDB_API_KEY;
 
-  if (!apiKey) return null;
-
-  const findRes = await fetch(
-    `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
-      apiKey
-    )}&external_source=tvdb_id`,
-    {
-      headers: {
-        Accept: "application/json",
-      },
-    }
+  const res = await fetch(
+    `https://api.themoviedb.org/3/find/${tvdbId}?api_key=${apiKey}&external_source=tvdb_id`
   );
 
-  const findJson = await readJsonSafe(findRes);
+  const json = await res.json();
 
-  if (!findRes.ok) {
-    throw new Error(
-      `TMDB find failed (${findRes.status}): ${
-        findJson?.status_message || "Unknown error"
-      }`
-    );
-  }
-
-  return findJson?.tv_results?.[0]?.id || null;
-}
-
-async function getTmdbRecommendations(tvdbId) {
-  try {
-    const apiKey = process.env.TMDB_API_KEY;
-    if (!apiKey) return [];
-
-    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId);
-    if (!tmdbId) return [];
-
-    const recRes = await fetch(
-      `${TMDB_BASE_URL}/tv/${tmdbId}/recommendations?api_key=${encodeURIComponent(
-        apiKey
-      )}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const recJson = await readJsonSafe(recRes);
-
-    if (!recRes.ok) {
-      throw new Error(
-        `TMDB recommendations failed (${recRes.status}): ${
-          recJson?.status_message || "Unknown error"
-        }`
-      );
-    }
-
-    return dedupeRecommendations(
-      (Array.isArray(recJson?.results) ? recJson.results : [])
-        .map((item, index) => ({
-          id: item?.id || `tmdb-rec-${index}`,
-          tmdb_id: item?.id || null,
-          tvdb_id: null,
-          tvdbId: null,
-          source: "tmdb",
-          name: item?.name || item?.original_name || null,
-          overview: item?.overview || "",
-          first_air_date: item?.first_air_date || null,
-          first_aired: item?.first_air_date || null,
-          firstAired: item?.first_air_date || null,
-          poster_path: item?.poster_path || "",
-          poster_url: item?.poster_path
-            ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
-            : null,
-          posterUrl: item?.poster_path
-            ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
-            : null,
-        }))
-        .filter((item) => item.name)
-    ).slice(0, 12);
-  } catch (error) {
-    console.error("TMDB recommendations failed:", error);
-    return [];
-  }
+  return json?.tv_results?.[0]?.id || null;
 }
 
 async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
