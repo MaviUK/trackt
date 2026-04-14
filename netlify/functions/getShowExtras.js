@@ -590,10 +590,23 @@ async function getTmdbProvidersTrailerAndBackdrop(
         backdropUrl: null,
         tmdbId: null,
         backdropCount: 0,
+        tmdbLookupDebug: {
+          hasApiKey: false,
+          findStatus: null,
+          findOk: false,
+          findResultCount: 0,
+          searchStatus: null,
+          searchOk: false,
+          searchResultCount: 0,
+          matchedBy: null,
+        },
       };
     }
 
-    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId, showName, firstAired);
+    const lookup = await findTmdbTvIdByTvdbId(tvdbId, showName, firstAired);
+    const tmdbId = lookup.tmdbId;
+    const tmdbLookupDebug = lookup.debug;
+
     if (!tmdbId) {
       return {
         providers: [],
@@ -601,6 +614,7 @@ async function getTmdbProvidersTrailerAndBackdrop(
         backdropUrl: null,
         tmdbId: null,
         backdropCount: 0,
+        tmdbLookupDebug,
       };
     }
 
@@ -625,16 +639,6 @@ async function getTmdbProvidersTrailerAndBackdrop(
     const imagesJson = await readJsonSafe(imagesRes);
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
-
-    if (!imagesRes.ok) {
-      console.error("TMDB images failed:", imagesJson);
-    }
-    if (!providersRes.ok) {
-      console.error("TMDB providers failed:", providersJson);
-    }
-    if (!videosRes.ok) {
-      console.error("TMDB videos failed:", videosJson);
-    }
 
     const backdrops = Array.isArray(imagesJson?.backdrops)
       ? imagesJson.backdrops
@@ -709,6 +713,7 @@ async function getTmdbProvidersTrailerAndBackdrop(
       backdropUrl,
       tmdbId,
       backdropCount: backdrops.length,
+      tmdbLookupDebug,
     };
   } catch (err) {
     console.error("TMDB fetch failed:", err);
@@ -718,6 +723,7 @@ async function getTmdbProvidersTrailerAndBackdrop(
       backdropUrl: null,
       tmdbId: null,
       backdropCount: 0,
+      tmdbLookupDebug: null,
     };
   }
 }
