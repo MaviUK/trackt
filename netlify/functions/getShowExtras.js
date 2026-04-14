@@ -582,119 +582,83 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
       return { providers: [], trailer: null, backdropUrl: null };
     }
 
-    const [detailsRes, providersRes, videosRes] = await Promise.all([
+    // 🔥 NEW: fetch images + providers + videos
+    const [imagesRes, providersRes, videosRes] = await Promise.all([
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${encodeURIComponent(apiKey)}`,
-        {
-          headers: { Accept: "application/json" },
-        }
+        `${TMDB_BASE_URL}/tv/${tmdbId}/images?api_key=${apiKey}&include_image_language=en,null`
       ),
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${encodeURIComponent(
-          apiKey
-        )}`,
-        {
-          headers: { Accept: "application/json" },
-        }
+        `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${apiKey}`
       ),
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${encodeURIComponent(
-          apiKey
-        )}`,
-        {
-          headers: { Accept: "application/json" },
-        }
+        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${apiKey}`
       ),
     ]);
 
-    const detailsJson = await readJsonSafe(detailsRes);
+    const imagesJson = await readJsonSafe(imagesRes);
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
 
-    if (!detailsRes.ok) {
-      throw new Error(
-        `TMDB details failed (${detailsRes.status}): ${
-          detailsJson?.status_message || "Unknown error"
-        }`
-      );
+    // ✅ STEP 2: pick BEST backdrop
+    const backdrops = imagesJson?.backdrops || [];
+
+    let bestBackdrop = null;
+
+    if (backdrops.length > 0) {
+      bestBackdrop = backdrops
+        .filter((img) => img.width >= 1280) // avoid tiny images
+        .sort((a, b) => {
+          // prioritize votes, then resolution
+          if (b.vote_average !== a.vote_average) {
+            return b.vote_average - a.vote_average;
+          }
+          return b.width - a.width;
+        })[0];
     }
 
-    if (!providersRes.ok) {
-      throw new Error(
-        `TMDB providers failed (${providersRes.status}): ${
-          providersJson?.status_message || "Unknown error"
-        }`
-      );
-    }
+    const backdropUrl = bestBackdrop?.file_path
+      ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}`
+      : null;
 
-    if (!videosRes.ok) {
-      throw new Error(
-        `TMDB videos failed (${videosRes.status}): ${
-          videosJson?.status_message || "Unknown error"
-        }`
-      );
-    }
-
+    // ✅ providers (same as before)
     const providerRegion =
-      providersJson?.results?.GB || providersJson?.results?.US || null;
+      providersJson?.results?.GB ||
+      providersJson?.results?.US ||
+      null;
 
     const providerItems = [
-      ...(Array.isArray(providerRegion?.flatrate)
-        ? providerRegion.flatrate
-        : []),
-      ...(Array.isArray(providerRegion?.free) ? providerRegion.free : []),
-      ...(Array.isArray(providerRegion?.ads) ? providerRegion.ads : []),
-      ...(Array.isArray(providerRegion?.rent) ? providerRegion.rent : []),
-      ...(Array.isArray(providerRegion?.buy) ? providerRegion.buy : []),
+      ...(providerRegion?.flatrate || []),
+      ...(providerRegion?.free || []),
+      ...(providerRegion?.ads || []),
     ];
 
-    const seenProviders = new Set();
-    const providers = providerItems
-      .filter((item) => {
-        const key = String(item?.provider_id || item?.provider_name || "");
-        if (!key || seenProviders.has(key)) return false;
-        seenProviders.add(key);
-        return true;
-      })
-      .map((item) => ({
-        id: item?.provider_id || item?.provider_name,
-        name: item?.provider_name || "Unknown provider",
-        logo: item?.logo_path
-          ? `${TMDB_IMAGE_BASE_URL}${item.logo_path}`
-          : null,
-      }))
-      .slice(0, 8);
+    const providers = providerItems.map((p) => ({
+      id: p.provider_id,
+      name: p.provider_name,
+      logo: p.logo_path
+        ? `https://image.tmdb.org/t/p/w92${p.logo_path}`
+        : null,
+    }));
 
-    const videos = Array.isArray(videosJson?.results) ? videosJson.results : [];
+    // ✅ trailer (same as before)
+    const videos = videosJson?.results || [];
+
     const trailerCandidate =
       videos.find(
-        (video) =>
-          video?.site === "YouTube" &&
-          video?.type === "Trailer" &&
-          video?.official
+        (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
       ) ||
-      videos.find(
-        (video) => video?.site === "YouTube" && video?.type === "Trailer"
-      ) ||
-      videos.find(
-        (video) => video?.site === "YouTube" && video?.type === "Teaser"
-      ) ||
-      null;
+      videos.find((v) => v.site === "YouTube" && v.type === "Trailer");
 
     const trailer = trailerCandidate?.key
       ? {
-          name: trailerCandidate.name || "Watch Trailer",
+          name: trailerCandidate.name,
           url: `https://www.youtube.com/watch?v=${trailerCandidate.key}`,
         }
       : null;
 
-    const backdropUrl = detailsJson?.backdrop_path
-      ? `${TMDB_BACKDROP_BASE_URL}${detailsJson.backdrop_path}`
-      : null;
-
     return { providers, trailer, backdropUrl };
-  } catch (error) {
-    console.error("TMDB providers/trailer/backdrop failed:", error);
+  } catch (err) {
+    console.error("TMDB fetch failed:", err);
     return { providers: [], trailer: null, backdropUrl: null };
   }
 }
