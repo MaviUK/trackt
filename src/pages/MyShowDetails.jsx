@@ -43,22 +43,6 @@ function isFuture(dateString) {
   return !Number.isNaN(d.getTime()) && d > new Date();
 }
 
-function getDaysUntil(dateString) {
-  if (!dateString) return null;
-  const now = new Date();
-  const target = new Date(dateString);
-  if (Number.isNaN(target.getTime())) return null;
-
-  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const targetStart = new Date(
-    target.getFullYear(),
-    target.getMonth(),
-    target.getDate()
-  );
-
-  return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
-}
-
 function getYear(dateString) {
   if (!dateString) return "";
   const d = new Date(dateString);
@@ -462,6 +446,7 @@ export default function MyShowDetails() {
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
         setMobileBannerUrl(null);
+        setExpandedOverview(false);
       }
 
       return {
@@ -808,6 +793,21 @@ export default function MyShowDetails() {
     return { total, watched, pct, nextEpisode };
   }, [episodes, watchedLookup]);
 
+  const nextUnwatchedEpisode = useMemo(() => {
+    const mainEpisodes = [...episodes]
+      .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+      .sort((a, b) => {
+        const seasonDiff =
+          Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+        if (seasonDiff !== 0) return seasonDiff;
+        return Number(a.number ?? 0) - Number(b.number ?? 0);
+      });
+
+    return (
+      mainEpisodes.find((ep) => !isEpisodeWatched(ep, watchedLookup)) || null
+    );
+  }, [episodes, watchedLookup]);
+
   useEffect(() => {
     async function syncWatchStatus() {
       if (!currentUserId || !show?.id) return;
@@ -852,66 +852,6 @@ export default function MyShowDetails() {
     stats.watched,
     savingShowAction,
   ]);
-
-  const burgrStats = useMemo(() => {
-    const ratings = burgrRatings
-      .map((r) => Number(r.rating))
-      .filter((n) => !Number.isNaN(n));
-    const avg =
-      ratings.length > 0
-        ? (ratings.reduce((sum, n) => sum + n, 0) / ratings.length).toFixed(1)
-        : null;
-    return { avg, count: ratings.length };
-  }, [burgrRatings]);
-
-  const communityStats = useMemo(() => {
-    const totalEpisodes = episodes.filter(
-      (ep) => Number(ep.seasonNumber ?? 0) !== 0
-    ).length;
-
-    const watchedByUser = new Map();
-
-    for (const row of communityWatchedRows || []) {
-      const userId = row?.user_id;
-      const episodeId = row?.episode_id;
-      if (!userId || !episodeId) continue;
-
-      if (!watchedByUser.has(String(userId))) {
-        watchedByUser.set(String(userId), new Set());
-      }
-
-      watchedByUser.get(String(userId)).add(String(episodeId));
-    }
-
-    let avgCompletion = null;
-
-    if (watchedByUser.size > 0 && totalEpisodes > 0) {
-      let totalPct = 0;
-
-      for (const [, watchedSet] of watchedByUser.entries()) {
-        totalPct += (watchedSet.size / totalEpisodes) * 100;
-      }
-
-      avgCompletion = Math.round(totalPct / watchedByUser.size);
-    }
-
-    const allEpisodeRatings = (episodeRatings || [])
-      .map((row) => Number(row?.rating))
-      .filter((value) => !Number.isNaN(value));
-
-    const avgRanksRating =
-      allEpisodeRatings.length > 0
-        ? (
-            allEpisodeRatings.reduce((sum, value) => sum + value, 0) /
-            allEpisodeRatings.length
-          ).toFixed(1)
-        : null;
-
-    return {
-      avgCompletion,
-      avgRanksRating,
-    };
-  }, [episodes, communityWatchedRows, episodeRatings]);
 
   const sourceYear = getYear(show?.first_aired);
   const sourceRating =
@@ -1151,6 +1091,11 @@ export default function MyShowDetails() {
     }
   }
 
+  async function handleMarkNextEpisodeWatched() {
+    if (!nextUnwatchedEpisode) return;
+    await handleMarkWatched(nextUnwatchedEpisode);
+  }
+
   async function handleWatchUpToHere(targetEpisode) {
     const {
       data: { user },
@@ -1365,9 +1310,7 @@ export default function MyShowDetails() {
                 ? { backgroundImage: `url(${mobileBannerUrl})` }
                 : undefined
             }
-          >
-            
-          </div>
+          />
         </section>
 
         <section className="msd-hero">
@@ -1379,35 +1322,6 @@ export default function MyShowDetails() {
                 className="msd-poster"
               />
             ) : null}
-
-            <div className="msd-actions msd-hero-actions">
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleToggleRemoveShow}
-                disabled={savingShowAction}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : isRemoved
-                  ? "Add Show"
-                  : "Remove Show"}
-              </button>
-
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleToggleArchiveShow}
-                disabled={savingShowAction || isRemoved}
-                title={isRemoved ? "Add the show first before archiving it" : ""}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : isArchived
-                  ? "Unarchive Show"
-                  : "Archive Show"}
-              </button>
-            </div>
           </div>
 
           <div className="msd-hero-main msd-hero-main-mobile">
@@ -1435,26 +1349,28 @@ export default function MyShowDetails() {
               ) : null}
             </div>
 
-           {show.overview ? (
-  <div className="msd-overview-wrapper">
-    <p
-      className={`msd-overview msd-overview-mobile ${
-        expandedOverview ? "expanded" : "collapsed"
-      }`}
-    >
-      {show.overview}
-    </p>
+            {show.overview ? (
+              <div className="msd-overview-wrapper">
+                <p
+                  className={`msd-overview msd-overview-mobile ${
+                    expandedOverview ? "expanded" : "collapsed"
+                  }`}
+                >
+                  {show.overview}
+                </p>
 
-    <button
-      type="button"
-      className="msd-overview-dots"
-      onClick={() => setExpandedOverview((prev) => !prev)}
-      aria-label={expandedOverview ? "Collapse overview" : "Expand overview"}
-    >
-      •••
-    </button>
-  </div>
-) : null}
+                <button
+                  type="button"
+                  className="msd-overview-dots"
+                  onClick={() => setExpandedOverview((prev) => !prev)}
+                  aria-label={
+                    expandedOverview ? "Collapse overview" : "Expand overview"
+                  }
+                >
+                  •••
+                </button>
+              </div>
+            ) : null}
 
             <div className="msd-stats-row msd-stats-row-top">
               <div className="msd-stat-box">
@@ -1605,42 +1521,6 @@ export default function MyShowDetails() {
                 </div>
               </div>
             )}
-
-            <div className="msd-progress">
-              <div
-                className="msd-progress-fill"
-                style={{ width: `${stats.pct}%` }}
-              />
-            </div>
-
-            <div className="msd-actions msd-actions-mobile">
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleToggleRemoveShow}
-                disabled={savingShowAction}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : isRemoved
-                  ? "Add Show"
-                  : "Remove Show"}
-              </button>
-
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={handleToggleArchiveShow}
-                disabled={savingShowAction || isRemoved}
-                title={isRemoved ? "Add the show first before archiving it" : ""}
-              >
-                {savingShowAction
-                  ? "Saving..."
-                  : isArchived
-                  ? "Unarchive Show"
-                  : "Archive Show"}
-              </button>
-            </div>
           </div>
         </section>
 
@@ -1959,6 +1839,44 @@ export default function MyShowDetails() {
             <p className="msd-muted">No recommendations yet.</p>
           )}
         </section>
+
+        <div className="msd-bottom-action-bar">
+          <button
+            type="button"
+            className="msd-bottom-action-btn"
+            onClick={handleToggleRemoveShow}
+            disabled={savingShowAction}
+          >
+            {savingShowAction
+              ? "Saving..."
+              : isRemoved
+              ? "Add Back"
+              : "Remove"}
+          </button>
+
+          <button
+            type="button"
+            className="msd-bottom-action-btn"
+            onClick={handleToggleArchiveShow}
+            disabled={savingShowAction || isRemoved}
+          >
+            {savingShowAction
+              ? "Saving..."
+              : isArchived
+              ? "Unarchive"
+              : "Archive"}
+          </button>
+
+          {nextUnwatchedEpisode ? (
+            <button
+              type="button"
+              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+              onClick={handleMarkNextEpisodeWatched}
+            >
+              Watch Next
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
