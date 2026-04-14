@@ -1367,31 +1367,6 @@ export default function MyShowDetails() {
           >
             <div className="msd-mobile-banner-overlay" />
 
-            <div className="msd-mobile-banner-stats">
-              <div className="msd-mobile-banner-stat">
-                <span className="msd-mobile-banner-stat-label">Avg Score</span>
-                <strong className="msd-mobile-banner-stat-value">
-                  {burgrStats.avg ? `${burgrStats.avg}/10` : "—"}
-                </strong>
-              </div>
-
-              <div className="msd-mobile-banner-stat">
-                <span className="msd-mobile-banner-stat-label">Completion</span>
-                <strong className="msd-mobile-banner-stat-value">
-                  {communityStats.avgCompletion != null
-                    ? `${communityStats.avgCompletion}%`
-                    : "—"}
-                </strong>
-              </div>
-
-              <div className="msd-mobile-banner-stat">
-                <span className="msd-mobile-banner-stat-label">Avg Ranks</span>
-                <strong className="msd-mobile-banner-stat-value">
-                  {communityStats.avgRanksRating
-                    ? `${communityStats.avgRanksRating}/10`
-                    : "—"}
-                </strong>
-              </div>
             </div>
           </div>
         </section>
