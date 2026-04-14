@@ -1442,54 +1442,541 @@ export default function MyShowDetails() {
           </div>
         </section>
 
-       <section className="msd-content-tabs-section">
-  <div className="msd-content-tabs" role="tablist" aria-label="Show sections">
-    ...
-  </div>
+               <section className="msd-content-tabs-section">
+          <div
+            className="msd-content-tabs"
+            role="tablist"
+            aria-label="Show sections"
+          >
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "seasons" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("seasons")}
+            >
+              Seasons
+            </button>
 
-  <div className="msd-tab-panel">
-    {activeTab === "seasons" && (
-      <>
-        <h2 className="msd-section-title">Seasons</h2>
-        <div className="msd-seasons">
-          ...
-        </div>
-      </>
-    )}
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "cast" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("cast")}
+            >
+              Cast
+            </button>
 
-    {activeTab === "cast" && (
-      <>
-        <h2 className="msd-section-title">Cast</h2>
-        ...
-      </>
-    )}
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "crew" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("crew")}
+            >
+              Crew
+            </button>
 
-    {activeTab === "crew" && (
-      <>
-        <h2 className="msd-section-title">Crew</h2>
-        ...
-      </>
-    )}
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "studio" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("studio")}
+            >
+              Studio
+            </button>
 
-    {activeTab === "studio" && (
-      <>
-        <h2 className="msd-section-title">Studio</h2>
-        ...
-      </>
-    )}
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "genre" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("genre")}
+            >
+              Genre
+            </button>
+          </div>
 
-    {activeTab === "genre" && (
-      <>
-        <h2 className="msd-section-title">Genre</h2>
-        ...
-      </>
-    )}
-  </div>
-</section>
+          <div className="msd-tab-panel">
+            {activeTab === "seasons" && (
+              <>
+                <h2 className="msd-section-title">Seasons</h2>
+                <div className="msd-seasons">
+                  {groupedSeasons.map((season) => (
+                    <section
+                      key={season.seasonNumber}
+                      className={`msd-season-card ${
+                        season.complete ? "msd-season-complete" : ""
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="msd-season-toggle"
+                        onClick={() => toggleSeason(season.seasonNumber)}
+                      >
+                        <div>
+                          <div className="msd-season-title">{season.label}</div>
+                          <div className="msd-season-subtitle">
+                            {season.watchedCount}/{season.totalCount} watched
+                          </div>
+                        </div>
+                        <div className="msd-season-toggle-right">
+                          {season.complete ? (
+                            <span className="msd-season-badge">Completed</span>
+                          ) : null}
+                          <span className="msd-season-chevron">
+                            {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {expandedSeasons[season.seasonNumber] && (
+                        <div className="msd-episode-list">
+                          {season.episodes.map((ep) => {
+                            const watched = isEpisodeWatched(ep, watchedLookup);
+                            const myEpisodeRating = Number(
+                              myEpisodeRatings.get(String(ep.id)) || 0
+                            );
+                            const hoverEpisodeRating = Number(
+                              hoverEpisodeRatings[String(ep.id)] || 0
+                            );
+                            const activeEpisodeRating =
+                              hoverEpisodeRating || myEpisodeRating;
+                            const averageEpisodeRating =
+                              episodeAverageRatings.get(String(ep.id));
+                            const savingThisEpisode =
+                              savingEpisodeRatingId === ep.id;
+                            const isPickerOpen =
+                              openEpisodeRatingPickerId === ep.id;
+
+                            return (
+                              <article
+                                id={`episode-${ep.id}`}
+                                key={ep.id}
+                                className={`msd-episode-card ${
+                                  watched ? "msd-episode-watched" : ""
+                                }`}
+                              >
+                                <div className="msd-episode-top">
+                                  <div>
+                                    <h3 className="msd-episode-title">
+                                      {makeEpisodeCode(ep)} - {ep.name}
+                                    </h3>
+                                    <div className="msd-episode-date">
+                                      Air date: {formatDate(ep.aired)}
+                                    </div>
+                                  </div>
+                                  {watched ? (
+                                    <span className="msd-watched-pill">
+                                      Watched
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {ep.overview ? (
+                                  <p className="msd-episode-overview">
+                                    {ep.overview}
+                                  </p>
+                                ) : null}
+
+                                <div className="msd-episode-rating-box">
+                                  <div className="msd-episode-rating-header">
+                                    <span className="msd-stat-label">
+                                      Your Episode Rating
+                                    </span>
+                                    <span className="msd-episode-rating-meta">
+                                      {savingThisEpisode
+                                        ? "Saving..."
+                                        : myEpisodeRating
+                                        ? `${myEpisodeRating}/10`
+                                        : "Not rated"}
+                                    </span>
+                                  </div>
+
+                                  <div className="msd-episode-rating-desktop">
+                                    <div className="msd-burgr-picker msd-burgr-picker-compact">
+                                      {Array.from(
+                                        { length: 10 },
+                                        (_, index) => {
+                                          const value = index + 1;
+                                          const filled =
+                                            value <= activeEpisodeRating;
+
+                                          return (
+                                            <button
+                                              key={value}
+                                              type="button"
+                                              className={`msd-burger-btn ${
+                                                filled
+                                                  ? "is-filled"
+                                                  : "is-empty"
+                                              }`}
+                                              onMouseEnter={() =>
+                                                setHoverEpisodeRatings(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [ep.id]: value,
+                                                  })
+                                                )
+                                              }
+                                              onMouseLeave={() =>
+                                                setHoverEpisodeRatings(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [ep.id]: 0,
+                                                  })
+                                                )
+                                              }
+                                              onClick={() =>
+                                                handleSelectEpisodeRating(
+                                                  ep,
+                                                  value
+                                                )
+                                              }
+                                              aria-label={`Rate episode ${value} out of 10 burgers`}
+                                              title={`${value}/10`}
+                                              disabled={savingThisEpisode}
+                                            >
+                                              <img
+                                                src="/burger-rating.png"
+                                                alt=""
+                                                className="msd-burger-icon msd-burger-icon-small"
+                                              />
+                                            </button>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="msd-episode-rating-mobile">
+                                    <button
+                                      type="button"
+                                      className="msd-btn msd-btn-secondary msd-rating-trigger"
+                                      onClick={() =>
+                                        handleOpenEpisodeRatingPicker(ep.id)
+                                      }
+                                      disabled={savingThisEpisode}
+                                    >
+                                      {savingThisEpisode
+                                        ? "Saving..."
+                                        : myEpisodeRating
+                                        ? `Rate Episode (${myEpisodeRating}/10)`
+                                        : "Rate Episode"}
+                                    </button>
+
+                                    {isPickerOpen ? (
+                                      <div className="msd-mobile-rating-sheet">
+                                        <div className="msd-mobile-rating-grid">
+                                          {Array.from(
+                                            { length: 10 },
+                                            (_, index) => {
+                                              const value = index + 1;
+                                              const selected =
+                                                value === myEpisodeRating;
+
+                                              return (
+                                                <button
+                                                  key={value}
+                                                  type="button"
+                                                  className={`msd-mobile-rating-option ${
+                                                    selected
+                                                      ? "is-selected"
+                                                      : ""
+                                                  }`}
+                                                  onClick={() =>
+                                                    handleSelectEpisodeRating(
+                                                      ep,
+                                                      value
+                                                    )
+                                                  }
+                                                  disabled={savingThisEpisode}
+                                                >
+                                                  <img
+                                                    src="/burger-rating.png"
+                                                    alt=""
+                                                    className="msd-burger-icon msd-burger-icon-small"
+                                                  />
+                                                  <span>{value}/10</span>
+                                                </button>
+                                              );
+                                            }
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="msd-episode-rating-footer">
+                                    <span className="msd-muted">
+                                      Average:{" "}
+                                      {averageEpisodeRating
+                                        ? `${averageEpisodeRating.avg}/10`
+                                        : "—"}
+                                      {averageEpisodeRating
+                                        ? ` (${averageEpisodeRating.count})`
+                                        : ""}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="msd-actions">
+                                  <button
+                                    type="button"
+                                    className={`msd-btn ${
+                                      watched
+                                        ? "msd-btn-secondary"
+                                        : "msd-btn-primary"
+                                    }`}
+                                    onClick={() => handleMarkWatched(ep)}
+                                  >
+                                    {watched
+                                      ? "Mark Unwatched"
+                                      : "Mark Watched"}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="msd-btn msd-btn-secondary"
+                                    onClick={() => handleWatchUpToHere(ep)}
+                                  >
+                                    Watch up to here
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
                   ))}
                 </div>
               </>
             )}
+
+            {activeTab === "cast" && (
+              <>
+                <h2 className="msd-section-title">Cast</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading cast...</p>
+                ) : cast.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {cast.map((member, index) => {
+                      const actorName = member.personName || "Unknown actor";
+                      const linkTarget = `/actor/${encodeURIComponent(
+                        actorName
+                      )}`;
+
+                      return (
+                        <Link
+                          key={member.id || `${member.personName}-${index}`}
+                          to={linkTarget}
+                          className="msd-cast-card msd-cast-card-mobile"
+                          style={{ textDecoration: "none", color: "inherit" }}
+                        >
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={actorName}
+                              className="msd-cast-image msd-cast-image-mobile"
+                            />
+                          ) : (
+                            <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                          )}
+                          <div className="msd-cast-name">{actorName}</div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="msd-muted">No cast available.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === "crew" && (
+              <>
+                <h2 className="msd-section-title">Crew</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading crew...</p>
+                ) : crew.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {crew.map((member, index) => {
+                      const personName = member.personName || "Unknown crew";
+                      const roleName =
+                        member.role ||
+                        member.job ||
+                        member.characterName ||
+                        "Crew";
+
+                      return (
+                        <div
+                          key={member.id || `${personName}-${roleName}-${index}`}
+                          className="msd-cast-card msd-cast-card-mobile"
+                        >
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={personName}
+                              className="msd-cast-image msd-cast-image-mobile"
+                            />
+                          ) : (
+                            <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                          )}
+                          <div className="msd-cast-name">{personName}</div>
+                          <div className="msd-cast-role">{roleName}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="msd-muted">No crew available yet.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === "studio" && (
+              <>
+                <h2 className="msd-section-title">Studio</h2>
+                <div className="msd-info-grid">
+                  <div className="msd-info-card">
+                    <span className="msd-stat-label">Studio</span>
+                    <strong className="msd-stat-value">
+                      {show.network ? (
+                        <Link
+                          to={`/search?network=${encodeURIComponent(
+                            show.network
+                          )}&${baseContext}`}
+                          className="msd-link"
+                        >
+                          {show.network}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === "genre" && (
+              <>
+                <h2 className="msd-section-title">Genre</h2>
+                <div className="msd-info-grid">
+                  {show.genres?.length > 0 ? (
+                    show.genres.map((genre) => (
+                      <div key={genre} className="msd-info-card">
+                        <Link
+                          to={`/search?genre=${encodeURIComponent(
+                            genre
+                          )}&${baseContext}`}
+                          className="msd-link msd-info-link"
+                        >
+                          {genre}
+                        </Link>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="msd-muted">No genres available.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">
+            {peopleAlsoWatch.length > 0
+              ? "People Also Watch"
+              : "Recommended Shows"}
+          </h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-grid">
+              {recommendedShows.map((rec, index) => {
+                const showName = rec.name || rec.title || "Unknown show";
+                const linkTarget = getMappedShowHref(rec);
+                const posterSrc =
+                  rec.poster_url ||
+                  rec.posterUrl ||
+                  rec.image_url ||
+                  rec.image ||
+                  (rec.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+                    : "/no-image.png");
+
+                return (
+                  <Link
+                    key={rec.id || `${showName}-${index}`}
+                    to={linkTarget}
+                    className="msd-rec-card"
+                  >
+                    <img
+                      src={posterSrc}
+                      alt={showName}
+                      className="msd-rec-image"
+                    />
+                    <div className="msd-rec-title">{showName}</div>
+                    {rec.first_aired || rec.firstAired || rec.first_air_date ? (
+                      <div className="msd-rec-date">
+                        {formatDate(
+                          rec.first_aired ||
+                            rec.firstAired ||
+                            rec.first_air_date
+                        )}
+                      </div>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
+        </section>
+
+        <div className="msd-bottom-action-bar">
+          <button
+            type="button"
+            className="msd-bottom-action-btn"
+            onClick={handleToggleRemoveShow}
+            disabled={savingShowAction}
+          >
+            {savingShowAction ? "Saving..." : isRemoved ? "Add Back" : "Remove"}
+          </button>
+
+          <button
+            type="button"
+            className="msd-bottom-action-btn"
+            onClick={handleToggleArchiveShow}
+            disabled={savingShowAction || isRemoved}
+          >
+            {savingShowAction
+              ? "Saving..."
+              : isArchived
+              ? "Unarchive"
+              : "Archive"}
+          </button>
+
+          {nextUnwatchedEpisode ? (
+            <button
+              type="button"
+              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+              onClick={handleMarkNextEpisodeWatched}
+            >
+              Watch Next
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
             {activeTab === "cast" && (
               <>
