@@ -313,6 +313,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setHoverEpisodeRatings(state.hoverEpisodeRatings);
           setOpenEpisodeRatingPickerId(state.openEpisodeRatingPickerId);
           setMobileBannerUrl(state.mobileBannerUrl);
+          setRankPosition(state.rankPosition);
         }
         return { found: true, user: null, showId: null, tvdbId: null };
       }
@@ -490,23 +491,54 @@ const [rankPosition, setRankPosition] = useState(null);
     async function loadSecondaryData(user, showId, episodeIds, tvdbId) {
       try {
         const [
-          savedShowsResult,
-          burgrRows,
-          allWatchedRows,
-          episodeRatingRows,
-        ] = await Promise.all([
-          supabase
-            .from("user_shows_new")
-            .select(`shows!inner(tvdb_id)`)
-            .eq("user_id", user.id),
-          fetchBurgrRatings(showId),
-          fetchAllWatchedRows(),
-          fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
-        ]);
+  savedShowsResult,
+  burgrRows,
+  allWatchedRows,
+  episodeRatingRows,
+  rankingRowsResult,
+] = await Promise.all([
+  supabase
+    .from("user_shows_new")
+    .select(`shows!inner(tvdb_id)`)
+    .eq("user_id", user.id),
+  fetchBurgrRatings(showId),
+  fetchAllWatchedRows(),
+  fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
+  supabase
+    .from("user_show_rankings")
+    .select(`
+      show_id,
+      rating,
+      wins,
+      losses,
+      comparisons,
+      shows!inner(name)
+    `)
+    .eq("user_id", user.id),
+]);
 
         if (isCancelled) return;
 
         const savedShowsData = savedShowsResult?.data || [];
+
+        if (rankingRowsResult?.error) throw rankingRowsResult.error;
+
+const rankingRows = (rankingRowsResult?.data || []).map((row) => ({
+  show_id: row.show_id,
+  rating: row.rating,
+  wins: row.wins,
+  losses: row.losses,
+  comparisons: row.comparisons,
+  show_name: row.shows?.name || "",
+}));
+
+const sortedRankings = [...rankingRows].sort(sortRankings);
+
+const foundRankIndex = sortedRankings.findIndex(
+  (row) => String(row.show_id) === String(showId)
+);
+
+setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
 
         const savedTvdbIds = new Set(
           savedShowsData
@@ -651,6 +683,7 @@ const [rankPosition, setRankPosition] = useState(null);
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
             setMobileBannerUrl(null);
+            setRankPosition(null);
           }
         } finally {
           if (!isCancelled) {
@@ -672,6 +705,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setSavedShowTvdbIds(new Set());
           setExtrasLoading(false);
           setMobileBannerUrl(null);
+          setRankPosition(null);
         }
       }
     }
@@ -725,6 +759,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
+          setRankPosition(null);
         }
       } catch (error) {
         console.error("Failed loading show:", error);
@@ -746,6 +781,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
+          setRankPosition(null);
         }
       } finally {
         if (!isCancelled) {
@@ -1408,26 +1444,29 @@ const [rankPosition, setRankPosition] = useState(null);
               </div>
             ) : null}
 
-            <div className="msd-stats-row msd-stats-row-top">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Watched</span>
-                <strong className="msd-stat-value">{stats.watched}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Total</span>
-                <strong className="msd-stat-value">{stats.total}</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Progress</span>
-                <strong className="msd-stat-value">{stats.pct}%</strong>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Rank'd</span>
-                <strong className="msd-stat-value">
-                  {show.rank_position ? `#${show.rank_position}` : "—"}
-                </strong>
-              </div>
-            </div>
+            <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Watched</span>
+    <strong className="msd-stat-value">{stats.watched}</strong>
+  </div>
+
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Total</span>
+    <strong className="msd-stat-value">{stats.total}</strong>
+  </div>
+
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Progress</span>
+    <strong className="msd-stat-value">{stats.pct}%</strong>
+  </div>
+
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Rank'd</span>
+    <strong className="msd-stat-value">
+      {rankPosition ? `#${rankPosition}` : "—"}
+    </strong>
+  </div>
+</div>
 
             <div className="msd-stat-box msd-stat-box-full">
               <span className="msd-stat-label">Your Burgr Rating</span>
