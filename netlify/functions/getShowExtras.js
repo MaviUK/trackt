@@ -740,18 +740,19 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-    const {
-      providers,
-      trailer,
-      backdropUrl: tmdbBackdropUrl,
-      tmdbId,
-      backdropCount,
-    } = await getTmdbProvidersTrailerAndBackdrop(
-      tvdbId,
-      seriesData?.name || "",
-      seriesData?.firstAired || seriesData?.first_aired || ""
-    );
-
+   const {
+  providers,
+  trailer,
+  backdropUrl: tmdbBackdropUrl,
+  tmdbId,
+  backdropCount,
+  tmdbLookupDebug,
+} = await getTmdbProvidersTrailerAndBackdrop(
+  tvdbId,
+  seriesData?.name || "",
+  seriesData?.firstAired || seriesData?.first_aired || ""
+);
+    
     const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
@@ -790,20 +791,21 @@ export async function handler(event) {
       peopleAlsoWatch,
       recommendations,
       debug: {
-        showFound: !!show,
-        inlineEpisodeCount: inlineEpisodes.length,
-        fetchedEpisodeCount: fetchedEpisodes.length,
-        episodeCount: episodes.length,
-        castCount: cast.length,
-        providerCount: providers.length,
-        hasTrailer: !!trailer,
-        hasTmdbBackdrop: !!show?.backdrop_url,
-        tmdbId: tmdbId || null,
-        tmdbBackdropCount: backdropCount || 0,
-        sourceShowName: seriesData?.name || null,
-        sourceFirstAired:
-          seriesData?.firstAired || seriesData?.first_aired || null,
-      },
+  showFound: !!show,
+  inlineEpisodeCount: inlineEpisodes.length,
+  fetchedEpisodeCount: fetchedEpisodes.length,
+  episodeCount: episodes.length,
+  castCount: cast.length,
+  providerCount: providers.length,
+  hasTrailer: !!trailer,
+  hasTmdbBackdrop: !!show?.backdrop_url,
+  tmdbId: tmdbId || null,
+  tmdbBackdropCount: backdropCount || 0,
+  sourceShowName: seriesData?.name || null,
+  sourceFirstAired:
+    seriesData?.firstAired || seriesData?.first_aired || null,
+  tmdbLookupDebug,
+},
     });
   } catch (error) {
     console.error("getShowExtras failed:", error);
