@@ -579,98 +579,60 @@ export default function MyShowDetails() {
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
-          const tvdbPeopleAlsoWatchRaw = Array.isArray(extras.peopleAlsoWatch)
-            ? extras.peopleAlsoWatch
-            : [];
           const fallbackRecommendations = Array.isArray(extras.recommendations)
-            ? extras.recommendations
-            : [];
+  ? extras.recommendations
+  : [];
 
-          const bannerFromExtras = getBannerFromExtras(extras);
+const bannerFromExtras = getBannerFromExtras(extras);
 
-          const normalizedTvdbPeopleAlsoWatch = tvdbPeopleAlsoWatchRaw.map(
-            (item) =>
-              normalizeMappedShow({
-                ...item,
-                source: "tvdb",
-                tvdb_id:
-                  item?.tvdb_id ??
-                  item?.tvdbId ??
-                  item?.show_id ??
-                  item?.id ??
-                  null,
-                name:
-                  item?.name ||
-                  item?.title ||
-                  item?.show_name ||
-                  "Unknown show",
-                first_air_date:
-                  item?.first_air_date ||
-                  item?.firstAired ||
-                  item?.first_aired ||
-                  "",
-                poster_url:
-                  item?.poster_url ||
-                  item?.posterUrl ||
-                  item?.image_url ||
-                  item?.image ||
-                  item?.poster ||
-                  "",
-              })
-          );
+let mappedTmdbRecommendations = [];
+try {
+  mappedTmdbRecommendations =
+    await enrichTmdbShowsWithMappings(fallbackRecommendations);
+} catch (mappingError) {
+  console.error("Failed mapping TMDB recommendations:", mappingError);
 
-          let mappedFallbackRecommendations = [];
-          try {
-            mappedFallbackRecommendations =
-              await enrichTmdbShowsWithMappings(fallbackRecommendations);
-          } catch (mappingError) {
-            console.error(
-              "Failed mapping fallback recommendations:",
-              mappingError
-            );
-            mappedFallbackRecommendations = fallbackRecommendations.map((item) =>
-              normalizeMappedShow({
-                ...item,
-                source: "tmdb",
-                poster_url:
-                  item?.poster_url ||
-                  item?.posterUrl ||
-                  item?.image_url ||
-                  item?.image ||
-                  (item?.poster_path
-                    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-                    : ""),
-                poster_path: item?.poster_path || null,
-              })
-            );
-          }
+  mappedTmdbRecommendations = fallbackRecommendations.map((item) =>
+    normalizeMappedShow({
+      ...item,
+      source: "tmdb",
+      name:
+        item?.name ||
+        item?.title ||
+        item?.show_name ||
+        "Unknown show",
+      first_air_date:
+        item?.first_air_date ||
+        item?.firstAired ||
+        item?.first_aired ||
+        "",
+      poster_url:
+        item?.poster_url ||
+        item?.posterUrl ||
+        item?.image_url ||
+        item?.image ||
+        (item?.poster_path
+          ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+          : ""),
+      poster_path: item?.poster_path || null,
+    })
+  );
+}
 
-          const filteredTvdbPeopleAlsoWatch =
-            normalizedTvdbPeopleAlsoWatch.filter((item) => {
-              const recTvdbId =
-                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-              if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
-            });
+const filteredTmdbRecommendations = mappedTmdbRecommendations.filter((item) => {
+  const recTvdbId =
+    item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
+  if (!recTvdbId) return true;
+  return !savedTvdbIds.has(String(recTvdbId));
+});
 
-          const filteredFallbackRecommendations =
-            mappedFallbackRecommendations.filter((item) => {
-              const recTvdbId =
-                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-              if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
-            });
-
-          if (!isCancelled) {
-            setCast(castRows);
-            setCrew(crewRows);
-            setPeopleAlsoWatch(filteredTvdbPeopleAlsoWatch);
-            setRecommendedShows(
-              filteredTvdbPeopleAlsoWatch.length > 0
-                ? filteredTvdbPeopleAlsoWatch
-                : filteredFallbackRecommendations
-            );
-            setMobileBannerUrl(bannerFromExtras || null);
+if (!isCancelled) {
+  setCast(castRows);
+  setCrew(crewRows);
+  setPeopleAlsoWatch([]);
+  setRecommendedShows(filteredTmdbRecommendations);
+  setMobileBannerUrl(bannerFromExtras || null);
+}
           }
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
@@ -1955,11 +1917,7 @@ export default function MyShowDetails() {
         </section>
 
         <section className="msd-panel">
-          <h2 className="msd-section-title">
-            {peopleAlsoWatch.length > 0
-              ? "People Also Watch"
-              : "Recommended Shows"}
-          </h2>
+          <h2 className="msd-section-title">Recommended Shows</h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
           ) : recommendedShows.length > 0 ? (
