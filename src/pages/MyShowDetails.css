@@ -984,38 +984,38 @@
   display: block;
 }
 
-.msd-overview-dots {
+.msd-overview-dots,
+.msd-overview-expand {
   display: block;
   width: 100%;
   margin-top: 6px;
   padding: 0;
-  border: none;
-  background: transparent;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  background-color: transparent !important;
   color: rgba(255, 255, 255, 0.7);
   font-size: 1.4rem;
   line-height: 1;
   letter-spacing: 6px;
   text-align: center;
   cursor: pointer;
-}
-
-.msd-overview-dots {
-  background: transparent;
-  border: none;
   outline: none;
   box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.msd-overview-dots:active {
-  background: transparent;
-}
-
+.msd-overview-dots:active,
 .msd-overview-dots:focus,
-.msd-overview-dots:focus-visible {
+.msd-overview-dots:focus-visible,
+.msd-overview-expand:active,
+.msd-overview-expand:focus,
+.msd-overview-expand:focus-visible {
+  background: transparent !important;
+  background-color: transparent !important;
   outline: none;
   box-shadow: none;
 }
-
 }
-
