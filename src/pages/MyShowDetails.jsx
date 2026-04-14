@@ -226,9 +226,9 @@ function emptyState() {
     episodeRatings: [],
     savingEpisodeRatingId: null,
     hoverEpisodeRatings: {},
-   openEpisodeRatingPickerId: null,
-mobileBannerUrl: null,
-rankPosition: null,
+    openEpisodeRatingPickerId: null,
+    mobileBannerUrl: null,
+    rankPosition: null,
   };
 }
 
@@ -264,10 +264,10 @@ export default function MyShowDetails() {
   const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
- const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
-const [expandedOverview, setExpandedOverview] = useState(false);
-const [activeTab, setActiveTab] = useState("seasons");
-const [rankPosition, setRankPosition] = useState(null);
+  const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
+  const [expandedOverview, setExpandedOverview] = useState(false);
+  const [activeTab, setActiveTab] = useState("seasons");
+  const [rankPosition, setRankPosition] = useState(null);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -331,6 +331,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setMobileBannerUrl(null);
+          setRankPosition(null);
         }
         return { found: false, user, showId: null, tvdbId: null };
       }
@@ -365,6 +366,7 @@ const [rankPosition, setRankPosition] = useState(null);
           setCommunityWatchedRows([]);
           setExpandedSeasons({});
           setMobileBannerUrl(null);
+          setRankPosition(null);
         }
         return { found: false, user, showId: null, tvdbId };
       }
@@ -380,8 +382,7 @@ const [rankPosition, setRankPosition] = useState(null);
           watch_status,
           archived_at,
           added_at,
-          created_at,
-          rank_position
+          created_at
         `)
         .eq("user_id", user.id)
         .eq("show_id", showId)
@@ -466,10 +467,6 @@ const [rankPosition, setRankPosition] = useState(null);
           archived_at: userShowData?.archived_at || null,
           added_at: userShowData?.added_at || null,
           created_at: userShowData?.created_at || null,
-          rank_position:
-            userShowData?.rank_position != null
-              ? Number(userShowData.rank_position)
-              : null,
         });
 
         setEpisodes(normalizedEpisodes);
@@ -491,31 +488,31 @@ const [rankPosition, setRankPosition] = useState(null);
     async function loadSecondaryData(user, showId, episodeIds, tvdbId) {
       try {
         const [
-  savedShowsResult,
-  burgrRows,
-  allWatchedRows,
-  episodeRatingRows,
-  rankingRowsResult,
-] = await Promise.all([
-  supabase
-    .from("user_shows_new")
-    .select(`shows!inner(tvdb_id)`)
-    .eq("user_id", user.id),
-  fetchBurgrRatings(showId),
-  fetchAllWatchedRows(),
-  fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
-  supabase
-    .from("user_show_rankings")
-    .select(`
-      show_id,
-      rating,
-      wins,
-      losses,
-      comparisons,
-      shows!inner(name)
-    `)
-    .eq("user_id", user.id),
-]);
+          savedShowsResult,
+          burgrRows,
+          allWatchedRows,
+          episodeRatingRows,
+          rankingRowsResult,
+        ] = await Promise.all([
+          supabase
+            .from("user_shows_new")
+            .select(`shows!inner(tvdb_id)`)
+            .eq("user_id", user.id),
+          fetchBurgrRatings(showId),
+          fetchAllWatchedRows(),
+          fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
+          supabase
+            .from("user_show_rankings")
+            .select(`
+              show_id,
+              rating,
+              wins,
+              losses,
+              comparisons,
+              shows!inner(name)
+            `)
+            .eq("user_id", user.id),
+        ]);
 
         if (isCancelled) return;
 
@@ -523,22 +520,22 @@ const [rankPosition, setRankPosition] = useState(null);
 
         if (rankingRowsResult?.error) throw rankingRowsResult.error;
 
-const rankingRows = (rankingRowsResult?.data || []).map((row) => ({
-  show_id: row.show_id,
-  rating: row.rating,
-  wins: row.wins,
-  losses: row.losses,
-  comparisons: row.comparisons,
-  show_name: row.shows?.name || "",
-}));
+        const rankingRows = (rankingRowsResult?.data || []).map((row) => ({
+          show_id: row.show_id,
+          rating: row.rating,
+          wins: row.wins,
+          losses: row.losses,
+          comparisons: row.comparisons,
+          show_name: row.shows?.name || "",
+        }));
 
-const sortedRankings = [...rankingRows].sort(sortRankings);
+        const sortedRankings = [...rankingRows].sort(sortRankings);
 
-const foundRankIndex = sortedRankings.findIndex(
-  (row) => String(row.show_id) === String(showId)
-);
+        const foundRankIndex = sortedRankings.findIndex(
+          (row) => String(row.show_id) === String(showId)
+        );
 
-setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
+        setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
 
         const savedTvdbIds = new Set(
           savedShowsData
@@ -683,7 +680,6 @@ setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
             setMobileBannerUrl(null);
-            setRankPosition(null);
           }
         } finally {
           if (!isCancelled) {
@@ -1002,10 +998,10 @@ setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
                 ...prev,
                 watch_status: "not_added",
                 archived_at: null,
-                rank_position: null,
               }
             : prev
         );
+        setRankPosition(null);
       }
     } catch (error) {
       console.error("Failed toggling remove show:", error);
@@ -1445,28 +1441,28 @@ setRankPosition(foundRankIndex >= 0 ? foundRankIndex + 1 : null);
             ) : null}
 
             <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Watched</span>
-    <strong className="msd-stat-value">{stats.watched}</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Watched</span>
+                <strong className="msd-stat-value">{stats.watched}</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Total</span>
-    <strong className="msd-stat-value">{stats.total}</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Total</span>
+                <strong className="msd-stat-value">{stats.total}</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Progress</span>
-    <strong className="msd-stat-value">{stats.pct}%</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Progress</span>
+                <strong className="msd-stat-value">{stats.pct}%</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Rank'd</span>
-    <strong className="msd-stat-value">
-      {rankPosition ? `#${rankPosition}` : "—"}
-    </strong>
-  </div>
-</div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Rank'd</span>
+                <strong className="msd-stat-value">
+                  {rankPosition ? `#${rankPosition}` : "—"}
+                </strong>
+              </div>
+            </div>
 
             <div className="msd-stat-box msd-stat-box-full">
               <span className="msd-stat-label">Your Burgr Rating</span>
