@@ -483,40 +483,73 @@ async function getPeopleAlsoWatch(tvdbId) {
   }
 }
 
-async function findTmdbTvIdByTvdbId(tvdbId) {
+async function findTmdbTvIdByTvdbId(tvdbId, showName = "") {
   const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) return null;
 
-  const res = await fetch(
-    `https://api.themoviedb.org/3/find/${tvdbId}?api_key=${apiKey}&external_source=tvdb_id`
-  );
+  try {
+    const res = await fetch(
+      `${TMDB_BASE_URL}/find/${tvdbId}?api_key=${encodeURIComponent(
+        apiKey
+      )}&external_source=tvdb_id`
+    );
+    const json = await readJsonSafe(res);
 
-  const json = await res.json();
+    if (res.ok && json?.tv_results?.length > 0) {
+      return json.tv_results[0].id;
+    }
+  } catch (error) {
+    console.error("TMDB find by TVDB id failed:", error);
+  }
 
-  return json?.tv_results?.[0]?.id || null;
+  if (!showName) return null;
+
+  try {
+    const searchRes = await fetch(
+      `${TMDB_BASE_URL}/search/tv?api_key=${encodeURIComponent(
+        apiKey
+      )}&query=${encodeURIComponent(showName)}`
+    );
+    const searchJson = await readJsonSafe(searchRes);
+
+    if (!searchRes.ok) {
+      return null;
+    }
+
+    return searchJson?.results?.[0]?.id || null;
+  } catch (error) {
+    console.error("TMDB search fallback failed:", error);
+    return null;
+  }
 }
 
-async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
+async function getTmdbProvidersTrailerAndBackdrop(tvdbId, showName = "") {
   try {
     const apiKey = process.env.TMDB_API_KEY;
     if (!apiKey) {
       return { providers: [], trailer: null, backdropUrl: null };
     }
 
-    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId);
+    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId, showName);
     if (!tmdbId) {
       return { providers: [], trailer: null, backdropUrl: null };
     }
 
-    // 🔥 NEW: fetch images + providers + videos
     const [imagesRes, providersRes, videosRes] = await Promise.all([
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/images?api_key=${apiKey}&include_image_language=en,null`
+        `${TMDB_BASE_URL}/tv/${tmdbId}/images?api_key=${encodeURIComponent(
+          apiKey
+        )}&include_image_language=en,null`
       ),
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${apiKey}`
+        `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${encodeURIComponent(
+          apiKey
+        )}`
       ),
       fetch(
-        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${apiKey}`
+        `${TMDB_BASE_URL}/tv/${tmdbId}/videos?api_key=${encodeURIComponent(
+          apiKey
+        )}`
       ),
     ]);
 
@@ -524,28 +557,31 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
 
-    // ✅ STEP 2: pick BEST backdrop
-    const backdrops = imagesJson?.backdrops || [];
+    const backdrops = Array.isArray(imagesJson?.backdrops)
+      ? imagesJson.backdrops
+      : [];
 
     let bestBackdrop = null;
 
     if (backdrops.length > 0) {
       bestBackdrop = backdrops
-        .filter((img) => img.width >= 1280) // avoid tiny images
+        .filter((img) => Number(img?.width || 0) >= 1280)
         .sort((a, b) => {
-          // prioritize votes, then resolution
-          if (b.vote_average !== a.vote_average) {
-            return b.vote_average - a.vote_average;
-          }
-          return b.width - a.width;
+          const voteDiff =
+            Number(b?.vote_average || 0) - Number(a?.vote_average || 0);
+          if (voteDiff !== 0) return voteDiff;
+          return Number(b?.width || 0) - Number(a?.width || 0);
         })[0];
     }
 
+    if (!bestBackdrop && backdrops.length > 0) {
+      bestBackdrop = backdrops[0];
+    }
+
     const backdropUrl = bestBackdrop?.file_path
-      ? `https://image.tmdb.org/t/p/original${bestBackdrop.file_path}`
+      ? `${TMDB_BACKDROP_BASE_URL}${bestBackdrop.file_path}`
       : null;
 
-    // ✅ providers (same as before)
     const providerRegion =
       providersJson?.results?.GB ||
       providersJson?.results?.US ||
@@ -557,26 +593,34 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId) {
       ...(providerRegion?.ads || []),
     ];
 
-    const providers = providerItems.map((p) => ({
-      id: p.provider_id,
-      name: p.provider_name,
-      logo: p.logo_path
-        ? `https://image.tmdb.org/t/p/w92${p.logo_path}`
-        : null,
-    }));
+    const seenProviders = new Set();
+    const providers = providerItems
+      .filter((p) => {
+        const key = String(p?.provider_id || p?.provider_name || "");
+        if (!key || seenProviders.has(key)) return false;
+        seenProviders.add(key);
+        return true;
+      })
+      .map((p) => ({
+        id: p.provider_id,
+        name: p.provider_name,
+        logo: p.logo_path
+          ? `https://image.tmdb.org/t/p/w92${p.logo_path}`
+          : null,
+      }));
 
-    // ✅ trailer (same as before)
-    const videos = videosJson?.results || [];
+    const videos = Array.isArray(videosJson?.results) ? videosJson.results : [];
 
     const trailerCandidate =
       videos.find(
         (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
       ) ||
-      videos.find((v) => v.site === "YouTube" && v.type === "Trailer");
+      videos.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
+      null;
 
     const trailer = trailerCandidate?.key
       ? {
-          name: trailerCandidate.name,
+          name: trailerCandidate.name || "Watch Trailer",
           url: `https://www.youtube.com/watch?v=${trailerCandidate.key}`,
         }
       : null;
@@ -601,7 +645,7 @@ export async function handler(event) {
     const seriesData = seriesJson?.data || {};
 
     const { providers, trailer, backdropUrl: tmdbBackdropUrl } =
-      await getTmdbProvidersTrailerAndBackdrop(tvdbId);
+      await getTmdbProvidersTrailerAndBackdrop(tvdbId, seriesData?.name || "");
 
     const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
@@ -621,11 +665,10 @@ export async function handler(event) {
 
     const fallbackRecommendations = normalizeRecommendations(seriesData);
 
-
     const recommendations =
-  peopleAlsoWatch.length > 0
-    ? peopleAlsoWatch
-    : fallbackRecommendations;
+      peopleAlsoWatch.length > 0
+        ? peopleAlsoWatch
+        : fallbackRecommendations;
 
     return jsonResponse(200, {
       show,
