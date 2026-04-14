@@ -1342,6 +1342,7 @@ export default function MyShowDetails() {
     );
   }
 
+  const [expandedOverview, setExpandedOverview] = useState(false);
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id
@@ -1435,10 +1436,25 @@ export default function MyShowDetails() {
             </div>
 
             {show.overview ? (
-              <p className="msd-overview msd-overview-mobile">
-                {show.overview}
-              </p>
-            ) : null}
+  <div className="msd-overview-wrapper">
+    <p
+      className={`msd-overview msd-overview-mobile ${
+        expandedOverview ? "expanded" : "collapsed"
+      }`}
+    >
+      {show.overview}
+    </p>
+
+    {!expandedOverview && (
+      <button
+        className="msd-overview-expand"
+        onClick={() => setExpandedOverview(true)}
+      >
+        ...
+      </button>
+    )}
+  </div>
+) : null}
 
             <div className="msd-stats-row msd-stats-row-top">
               <div className="msd-stat-box">
