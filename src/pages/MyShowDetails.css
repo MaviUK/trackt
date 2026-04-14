@@ -963,5 +963,40 @@
   padding-left: 20px;
   cursor: pointer;
 }
+
+  .msd-overview-wrapper {
+  position: relative;
+  margin: 0 0 16px;
+}
+
+.msd-overview-mobile {
+  margin: 0;
+}
+
+.msd-overview.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.msd-overview.expanded {
+  display: block;
+}
+
+.msd-overview-dots {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: 4px;
+  text-align: center;
+  cursor: pointer;
+}
 }
 
