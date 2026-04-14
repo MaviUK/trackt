@@ -621,17 +621,11 @@ export async function handler(event) {
 
     const fallbackRecommendations = normalizeRecommendations(seriesData);
 
-    let tmdbRecommendations = [];
-    if (peopleAlsoWatch.length === 0 && fallbackRecommendations.length === 0) {
-      tmdbRecommendations = await getTmdbRecommendations(tvdbId);
-    }
 
     const recommendations =
-      peopleAlsoWatch.length > 0
-        ? peopleAlsoWatch
-        : fallbackRecommendations.length > 0
-        ? fallbackRecommendations
-        : tmdbRecommendations;
+  peopleAlsoWatch.length > 0
+    ? peopleAlsoWatch
+    : fallbackRecommendations;
 
     return jsonResponse(200, {
       show,
