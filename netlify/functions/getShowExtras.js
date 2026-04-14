@@ -483,7 +483,7 @@ async function getPeopleAlsoWatch(tvdbId) {
   }
 }
 
-async function findTmdbTvIdByTvdbId(tvdbId, showName = "") {
+async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey) return null;
 
@@ -495,7 +495,7 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "") {
     );
     const json = await readJsonSafe(res);
 
-    if (res.ok && json?.tv_results?.length > 0) {
+    if (res.ok && Array.isArray(json?.tv_results) && json.tv_results.length > 0) {
       return json.tv_results[0].id;
     }
   } catch (error) {
@@ -512,34 +512,70 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "") {
     );
     const searchJson = await readJsonSafe(searchRes);
 
-    if (!searchRes.ok) {
+    if (!searchRes.ok || !Array.isArray(searchJson?.results)) {
       return null;
     }
 
-    return searchJson?.results?.[0]?.id || null;
+    const targetYear = firstAired ? String(firstAired).slice(0, 4) : "";
+
+    const ranked = [...searchJson.results].sort((a, b) => {
+      const aName = String(a?.name || a?.original_name || "").toLowerCase();
+      const bName = String(b?.name || b?.original_name || "").toLowerCase();
+      const wanted = String(showName).toLowerCase();
+
+      const aExact = aName === wanted ? 1 : 0;
+      const bExact = bName === wanted ? 1 : 0;
+      if (bExact !== aExact) return bExact - aExact;
+
+      const aYear = String(a?.first_air_date || "").slice(0, 4);
+      const bYear = String(b?.first_air_date || "").slice(0, 4);
+      const aYearMatch = targetYear && aYear === targetYear ? 1 : 0;
+      const bYearMatch = targetYear && bYear === targetYear ? 1 : 0;
+      if (bYearMatch !== aYearMatch) return bYearMatch - aYearMatch;
+
+      return Number(b?.popularity || 0) - Number(a?.popularity || 0);
+    });
+
+    return ranked[0]?.id || null;
   } catch (error) {
     console.error("TMDB search fallback failed:", error);
     return null;
   }
 }
 
-async function getTmdbProvidersTrailerAndBackdrop(tvdbId, showName = "") {
+async function getTmdbProvidersTrailerAndBackdrop(
+  tvdbId,
+  showName = "",
+  firstAired = ""
+) {
   try {
     const apiKey = process.env.TMDB_API_KEY;
     if (!apiKey) {
-      return { providers: [], trailer: null, backdropUrl: null };
+      return {
+        providers: [],
+        trailer: null,
+        backdropUrl: null,
+        tmdbId: null,
+        backdropCount: 0,
+      };
     }
 
-    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId, showName);
+    const tmdbId = await findTmdbTvIdByTvdbId(tvdbId, showName, firstAired);
     if (!tmdbId) {
-      return { providers: [], trailer: null, backdropUrl: null };
+      return {
+        providers: [],
+        trailer: null,
+        backdropUrl: null,
+        tmdbId: null,
+        backdropCount: 0,
+      };
     }
 
     const [imagesRes, providersRes, videosRes] = await Promise.all([
       fetch(
         `${TMDB_BASE_URL}/tv/${tmdbId}/images?api_key=${encodeURIComponent(
           apiKey
-        )}&include_image_language=en,null`
+        )}&language=en-US&include_image_language=en-US,null`
       ),
       fetch(
         `${TMDB_BASE_URL}/tv/${tmdbId}/watch/providers?api_key=${encodeURIComponent(
@@ -557,6 +593,16 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId, showName = "") {
     const providersJson = await readJsonSafe(providersRes);
     const videosJson = await readJsonSafe(videosRes);
 
+    if (!imagesRes.ok) {
+      console.error("TMDB images failed:", imagesJson);
+    }
+    if (!providersRes.ok) {
+      console.error("TMDB providers failed:", providersJson);
+    }
+    if (!videosRes.ok) {
+      console.error("TMDB videos failed:", videosJson);
+    }
+
     const backdrops = Array.isArray(imagesJson?.backdrops)
       ? imagesJson.backdrops
       : [];
@@ -564,18 +610,17 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId, showName = "") {
     let bestBackdrop = null;
 
     if (backdrops.length > 0) {
-      bestBackdrop = backdrops
-        .filter((img) => Number(img?.width || 0) >= 1280)
-        .sort((a, b) => {
-          const voteDiff =
-            Number(b?.vote_average || 0) - Number(a?.vote_average || 0);
-          if (voteDiff !== 0) return voteDiff;
-          return Number(b?.width || 0) - Number(a?.width || 0);
-        })[0];
-    }
+      bestBackdrop = [...backdrops].sort((a, b) => {
+        const aLangNull = a?.iso_639_1 == null ? 1 : 0;
+        const bLangNull = b?.iso_639_1 == null ? 1 : 0;
+        if (bLangNull !== aLangNull) return bLangNull - aLangNull;
 
-    if (!bestBackdrop && backdrops.length > 0) {
-      bestBackdrop = backdrops[0];
+        const voteDiff =
+          Number(b?.vote_average || 0) - Number(a?.vote_average || 0);
+        if (voteDiff !== 0) return voteDiff;
+
+        return Number(b?.width || 0) - Number(a?.width || 0);
+      })[0];
     }
 
     const backdropUrl = bestBackdrop?.file_path
@@ -625,10 +670,22 @@ async function getTmdbProvidersTrailerAndBackdrop(tvdbId, showName = "") {
         }
       : null;
 
-    return { providers, trailer, backdropUrl };
+    return {
+      providers,
+      trailer,
+      backdropUrl,
+      tmdbId,
+      backdropCount: backdrops.length,
+    };
   } catch (err) {
     console.error("TMDB fetch failed:", err);
-    return { providers: [], trailer: null, backdropUrl: null };
+    return {
+      providers: [],
+      trailer: null,
+      backdropUrl: null,
+      tmdbId: null,
+      backdropCount: 0,
+    };
   }
 }
 
@@ -644,8 +701,17 @@ export async function handler(event) {
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
     const seriesData = seriesJson?.data || {};
 
-    const { providers, trailer, backdropUrl: tmdbBackdropUrl } =
-      await getTmdbProvidersTrailerAndBackdrop(tvdbId, seriesData?.name || "");
+    const {
+      providers,
+      trailer,
+      backdropUrl: tmdbBackdropUrl,
+      tmdbId,
+      backdropCount,
+    } = await getTmdbProvidersTrailerAndBackdrop(
+      tvdbId,
+      seriesData?.name || "",
+      seriesData?.firstAired || seriesData?.first_aired || ""
+    );
 
     const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
@@ -693,6 +759,11 @@ export async function handler(event) {
         providerCount: providers.length,
         hasTrailer: !!trailer,
         hasTmdbBackdrop: !!show?.backdrop_url,
+        tmdbId: tmdbId || null,
+        tmdbBackdropCount: backdropCount || 0,
+        sourceShowName: seriesData?.name || null,
+        sourceFirstAired:
+          seriesData?.firstAired || seriesData?.first_aired || null,
       },
     });
   } catch (error) {
