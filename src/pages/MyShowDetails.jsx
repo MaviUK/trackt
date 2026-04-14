@@ -633,7 +633,7 @@ if (!isCancelled) {
   setRecommendedShows(filteredTmdbRecommendations);
   setMobileBannerUrl(bannerFromExtras || null);
 }
-          }
+          
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
           if (!isCancelled) {
