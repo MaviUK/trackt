@@ -261,6 +261,7 @@ export default function MyShowDetails() {
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
+  const [expandedOverview, setExpandedOverview] = useState(false);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -1342,7 +1343,6 @@ export default function MyShowDetails() {
     );
   }
 
-  const [expandedOverview, setExpandedOverview] = useState(false);
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id
