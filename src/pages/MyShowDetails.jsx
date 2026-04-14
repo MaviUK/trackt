@@ -360,7 +360,8 @@ export default function MyShowDetails() {
           watch_status,
           archived_at,
           added_at,
-          created_at
+          created_at,
+          rank_position
         `)
         .eq("user_id", user.id)
         .eq("show_id", showId)
@@ -445,6 +446,10 @@ export default function MyShowDetails() {
           archived_at: userShowData?.archived_at || null,
           added_at: userShowData?.added_at || null,
           created_at: userShowData?.created_at || null,
+          rank_position:
+            userShowData?.rank_position != null
+              ? Number(userShowData.rank_position)
+              : null,
         });
 
         setEpisodes(normalizedEpisodes);
@@ -942,6 +947,7 @@ export default function MyShowDetails() {
                 ...prev,
                 watch_status: "not_added",
                 archived_at: null,
+                rank_position: null,
               }
             : prev
         );
@@ -1395,6 +1401,12 @@ export default function MyShowDetails() {
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Progress</span>
                 <strong className="msd-stat-value">{stats.pct}%</strong>
+              </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Rank'd</span>
+                <strong className="msd-stat-value">
+                  {show.rank_position ? `#${show.rank_position}` : "—"}
+                </strong>
               </div>
             </div>
 
