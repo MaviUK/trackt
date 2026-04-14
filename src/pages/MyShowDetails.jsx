@@ -1442,311 +1442,50 @@ export default function MyShowDetails() {
           </div>
         </section>
 
-        <section className="msd-content-tabs-section">
-          <div className="msd-content-tabs">
-            <button
-              type="button"
-              className={`msd-content-tab ${
-                activeTab === "seasons" ? "is-active" : ""
-              }`}
-              onClick={() => setActiveTab("seasons")}
-            >
-              Seasons
-            </button>
+       <section className="msd-content-tabs-section">
+  <div className="msd-content-tabs" role="tablist" aria-label="Show sections">
+    ...
+  </div>
 
-            <button
-              type="button"
-              className={`msd-content-tab ${
-                activeTab === "cast" ? "is-active" : ""
-              }`}
-              onClick={() => setActiveTab("cast")}
-            >
-              Cast
-            </button>
+  <div className="msd-tab-panel">
+    {activeTab === "seasons" && (
+      <>
+        <h2 className="msd-section-title">Seasons</h2>
+        <div className="msd-seasons">
+          ...
+        </div>
+      </>
+    )}
 
-            <button
-              type="button"
-              className={`msd-content-tab ${
-                activeTab === "crew" ? "is-active" : ""
-              }`}
-              onClick={() => setActiveTab("crew")}
-            >
-              Crew
-            </button>
+    {activeTab === "cast" && (
+      <>
+        <h2 className="msd-section-title">Cast</h2>
+        ...
+      </>
+    )}
 
-            <button
-              type="button"
-              className={`msd-content-tab ${
-                activeTab === "studio" ? "is-active" : ""
-              }`}
-              onClick={() => setActiveTab("studio")}
-            >
-              Studio
-            </button>
+    {activeTab === "crew" && (
+      <>
+        <h2 className="msd-section-title">Crew</h2>
+        ...
+      </>
+    )}
 
-            <button
-              type="button"
-              className={`msd-content-tab ${
-                activeTab === "genre" ? "is-active" : ""
-              }`}
-              onClick={() => setActiveTab("genre")}
-            >
-              Genre
-            </button>
-          </div>
+    {activeTab === "studio" && (
+      <>
+        <h2 className="msd-section-title">Studio</h2>
+        ...
+      </>
+    )}
 
-          <div className="msd-tab-panel">
-            {activeTab === "seasons" && (
-              <>
-                <h2 className="msd-section-title">Seasons</h2>
-                <div className="msd-seasons">
-                  {groupedSeasons.map((season) => (
-                    <section
-                      key={season.seasonNumber}
-                      className={`msd-season-card ${
-                        season.complete ? "msd-season-complete" : ""
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        className="msd-season-toggle"
-                        onClick={() => toggleSeason(season.seasonNumber)}
-                      >
-                        <div>
-                          <div className="msd-season-title">{season.label}</div>
-                          <div className="msd-season-subtitle">
-                            {season.watchedCount}/{season.totalCount} watched
-                          </div>
-                        </div>
-                        <div className="msd-season-toggle-right">
-                          {season.complete ? (
-                            <span className="msd-season-badge">Completed</span>
-                          ) : null}
-                          <span className="msd-season-chevron">
-                            {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
-                          </span>
-                        </div>
-                      </button>
-
-                      {expandedSeasons[season.seasonNumber] && (
-                        <div className="msd-episode-list">
-                          {season.episodes.map((ep) => {
-                            const watched = isEpisodeWatched(ep, watchedLookup);
-                            const myEpisodeRating = Number(
-                              myEpisodeRatings.get(String(ep.id)) || 0
-                            );
-                            const hoverEpisodeRating = Number(
-                              hoverEpisodeRatings[String(ep.id)] || 0
-                            );
-                            const activeEpisodeRating =
-                              hoverEpisodeRating || myEpisodeRating;
-                            const averageEpisodeRating =
-                              episodeAverageRatings.get(String(ep.id));
-                            const savingThisEpisode =
-                              savingEpisodeRatingId === ep.id;
-                            const isPickerOpen =
-                              openEpisodeRatingPickerId === ep.id;
-
-                            return (
-                              <article
-                                id={`episode-${ep.id}`}
-                                key={ep.id}
-                                className={`msd-episode-card ${
-                                  watched ? "msd-episode-watched" : ""
-                                }`}
-                              >
-                                <div className="msd-episode-top">
-                                  <div>
-                                    <h3 className="msd-episode-title">
-                                      {makeEpisodeCode(ep)} - {ep.name}
-                                    </h3>
-                                    <div className="msd-episode-date">
-                                      Air date: {formatDate(ep.aired)}
-                                    </div>
-                                  </div>
-                                  {watched ? (
-                                    <span className="msd-watched-pill">
-                                      Watched
-                                    </span>
-                                  ) : null}
-                                </div>
-
-                                {ep.overview ? (
-                                  <p className="msd-episode-overview">
-                                    {ep.overview}
-                                  </p>
-                                ) : null}
-
-                                <div className="msd-episode-rating-box">
-                                  <div className="msd-episode-rating-header">
-                                    <span className="msd-stat-label">
-                                      Your Episode Rating
-                                    </span>
-                                    <span className="msd-episode-rating-meta">
-                                      {savingThisEpisode
-                                        ? "Saving..."
-                                        : myEpisodeRating
-                                        ? `${myEpisodeRating}/10`
-                                        : "Not rated"}
-                                    </span>
-                                  </div>
-
-                                  <div className="msd-episode-rating-desktop">
-                                    <div className="msd-burgr-picker msd-burgr-picker-compact">
-                                      {Array.from(
-                                        { length: 10 },
-                                        (_, index) => {
-                                          const value = index + 1;
-                                          const filled =
-                                            value <= activeEpisodeRating;
-
-                                          return (
-                                            <button
-                                              key={value}
-                                              type="button"
-                                              className={`msd-burger-btn ${
-                                                filled
-                                                  ? "is-filled"
-                                                  : "is-empty"
-                                              }`}
-                                              onMouseEnter={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: value,
-                                                  })
-                                                )
-                                              }
-                                              onMouseLeave={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: 0,
-                                                  })
-                                                )
-                                              }
-                                              onClick={() =>
-                                                handleSelectEpisodeRating(
-                                                  ep,
-                                                  value
-                                                )
-                                              }
-                                              aria-label={`Rate episode ${value} out of 10 burgers`}
-                                              title={`${value}/10`}
-                                              disabled={savingThisEpisode}
-                                            >
-                                              <img
-                                                src="/burger-rating.png"
-                                                alt=""
-                                                className="msd-burger-icon msd-burger-icon-small"
-                                              />
-                                            </button>
-                                          );
-                                        }
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="msd-episode-rating-mobile">
-                                    <button
-                                      type="button"
-                                      className="msd-btn msd-btn-secondary msd-rating-trigger"
-                                      onClick={() =>
-                                        handleOpenEpisodeRatingPicker(ep.id)
-                                      }
-                                      disabled={savingThisEpisode}
-                                    >
-                                      {savingThisEpisode
-                                        ? "Saving..."
-                                        : myEpisodeRating
-                                        ? `Rate Episode (${myEpisodeRating}/10)`
-                                        : "Rate Episode"}
-                                    </button>
-
-                                    {isPickerOpen ? (
-                                      <div className="msd-mobile-rating-sheet">
-                                        <div className="msd-mobile-rating-grid">
-                                          {Array.from(
-                                            { length: 10 },
-                                            (_, index) => {
-                                              const value = index + 1;
-                                              const selected =
-                                                value === myEpisodeRating;
-
-                                              return (
-                                                <button
-                                                  key={value}
-                                                  type="button"
-                                                  className={`msd-mobile-rating-option ${
-                                                    selected
-                                                      ? "is-selected"
-                                                      : ""
-                                                  }`}
-                                                  onClick={() =>
-                                                    handleSelectEpisodeRating(
-                                                      ep,
-                                                      value
-                                                    )
-                                                  }
-                                                  disabled={savingThisEpisode}
-                                                >
-                                                  <img
-                                                    src="/burger-rating.png"
-                                                    alt=""
-                                                    className="msd-burger-icon msd-burger-icon-small"
-                                                  />
-                                                  <span>{value}/10</span>
-                                                </button>
-                                              );
-                                            }
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : null}
-                                  </div>
-
-                                  <div className="msd-episode-rating-footer">
-                                    <span className="msd-muted">
-                                      Average:{" "}
-                                      {averageEpisodeRating
-                                        ? `${averageEpisodeRating.avg}/10`
-                                        : "—"}
-                                      {averageEpisodeRating
-                                        ? ` (${averageEpisodeRating.count})`
-                                        : ""}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="msd-actions">
-                                  <button
-                                    type="button"
-                                    className={`msd-btn ${
-                                      watched
-                                        ? "msd-btn-secondary"
-                                        : "msd-btn-primary"
-                                    }`}
-                                    onClick={() => handleMarkWatched(ep)}
-                                  >
-                                    {watched
-                                      ? "Mark Unwatched"
-                                      : "Mark Watched"}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className="msd-btn msd-btn-secondary"
-                                    onClick={() => handleWatchUpToHere(ep)}
-                                  >
-                                    Watch up to here
-                                  </button>
-                                </div>
-                              </article>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </section>
+    {activeTab === "genre" && (
+      <>
+        <h2 className="msd-section-title">Genre</h2>
+        ...
+      </>
+    )}
+  </div>
+</section>
                   ))}
                 </div>
               </>
