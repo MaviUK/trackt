@@ -1082,3 +1082,150 @@
     border-radius: 16px;
   }
 }
+
+.msd-episode-hero {
+  position: relative;
+  min-height: 180px;
+  border-radius: 18px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #111827;
+}
+
+.msd-episode-hero-fallback {
+  background: linear-gradient(135deg, #1f2937, #111827);
+}
+
+.msd-episode-hero-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.45) 45%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+}
+
+.msd-episode-hero-text {
+  width: 100%;
+}
+
+.msd-episode-hero-title {
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.msd-episode-hero-date {
+  color: #e2e8f0;
+  font-size: 13px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.msd-episode-mobile-actions {
+  display: none;
+}
+
+.msd-episode-score-pill {
+  min-width: 52px;
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  color: #c7d2fe;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.msd-episode-more-btn {
+  display: none;
+}
+
+.msd-episode-overview-mobile-card {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .msd-episode-top,
+  .msd-episode-rating-box,
+  .msd-actions {
+    display: none;
+  }
+
+  .msd-episode-card {
+    padding: 10px;
+    border-radius: 20px;
+  }
+
+  .msd-episode-hero {
+    min-height: 190px;
+    border-radius: 16px;
+  }
+
+  .msd-episode-hero-title {
+    font-size: 15px;
+  }
+
+  .msd-episode-hero-date {
+    font-size: 12px;
+  }
+
+  .msd-episode-mobile-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+    align-items: stretch;
+  }
+
+  .msd-episode-mobile-actions .msd-btn,
+  .msd-episode-score-pill {
+    min-height: 42px;
+    padding: 8px 6px;
+    font-size: 11px;
+    line-height: 1.15;
+    border-radius: 12px;
+  }
+
+  .msd-episode-mobile-actions .msd-btn {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .msd-episode-more-btn {
+    display: block;
+    margin: 10px auto 0;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 22px;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+
+  .msd-episode-overview-mobile-card {
+    display: block;
+    margin: 8px 2px 0;
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .msd-episode-rating-desktop {
+    display: none;
+  }
+
+  .msd-mobile-rating-sheet {
+    margin-top: 10px;
+  }
+}
