@@ -436,7 +436,13 @@ function dedupeRecommendations(items) {
   const seen = new Set();
 
   return items.filter((item) => {
-    const key = String(item.tvdb_id || item.tvdbId || item.name || "");
+    const key = String(
+      item.tvdb_id ||
+        item.tvdbId ||
+        item.tmdb_id ||
+        item.name ||
+        ""
+    );
     if (!key) return false;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -639,22 +645,24 @@ async function getTmdbRecommendations(tmdbId) {
 
     const results = Array.isArray(json?.results) ? json.results : [];
 
-    return results.slice(0, 12).map((item, index) => ({
-      id: item?.id || `tmdb-rec-${index}`,
-      tmdb_id: item?.id || null,
-      source: "tmdb",
-      name: item?.name || item?.original_name || "Unknown show",
-      poster_path: item?.poster_path || null,
-      poster_url: item?.poster_path
-        ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
-        : null,
-      posterUrl: item?.poster_path
-        ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
-        : null,
-      first_air_date: item?.first_air_date || null,
-      first_aired: item?.first_air_date || null,
-      overview: item?.overview || "",
-    }));
+    return dedupeRecommendations(
+      results.slice(0, 12).map((item, index) => ({
+        id: item?.id || `tmdb-rec-${index}`,
+        tmdb_id: item?.id || null,
+        source: "tmdb",
+        name: item?.name || item?.original_name || "Unknown show",
+        poster_path: item?.poster_path || null,
+        poster_url: item?.poster_path
+          ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+          : null,
+        posterUrl: item?.poster_path
+          ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+          : null,
+        first_air_date: item?.first_air_date || null,
+        first_aired: item?.first_air_date || null,
+        overview: item?.overview || "",
+      }))
+    );
   } catch (error) {
     console.error("TMDB recommendations fetch failed:", error);
     return [];
@@ -851,6 +859,8 @@ export async function handler(event) {
       seriesData?.firstAired || seriesData?.first_aired || ""
     );
 
+    const tmdbRecommendations = await getTmdbRecommendations(tmdbId);
+
     const show = normalizeShow(seriesData, tvdbId, tmdbBackdropUrl);
 
     const inlineEpisodes = normalizeEpisodes(seriesData, tvdbId);
@@ -870,8 +880,8 @@ export async function handler(event) {
     const fallbackRecommendations = normalizeRecommendations(seriesData);
 
     const recommendations =
-      peopleAlsoWatch.length > 0
-        ? peopleAlsoWatch
+      tmdbRecommendations.length > 0
+        ? tmdbRecommendations
         : fallbackRecommendations;
 
     return jsonResponse(200, {
@@ -901,6 +911,9 @@ export async function handler(event) {
         hasTmdbBackdrop: !!show?.backdrop_url,
         tmdbId: tmdbId || null,
         tmdbBackdropCount: backdropCount || 0,
+        tmdbRecommendationCount: tmdbRecommendations.length,
+        fallbackRecommendationCount: fallbackRecommendations.length,
+        peopleAlsoWatchCount: peopleAlsoWatch.length,
         sourceShowName: seriesData?.name || null,
         sourceFirstAired:
           seriesData?.firstAired || seriesData?.first_aired || null,
