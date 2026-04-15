@@ -267,7 +267,9 @@ export default function MyShowDetails() {
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
-  const [rankPosition, setRankPosition] = useState(null);
+  const [rankPosition, setRankPosition] = useState(null);const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
+  {}
+);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -1579,201 +1581,189 @@ export default function MyShowDetails() {
                             const isPickerOpen =
                               openEpisodeRatingPickerId === ep.id;
 
-                            return (
-                              <article
-                                id={`episode-${ep.id}`}
-                                key={ep.id}
-                                className={`msd-episode-card ${
-                                  watched ? "msd-episode-watched" : ""
-                                }`}
-                              >
-                                <div className="msd-episode-top">
-                                  <div>
-                                    <h3 className="msd-episode-title">
-                                      {makeEpisodeCode(ep)} - {ep.name}
-                                    </h3>
-                                    <div className="msd-episode-date">
-                                      Air date: {formatDate(ep.aired)}
-                                    </div>
-                                  </div>
-                                  {watched ? (
-                                    <span className="msd-watched-pill">
-                                      Watched
-                                    </span>
-                                  ) : null}
-                                </div>
+                           return (
+  <article
+    id={`episode-${ep.id}`}
+    key={ep.id}
+    className={`msd-episode-card ${
+      watched ? "msd-episode-watched" : ""
+    }`}
+  >
+    <div
+      className={`msd-episode-hero ${
+        ep.image ? "" : "msd-episode-hero-fallback"
+      }`}
+      style={ep.image ? { backgroundImage: `url(${ep.image})` } : undefined}
+    >
+      <div className="msd-episode-hero-overlay">
+        <div className="msd-episode-hero-text">
+          <h3 className="msd-episode-hero-title">
+            {makeEpisodeCode(ep)} - {ep.name}
+          </h3>
+          <div className="msd-episode-hero-date">
+            Air date: {formatDate(ep.aired)}
+          </div>
+        </div>
+      </div>
+    </div>
 
-                                {ep.overview ? (
-                                  <p className="msd-episode-overview">
-                                    {ep.overview}
-                                  </p>
-                                ) : null}
+    <div className="msd-episode-mobile-actions">
+      <button
+        type="button"
+        className={`msd-btn ${
+          watched ? "msd-btn-secondary" : "msd-btn-primary"
+        }`}
+        onClick={() => handleMarkWatched(ep)}
+      >
+        {watched ? "Watched" : "Watch"}
+      </button>
 
-                                <div className="msd-episode-rating-box">
-                                  <div className="msd-episode-rating-header">
-                                    <span className="msd-stat-label">
-                                      Your Episode Rating
-                                    </span>
-                                    <span className="msd-episode-rating-meta">
-                                      {savingThisEpisode
-                                        ? "Saving..."
-                                        : myEpisodeRating
-                                        ? `${myEpisodeRating}/10`
-                                        : "Not rated"}
-                                    </span>
-                                  </div>
+      <button
+        type="button"
+        className="msd-btn msd-btn-secondary"
+        onClick={() => handleWatchUpToHere(ep)}
+      >
+        Up to Here
+      </button>
 
-                                  <div className="msd-episode-rating-desktop">
-                                    <div className="msd-burgr-picker msd-burgr-picker-compact">
-                                      {Array.from(
-                                        { length: 10 },
-                                        (_, index) => {
-                                          const value = index + 1;
-                                          const filled =
-                                            value <= activeEpisodeRating;
+      <button
+        type="button"
+        className="msd-btn msd-btn-secondary"
+        onClick={() => handleOpenEpisodeRatingPicker(ep.id)}
+        disabled={savingThisEpisode}
+      >
+        {savingThisEpisode
+          ? "Saving..."
+          : myEpisodeRating
+          ? `Rate ${myEpisodeRating}/10`
+          : "Rate"}
+      </button>
 
-                                          return (
-                                            <button
-                                              key={value}
-                                              type="button"
-                                              className={`msd-burger-btn ${
-                                                filled
-                                                  ? "is-filled"
-                                                  : "is-empty"
-                                              }`}
-                                              onMouseEnter={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: value,
-                                                  })
-                                                )
-                                              }
-                                              onMouseLeave={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: 0,
-                                                  })
-                                                )
-                                              }
-                                              onClick={() =>
-                                                handleSelectEpisodeRating(
-                                                  ep,
-                                                  value
-                                                )
-                                              }
-                                              aria-label={`Rate episode ${value} out of 10 burgers`}
-                                              title={`${value}/10`}
-                                              disabled={savingThisEpisode}
-                                            >
-                                              <img
-                                                src="/burger-rating.png"
-                                                alt=""
-                                                className="msd-burger-icon msd-burger-icon-small"
-                                              />
-                                            </button>
-                                          );
-                                        }
-                                      )}
-                                    </div>
-                                  </div>
+      <div className="msd-episode-score-pill">
+        {averageEpisodeRating
+          ? `${Math.round(Number(averageEpisodeRating.avg) * 10)}%`
+          : "—"}
+      </div>
+    </div>
 
-                                  <div className="msd-episode-rating-mobile">
-                                    <button
-                                      type="button"
-                                      className="msd-btn msd-btn-secondary msd-rating-trigger"
-                                      onClick={() =>
-                                        handleOpenEpisodeRatingPicker(ep.id)
-                                      }
-                                      disabled={savingThisEpisode}
-                                    >
-                                      {savingThisEpisode
-                                        ? "Saving..."
-                                        : myEpisodeRating
-                                        ? `Rate Episode (${myEpisodeRating}/10)`
-                                        : "Rate Episode"}
-                                    </button>
+    {isPickerOpen ? (
+      <div className="msd-mobile-rating-sheet">
+        <div className="msd-mobile-rating-grid">
+          {Array.from({ length: 10 }, (_, index) => {
+            const value = index + 1;
+            const selected = value === myEpisodeRating;
 
-                                    {isPickerOpen ? (
-                                      <div className="msd-mobile-rating-sheet">
-                                        <div className="msd-mobile-rating-grid">
-                                          {Array.from(
-                                            { length: 10 },
-                                            (_, index) => {
-                                              const value = index + 1;
-                                              const selected =
-                                                value === myEpisodeRating;
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`msd-mobile-rating-option ${
+                  selected ? "is-selected" : ""
+                }`}
+                onClick={() => handleSelectEpisodeRating(ep, value)}
+                disabled={savingThisEpisode}
+              >
+                <img
+                  src="/burger-rating.png"
+                  alt=""
+                  className="msd-burger-icon msd-burger-icon-small"
+                />
+                <span>{value}/10</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null}
 
-                                              return (
-                                                <button
-                                                  key={value}
-                                                  type="button"
-                                                  className={`msd-mobile-rating-option ${
-                                                    selected
-                                                      ? "is-selected"
-                                                      : ""
-                                                  }`}
-                                                  onClick={() =>
-                                                    handleSelectEpisodeRating(
-                                                      ep,
-                                                      value
-                                                    )
-                                                  }
-                                                  disabled={savingThisEpisode}
-                                                >
-                                                  <img
-                                                    src="/burger-rating.png"
-                                                    alt=""
-                                                    className="msd-burger-icon msd-burger-icon-small"
-                                                  />
-                                                  <span>{value}/10</span>
-                                                </button>
-                                              );
-                                            }
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : null}
-                                  </div>
+    <button
+      type="button"
+      className="msd-episode-more-btn"
+      onClick={() =>
+        setExpandedEpisodeOverviewIds((prev) => ({
+          ...prev,
+          [ep.id]: !prev[ep.id],
+        }))
+      }
+      aria-label={
+        expandedEpisodeOverviewIds[ep.id]
+          ? "Hide episode overview"
+          : "Show episode overview"
+      }
+    >
+      •••
+    </button>
 
-                                  <div className="msd-episode-rating-footer">
-                                    <span className="msd-muted">
-                                      Average:{" "}
-                                      {averageEpisodeRating
-                                        ? `${averageEpisodeRating.avg}/10`
-                                        : "—"}
-                                      {averageEpisodeRating
-                                        ? ` (${averageEpisodeRating.count})`
-                                        : ""}
-                                    </span>
-                                  </div>
-                                </div>
+    {expandedEpisodeOverviewIds[ep.id] && ep.overview ? (
+      <p className="msd-episode-overview msd-episode-overview-mobile-card">
+        {ep.overview}
+      </p>
+    ) : null}
 
-                                <div className="msd-actions">
-                                  <button
-                                    type="button"
-                                    className={`msd-btn ${
-                                      watched
-                                        ? "msd-btn-secondary"
-                                        : "msd-btn-primary"
-                                    }`}
-                                    onClick={() => handleMarkWatched(ep)}
-                                  >
-                                    {watched
-                                      ? "Mark Unwatched"
-                                      : "Mark Watched"}
-                                  </button>
+    <div className="msd-episode-rating-desktop">
+      <div className="msd-episode-rating-box">
+        <div className="msd-episode-rating-header">
+          <span className="msd-stat-label">Your Episode Rating</span>
+          <span className="msd-episode-rating-meta">
+            {savingThisEpisode
+              ? "Saving..."
+              : myEpisodeRating
+              ? `${myEpisodeRating}/10`
+              : "Not rated"}
+          </span>
+        </div>
 
-                                  <button
-                                    type="button"
-                                    className="msd-btn msd-btn-secondary"
-                                    onClick={() => handleWatchUpToHere(ep)}
-                                  >
-                                    Watch up to here
-                                  </button>
-                                </div>
-                              </article>
+        <div className="msd-burgr-picker msd-burgr-picker-compact">
+          {Array.from({ length: 10 }, (_, index) => {
+            const value = index + 1;
+            const filled = value <= activeEpisodeRating;
+
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`msd-burger-btn ${
+                  filled ? "is-filled" : "is-empty"
+                }`}
+                onMouseEnter={() =>
+                  setHoverEpisodeRatings((prev) => ({
+                    ...prev,
+                    [ep.id]: value,
+                  }))
+                }
+                onMouseLeave={() =>
+                  setHoverEpisodeRatings((prev) => ({
+                    ...prev,
+                    [ep.id]: 0,
+                  }))
+                }
+                onClick={() => handleSelectEpisodeRating(ep, value)}
+                aria-label={`Rate episode ${value} out of 10 burgers`}
+                title={`${value}/10`}
+                disabled={savingThisEpisode}
+              >
+                <img
+                  src="/burger-rating.png"
+                  alt=""
+                  className="msd-burger-icon msd-burger-icon-small"
+                />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="msd-episode-rating-footer">
+          <span className="msd-muted">
+            Average:{" "}
+            {averageEpisodeRating ? `${averageEpisodeRating.avg}/10` : "—"}
+            {averageEpisodeRating
+              ? ` (${averageEpisodeRating.count})`
+              : ""}
+          </span>
+        </div>
+      </div>
+    </div>
+  </article>
                             );
                           })}
                         </div>
