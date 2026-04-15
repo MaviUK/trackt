@@ -69,6 +69,16 @@ function getTotalSeasons(show) {
   );
 }
 
+function getTotalEpisodes(show) {
+  return (
+    show.total_episodes ||
+    show.episodes_count ||
+    show.episode_count ||
+    show.totalEpisodes ||
+    null
+  );
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
 
@@ -300,6 +310,7 @@ export default function Search() {
             const poster = getPoster(show);
             const firstAired = getFirstAired(show);
             const totalSeasons = getTotalSeasons(show);
+            const totalEpisodes = getTotalEpisodes(show);
 
             return (
               <div
@@ -308,20 +319,17 @@ export default function Search() {
                 style={
                   backdrop
                     ? {
-                        backgroundImage: `linear-gradient(90deg, rgba(9,14,26,0.96) 0%, rgba(9,14,26,0.82) 45%, rgba(9,14,26,0.92) 100%), url(${backdrop})`,
+                        backgroundImage: `linear-gradient(90deg, rgba(9,14,26,0.96) 0%, rgba(9,14,26,0.84) 42%, rgba(9,14,26,0.92) 100%), url(${backdrop})`,
                       }
                     : undefined
                 }
               >
                 <div className="search-result-banner-inner">
-                  <Link
-                    to={detailHref}
-                    className="search-result-poster-link"
-                  >
+                  <Link to={detailHref} className="search-result-poster-link">
                     {poster ? (
                       <img
                         src={poster}
-                        alt={show.name}
+                        alt={show.name || show.show_name || "Show poster"}
                         className="search-result-poster"
                       />
                     ) : (
@@ -330,10 +338,7 @@ export default function Search() {
                   </Link>
 
                   <div className="search-result-content">
-                    <Link
-                      to={detailHref}
-                      className="search-result-title-link"
-                    >
+                    <Link to={detailHref} className="search-result-title-link">
                       <h3 className="search-result-title">
                         {show.name || show.show_name}
                       </h3>
@@ -361,6 +366,17 @@ export default function Search() {
                           </span>
                         </div>
                       ) : null}
+
+                      {totalEpisodes ? (
+                        <div className="search-result-meta-row">
+                          <span className="search-result-meta-label">
+                            Total episodes
+                          </span>
+                          <span className="search-result-meta-value">
+                            {totalEpisodes}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="search-result-actions">
@@ -368,9 +384,7 @@ export default function Search() {
                         type="button"
                         onClick={(e) => handleAddShow(e, show)}
                         disabled={isSaved || isAdding}
-                        className={`msd-btn ${
-                          isSaved ? "msd-btn-success" : "msd-btn-primary"
-                        }`}
+                        className={`search-add-btn ${isSaved ? "is-saved" : ""}`}
                       >
                         {isSaved ? "Added" : isAdding ? "Adding..." : "Add Show"}
                       </button>
