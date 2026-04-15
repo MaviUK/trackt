@@ -1916,45 +1916,44 @@ export default function MyShowDetails() {
           </div>
         </section>
 
-        <section className="msd-panel">
+               <section className="msd-panel">
           <h2 className="msd-section-title">Recommended Shows</h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
           ) : recommendedShows.length > 0 ? (
             <div className="msd-recommended-row">
-  {recommendedShows.map((rec, index) => {
-    const showName = rec.name || rec.title || "Unknown show";
-    const linkTarget = getMappedShowHref(rec);
-    const posterSrc =
-      rec.poster_url ||
-      rec.posterUrl ||
-      rec.image_url ||
-      rec.image ||
-      (rec.poster_path
-        ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
-        : "");
+              {recommendedShows.map((rec, index) => {
+                const showName = rec.name || rec.title || "Unknown show";
+                const linkTarget = getMappedShowHref(rec);
+                const posterSrc =
+                  rec.poster_url ||
+                  rec.posterUrl ||
+                  rec.image_url ||
+                  rec.image ||
+                  (rec.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+                    : "");
 
-    return (
-      <Link
-        key={rec.id || `${showName}-${index}`}
-        to={linkTarget}
-        className="msd-recommended-card"
-      >
-        {posterSrc ? (
-          <img
-            src={posterSrc}
-            alt={showName}
-            className="msd-recommended-card-image"
-          />
-        ) : (
-          <div className="msd-recommended-card-image-placeholder">
-            {showName.charAt(0)}
-          </div>
-        )}
-      </Link>
-    );
-  })}
-</div>
+                return (
+                  <Link
+                    key={rec.id || `${showName}-${index}`}
+                    to={linkTarget}
+                    className="msd-recommended-card"
+                  >
+                    {posterSrc ? (
+                      <img
+                        src={posterSrc}
+                        alt={showName}
+                        className="msd-recommended-card-image"
+                      />
+                    ) : (
+                      <div className="msd-recommended-card-image-placeholder">
+                        {showName.charAt(0)}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <p className="msd-muted">No recommendations yet.</p>
