@@ -1,31 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getShowStatus } from "../lib/showStatus";
+import { formatDate } from "../lib/date";
+import { addShowToUserList } from "../lib/userShows";
+import "./MyShowDetails.css";
 
-function isAired(dateValue) {
-  if (!dateValue) return false;
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return false;
-  return date <= new Date();
+function isFuture(dateString) {
+  if (!dateString) return false;
+  const d = new Date(dateString);
+  return !Number.isNaN(d.getTime()) && d > new Date();
 }
 
-function toStatusEpisodeShape(ep) {
-  return {
-    seasonNumber: ep.season_number,
-    number: ep.episode_number,
-    aired: ep.aired_date,
-    airDate: ep.aired_date,
-    name: ep.name,
-  };
-}
-
-function daysUntil(dateValue) {
-  if (!dateValue) return null;
-
+function getDaysUntil(dateString) {
+  if (!dateString) return null;
   const now = new Date();
-  const target = new Date(dateValue);
-
+  const target = new Date(dateString);
   if (Number.isNaN(target.getTime())) return null;
 
   const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -35,475 +24,760 @@ function daysUntil(dateValue) {
     target.getDate()
   );
 
-  return Math.ceil((targetStart - nowStart) / 86400000);
+  return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
 }
 
-function chunkArray(items, size) {
-  const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
+function getYear(dateString) {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
+  return String(d.getFullYear());
 }
 
-async function fetchEpisodesForShowIds(showIds) {
-  if (!showIds.length) return [];
+function sortSeasonGroups(a, b) {
+  const aNum = Number(a[0]);
+  const bNum = Number(b[0]);
 
-  const batches = chunkArray(showIds, 4);
-  const allEpisodes = [];
-  const pageSize = 1000;
+  if (aNum === 0 && bNum !== 0) return -1;
+  if (bNum === 0 && aNum !== 0) return 1;
+  return aNum - bNum;
+}
 
-  for (const batch of batches) {
-    let from = 0;
-    let done = false;
-
-    while (!done) {
-      const to = from + pageSize - 1;
-
-      const { data, error } = await supabase
-        .from("episodes")
-        .select(`
-          id,
-          show_id,
-          season_number,
-          episode_number,
-          name,
-          aired_date
-        `)
-        .in("show_id", batch)
-        .order("show_id", { ascending: true })
-        .order("season_number", { ascending: true })
-        .order("episode_number", { ascending: true })
-        .range(from, to);
-
-      if (error) throw error;
-
-      const rows = data || [];
-      allEpisodes.push(...rows);
-
-      if (rows.length < pageSize) {
-        done = true;
-      } else {
-        from += pageSize;
-      }
-    }
+function makeEpisodeCode(ep) {
+  if (Number(ep?.seasonNumber) === 0) {
+    if (!ep?.number) return "Special";
+    return `Special ${ep.number}`;
   }
 
-  return allEpisodes;
+  if (!ep?.seasonNumber || !ep?.number) return "Episode";
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
 }
 
-async function fetchAllWatchedEpisodeRows(userId) {
-  const pageSize = 1000;
-  let from = 0;
-  let done = false;
-  const allRows = [];
+function normalizeShowPayload(showData, tvdbIdFallback) {
+  if (!showData) return null;
 
-  while (!done) {
-    const to = from + pageSize - 1;
-
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
-      .range(from, to);
-
-    if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
-  }
-
-  return allRows;
+  return {
+    id: showData.id ?? null,
+    tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
+    show_name: showData.name || showData.show_name || "Unknown title",
+    overview: showData.overview || "",
+    poster_url:
+      showData.poster_url || showData.image_url || showData.image || null,
+    first_aired:
+      showData.first_aired ||
+      showData.first_air_time ||
+      showData.firstAired ||
+      null,
+    status: showData.status || null,
+    network: showData.network || "",
+    original_language:
+      showData.original_language || showData.originalLanguage || "",
+    genres: Array.isArray(showData.genres) ? showData.genres : [],
+    relationship_types: Array.isArray(showData.relationship_types)
+      ? showData.relationship_types
+      : [],
+    settings: Array.isArray(showData.settings) ? showData.settings : [],
+    rating_average:
+      showData.rating_average != null
+        ? Number(showData.rating_average)
+        : null,
+    rating_count:
+      showData.rating_count != null ? Number(showData.rating_count) : null,
+  };
 }
 
-export default function MyShows() {
-  const [shows, setShows] = useState([]);
+function normalizeEpisodePayload(row, index, tvdbId) {
+  return {
+    id:
+      row.id ||
+      row.tvdb_id ||
+      row.tvdbId ||
+      `${tvdbId}-${row.season_number ?? row.seasonNumber ?? 0}-${
+        row.episode_number ?? row.number ?? 0
+      }-${index}`,
+    tvdb_episode_id: row.tvdb_id || row.tvdbId || null,
+    seasonNumber: row.season_number ?? row.seasonNumber ?? 0,
+    number: row.episode_number ?? row.number ?? 0,
+    aired: row.aired_date || row.airDate || row.aired || null,
+    airDate: row.aired_date || row.airDate || row.aired || null,
+    name: row.name || "Untitled episode",
+    overview: row.overview || "",
+    image: row.image_url || row.image || null,
+    episode_code: row.episode_code || null,
+  };
+}
+
+export default function ShowDetails() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
-  const [filterBy, setFilterBy] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 768 : false
-  );
+  const [extrasLoading, setExtrasLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+
+  const [show, setShow] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [cast, setCast] = useState([]);
+  const [recommendedShows, setRecommendedShows] = useState([]);
+  const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [trailer, setTrailer] = useState(null);
+
+  const [viewer, setViewer] = useState(null);
+  const [isAdded, setIsAdded] = useState(false);
 
   useEffect(() => {
-    function handleResize() {
-      setIsMobile(window.innerWidth <= 768);
-    }
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  async function loadShows() {
-    try {
+    async function loadShow() {
       setLoading(true);
+      setExtrasLoading(false);
+      setError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
+        setViewer(user || null);
 
-      if (!user) {
-        setShows([]);
-        return;
-      }
+        const tvdbId = Number(id);
+        if (Number.isNaN(tvdbId)) {
+          setShow(null);
+          setEpisodes([]);
+          setExpandedSeasons({});
+          setCast([]);
+          setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
+          setProviders([]);
+          setTrailer(null);
+          setIsAdded(false);
+          return;
+        }
 
-      const { data: userShows, error: userShowsError } = await supabase
-        .from("user_shows_new")
-        .select(`
-          id,
-          user_id,
-          show_id,
-          watch_status,
-          archived_at,
-          added_at,
-          created_at,
-          shows!inner(
+        let dbShow = null;
+        let dbEpisodes = [];
+        let extras = null;
+
+        const { data: showData, error: showError } = await supabase
+          .from("shows")
+          .select(`
             id,
             tvdb_id,
             name,
             overview,
             status,
             poster_url,
-            first_aired
-          )
-        `)
-        .eq("user_id", user.id);
+            first_aired,
+            network,
+            genres,
+            original_language,
+            relationship_types,
+            settings,
+            rating_average,
+            rating_count
+          `)
+          .eq("tvdb_id", tvdbId)
+          .maybeSingle();
 
-      if (userShowsError) throw userShowsError;
+        if (showError) throw showError;
 
-      const normalizedUserShows = (userShows || []).map((row) => ({
-        id: row.id,
-        user_id: row.user_id,
-        show_id: row.show_id,
-        watch_status: row.watch_status || "watching",
-        archived_at: row.archived_at || null,
-        added_at: row.added_at,
-        created_at: row.created_at,
-        tvdb_id: row.shows.tvdb_id,
-        show_name: row.shows.name || "Unknown title",
-        overview: row.shows.overview || "",
-        status: row.shows.status || null,
-        poster_url: row.shows.poster_url || null,
-        first_aired: row.shows.first_aired || null,
+        if (showData) {
+          dbShow = showData;
+
+          if (user) {
+            const { data: userShowData, error: userShowError } = await supabase
+              .from("user_shows_new")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("show_id", showData.id)
+              .maybeSingle();
+
+            if (userShowError) {
+              console.warn("user show fetch failed", userShowError);
+            }
+
+            setIsAdded(!!userShowData);
+          } else {
+            setIsAdded(false);
+          }
+
+          const { data: episodeRows, error: episodeError } = await supabase
+            .from("episodes")
+            .select(`
+              id,
+              tvdb_id,
+              show_id,
+              season_number,
+              episode_number,
+              episode_code,
+              name,
+              overview,
+              aired_date,
+              image_url
+            `)
+            .eq("show_id", showData.id)
+            .order("season_number", { ascending: true })
+            .order("episode_number", { ascending: true });
+
+          if (episodeError) throw episodeError;
+
+          dbEpisodes = (episodeRows || []).map((row, index) =>
+            normalizeEpisodePayload(row, index, tvdbId)
+          );
+        } else {
+          setIsAdded(false);
+        }
+
+        try {
+          setExtrasLoading(true);
+
+          const extrasRes = await fetch(
+            `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
+          );
+
+          if (extrasRes.ok) {
+            extras = await extrasRes.json();
+          } else {
+            console.warn(`getShowExtras returned ${extrasRes.status}`);
+          }
+        } catch (extrasError) {
+          console.error("Failed loading TVDB extras:", extrasError);
+        } finally {
+          setExtrasLoading(false);
+        }
+
+        const fallbackShow =
+          extras?.show || extras?.series || extras?.data || null;
+
+        const normalizedShow = normalizeShowPayload(
+          dbShow || fallbackShow,
+          tvdbId
+        );
+
+        if (!normalizedShow) {
+          setShow(null);
+          setEpisodes([]);
+          setExpandedSeasons({});
+          setCast([]);
+          setRecommendedShows([]);
+          setPeopleAlsoWatch([]);
+          setProviders([]);
+          setTrailer(null);
+          setIsAdded(false);
+          return;
+        }
+
+        const fallbackEpisodes = Array.isArray(extras?.episodes)
+          ? extras.episodes
+          : [];
+
+        const normalizedEpisodes =
+          dbEpisodes.length > 0
+            ? dbEpisodes
+            : fallbackEpisodes.map((row, index) =>
+                normalizeEpisodePayload(row, index, tvdbId)
+              );
+
+        const seasonMap = {};
+        normalizedEpisodes.forEach((ep) => {
+          const seasonKey = Number(ep.seasonNumber ?? 0);
+          if (seasonKey !== 0 && !(seasonKey in seasonMap)) {
+            seasonMap[seasonKey] = false;
+          }
+        });
+
+        const castRows = Array.isArray(extras?.cast) ? extras.cast : [];
+        const tvdbPeopleAlsoWatch = Array.isArray(extras?.peopleAlsoWatch)
+          ? extras.peopleAlsoWatch
+          : [];
+        const fallbackRecommendations = Array.isArray(extras?.recommendations)
+          ? extras.recommendations
+          : [];
+        const providerRows = Array.isArray(extras?.providers)
+          ? extras.providers
+          : [];
+        const trailerData = extras?.trailer || null;
+
+        setShow(normalizedShow);
+        setEpisodes(normalizedEpisodes);
+        setExpandedSeasons(seasonMap);
+        setCast(castRows);
+        setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
+        setRecommendedShows(
+          tvdbPeopleAlsoWatch.length > 0
+            ? tvdbPeopleAlsoWatch
+            : fallbackRecommendations
+        );
+        setProviders(providerRows);
+        setTrailer(trailerData);
+      } catch (err) {
+        console.error("Failed loading show:", err);
+        setError(err.message || "Failed loading show");
+        setShow(null);
+        setEpisodes([]);
+        setExpandedSeasons({});
+        setCast([]);
+        setRecommendedShows([]);
+        setPeopleAlsoWatch([]);
+        setProviders([]);
+        setTrailer(null);
+        setIsAdded(false);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadShow();
+  }, [id]);
+
+  const groupedSeasons = useMemo(() => {
+    const grouped = {};
+
+    for (const ep of episodes) {
+      const seasonKey = Number(ep.seasonNumber ?? 0);
+      if (seasonKey === 0) continue;
+      if (!grouped[seasonKey]) grouped[seasonKey] = [];
+      grouped[seasonKey].push(ep);
+    }
+
+    return Object.entries(grouped)
+      .sort(sortSeasonGroups)
+      .map(([seasonNumber, seasonEpisodes]) => ({
+        seasonNumber: Number(seasonNumber),
+        label: `Season ${seasonNumber}`,
+        episodes: seasonEpisodes,
+        totalCount: seasonEpisodes.length,
       }));
+  }, [episodes]);
 
-      const showIds = normalizedUserShows
-        .map((show) => show.show_id)
-        .filter(Boolean);
+  const stats = useMemo(() => {
+    const mainEpisodes = episodes.filter(
+      (ep) => Number(ep.seasonNumber ?? 0) !== 0
+    );
 
-      if (!showIds.length) {
-        setShows([]);
-        return;
-      }
+    const totalEpisodes = mainEpisodes.length;
+    const totalSeasons = groupedSeasons.length;
+    const nextEpisode = mainEpisodes.find((ep) => isFuture(ep.aired));
 
-      const [watchedRows, allEpisodes] = await Promise.all([
-        fetchAllWatchedEpisodeRows(user.id),
-        fetchEpisodesForShowIds(showIds),
-      ]);
+    return { totalEpisodes, totalSeasons, nextEpisode };
+  }, [episodes, groupedSeasons]);
 
-      const watchedEpisodeIds = new Set(
-        (watchedRows || [])
-          .map((row) => row.episode_id)
-          .filter(Boolean)
-          .map(String)
-      );
+  const sourceYear = getYear(show?.first_aired);
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
+  const sourceLanguage = show?.original_language || "";
 
-      const episodesByShowId = {};
-      for (const ep of allEpisodes || []) {
-        const key = ep.show_id;
-        if (!episodesByShowId[key]) episodesByShowId[key] = [];
-        episodesByShowId[key].push(ep);
-      }
+  const baseContext = `sourceShowId=${encodeURIComponent(
+    show?.tvdb_id || ""
+  )}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(
+    sourceRating
+  )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
-      const updatedShows = normalizedUserShows.map((userShow) => {
-        const showEpisodes = episodesByShowId[userShow.show_id] || [];
+  function toggleSeason(seasonNumber) {
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
+  }
 
-        const mainEpisodes = showEpisodes.filter(
-          (ep) => Number(ep.season_number ?? 0) !== 0
-        );
+  async function handleAddShow() {
+    if (!viewer) {
+      setError("Please log in to add this show.");
+      return;
+    }
 
-        const futureMainEpisodes = mainEpisodes.filter(
-          (ep) => ep.aired_date && !isAired(ep.aired_date)
-        );
+    if (!show?.tvdb_id) {
+      setError("This show cannot be added yet because it has no TVDB id.");
+      return;
+    }
 
-        const watchedMainCount = mainEpisodes.filter((ep) =>
-          watchedEpisodeIds.has(String(ep.id))
-        ).length;
+    setAdding(true);
+    setError("");
 
-        const totalMainEpisodes = mainEpisodes.length;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const upcomingEpisodes = futureMainEpisodes
-          .filter((ep) => ep.aired_date)
-          .filter((ep) => {
-            const airDate = new Date(ep.aired_date);
-            airDate.setHours(0, 0, 0, 0);
-            return airDate >= today;
-          })
-          .sort((a, b) => new Date(a.aired_date) - new Date(b.aired_date));
-
-        const nextEpisodeDate =
-          upcomingEpisodes.length > 0 ? upcomingEpisodes[0].aired_date : null;
-
-        const daysToNextEpisode = daysUntil(nextEpisodeDate);
-
-        const statusEpisodes = mainEpisodes.map(toStatusEpisodeShape);
-
-        const status = getShowStatus(
-          {
-            ...userShow,
-            first_aired: userShow.first_aired,
-          },
-          statusEpisodes
-        );
-
-        const isArchived = userShow.watch_status === "archived";
-        const isWatchlist = watchedMainCount === 0 && !isArchived;
-        const isCompleted =
-          totalMainEpisodes > 0 &&
-          watchedMainCount >= totalMainEpisodes &&
-          !isArchived;
-        const isInProgress =
-          watchedMainCount > 0 &&
-          watchedMainCount < totalMainEpisodes &&
-          !isArchived;
-
-        const isAiring = !!nextEpisodeDate && !isArchived;
-        const isAiringSoon =
-          !isArchived &&
-          daysToNextEpisode != null &&
-          daysToNextEpisode >= 0 &&
-          daysToNextEpisode <= 30;
-
-        return {
-          ...userShow,
-          nextEpisodeDate,
-          daysToNextEpisode,
-          watchedMainCount,
-          totalMainEpisodes,
-          status,
-          isArchived,
-          isWatchlist,
-          isCompleted,
-          isInProgress,
-          isAiring,
-          isAiringSoon,
-        };
+    try {
+      await addShowToUserList({
+        tvdb_id: Number(show.tvdb_id),
+        name: show.show_name || "Unknown Show",
+        poster_url: show.poster_url || null,
+        overview: show.overview || null,
+        first_air_date: show.first_aired || null,
+        status: show.status || null,
       });
 
-      setShows(updatedShows);
-    } catch (error) {
-      console.error("LOAD SHOWS FAILED:", error);
-      setShows([]);
+      setIsAdded(true);
+      navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
+    } catch (err) {
+      console.error("Failed to add show:", err);
+      setError(err.message || "Failed to add show.");
     } finally {
-      setLoading(false);
+      setAdding(false);
     }
   }
 
-  useEffect(() => {
-    loadShows();
-  }, []);
-
-  const filteredShows = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return shows.filter((show) => {
-      const matchesFilter =
-        filterBy === "all"
-          ? true
-          : filterBy === "watchlist"
-          ? show.isWatchlist
-          : filterBy === "inprogress"
-          ? show.isInProgress
-          : filterBy === "completed"
-          ? show.isCompleted
-          : filterBy === "archived"
-          ? show.isArchived
-          : filterBy === "airing"
-          ? show.isAiringSoon && !show.isArchived
-          : true;
-
-      if (!matchesFilter) return false;
-
-      if (!normalizedSearch) return true;
-
-      return (show.show_name || "").toLowerCase().includes(normalizedSearch);
-    });
-  }, [shows, filterBy, searchTerm]);
-
-  const displayedShows = useMemo(() => {
-    return [...filteredShows].sort((a, b) =>
-      (a.show_name || "").localeCompare(b.show_name || "")
-    );
-  }, [filteredShows]);
-
-  const counts = useMemo(
-    () => ({
-      all: shows.length,
-      watchlist: shows.filter((show) => show.isWatchlist).length,
-      inprogress: shows.filter((show) => show.isInProgress).length,
-      completed: shows.filter((show) => show.isCompleted).length,
-      archived: shows.filter((show) => show.isArchived).length,
-      airing: shows.filter((show) => show.isAiringSoon && !show.isArchived)
-        .length,
-    }),
-    [shows]
-  );
-
   if (loading) {
     return (
-      <div className="page">
-        <div className="page-header">
-          <h1>My Shows</h1>
-          <p>Loading your saved shows...</p>
+      <div className="msd-page">
+        <div className="msd-shell">
+          <div className="msd-loading">Loading show...</div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="page">
-      <div className="page-header">
-        <h1>My Shows</h1>
-        <p>Track your saved shows and progress.</p>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          marginBottom: 20,
-        }}
-      >
-        {[
-          ["all", `All (${counts.all})`],
-          ["watchlist", `Watchlist (${counts.watchlist})`],
-          ["inprogress", `In Progress (${counts.inprogress})`],
-          ["completed", `Completed (${counts.completed})`],
-          ["archived", `Archived (${counts.archived})`],
-          ["airing", `Airing (${counts.airing})`],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            className="msd-btn msd-btn-secondary"
-            type="button"
-            onClick={() => setFilterBy(value)}
-            style={{ opacity: filterBy === value ? 1 : 0.7 }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: 24, maxWidth: 420 }}>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search my shows..."
-          style={{
-            width: "100%",
-            padding: "14px 16px",
-            borderRadius: 14,
-            border: "1px solid #26324a",
-            background: "#182235",
-            color: "#f8fafc",
-            fontSize: "1rem",
-            outline: "none",
-          }}
-        />
-      </div>
-
-      {displayedShows.length === 0 ? (
-        <div className="show-card">
-          <p>No shows found for this filter.</p>
+  if (!show) {
+    return (
+      <div className="msd-page">
+        <div className="msd-shell">
+          <div className="msd-empty">
+            <p>Show not found.</p>
+            <Link to="/search" className="msd-back-link">
+              Back to Search
+            </Link>
+          </div>
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile
-              ? "repeat(4, minmax(0, 1fr))"
-              : "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: isMobile ? 10 : 20,
-          }}
-        >
-          {displayedShows.map((show) => (
-            <Link
-              key={show.show_id}
-              to={`/my-shows/${show.tvdb_id}`}
+      </div>
+    );
+  }
+
+  const streamingText =
+    providers.length > 0
+      ? providers.map((provider) => provider.name).join(", ")
+      : "—";
+
+  return (
+    <div className="msd-page">
+      <div className="msd-shell">
+        <Link to="/search" className="msd-back-link">
+          ← Back to Search
+        </Link>
+
+        <section className="msd-hero">
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              alignItems: "stretch",
+            }}
+          >
+            {show.poster_url ? (
+              <img
+                src={show.poster_url}
+                alt={show.show_name}
+                className="msd-poster"
+              />
+            ) : null}
+
+            {isAdded ? (
+              <Link
+                to={`/my-shows/${show.tvdb_id}`}
+                className="msd-btn msd-btn-success"
+                style={{ textAlign: "center" }}
+              >
+                Open in My Shows
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddShow}
+                disabled={adding}
+                className="msd-btn msd-btn-primary"
+              >
+                {adding ? "Adding..." : "Add to My Shows"}
+              </button>
+            )}
+          </div>
+
+          <div className="msd-hero-main">
+            <h1 className="msd-title">{show.show_name}</h1>
+
+            {show.overview ? (
+              <p className="msd-overview">{show.overview}</p>
+            ) : null}
+
+            <div className="msd-meta">
+              {show.first_aired ? (
+                <div>First aired: {formatDate(show.first_aired)}</div>
+              ) : null}
+              {stats.nextEpisode ? (
+                <div>
+                  Next episode: {formatDate(stats.nextEpisode.aired)} (
+                  {getDaysUntil(stats.nextEpisode.aired) === 0
+                    ? "TODAY"
+                    : getDaysUntil(stats.nextEpisode.aired) === 1
+                    ? "IN 1 DAY"
+                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
+                  )
+                </div>
+              ) : null}
+              {show.status ? <div>Status: {show.status}</div> : null}
+            </div>
+
+            <div
+              className="msd-stats-row"
               style={{
-                textDecoration: "none",
-                color: "inherit",
-                display: "block",
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: "12px",
+                marginTop: "18px",
               }}
             >
-              <div
-                style={{
-                  border: isMobile ? "none" : "1px solid #26324a",
-                  borderRadius: isMobile ? 0 : 18,
-                  padding: isMobile ? 0 : 12,
-                  transition: "0.2s ease",
-                  cursor: "pointer",
-                  height: "100%",
-                  background: "transparent",
-                }}
-              >
-                {show.poster_url ? (
-                  <img
-                    src={show.poster_url}
-                    alt={show.show_name}
-                    style={{
-                      width: "100%",
-                      aspectRatio: "2 / 3",
-                      objectFit: "cover",
-                      borderRadius: isMobile ? 10 : 14,
-                      display: "block",
-                      background: "#111827",
-                      marginBottom: isMobile ? 0 : 12,
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      aspectRatio: "2 / 3",
-                      borderRadius: isMobile ? 10 : 14,
-                      background: "#111827",
-                      marginBottom: isMobile ? 0 : 12,
-                    }}
-                  />
-                )}
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Seasons</span>
+                <strong className="msd-stat-value">{stats.totalSeasons}</strong>
+              </div>
 
-                {!isMobile && (
-                  <div
-                    style={{
-                      color: "#f8fafc",
-                      fontWeight: 800,
-                      fontSize: "1rem",
-                      lineHeight: 1.25,
-                    }}
-                  >
-                    {show.show_name}
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Total Episodes</span>
+                <strong className="msd-stat-value">
+                  {stats.totalEpisodes}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Network</span>
+                <strong className="msd-stat-value">
+                  {show.network ? (
+                    <Link
+                      to={`/search?network=${encodeURIComponent(
+                        show.network
+                      )}&${baseContext}`}
+                      className="msd-link"
+                    >
+                      {show.network}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Streaming</span>
+                <strong
+                  className="msd-stat-value"
+                  style={{ fontSize: "1rem", lineHeight: "1.3" }}
+                >
+                  {streamingText}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Genre</span>
+                <strong className="msd-stat-value">
+                  {show.genres?.length > 0
+                    ? show.genres.map((genre, index) => (
+                        <span key={genre}>
+                          <Link
+                            to={`/search?genre=${encodeURIComponent(
+                              genre
+                            )}&${baseContext}`}
+                            className="msd-link"
+                          >
+                            {genre}
+                          </Link>
+                          {index < show.genres.length - 1 ? ", " : ""}
+                        </span>
+                      ))
+                    : "—"}
+                </strong>
+              </div>
+
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Language</span>
+                <strong className="msd-stat-value">
+                  {show.original_language || "—"}
+                </strong>
+              </div>
+
+              <div
+                className="msd-stat-box"
+                style={{ gridColumn: "span 2" }}
+              >
+                <span className="msd-stat-label">Play Trailer</span>
+                <strong
+                  className="msd-stat-value"
+                  style={{ fontSize: "1rem" }}
+                >
+                  {trailer?.url ? (
+                    <a
+                      href={trailer.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="msd-link"
+                    >
+                      {trailer.name || "Watch Trailer"}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
+            </div>
+
+            {!isAdded ? (
+              <p style={{ color: "#cbd5e1", marginTop: "14px" }}>
+                Personal tracking appears after you add this show.
+              </p>
+            ) : null}
+
+            {error ? (
+              <p style={{ color: "#fca5a5", marginTop: "14px" }}>{error}</p>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="msd-episodes-section">
+          <h2 className="msd-section-title">Episodes</h2>
+          <div className="msd-seasons">
+            {groupedSeasons.map((season) => (
+              <section key={season.seasonNumber} className="msd-season-card">
+                <button
+                  type="button"
+                  className="msd-season-toggle"
+                  onClick={() => toggleSeason(season.seasonNumber)}
+                >
+                  <div>
+                    <div className="msd-season-title">{season.label}</div>
+                    <div className="msd-season-subtitle">
+                      {season.totalCount} episodes
+                    </div>
+                  </div>
+                  <div className="msd-season-toggle-right">
+                    <span className="msd-season-chevron">
+                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                    </span>
+                  </div>
+                </button>
+
+                {expandedSeasons[season.seasonNumber] && (
+                  <div className="msd-episode-list">
+                    {season.episodes.map((ep) => (
+                      <article key={ep.id} className="msd-episode-card">
+                        <div className="msd-episode-top">
+                          <div>
+                            <h3 className="msd-episode-title">
+                              {makeEpisodeCode(ep)} - {ep.name}
+                            </h3>
+                            <div className="msd-episode-date">
+                              Air date: {formatDate(ep.aired)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {ep.overview ? (
+                          <p className="msd-episode-overview">
+                            {ep.overview}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
                   </div>
                 )}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+              </section>
+            ))}
+          </div>
+        </section>
+
+        <section className="msd-panel msd-panel-spaced">
+          <h2 className="msd-section-title">Cast</h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading cast...</p>
+          ) : cast.length > 0 ? (
+            <div className="msd-cast-grid">
+              {cast.map((member, index) => (
+                <div
+                  key={member.id || `${member.personName}-${index}`}
+                  className="msd-cast-card"
+                >
+                  {member.image ? (
+                    <img
+                      src={member.image}
+                      alt={member.personName || "Cast member"}
+                      className="msd-cast-image"
+                    />
+                  ) : null}
+                  <div className="msd-cast-name">
+                    {member.personName || "Unknown actor"}
+                  </div>
+                  <div className="msd-cast-role">
+                    {member.characterName || "Cast"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="msd-muted">No cast available.</p>
+          )}
+        </section>
+
+        <section className="msd-panel">
+          <h2 className="msd-section-title">
+            {peopleAlsoWatch.length > 0
+              ? "People Also Watch"
+              : "Recommended Shows"}
+          </h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-grid">
+              {recommendedShows.map((rec, index) => {
+                const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
+                const hasTvdbId = !!tvdbIdValue;
+                const linkTarget = hasTvdbId ? `/show/${tvdbIdValue}` : "#";
+
+                const content = (
+                  <>
+                    {rec.poster_url || rec.posterUrl ? (
+                      <img
+                        src={rec.poster_url || rec.posterUrl}
+                        alt={rec.name || "Recommended show"}
+                        className="msd-rec-poster"
+                      />
+                    ) : null}
+                    <div className="msd-rec-title">
+                      {rec.name || "Unknown show"}
+                    </div>
+                    {rec.first_aired || rec.firstAired ? (
+                      <div className="msd-rec-date">
+                        {formatDate(rec.first_aired || rec.firstAired)}
+                      </div>
+                    ) : null}
+                  </>
+                );
+
+                if (hasTvdbId) {
+                  return (
+                    <Link
+                      key={rec.id || `${rec.name}-${index}`}
+                      to={linkTarget}
+                      className="msd-rec-card"
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div
+                    key={rec.id || `${rec.name}-${index}`}
+                    className="msd-rec-card"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
