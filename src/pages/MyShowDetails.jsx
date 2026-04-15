@@ -393,19 +393,20 @@ export default function MyShowDetails() {
       if (userShowError) throw userShowError;
 
       const { data: episodeRows, error: episodeError } = await supabase
-        .from("episodes")
-        .select(`
-          id,
-          tvdb_id,
-          show_id,
-          season_number,
-          episode_number,
-          episode_code,
-          name,
-          overview,
-          aired_date,
-          image_url
-        `)
+  .from("episodes")
+  .select(`
+    id,
+    tvdb_id,
+    show_id,
+    season_number,
+    episode_number,
+    episode_code,
+    name,
+    overview,
+    aired_date,
+    image_url,
+    tmdb_vote_average
+  `)
         .eq("show_id", showId)
         .order("season_number", { ascending: true })
         .order("episode_number", { ascending: true });
@@ -413,17 +414,22 @@ export default function MyShowDetails() {
       if (episodeError) throw episodeError;
 
       const normalizedEpisodes = (episodeRows || []).map((row) => ({
-        id: row.id,
-        tvdb_episode_id: row.tvdb_id,
-        seasonNumber: row.season_number,
-        number: row.episode_number,
-        aired: row.aired_date,
-        airDate: row.aired_date,
-        name: row.name || "Untitled episode",
-        overview: row.overview || "",
-        image: row.image_url || null,
-        episode_code: row.episode_code,
-      }));
+  id: row.id,
+  tvdb_episode_id: row.tvdb_id,
+  seasonNumber: row.season_number,
+  number: row.episode_number,
+  aired: row.aired_date,
+  airDate: row.aired_date,
+  name: row.name || "Untitled episode",
+  overview: row.overview || "",
+  image: row.image_url || null,
+  episode_code: row.episode_code,
+  tmdbRating:
+    row.tmdb_vote_average != null &&
+    !Number.isNaN(Number(row.tmdb_vote_average))
+      ? Number(row.tmdb_vote_average)
+      : null,
+}));
 
       const seasonMap = {};
       normalizedEpisodes.forEach((ep) => {
@@ -1640,10 +1646,10 @@ export default function MyShowDetails() {
       </button>
 
       <div className="msd-episode-score-pill">
-        {averageEpisodeRating
-          ? `${Math.round(Number(averageEpisodeRating.avg) * 10)}%`
-          : "—"}
-      </div>
+  {ep.tmdbRating != null
+    ? `${Math.round(ep.tmdbRating * 10)}%`
+    : "—"}
+</div>
     </div>
 
     {isPickerOpen ? (
