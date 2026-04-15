@@ -395,18 +395,20 @@ export default function MyShowDetails() {
       const { data: episodeRows, error: episodeError } = await supabase
   .from("episodes")
   .select(`
-    id,
-    tvdb_id,
-    show_id,
-    season_number,
-    episode_number,
-    episode_code,
-    name,
-    overview,
-    aired_date,
-    image_url,
-    tmdb_vote_average
-  `)
+  id,
+  tvdb_id,
+  show_id,
+  season_number,
+  episode_number,
+  episode_code,
+  name,
+  overview,
+  aired_date,
+  image_url,
+  tmdb_vote_average,
+  tmdb_vote_count,
+  tmdb_still_path
+`)
         .eq("show_id", showId)
         .order("season_number", { ascending: true })
         .order("episode_number", { ascending: true });
@@ -422,13 +424,18 @@ export default function MyShowDetails() {
   airDate: row.aired_date,
   name: row.name || "Untitled episode",
   overview: row.overview || "",
-  image: row.image_url || null,
+  image: row.image_url || row.tmdb_still_path || null,
   episode_code: row.episode_code,
   tmdbRating:
     row.tmdb_vote_average != null &&
     !Number.isNaN(Number(row.tmdb_vote_average))
       ? Number(row.tmdb_vote_average)
       : null,
+  tmdbVoteCount:
+    row.tmdb_vote_count != null &&
+    !Number.isNaN(Number(row.tmdb_vote_count))
+      ? Number(row.tmdb_vote_count)
+      : 0,
 }));
 
       const seasonMap = {};
