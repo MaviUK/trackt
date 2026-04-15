@@ -158,6 +158,7 @@ function buildShowPayload(showDetails) {
     rating_count: normalizeNumber(
       showDetails.rating_count ?? showDetails.siteRatingCount
     ),
+    tmdb_id: normalizeNumber(showDetails.tmdb_id),
     last_synced_at: new Date().toISOString(),
   };
 }
@@ -194,7 +195,9 @@ function buildSeasonRows(showId, episodes) {
     bySeason.set(seasonNumber, existing);
   }
 
-  return [...bySeason.values()].sort((a, b) => a.season_number - b.season_number);
+  return [...bySeason.values()].sort(
+    (a, b) => a.season_number - b.season_number
+  );
 }
 
 function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
@@ -208,6 +211,10 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
       const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
       const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
       const tvdbEpisodeId = ep.id ? Number(ep.id) : null;
+      const tmdbStillPath = ep.tmdb_still_path ?? null;
+      const tmdbStillUrl = tmdbStillPath
+        ? `https://image.tmdb.org/t/p/w500${tmdbStillPath}`
+        : null;
 
       return {
         tvdb_id: Number.isFinite(tvdbEpisodeId) ? tvdbEpisodeId : null,
@@ -223,12 +230,15 @@ function buildEpisodeRows(showId, seasonIdByNumber, episodes) {
         overview: ep.overview ?? null,
         aired_date: normalizeDate(ep.aired ?? ep.aired_date ?? null),
         runtime_minutes: normalizeNumber(ep.runtime ?? ep.runtime_minutes),
-        image_url: ep.image ?? ep.image_url ?? null,
+        image_url: tmdbStillUrl ?? ep.image ?? ep.image_url ?? null,
         is_special: seasonNumber === 0,
         is_premiere: Boolean(ep.isPremiere ?? ep.is_premiere ?? false),
         is_finale: Boolean(ep.isFinale ?? ep.is_finale ?? false),
         rating_average: normalizeNumber(ep.rating_average ?? ep.siteRating),
         rating_count: normalizeNumber(ep.rating_count ?? ep.siteRatingCount),
+        tmdb_vote_average: normalizeNumber(ep.tmdb_vote_average),
+        tmdb_vote_count: normalizeNumber(ep.tmdb_vote_count),
+        tmdb_still_path: tmdbStillPath,
         last_synced_at: new Date().toISOString(),
       };
     });
@@ -294,6 +304,68 @@ async function fetchShowEpisodes(tvdbId) {
   });
 }
 
+async function fetchTmdbEpisodeDetails(tmdbId, seasonNumber, episodeNumber) {
+  if (
+    !tmdbId ||
+    !process.env.TMDB_API_KEY ||
+    seasonNumber < 0 ||
+    episodeNumber <= 0
+  ) {
+    return null;
+  }
+
+  return fetchJsonWithTimeout(
+    `https://api.themoviedb.org/3/tv/${encodeURIComponent(
+      tmdbId
+    )}/season/${encodeURIComponent(
+      seasonNumber
+    )}/episode/${encodeURIComponent(
+      episodeNumber
+    )}?api_key=${encodeURIComponent(process.env.TMDB_API_KEY)}`,
+    45000
+  );
+}
+
+async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
+  if (!showTmdbId || !process.env.TMDB_API_KEY) {
+    return episodes;
+  }
+
+  const enriched = await Promise.all(
+    episodes.map(async (ep) => {
+      const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
+      const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
+
+      if (seasonNumber < 0 || episodeNumber <= 0) {
+        return ep;
+      }
+
+      try {
+        const tmdbEpisode = await fetchTmdbEpisodeDetails(
+          showTmdbId,
+          seasonNumber,
+          episodeNumber
+        );
+
+        return {
+          ...ep,
+          tmdb_vote_average: tmdbEpisode?.vote_average ?? null,
+          tmdb_vote_count: tmdbEpisode?.vote_count ?? null,
+          tmdb_still_path: tmdbEpisode?.still_path ?? null,
+        };
+      } catch (error) {
+        console.error(
+          `Failed TMDB episode fetch for S${seasonNumber}E${episodeNumber}:`,
+          error
+        );
+        return ep;
+      }
+    })
+  );
+
+  return enriched;
+}
+
 export async function saveShowToDatabase(show) {
   const tvdbId = Number(show?.tvdb_id || show?.id);
 
@@ -319,8 +391,12 @@ export async function saveShowToDatabase(show) {
 
   try {
     const rawEpisodes = await fetchShowEpisodes(tvdbId);
+    const enrichedEpisodes = await enrichEpisodesWithTmdb(
+      savedShow.tmdb_id,
+      rawEpisodes
+    );
 
-    const seasonRows = buildSeasonRows(savedShow.id, rawEpisodes);
+    const seasonRows = buildSeasonRows(savedShow.id, enrichedEpisodes);
 
     await upsertInBatches(
       "seasons",
@@ -344,7 +420,7 @@ export async function saveShowToDatabase(show) {
     const episodeRows = buildEpisodeRows(
       savedShow.id,
       seasonIdByNumber,
-      rawEpisodes
+      enrichedEpisodes
     );
 
     await upsertInBatches(
