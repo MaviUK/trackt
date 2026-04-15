@@ -5,6 +5,18 @@ import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
 
+function makeEpisodeCode(ep) {
+  if (Number(ep?.seasonNumber) === 0) {
+    if (!ep?.number) return "Special";
+    return `Special ${ep.number}`;
+  }
+
+  if (!ep?.seasonNumber || !ep?.number) return "Episode";
+  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
+    ep.number
+  ).padStart(2, "0")}`;
+}
+
 function isFuture(dateString) {
   if (!dateString) return false;
   const d = new Date(dateString);
@@ -45,16 +57,24 @@ function sortSeasonGroups(a, b) {
   return aNum - bNum;
 }
 
-function makeEpisodeCode(ep) {
-  if (Number(ep?.seasonNumber) === 0) {
-    if (!ep?.number) return "Special";
-    return `Special ${ep.number}`;
-  }
+function getBannerFromExtras(extras) {
+  if (!extras || typeof extras !== "object") return null;
 
-  if (!ep?.seasonNumber || !ep?.number) return "Episode";
-  return `S${String(ep.seasonNumber).padStart(2, "0")}E${String(
-    ep.number
-  ).padStart(2, "0")}`;
+  return (
+    extras.backdrop_url ||
+    extras.backdropUrl ||
+    extras.banner_url ||
+    extras.bannerUrl ||
+    extras.background_url ||
+    extras.backgroundUrl ||
+    extras.show?.backdrop_url ||
+    extras.show?.backdropUrl ||
+    extras.show?.banner_url ||
+    extras.show?.bannerUrl ||
+    extras.show?.background_url ||
+    extras.show?.backgroundUrl ||
+    null
+  );
 }
 
 function normalizeShowPayload(showData, tvdbIdFallback) {
@@ -119,8 +139,15 @@ function normalizeRecommendation(rec) {
   return {
     id: rec?.id || rec?.tvdb_id || rec?.tvdbId || rec?.name,
     tvdb_id: rec?.tvdb_id || rec?.tvdbId || null,
-    name: rec?.name || rec?.show_name || "Unknown show",
-    poster_url: rec?.poster_url || rec?.posterUrl || rec?.image_url || null,
+    name: rec?.name || rec?.title || rec?.show_name || "Unknown show",
+    poster_url:
+      rec?.poster_url ||
+      rec?.posterUrl ||
+      rec?.image_url ||
+      rec?.image ||
+      (rec?.poster_path
+        ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+        : ""),
     first_aired: rec?.first_aired || rec?.firstAired || null,
   };
 }
@@ -138,10 +165,11 @@ export default function ShowDetails() {
   const [episodes, setEpisodes] = useState([]);
   const [expandedSeasons, setExpandedSeasons] = useState({});
   const [cast, setCast] = useState([]);
+  const [crew, setCrew] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
-  const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
   const [providers, setProviders] = useState([]);
   const [trailer, setTrailer] = useState(null);
+  const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
 
   const [viewer, setViewer] = useState(null);
   const [isAdded, setIsAdded] = useState(false);
@@ -170,10 +198,11 @@ export default function ShowDetails() {
           setEpisodes([]);
           setExpandedSeasons({});
           setCast([]);
+          setCrew([]);
           setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
           setProviders([]);
           setTrailer(null);
+          setMobileBannerUrl(null);
           setIsAdded(false);
           return;
         }
@@ -265,7 +294,7 @@ export default function ShowDetails() {
             console.warn(`getShowExtras returned ${extrasRes.status}`);
           }
         } catch (extrasError) {
-          console.error("Failed loading TVDB extras:", extrasError);
+          console.error("Failed loading show extras:", extrasError);
         } finally {
           setExtrasLoading(false);
         }
@@ -283,10 +312,11 @@ export default function ShowDetails() {
           setEpisodes([]);
           setExpandedSeasons({});
           setCast([]);
+          setCrew([]);
           setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
           setProviders([]);
           setTrailer(null);
+          setMobileBannerUrl(null);
           setIsAdded(false);
           return;
         }
@@ -305,36 +335,29 @@ export default function ShowDetails() {
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
           const seasonKey = Number(ep.seasonNumber ?? 0);
-          if (seasonKey !== 0 && !(seasonKey in seasonMap)) {
+          if (seasonKey === 0) return;
+          if (!(seasonKey in seasonMap)) {
             seasonMap[seasonKey] = false;
           }
         });
 
-        const castRows = Array.isArray(extras?.cast) ? extras.cast : [];
-        const tvdbPeopleAlsoWatch = Array.isArray(extras?.peopleAlsoWatch)
-          ? extras.peopleAlsoWatch
-          : [];
-        const fallbackRecommendations = Array.isArray(extras?.recommendations)
-          ? extras.recommendations
-          : [];
-        const providerRows = Array.isArray(extras?.providers)
-          ? extras.providers
-          : [];
-        const trailerData = extras?.trailer || null;
-
         setShow(normalizedShow);
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
-        setCast(castRows);
-        setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
+        setCast(Array.isArray(extras?.cast) ? extras.cast : []);
+        setCrew(Array.isArray(extras?.crew) ? extras.crew : []);
         setRecommendedShows(
-          (tvdbPeopleAlsoWatch.length > 0
-            ? tvdbPeopleAlsoWatch
-            : fallbackRecommendations
+          (Array.isArray(extras?.peopleAlsoWatch) &&
+          extras.peopleAlsoWatch.length > 0
+            ? extras.peopleAlsoWatch
+            : Array.isArray(extras?.recommendations)
+            ? extras.recommendations
+            : []
           ).map(normalizeRecommendation)
         );
-        setProviders(providerRows);
-        setTrailer(trailerData);
+        setProviders(Array.isArray(extras?.providers) ? extras.providers : []);
+        setTrailer(extras?.trailer || null);
+        setMobileBannerUrl(getBannerFromExtras(extras));
       } catch (err) {
         console.error("Failed loading show:", err);
         setError(err.message || "Failed loading show");
@@ -342,10 +365,11 @@ export default function ShowDetails() {
         setEpisodes([]);
         setExpandedSeasons({});
         setCast([]);
+        setCrew([]);
         setRecommendedShows([]);
-        setPeopleAlsoWatch([]);
         setProviders([]);
         setTrailer(null);
+        setMobileBannerUrl(null);
         setIsAdded(false);
       } finally {
         setLoading(false);
@@ -383,14 +407,11 @@ export default function ShowDetails() {
     const mainEpisodes = episodes.filter(
       (ep) => Number(ep.seasonNumber ?? 0) !== 0
     );
-
-    const total = mainEpisodes.length;
     const nextEpisode = mainEpisodes.find((ep) => isFuture(ep.aired));
-    const totalSeasons = groupedSeasons.length;
 
     return {
-      total,
-      totalSeasons,
+      total: mainEpisodes.length,
+      totalSeasons: groupedSeasons.length,
       nextEpisode,
     };
   }, [episodes, groupedSeasons]);
@@ -467,9 +488,6 @@ export default function ShowDetails() {
         <div className="msd-shell">
           <div className="msd-empty">
             <p>Show not found.</p>
-            <Link to="/search" className="msd-back-link">
-              Back to Search
-            </Link>
           </div>
         </div>
       </div>
@@ -484,9 +502,18 @@ export default function ShowDetails() {
   return (
     <div className="msd-page">
       <div className="msd-shell">
-        <Link to="/search" className="msd-back-link">
-          ← Back to Search
-        </Link>
+        <section className="msd-mobile-banner-wrap">
+          <div
+            className={`msd-mobile-banner ${
+              mobileBannerUrl ? "" : "msd-mobile-banner-fallback"
+            }`}
+            style={
+              mobileBannerUrl
+                ? { backgroundImage: `url(${mobileBannerUrl})` }
+                : undefined
+            }
+          />
+        </section>
 
         <section className="msd-hero">
           <div className="msd-hero-poster-wrap">
@@ -503,7 +530,6 @@ export default function ShowDetails() {
             <div className="msd-mobile-top-row">
               <div className="msd-mobile-title-wrap">
                 <h1 className="msd-title">{show.show_name}</h1>
-
                 {show.first_aired ? (
                   <>
                     <div className="msd-mobile-year">
@@ -640,16 +666,12 @@ export default function ShowDetails() {
               </strong>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flexWrap: "wrap",
-                marginTop: "12px",
-              }}
-            >
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               {isAdded ? (
-                <Link to={`/my-shows/${show.tvdb_id}`} className="msd-btn msd-btn-success">
+                <Link
+                  to={`/my-shows/${show.tvdb_id}`}
+                  className="msd-btn msd-btn-success"
+                >
                   Open in My Shows
                 </Link>
               ) : (
@@ -716,176 +738,267 @@ export default function ShowDetails() {
             <button
               type="button"
               className={`msd-content-tab ${
-                activeTab === "recommended" ? "is-active" : ""
+                activeTab === "crew" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("recommended")}
+              onClick={() => setActiveTab("crew")}
             >
-              Recommended
+              Crew
             </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "studio" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("studio")}
+            >
+              Studio
+            </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "genre" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("genre")}
+            >
+              Genre
+            </button>
+          </div>
+
+          <div className="msd-tab-panel">
+            {activeTab === "seasons" && (
+              <>
+                <h2 className="msd-section-title">Seasons</h2>
+                <div className="msd-seasons">
+                  {groupedSeasons.map((season) => (
+                    <section key={season.seasonNumber} className="msd-season-card">
+                      <button
+                        type="button"
+                        className="msd-season-toggle"
+                        onClick={() => toggleSeason(season.seasonNumber)}
+                      >
+                        <div>
+                          <div className="msd-season-title">{season.label}</div>
+                          <div className="msd-season-subtitle">
+                            {season.totalCount} episodes
+                          </div>
+                        </div>
+                        <div className="msd-season-toggle-right">
+                          <span className="msd-season-chevron">
+                            {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {expandedSeasons[season.seasonNumber] && (
+                        <div className="msd-episode-list">
+                          {season.episodes.map((ep) => (
+                            <article key={ep.id} className="msd-episode-card">
+                              <div className="msd-episode-top">
+                                <div>
+                                  <h3 className="msd-episode-title">
+                                    {makeEpisodeCode(ep)} - {ep.name}
+                                  </h3>
+                                  <div className="msd-episode-date">
+                                    Air date: {formatDate(ep.aired)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {ep.overview ? (
+                                <p className="msd-episode-overview">
+                                  {ep.overview}
+                                </p>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {activeTab === "cast" && (
+              <>
+                <h2 className="msd-section-title">Cast</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading cast...</p>
+                ) : cast.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {cast.map((member, index) => {
+                      const actorName = member.personName || "Unknown actor";
+                      const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
+
+                      return (
+                        <Link
+                          key={member.id || `${actorName}-${index}`}
+                          to={linkTarget}
+                          className="msd-cast-card msd-cast-card-mobile"
+                          style={{ textDecoration: "none", color: "inherit" }}
+                        >
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={actorName}
+                              className="msd-cast-image msd-cast-image-mobile"
+                            />
+                          ) : (
+                            <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                          )}
+                          <div className="msd-cast-name">{actorName}</div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="msd-muted">No cast available.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === "crew" && (
+              <>
+                <h2 className="msd-section-title">Crew</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading crew...</p>
+                ) : crew.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {crew.map((member, index) => {
+                      const personName = member.personName || "Unknown crew";
+                      const roleName =
+                        member.role ||
+                        member.job ||
+                        member.characterName ||
+                        "Crew";
+
+                      return (
+                        <div
+                          key={member.id || `${personName}-${roleName}-${index}`}
+                          className="msd-cast-card msd-cast-card-mobile"
+                        >
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={personName}
+                              className="msd-cast-image msd-cast-image-mobile"
+                            />
+                          ) : (
+                            <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                          )}
+                          <div className="msd-cast-name">{personName}</div>
+                          <div className="msd-cast-role">{roleName}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="msd-muted">No crew available yet.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === "studio" && (
+              <>
+                <h2 className="msd-section-title">Studio</h2>
+                <div className="msd-info-grid">
+                  <div className="msd-info-card">
+                    <span className="msd-stat-label">Studio</span>
+                    <strong className="msd-stat-value">
+                      {show.network ? (
+                        <Link
+                          to={`/search?network=${encodeURIComponent(
+                            show.network
+                          )}&${baseContext}`}
+                          className="msd-link"
+                        >
+                          {show.network}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === "genre" && (
+              <>
+                <h2 className="msd-section-title">Genre</h2>
+                <div className="msd-info-grid">
+                  {show.genres?.length > 0 ? (
+                    show.genres.map((genre) => (
+                      <div key={genre} className="msd-info-card">
+                        <Link
+                          to={`/search?genre=${encodeURIComponent(
+                            genre
+                          )}&${baseContext}`}
+                          className="msd-link msd-info-link"
+                        >
+                          {genre}
+                        </Link>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="msd-muted">No genres available.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
-        {activeTab === "seasons" ? (
-          <section className="msd-episodes-section">
-            <h2 className="msd-section-title">Episodes</h2>
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Recommended Shows</h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-row">
+              {recommendedShows.map((rec, index) => {
+                const showName = rec.name || "Unknown show";
+                const hasTvdbId = !!rec.tvdb_id;
 
-            <div className="msd-seasons">
-              {groupedSeasons.length === 0 ? (
-                <div className="msd-panel">
-                  <p className="msd-muted">No episodes available yet.</p>
-                </div>
-              ) : (
-                groupedSeasons.map((season) => (
-                  <section key={season.seasonNumber} className="msd-season-card">
-                    <button
-                      type="button"
-                      className="msd-season-toggle"
-                      onClick={() => toggleSeason(season.seasonNumber)}
-                    >
-                      <div>
-                        <div className="msd-season-title">{season.label}</div>
-                        <div className="msd-season-subtitle">
-                          {season.totalCount} episodes
-                        </div>
-                      </div>
-
-                      <div className="msd-season-toggle-right">
-                        <span className="msd-season-chevron">
-                          {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
-                        </span>
-                      </div>
-                    </button>
-
-                    {expandedSeasons[season.seasonNumber] && (
-                      <div className="msd-episode-list">
-                        {season.episodes.map((ep) => (
-                          <article key={ep.id} className="msd-episode-card">
-                            <div className="msd-episode-top">
-                              <div>
-                                <h3 className="msd-episode-title">
-                                  {makeEpisodeCode(ep)} - {ep.name}
-                                </h3>
-                                <div className="msd-episode-date">
-                                  Air date: {formatDate(ep.aired)}
-                                </div>
-                              </div>
-                            </div>
-
-                            {ep.overview ? (
-                              <p className="msd-episode-overview">
-                                {ep.overview}
-                              </p>
-                            ) : null}
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                ))
-              )}
-            </div>
-          </section>
-        ) : null}
-
-        {activeTab === "cast" ? (
-          <section className="msd-panel msd-panel-spaced">
-            <h2 className="msd-section-title">Cast</h2>
-
-            {extrasLoading ? (
-              <p className="msd-muted">Loading cast...</p>
-            ) : cast.length > 0 ? (
-              <div className="msd-cast-grid">
-                {cast.map((member, index) => (
-                  <div
-                    key={member.id || `${member.personName}-${index}`}
-                    className="msd-cast-card"
-                  >
-                    {member.image ? (
-                      <img
-                        src={member.image}
-                        alt={member.personName || "Cast member"}
-                        className="msd-cast-image"
-                      />
-                    ) : null}
-
-                    <div className="msd-cast-name">
-                      {member.personName || "Unknown actor"}
-                    </div>
-                    <div className="msd-cast-role">
-                      {member.characterName || "Cast"}
-                    </div>
+                const content = rec.poster_url ? (
+                  <img
+                    src={rec.poster_url}
+                    alt={showName}
+                    className="msd-recommended-card-image"
+                  />
+                ) : (
+                  <div className="msd-recommended-card-image-placeholder">
+                    {showName.charAt(0)}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="msd-muted">No cast available.</p>
-            )}
-          </section>
-        ) : null}
+                );
 
-        {activeTab === "recommended" ? (
-          <section className="msd-panel">
-            <h2 className="msd-section-title">
-              {peopleAlsoWatch.length > 0
-                ? "People Also Watch"
-                : "Recommended Shows"}
-            </h2>
-
-            {extrasLoading ? (
-              <p className="msd-muted">Loading recommendations...</p>
-            ) : recommendedShows.length > 0 ? (
-              <div className="msd-recommended-grid">
-                {recommendedShows.map((rec, index) => {
-                  const hasTvdbId = !!rec.tvdb_id;
-                  const content = (
-                    <>
-                      {rec.poster_url ? (
-                        <img
-                          src={rec.poster_url}
-                          alt={rec.name || "Recommended show"}
-                          className="msd-rec-poster"
-                        />
-                      ) : null}
-
-                      <div className="msd-rec-title">
-                        {rec.name || "Unknown show"}
-                      </div>
-
-                      {rec.first_aired ? (
-                        <div className="msd-rec-date">
-                          {formatDate(rec.first_aired)}
-                        </div>
-                      ) : null}
-                    </>
-                  );
-
-                  if (hasTvdbId) {
-                    return (
-                      <Link
-                        key={rec.id || `${rec.name}-${index}`}
-                        to={`/show/${rec.tvdb_id}`}
-                        className="msd-rec-card"
-                      >
-                        {content}
-                      </Link>
-                    );
-                  }
-
+                if (hasTvdbId) {
                   return (
-                    <div
-                      key={rec.id || `${rec.name}-${index}`}
-                      className="msd-rec-card"
+                    <Link
+                      key={rec.id || `${showName}-${index}`}
+                      to={`/show/${rec.tvdb_id}`}
+                      className="msd-recommended-card"
                     >
                       {content}
-                    </div>
+                    </Link>
                   );
-                })}
-              </div>
-            ) : (
-              <p className="msd-muted">No recommendations yet.</p>
-            )}
-          </section>
-        ) : null}
+                }
+
+                return (
+                  <div
+                    key={rec.id || `${showName}-${index}`}
+                    className="msd-recommended-card"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
+        </section>
       </div>
     </div>
   );
