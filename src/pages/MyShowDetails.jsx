@@ -1921,43 +1921,40 @@ export default function MyShowDetails() {
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
           ) : recommendedShows.length > 0 ? (
-            <div className="msd-recommended-grid">
-              {recommendedShows.map((rec, index) => {
-                const showName = rec.name || rec.title || "Unknown show";
-                const linkTarget = getMappedShowHref(rec);
-                const posterSrc =
-                  rec.poster_url ||
-                  rec.posterUrl ||
-                  rec.image_url ||
-                  rec.image ||
-                  (rec.poster_path
-                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
-                    : "/no-image.png");
+            <div className="msd-recommended-row">
+  {recommendedShows.map((rec, index) => {
+    const showName = rec.name || rec.title || "Unknown show";
+    const linkTarget = getMappedShowHref(rec);
+    const posterSrc =
+      rec.poster_url ||
+      rec.posterUrl ||
+      rec.image_url ||
+      rec.image ||
+      (rec.poster_path
+        ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+        : "");
 
-                return (
-                  <Link
-                    key={rec.id || `${showName}-${index}`}
-                    to={linkTarget}
-                    className="msd-rec-card"
-                  >
-                    <img
-                      src={posterSrc}
-                      alt={showName}
-                      className="msd-rec-image"
-                    />
-                    <div className="msd-rec-title">{showName}</div>
-                    {rec.first_aired || rec.firstAired || rec.first_air_date ? (
-                      <div className="msd-rec-date">
-                        {formatDate(
-                          rec.first_aired ||
-                            rec.firstAired ||
-                            rec.first_air_date
-                        )}
-                      </div>
-                    ) : null}
-                  </Link>
-                );
-              })}
+    return (
+      <Link
+        key={rec.id || `${showName}-${index}`}
+        to={linkTarget}
+        className="msd-recommended-card"
+      >
+        {posterSrc ? (
+          <img
+            src={posterSrc}
+            alt={showName}
+            className="msd-recommended-card-image"
+          />
+        ) : (
+          <div className="msd-recommended-card-image-placeholder">
+            {showName.charAt(0)}
+          </div>
+        )}
+      </Link>
+    );
+  })}
+</div>
             </div>
           ) : (
             <p className="msd-muted">No recommendations yet.</p>
