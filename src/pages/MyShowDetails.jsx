@@ -1984,14 +1984,14 @@ export default function MyShowDetails() {
           </button>
 
           {nextUnwatchedEpisode ? (
-            <button
-              type="button"
-              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-              onClick={handleMarkNextEpisodeWatched}
-            >
-              Watch Next
-            </button>
-          ) : null}
+  <button
+    type="button"
+    className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+    onClick={handleMarkNextEpisodeWatched}
+  >
+    Watch {makeEpisodeCode(nextUnwatchedEpisode)}
+  </button>
+) : null}
         </div>
       </div>
     </div>
