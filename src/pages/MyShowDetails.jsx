@@ -395,23 +395,23 @@ export default function MyShowDetails() {
       const { data: episodeRows, error: episodeError } = await supabase
   .from("episodes")
   .select(`
-  id,
-  tvdb_id,
-  show_id,
-  season_number,
-  episode_number,
-  episode_code,
-  name,
-  overview,
-  aired_date,
-  image_url,
-  tmdb_vote_average,
-  tmdb_vote_count,
-  tmdb_still_path
-`)
-        .eq("show_id", showId)
-        .order("season_number", { ascending: true })
-        .order("episode_number", { ascending: true });
+    id,
+    tvdb_id,
+    show_id,
+    season_number,
+    episode_number,
+    episode_code,
+    name,
+    overview,
+    aired_date,
+    image_url,
+    tmdb_vote_average,
+    tmdb_vote_count,
+    tmdb_still_path
+  `)
+  .eq("show_id", showId)
+  .order("season_number", { ascending: true })
+  .order("episode_number", { ascending: true });
 
       if (episodeError) throw episodeError;
 
