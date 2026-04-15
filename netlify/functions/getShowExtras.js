@@ -619,6 +619,48 @@ async function findTmdbTvIdByTvdbId(tvdbId, showName = "", firstAired = "") {
   return { tmdbId: null, debug };
 }
 
+async function getTmdbRecommendations(tmdbId) {
+  try {
+    const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey || !tmdbId) return [];
+
+    const res = await fetch(
+      `${TMDB_BASE_URL}/tv/${tmdbId}/recommendations?api_key=${encodeURIComponent(
+        apiKey
+      )}`
+    );
+
+    const json = await readJsonSafe(res);
+
+    if (!res.ok) {
+      console.error("TMDB recommendations fetch failed:", res.status, json);
+      return [];
+    }
+
+    const results = Array.isArray(json?.results) ? json.results : [];
+
+    return results.slice(0, 12).map((item, index) => ({
+      id: item?.id || `tmdb-rec-${index}`,
+      tmdb_id: item?.id || null,
+      source: "tmdb",
+      name: item?.name || item?.original_name || "Unknown show",
+      poster_path: item?.poster_path || null,
+      poster_url: item?.poster_path
+        ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+        : null,
+      posterUrl: item?.poster_path
+        ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
+        : null,
+      first_air_date: item?.first_air_date || null,
+      first_aired: item?.first_air_date || null,
+      overview: item?.overview || "",
+    }));
+  } catch (error) {
+    console.error("TMDB recommendations fetch failed:", error);
+    return [];
+  }
+}
+
 async function getTmdbProvidersTrailerBackdropAndCrew(
   tvdbId,
   showName = "",
