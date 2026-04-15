@@ -49,9 +49,8 @@
   position: relative;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid #26324a;
-  background:
-    linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
+  border: 1px solid rgba(99, 115, 153, 0.25);
+  background: linear-gradient(180deg, #121a2b 0%, #0f1727 100%);
   background-size: cover;
   background-position: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
@@ -63,7 +62,7 @@
   gap: 16px;
   align-items: center;
   padding: 16px;
-  min-height: 148px;
+  min-height: 168px;
 }
 
 .search-result-poster-link {
@@ -107,7 +106,7 @@
 .search-result-meta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .search-result-meta-row {
@@ -119,21 +118,61 @@
 }
 
 .search-result-meta-label {
-  color: #a5b4cc;
-  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .search-result-meta-value {
   color: #f8fafc;
-  font-size: 0.96rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .search-result-actions {
+  margin-top: 4px;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.search-add-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f8fafc;
+  border-radius: 14px;
+  padding: 12px 18px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    opacity 0.2s ease;
+  min-width: 140px;
+}
+
+.search-add-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.search-add-btn:active {
+  transform: translateY(1px);
+}
+
+.search-add-btn:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.search-add-btn.is-saved {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 @media (max-width: 768px) {
@@ -145,7 +184,7 @@
     grid-template-columns: 80px minmax(0, 1fr);
     gap: 12px;
     padding: 14px;
-    min-height: 132px;
+    min-height: 160px;
   }
 
   .search-result-poster {
@@ -171,7 +210,7 @@
   .search-result-banner-inner {
     grid-template-columns: 72px minmax(0, 1fr);
     gap: 12px;
-    min-height: 122px;
+    min-height: 154px;
   }
 
   .search-result-poster {
@@ -188,7 +227,11 @@
     font-size: 0.88rem;
   }
 
-  .search-result-actions .msd-btn {
+  .search-add-btn {
     width: 100%;
+    min-width: 0;
+    padding: 11px 14px;
+    font-size: 0.94rem;
+    border-radius: 12px;
   }
 }
