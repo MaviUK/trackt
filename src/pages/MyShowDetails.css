@@ -1136,15 +1136,21 @@
 }
 
 .msd-episode-score-pill {
-  min-width: 52px;
-  text-align: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(99, 102, 241, 0.14);
-  border: 1px solid rgba(99, 102, 241, 0.28);
-  color: #c7d2fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 18px; /* bigger text */
   font-weight: 700;
-  font-size: 13px;
+
+  min-width: 70px;
+  height: 44px;
+
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+
+  text-align: center;
 }
 
 .msd-episode-more-btn {
