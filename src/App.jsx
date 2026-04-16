@@ -12,6 +12,7 @@ import ProfileEdit from "./pages/ProfileEdit";
 
 import Search from "./pages/Search";
 import Login from "./pages/Login";
+import ShowDetails from "./pages/ShowDetails";
 import MyShows from "./pages/MyShows";
 import MyShowDetails from "./pages/MyShowDetails";
 import Dashboard from "./pages/Dashboard";
@@ -446,7 +447,7 @@ function AppLayout() {
           path="/show/:id"
           element={
             <ProtectedRoute session={session}>
-              <MyShowDetails />
+              <ShowDetails />
             </ProtectedRoute>
           }
         />
