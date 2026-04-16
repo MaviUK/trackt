@@ -1146,7 +1146,7 @@ async function handleWatchUpToHere(targetEpisode) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user || !targetEpisode?.id) return;
 
   const previousRows = watchedRows;
   const previousCommunityRows = communityWatchedRows;
@@ -1162,68 +1162,75 @@ async function handleWatchUpToHere(targetEpisode) {
         return Number(a.number ?? 0) - Number(b.number ?? 0);
       });
 
-      const targetIndex = mainEpisodes.findIndex(
-        (ep) => String(ep.id) === String(targetEpisode.id)
+    const targetIndex = mainEpisodes.findIndex(
+      (ep) => String(ep.id) === String(targetEpisode.id)
+    );
+
+    if (targetIndex === -1) return;
+
+    const episodesToWatch = mainEpisodes.slice(0, targetIndex + 1);
+    const episodesToUnwatch = mainEpisodes.slice(targetIndex + 1);
+
+    const rowsToUpsert = episodesToWatch.map((ep) => ({
+      user_id: user.id,
+      episode_id: ep.id,
+    }));
+
+    const idsToDelete = episodesToUnwatch.map((ep) => ep.id);
+
+    setWatchedRows((prev) => {
+      const keptNonShowRows = (prev || []).filter(
+        (row) =>
+          !mainEpisodes.some(
+            (ep) => String(ep.id) === String(row?.episode_id ?? "")
+          )
       );
 
-      if (targetIndex === -1) return;
+      return [...keptNonShowRows, ...rowsToUpsert];
+    });
 
-      const episodesToMark = mainEpisodes.slice(0, targetIndex + 1);
-
-      const rowsToUpsert = episodesToMark.map((ep) => ({
-        user_id: user.id,
-        episode_id: ep.id,
-      }));
-
-      setWatchedRows((prev) => {
-        const next = [...(prev || [])];
-        const existing = new Set(next.map((r) => String(r.episode_id)));
-
-        for (const row of rowsToUpsert) {
-          if (!existing.has(String(row.episode_id))) {
-            next.push(row);
-            existing.add(String(row.episode_id));
-          }
-        }
-
-        return next;
-      });
-
-      setCommunityWatchedRows((prev) => {
-        const next = [...(prev || [])];
-        const existing = new Set(
-          next.map((r) => `${String(r.user_id)}:${String(r.episode_id)}`)
+    setCommunityWatchedRows((prev) => {
+      const keptRows = (prev || []).filter((row) => {
+        const isThisUser = String(row?.user_id ?? "") === String(user.id);
+        const isShowEpisode = mainEpisodes.some(
+          (ep) => String(ep.id) === String(row?.episode_id ?? "")
         );
 
-        for (const row of rowsToUpsert) {
-          const key = `${String(row.user_id)}:${String(row.episode_id)}`;
-          if (!existing.has(key)) {
-            next.push(row);
-            existing.add(key);
-          }
-        }
-
-        return next;
+        return !(isThisUser && isShowEpisode);
       });
 
-      const batchSize = 100;
+      const mine = rowsToUpsert.map((row) => ({
+        user_id: row.user_id,
+        episode_id: row.episode_id,
+      }));
 
-      for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
-        const batch = rowsToUpsert.slice(i, i + batchSize);
+      return [...keptRows, ...mine];
+    });
 
-        const { error } = await supabase
-          .from("watched_episodes")
-          .upsert(batch, { onConflict: "user_id,episode_id" });
+    if (rowsToUpsert.length) {
+      const { error: upsertError } = await supabase
+        .from("watched_episodes")
+        .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
 
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error("Failed watch up to here:", error);
-      setWatchedRows(previousRows);
-      setCommunityWatchedRows(previousCommunityRows);
-      alert("Failed to save watched episodes");
+      if (upsertError) throw upsertError;
     }
+
+    if (idsToDelete.length) {
+      const { error: deleteError } = await supabase
+        .from("watched_episodes")
+        .delete()
+        .eq("user_id", user.id)
+        .in("episode_id", idsToDelete);
+
+      if (deleteError) throw deleteError;
+    }
+  } catch (error) {
+    console.error("Failed watch up to here:", error);
+    setWatchedRows(previousRows);
+    setCommunityWatchedRows(previousCommunityRows);
+    alert("Failed to save watched episodes");
   }
+}
 
   async function handleSelectBurgrRating(value) {
     const {
