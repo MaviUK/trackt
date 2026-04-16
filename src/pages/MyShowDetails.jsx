@@ -821,6 +821,30 @@ export default function MyShowDetails() {
   }, [episodes, watchedLookup]);
 
   const stats = useMemo(() => {
+
+const averageBurgrRating = useMemo(() => {
+  const values = (burgrRatings || [])
+    .map((row) => Number(row?.rating))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (!values.length) return null;
+
+  const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+
+  return {
+    avg: avg.toFixed(1),
+    count: values.length,
+  };
+}, [burgrRatings]);
+
+const tmdbShowRating = useMemo(() => {
+  const value = Number(show?.rating_average);
+
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  return value.toFixed(1);
+}, [show?.rating_average]);
+    
     const mainEpisodes = episodes.filter(
       (ep) => Number(ep.seasonNumber ?? 0) !== 0
     );
