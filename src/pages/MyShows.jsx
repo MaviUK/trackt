@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
-import "./MyShows.css";
 
 function isAired(dateValue) {
   if (!dateValue) return false;
@@ -45,44 +44,6 @@ function chunkArray(items, size) {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
-}
-
-function formatDateLabel(dateValue) {
-  if (!dateValue) return "Unknown";
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function getYear(dateValue) {
-  if (!dateValue) return "";
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return "";
-  return String(date.getFullYear());
-}
-
-function getStatusLabel(show) {
-  if (show.isArchived) return "Archived";
-  if (show.isCompleted) return "Completed";
-  if (show.isInProgress) return "In Progress";
-  if (show.isWatchlist) return "Watchlist";
-  if (show.isAiringSoon) return "Airing Soon";
-  return "Watching";
-}
-
-function getNextEpisodeLabel(show) {
-  if (!show.nextEpisodeDate) return "No upcoming episode";
-  if (show.daysToNextEpisode === 0) return "Airs today";
-  if (show.daysToNextEpisode === 1) return "Airs tomorrow";
-  if (show.daysToNextEpisode != null && show.daysToNextEpisode > 1) {
-    return `Airs in ${show.daysToNextEpisode} days`;
-  }
-  return `Aired ${formatDateLabel(show.nextEpisodeDate)}`;
 }
 
 async function fetchEpisodesForShowIds(showIds) {
@@ -166,6 +127,18 @@ export default function MyShows() {
   const [loading, setLoading] = useState(true);
   const [filterBy, setFilterBy] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false
+  );
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= 768);
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   async function loadShows() {
     try {
@@ -313,11 +286,6 @@ export default function MyShows() {
           daysToNextEpisode >= 0 &&
           daysToNextEpisode <= 30;
 
-        const progressPercent =
-          totalMainEpisodes > 0
-            ? Math.min(100, Math.round((watchedMainCount / totalMainEpisodes) * 100))
-            : 0;
-
         return {
           ...userShow,
           nextEpisodeDate,
@@ -331,7 +299,6 @@ export default function MyShows() {
           isInProgress,
           isAiring,
           isAiringSoon,
-          progressPercent,
         };
       });
 
@@ -396,206 +363,147 @@ export default function MyShows() {
 
   if (loading) {
     return (
-      <div className="mys-page">
-        <div className="mys-shell">
-          <div className="mys-empty">
-            <p>Loading your saved shows...</p>
-          </div>
+      <div className="page">
+        <div className="page-header">
+          <h1>My Shows</h1>
+          <p>Loading your saved shows...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mys-page">
-      <div className="mys-shell">
-        <div className="mys-header msd-hero">
-          <div className="mys-header-copy">
-            <h1 className="msd-title">My Shows</h1>
-            <p className="msd-overview">
-              Track your saved shows, follow your progress, and jump back into
-              what you are watching.
-            </p>
-          </div>
-
-          <div className="mys-header-stats">
-            <div className="msd-stats-row mys-stats-grid">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Total Shows</span>
-                <span className="msd-stat-value">{counts.all}</span>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">In Progress</span>
-                <span className="msd-stat-value">{counts.inprogress}</span>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Completed</span>
-                <span className="msd-stat-value">{counts.completed}</span>
-              </div>
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Airing Soon</span>
-                <span className="msd-stat-value">{counts.airing}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="msd-panel">
-          <div className="mys-toolbar">
-            <div className="mys-filter-wrap">
-              {[
-                ["all", `All (${counts.all})`],
-                ["watchlist", `Watchlist (${counts.watchlist})`],
-                ["inprogress", `In Progress (${counts.inprogress})`],
-                ["completed", `Completed (${counts.completed})`],
-                ["archived", `Archived (${counts.archived})`],
-                ["airing", `Airing (${counts.airing})`],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  className={`msd-btn ${
-                    filterBy === value ? "msd-btn-primary" : "msd-btn-secondary"
-                  }`}
-                  type="button"
-                  onClick={() => setFilterBy(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mys-search-wrap">
-              <input
-                className="mys-search"
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search my shows..."
-              />
-            </div>
-          </div>
-        </div>
-
-        {displayedShows.length === 0 ? (
-          <div className="mys-empty">
-            <p>No shows found for this filter.</p>
-          </div>
-        ) : (
-          <div className="mys-list">
-            {displayedShows.map((show) => (
-              <Link
-                key={show.show_id}
-                to={`/my-shows/${show.tvdb_id}`}
-                className="mys-show-link"
-              >
-                <article className="mys-show-card msd-hero">
-                  {show.poster_url ? (
-                    <img
-                      src={show.poster_url}
-                      alt={show.show_name}
-                      className="mys-poster msd-poster"
-                    />
-                  ) : (
-                    <div className="mys-poster msd-poster mys-poster-placeholder" />
-                  )}
-
-                  <div className="mys-content">
-                    <div className="mys-top-row">
-                      <div>
-                        <h2 className="mys-title">{show.show_name}</h2>
-                        <div className="mys-subtitle-row">
-                          {getYear(show.first_aired) ? (
-                            <span className="mys-subtle-pill">
-                              {getYear(show.first_aired)}
-                            </span>
-                          ) : null}
-                          <span className="mys-subtle-pill">
-                            {getStatusLabel(show)}
-                          </span>
-                          {show.status ? (
-                            <span className="mys-subtle-pill">{show.status}</span>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="mys-status-block">
-                        {show.isCompleted ? (
-                          <span className="msd-season-badge">Complete</span>
-                        ) : show.isArchived ? (
-                          <span className="mys-archived-badge">Archived</span>
-                        ) : show.isAiringSoon ? (
-                          <span className="mys-airing-badge">Airing Soon</span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <p className="mys-overview">
-                      {show.overview || "No overview available for this show yet."}
-                    </p>
-
-                    <div className="msd-meta mys-meta-grid">
-                      <div>
-                        <span className="msd-stat-label">First Aired</span>
-                        <div className="mys-meta-value">
-                          {formatDateLabel(show.first_aired)}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="msd-stat-label">Episodes Watched</span>
-                        <div className="mys-meta-value">
-                          {show.watchedMainCount} / {show.totalMainEpisodes || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="msd-stat-label">Next Episode</span>
-                        <div className="mys-meta-value">{getNextEpisodeLabel(show)}</div>
-                      </div>
-                    </div>
-
-                    <div className="msd-stats-row mys-show-stats">
-                      <div className="msd-stat-box">
-                        <span className="msd-stat-label">Progress</span>
-                        <span className="msd-stat-value">{show.progressPercent}%</span>
-                      </div>
-                      <div className="msd-stat-box">
-                        <span className="msd-stat-label">Status</span>
-                        <span className="msd-stat-value mys-stat-text">
-                          {show.status?.label || getStatusLabel(show)}
-                        </span>
-                      </div>
-                      <div className="msd-stat-box">
-                        <span className="msd-stat-label">Library Type</span>
-                        <span className="msd-stat-value mys-stat-text">
-                          {show.isWatchlist
-                            ? "Watchlist"
-                            : show.isArchived
-                            ? "Archived"
-                            : "Active"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mys-progress-block">
-                      <div className="mys-progress-topline">
-                        <span className="msd-stat-label">Watch Progress</span>
-                        <span className="mys-progress-text">
-                          {show.watchedMainCount} of {show.totalMainEpisodes || 0} episodes
-                        </span>
-                      </div>
-                      <div className="msd-progress">
-                        <div
-                          className="msd-progress-fill"
-                          style={{ width: `${show.progressPercent}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              </Link>
-            ))}
-          </div>
-        )}
+    <div className="page">
+      <div className="page-header">
+        <h1>My Shows</h1>
+        <p>Track your saved shows and progress.</p>
       </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 20,
+        }}
+      >
+        {[
+          ["all", `All (${counts.all})`],
+          ["watchlist", `Watchlist (${counts.watchlist})`],
+          ["inprogress", `In Progress (${counts.inprogress})`],
+          ["completed", `Completed (${counts.completed})`],
+          ["archived", `Archived (${counts.archived})`],
+          ["airing", `Airing (${counts.airing})`],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            className="msd-btn msd-btn-secondary"
+            type="button"
+            onClick={() => setFilterBy(value)}
+            style={{ opacity: filterBy === value ? 1 : 0.7 }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: 24, maxWidth: 420 }}>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search my shows..."
+          style={{
+            width: "100%",
+            padding: "14px 16px",
+            borderRadius: 14,
+            border: "1px solid #26324a",
+            background: "#182235",
+            color: "#f8fafc",
+            fontSize: "1rem",
+            outline: "none",
+          }}
+        />
+      </div>
+
+      {displayedShows.length === 0 ? (
+        <div className="show-card">
+          <p>No shows found for this filter.</p>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isMobile
+              ? "repeat(4, minmax(0, 1fr))"
+              : "repeat(auto-fill, minmax(160px, 1fr))",
+            gap: isMobile ? 10 : 20,
+          }}
+        >
+          {displayedShows.map((show) => (
+            <Link
+              key={show.show_id}
+              to={`/my-shows/${show.tvdb_id}`}
+              style={{
+                textDecoration: "none",
+                color: "inherit",
+                display: "block",
+              }}
+            >
+              <div
+                style={{
+                  border: isMobile ? "none" : "1px solid #26324a",
+                  borderRadius: isMobile ? 0 : 18,
+                  padding: isMobile ? 0 : 12,
+                  transition: "0.2s ease",
+                  cursor: "pointer",
+                  height: "100%",
+                  background: "transparent",
+                }}
+              >
+                {show.poster_url ? (
+                  <img
+                    src={show.poster_url}
+                    alt={show.show_name}
+                    style={{
+                      width: "100%",
+                      aspectRatio: "2 / 3",
+                      objectFit: "cover",
+                      borderRadius: isMobile ? 10 : 14,
+                      display: "block",
+                      background: "#111827",
+                      marginBottom: isMobile ? 0 : 12,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "2 / 3",
+                      borderRadius: isMobile ? 10 : 14,
+                      background: "#111827",
+                      marginBottom: isMobile ? 0 : 12,
+                    }}
+                  />
+                )}
+
+                {!isMobile && (
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontWeight: 800,
+                      fontSize: "1rem",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {show.show_name}
+                  </div>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
