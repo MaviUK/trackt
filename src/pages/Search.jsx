@@ -304,7 +304,9 @@ export default function Search() {
             const tvdbId = String(show.tvdb_id);
             const isSaved = savedIds.has(tvdbId);
             const isAdding = addingId === tvdbId;
-            const detailHref = isSaved ? `/my-shows/${tvdbId}` : `/show/${tvdbId}`;
+
+            // ✅ FIXED HERE
+            const detailHref = `/show/${tvdbId}`;
 
             const backdrop = getBackdrop(show);
             const poster = getPoster(show);
@@ -356,7 +358,7 @@ export default function Search() {
                         </div>
                       )}
 
-                      {totalSeasons ? (
+                      {totalSeasons && (
                         <div className="search-result-meta-row">
                           <span className="search-result-meta-label">
                             Total seasons
@@ -365,9 +367,9 @@ export default function Search() {
                             {totalSeasons}
                           </span>
                         </div>
-                      ) : null}
+                      )}
 
-                      {totalEpisodes ? (
+                      {totalEpisodes && (
                         <div className="search-result-meta-row">
                           <span className="search-result-meta-label">
                             Total episodes
@@ -376,7 +378,7 @@ export default function Search() {
                             {totalEpisodes}
                           </span>
                         </div>
-                      ) : null}
+                      )}
                     </div>
 
                     <div className="search-result-actions">
