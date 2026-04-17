@@ -488,15 +488,7 @@ export default function ShowDetails() {
               ) : null}
             </div>
 
-            <div
-              className="msd-stats-row"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: "12px",
-                marginTop: "18px",
-              }}
-            >
+            <div className="msd-stats-row">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Seasons</span>
                 <strong className="msd-stat-value">{stats.totalSeasons}</strong>
@@ -540,10 +532,7 @@ export default function ShowDetails() {
                 </strong>
               </div>
 
-              <div
-                className="msd-stat-box"
-                style={{ gridColumn: "span 3" }}
-              >
+              <div className="msd-stat-box msd-stat-box-wide">
                 <span className="msd-stat-label">Play Trailer</span>
                 <strong
                   className="msd-stat-value"
