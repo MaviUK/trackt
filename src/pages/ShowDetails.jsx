@@ -33,7 +33,57 @@ function getYear(dateString) {
   return String(d.getFullYear());
 }
 
-function normalizeShowPayload(showData, tvdbIdFallback) {
+function getBackdropUrl(showData) {
+  return (
+    showData?.backdrop_url ||
+    showData?.background_url ||
+    showData?.banner_url ||
+    showData?.fanart_url ||
+    showData?.image_url ||
+    showData?.poster_url ||
+    showData?.image ||
+    null
+  );
+}
+
+function getSafeTmdbRating(showData) {
+  const candidates = [
+    showData?.tmdb_rating,
+    showData?.tmdb_vote_average,
+    showData?.vote_average,
+    showData?.rating_average,
+    showData?.score,
+  ];
+
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0 && num <= 10) {
+      return num;
+    }
+  }
+
+  return null;
+}
+
+function getSafeRankdRating(showData, extras) {
+  const candidates = [
+    showData?.rankd_average,
+    showData?.average_rankd_rating,
+    extras?.rankd_average,
+    extras?.average_rankd_rating,
+  ];
+
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num > 0) {
+      return num;
+    }
+  }
+
+  return null;
+}
+
+function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   if (!showData) return null;
 
   return {
@@ -43,6 +93,7 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
     overview: showData.overview || "",
     poster_url:
       showData.poster_url || showData.image_url || showData.image || null,
+    backdrop_url: getBackdropUrl(showData),
     first_aired:
       showData.first_aired ||
       showData.first_air_time ||
@@ -53,18 +104,10 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
       ? showData.relationship_types
       : [],
     settings: Array.isArray(showData.settings) ? showData.settings : [],
-    rating_average:
-      showData.rating_average != null
-        ? Number(showData.rating_average)
-        : null,
+    rating_average: getSafeTmdbRating(showData),
     rating_count:
       showData.rating_count != null ? Number(showData.rating_count) : null,
-    rankd_average:
-      showData.rankd_average != null
-        ? Number(showData.rankd_average)
-        : showData.average_rankd_rating != null
-        ? Number(showData.average_rankd_rating)
-        : null,
+    rankd_average: getSafeRankdRating(showData, extras),
   };
 }
 
@@ -229,7 +272,8 @@ export default function ShowDetails() {
 
         const normalizedShow = normalizeShowPayload(
           dbShow || fallbackShow,
-          tvdbId
+          tvdbId,
+          extras
         );
 
         if (!normalizedShow) {
@@ -272,19 +316,7 @@ export default function ShowDetails() {
           : [];
         const trailerData = extras?.trailer || null;
 
-        const safeShow = {
-          ...normalizedShow,
-          rankd_average:
-            normalizedShow.rankd_average != null
-              ? normalizedShow.rankd_average
-              : extras?.rankd_average != null
-              ? Number(extras.rankd_average)
-              : extras?.average_rankd_rating != null
-              ? Number(extras.average_rankd_rating)
-              : null,
-        };
-
-        setShow(safeShow);
+        setShow(normalizedShow);
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
         setCast(castRows);
@@ -431,6 +463,9 @@ export default function ShowDetails() {
     );
   }
 
+  const heroBackdrop = show.backdrop_url || show.poster_url || null;
+  const displayYear = getYear(show.first_aired);
+
   return (
     <div className="msd-page">
       <div className="msd-shell">
@@ -438,13 +473,24 @@ export default function ShowDetails() {
           ← Back to Search
         </Link>
 
-        <section className="msd-hero">
+        <section
+          className="msd-panel"
+          style={{
+            padding: 0,
+            overflow: "hidden",
+            marginBottom: "18px",
+          }}
+        >
           <div
             style={{
+              position: "relative",
+              minHeight: "180px",
+              background: heroBackdrop
+                ? `linear-gradient(180deg, rgba(5,10,25,0.10) 0%, rgba(5,10,25,0.65) 55%, rgba(5,10,25,0.96) 100%), url(${heroBackdrop}) center/cover`
+                : "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(5,10,25,1) 100%)",
               display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              alignItems: "stretch",
+              alignItems: "flex-end",
+              padding: "20px",
             }}
           >
             {show.poster_url ? (
@@ -452,43 +498,92 @@ export default function ShowDetails() {
                 src={show.poster_url}
                 alt={show.show_name}
                 className="msd-poster"
+                style={{
+                  width: "110px",
+                  minWidth: "110px",
+                  height: "165px",
+                  objectFit: "cover",
+                  borderRadius: "18px",
+                  boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
               />
             ) : null}
+          </div>
 
-            {isAdded ? (
-              <Link
-                to={`/my-shows/${show.tvdb_id}`}
-                className="msd-btn msd-btn-success"
-                style={{ textAlign: "center" }}
-              >
-                Open in My Shows
-              </Link>
-            ) : (
+          <div style={{ padding: "16px" }}>
+            {!isAdded ? (
               <button
                 type="button"
                 onClick={handleAddShow}
                 disabled={adding}
                 className="msd-btn msd-btn-primary"
+                style={{ width: "100%", marginBottom: "14px" }}
               >
                 {adding ? "Adding..." : "Add to My Shows"}
               </button>
+            ) : (
+              <Link
+                to={`/my-shows/${show.tvdb_id}`}
+                className="msd-btn msd-btn-success"
+                style={{
+                  width: "100%",
+                  marginBottom: "14px",
+                  textAlign: "center",
+                  display: "block",
+                }}
+              >
+                Open in My Shows
+              </Link>
             )}
-          </div>
 
-          <div className="msd-hero-main">
-            <h1 className="msd-title">{show.show_name}</h1>
+            <h1 className="msd-title" style={{ marginBottom: "6px" }}>
+              {show.show_name}
+            </h1>
 
-            {show.overview ? (
-              <p className="msd-overview">{show.overview}</p>
+            {displayYear ? (
+              <div
+                style={{
+                  color: "#cbd5e1",
+                  fontSize: "1.35rem",
+                  fontWeight: 700,
+                  marginBottom: "4px",
+                }}
+              >
+                {displayYear}
+              </div>
             ) : null}
 
-            <div className="msd-meta">
-              {show.first_aired ? (
+            {show.first_aired ? (
+              <div className="msd-meta" style={{ marginBottom: "12px" }}>
                 <div>First aired: {formatDate(show.first_aired)}</div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
 
-            <div className="msd-stats-row">
+            {show.overview ? (
+              <p
+                className="msd-overview"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 4,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  marginBottom: "14px",
+                }}
+              >
+                {show.overview}
+              </p>
+            ) : null}
+
+            <div
+              className="msd-stats-row"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "10px",
+                marginTop: "8px",
+              }}
+            >
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Seasons</span>
                 <strong className="msd-stat-value">{stats.totalSeasons}</strong>
@@ -511,9 +606,16 @@ export default function ShowDetails() {
                 <strong className="msd-stat-value">{rankdRating}</strong>
               </div>
 
-              <div className="msd-stat-box">
+              <div className="msd-stat-box" style={{ gridColumn: "1 / -1" }}>
                 <span className="msd-stat-label">Genre</span>
-                <strong className="msd-stat-value">
+                <strong
+                  className="msd-stat-value"
+                  style={{
+                    fontSize: "0.95rem",
+                    lineHeight: "1.35",
+                    whiteSpace: "normal",
+                  }}
+                >
                   {show.genres?.length > 0
                     ? show.genres.map((genre, index) => (
                         <span key={genre}>
@@ -532,11 +634,11 @@ export default function ShowDetails() {
                 </strong>
               </div>
 
-              <div className="msd-stat-box msd-stat-box-wide">
+              <div className="msd-stat-box" style={{ gridColumn: "1 / -1" }}>
                 <span className="msd-stat-label">Play Trailer</span>
                 <strong
                   className="msd-stat-value"
-                  style={{ fontSize: "1rem" }}
+                  style={{ fontSize: "1rem", lineHeight: "1.35" }}
                 >
                   {trailer?.url ? (
                     <a
