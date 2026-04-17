@@ -1308,4 +1308,46 @@
     font-size: 1rem;
   }
 }
+  .msd-stats-row-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 768px) {
+  .msd-stats-row-four {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .msd-stats-row-four .msd-stat-box {
+    padding: 10px 8px;
+  }
+
+  .msd-stats-row-four .msd-stat-label {
+    font-size: 0.72rem;
+  }
+
+  .msd-stats-row-four .msd-stat-value {
+    font-size: 1rem;
+  }
+}
+
+/* search details page: keep only dots + description in season episodes */
+.msd-episode-more-btn {
+  display: block;
+  margin: 10px auto 0;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.msd-episode-overview-mobile-card {
+  display: block;
+  margin: 8px 2px 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.5;
+}
 }
