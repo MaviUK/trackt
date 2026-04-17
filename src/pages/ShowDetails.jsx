@@ -578,26 +578,26 @@ export default function ShowDetails() {
             ) : null}
 
             <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Seasons</span>
-                <strong className="msd-stat-value">{stats.totalSeasons}</strong>
-              </div>
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Seasons</span>
+    <strong className="msd-stat-value">{stats.totalSeasons}</strong>
+  </div>
 
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Total</span>
-                <strong className="msd-stat-value">{stats.total}</strong>
-              </div>
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Episodes</span>
+    <strong className="msd-stat-value">{stats.total}</strong>
+  </div>
 
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">TMDB</span>
-                <strong className="msd-stat-value">{tmdbRating}</strong>
-              </div>
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Rating</span>
+    <strong className="msd-stat-value">{tmdbRating}</strong>
+  </div>
 
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Rank'd</span>
-                <strong className="msd-stat-value">{rankdRating}</strong>
-              </div>
-            </div>
+  <div className="msd-stat-box">
+    <span className="msd-stat-label">Rank'd</span>
+    <strong className="msd-stat-value">{rankdRating}</strong>
+  </div>
+</div>
 
             <div className="msd-stat-box msd-stat-box-full">
               <span className="msd-stat-label">
