@@ -5,6 +5,7 @@ import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
 import {
+  enrichTmdbShowsWithMappings,
   getMappedShowHref,
   normalizeMappedShow,
 } from "../lib/tmdbMappings";
@@ -869,7 +870,7 @@ export default function ShowDetails() {
           </div>
         </section>
 
-       <section className="msd-panel">
+     <section className="msd-panel">
   <h2 className="msd-section-title">Recommended Shows</h2>
   {extrasLoading ? (
     <p className="msd-muted">Loading recommendations...</p>
@@ -877,56 +878,56 @@ export default function ShowDetails() {
     <div className="msd-recommended-row">
       {recommendedShows.map((rec, index) => {
         const mapped = normalizeMappedShow(rec);
-        const linkTarget = getMappedShowHref(mapped);
+        const fallbackTvdbId =
+          mapped?.resolved_tvdb_id || mapped?.tvdb_id || mapped?.tvdbId;
+        const helperHref = getMappedShowHref(mapped);
+        const linkTarget =
+          helperHref && helperHref !== "#"
+            ? helperHref
+            : fallbackTvdbId
+            ? `/show/${fallbackTvdbId}`
+            : null;
 
-        const showName = mapped.name || mapped.title || "Unknown show";
+        const showName = mapped?.name || mapped?.title || "Unknown show";
         const posterSrc =
-          mapped.poster_url ||
-          mapped.posterUrl ||
-          mapped.image_url ||
-          mapped.image ||
-          (mapped.poster_path
+          mapped?.poster_url ||
+          mapped?.posterUrl ||
+          mapped?.image_url ||
+          mapped?.image ||
+          (mapped?.poster_path
             ? `https://image.tmdb.org/t/p/w500${mapped.poster_path}`
             : "");
 
-        if (!linkTarget || linkTarget === "#") {
+        const content = posterSrc ? (
+          <img
+            src={posterSrc}
+            alt={showName}
+            className="msd-recommended-card-image"
+          />
+        ) : (
+          <div className="msd-recommended-card-image-placeholder">
+            {showName.charAt(0)}
+          </div>
+        );
+
+        if (!linkTarget) {
           return (
             <div
-              key={mapped.id || `${showName}-${index}`}
+              key={mapped?.id || `${showName}-${index}`}
               className="msd-recommended-card"
             >
-              {posterSrc ? (
-                <img
-                  src={posterSrc}
-                  alt={showName}
-                  className="msd-recommended-card-image"
-                />
-              ) : (
-                <div className="msd-recommended-card-image-placeholder">
-                  {showName.charAt(0)}
-                </div>
-              )}
+              {content}
             </div>
           );
         }
 
         return (
           <Link
-            key={mapped.id || `${showName}-${index}`}
+            key={mapped?.id || `${showName}-${index}`}
             to={linkTarget}
             className="msd-recommended-card"
           >
-            {posterSrc ? (
-              <img
-                src={posterSrc}
-                alt={showName}
-                className="msd-recommended-card-image"
-              />
-            ) : (
-              <div className="msd-recommended-card-image-placeholder">
-                {showName.charAt(0)}
-              </div>
-            )}
+            {content}
           </Link>
         );
       })}
@@ -935,31 +936,3 @@ export default function ShowDetails() {
     <p className="msd-muted">No recommendations yet.</p>
   )}
 </section>
-
-{!isAdded ? (
-  <div className="msd-bottom-action-bar">
-    <button
-      type="button"
-      className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-      onClick={handleAddShow}
-      disabled={adding}
-    >
-      {adding ? "Adding..." : "Add to My Shows"}
-    </button>
-  </div>
-) : (
-  <div className="msd-bottom-action-bar">
-    <Link
-      to={`/my-shows/${show.tvdb_id}`}
-      className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-      style={{
-        textDecoration: "none",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      Open in My Shows
-    </Link>
-  </div>
-)}
