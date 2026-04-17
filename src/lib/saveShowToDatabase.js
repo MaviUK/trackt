@@ -80,9 +80,7 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
   const chunks = chunkArray(rows, batchSize);
 
   for (const chunk of chunks) {
-    const { error } = await supabase
-      .from(table)
-      .upsert(chunk, { onConflict });
+    const { error } = await supabase.from(table).upsert(chunk, { onConflict });
 
     if (error) throw error;
   }
@@ -106,12 +104,22 @@ function looksLikeOverviewText(value) {
   const text = value.trim();
   if (!text) return false;
   if (text.length > 140) return true;
-  if (/^[^.?!]{0,40}[.?!]\s+[A-Z]/.test(text)) return true;
-  if (/(the story|follows|centers on|focuses on|about|journey)/i.test(text)) {
+  if (/[.?!]\s+[A-Z]/.test(text) && text.length > 60) return true;
+  if (
+    /\b(the story|follows|centers on|focuses on|about|journey|after|when)\b/i.test(
+      text
+    )
+  ) {
     return true;
   }
 
   return false;
+}
+
+function cleanText(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return text || null;
 }
 
 function pickEnglishName(showDetails) {
@@ -120,35 +128,41 @@ function pickEnglishName(showDetails) {
     showDetails?.name_eng,
     showDetails?.english_title,
     showDetails?.nameEn,
-    showDetails?.seriesName,
-    showDetails?.series_name,
     showDetails?.translations?.eng?.name,
     showDetails?.translations?.en?.name,
+    showDetails?.seriesName,
+    showDetails?.series_name,
     showDetails?.name,
     showDetails?.show_name,
   ];
 
   for (const candidate of candidates) {
-    if (typeof candidate !== "string") continue;
-    const value = candidate.trim();
+    const value = cleanText(candidate);
     if (!value) continue;
     if (looksLikeOverviewText(value)) continue;
     return value;
   }
 
-  return "Unknown title";
+  return cleanText(showDetails?.name) || "Unknown title";
 }
 
 function pickEnglishOverview(showDetails) {
-  return (
-    showDetails?.english_overview ||
-    showDetails?.overview_eng ||
-    showDetails?.overview_english ||
-    showDetails?.translations?.eng?.overview ||
-    showDetails?.translations?.en?.overview ||
-    showDetails?.overview ||
-    null
-  );
+  const candidates = [
+    showDetails?.english_overview,
+    showDetails?.overview_eng,
+    showDetails?.overview_english,
+    showDetails?.translations?.eng?.overview,
+    showDetails?.translations?.en?.overview,
+    showDetails?.overview,
+  ];
+
+  for (const candidate of candidates) {
+    const value = cleanText(candidate);
+    if (!value) continue;
+    return value;
+  }
+
+  return null;
 }
 
 function buildShowPayload(showDetails) {
@@ -157,21 +171,19 @@ function buildShowPayload(showDetails) {
     throw new Error("Missing valid TVDB show id");
   }
 
-  const englishName = pickEnglishName(showDetails);
-  const englishOverview = pickEnglishOverview(showDetails);
+  const resolvedName = pickEnglishName(showDetails);
+  const resolvedOverview = pickEnglishOverview(showDetails);
 
   return {
     tvdb_id: tvdbId,
     slug: showDetails.slug ?? null,
-    name: englishName,
-    english_name: englishName,
+    name: resolvedName,
     original_name:
       showDetails.original_name ??
-      (showDetails.name && showDetails.name !== englishName
+      (showDetails.name && showDetails.name !== resolvedName
         ? showDetails.name
         : null),
-    overview: englishOverview,
-    english_overview: englishOverview,
+    overview: resolvedOverview,
     status:
       typeof showDetails.status === "object"
         ? showDetails.status?.name ?? null
@@ -346,15 +358,12 @@ async function fetchShowEpisodes(tvdbId) {
 
   const episodes = Array.isArray(data) ? data : data?.episodes ?? [];
 
-  return dedupeByKey(
-    episodes,
-    (ep) => {
-      const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
-      const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
-      if (episodeNumber <= 0 || seasonNumber < 0) return null;
-      return `${seasonNumber}|${episodeNumber}`;
-    }
-  ).sort((a, b) => {
+  return dedupeByKey(episodes, (ep) => {
+    const seasonNumber = Number(ep.seasonNumber ?? ep.season_number ?? 0);
+    const episodeNumber = Number(ep.number ?? ep.episode_number ?? 0);
+    if (episodeNumber <= 0 || seasonNumber < 0) return null;
+    return `${seasonNumber}|${episodeNumber}`;
+  }).sort((a, b) => {
     const seasonDiff =
       Number(a.seasonNumber ?? a.season_number ?? 0) -
       Number(b.seasonNumber ?? b.season_number ?? 0);
