@@ -71,13 +71,32 @@ function getSafeTmdbRating(showData, extras) {
   const candidates = [
     extras?.tmdb_vote_average,
     extras?.tmdbRating,
+    extras?.tmdb?.vote_average,
+    extras?.tmdb?.rating,
+
     extras?.show?.tmdb_vote_average,
     extras?.show?.vote_average,
     extras?.show?.tmdb_rating,
-    showData?.tmdb_rating,
+    extras?.show?.rating_average,
+    extras?.show?.score,
+
+    extras?.series?.tmdb_vote_average,
+    extras?.series?.vote_average,
+    extras?.series?.tmdb_rating,
+    extras?.series?.rating_average,
+    extras?.series?.score,
+
+    extras?.data?.tmdb_vote_average,
+    extras?.data?.vote_average,
+    extras?.data?.tmdb_rating,
+    extras?.data?.rating_average,
+    extras?.data?.score,
+
     showData?.tmdb_vote_average,
+    showData?.tmdb_rating,
     showData?.vote_average,
     showData?.rating_average,
+    showData?.score,
   ];
 
   for (const value of candidates) {
@@ -111,6 +130,8 @@ function getSafeRankdRating(showData, extras) {
 function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   if (!showData) return null;
 
+  const safeTmdbRating = getSafeTmdbRating(showData, extras);
+
   return {
     id: showData.id ?? null,
     tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
@@ -132,7 +153,8 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
       ? showData.relationship_types
       : [],
     settings: Array.isArray(showData.settings) ? showData.settings : [],
-    rating_average: getSafeTmdbRating(showData, extras),
+    tmdb_rating: safeTmdbRating,
+    rating_average: safeTmdbRating,
     rating_count:
       showData.rating_count != null ? Number(showData.rating_count) : null,
     rankd_average: getSafeRankdRating(showData, extras),
@@ -349,6 +371,17 @@ export default function ShowDetails() {
           : [];
         const trailerData = extras?.trailer || null;
 
+        let mappedRecommendations = [];
+
+        try {
+          mappedRecommendations = await enrichTmdbShowsWithMappings(
+            fallbackRecommendations
+          );
+        } catch (mappingError) {
+          console.error("Failed mapping recommendations:", mappingError);
+          mappedRecommendations = fallbackRecommendations;
+        }
+
         setShow({
           ...normalizedShow,
           trailer: trailerData,
@@ -357,18 +390,7 @@ export default function ShowDetails() {
         setExpandedSeasons(seasonMap);
         setCast(castRows);
         setCrew(crewRows);
-        let mappedRecommendations = [];
-
-try {
-  mappedRecommendations = await enrichTmdbShowsWithMappings(
-    fallbackRecommendations
-  );
-} catch (mappingError) {
-  console.error("Failed mapping recommendations:", mappingError);
-  mappedRecommendations = fallbackRecommendations;
-}
-
-setRecommendedShows(mappedRecommendations);
+        setRecommendedShows(mappedRecommendations);
         setMobileBannerUrl(getBannerFromExtras(extras) || null);
         setExpandedOverview(false);
         setActiveTab("seasons");
@@ -389,6 +411,10 @@ setRecommendedShows(mappedRecommendations);
     }
 
     loadShow();
+  }, [id]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [id]);
 
   const groupedSeasons = useMemo(() => {
@@ -430,7 +456,10 @@ setRecommendedShows(mappedRecommendations);
   const sourceLanguage = show?.original_language || "";
 
   const tmdbRating =
-    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+    show?.tmdb_rating != null && !Number.isNaN(Number(show.tmdb_rating))
+      ? Number(show.tmdb_rating).toFixed(1)
+      : show?.rating_average != null &&
+        !Number.isNaN(Number(show.rating_average))
       ? Number(show.rating_average).toFixed(1)
       : "—";
 
@@ -701,7 +730,8 @@ setRecommendedShows(mappedRecommendations);
                       {expandedSeasons[season.seasonNumber] && (
                         <div className="msd-episode-list">
                           {season.episodes.map((ep) => {
-                            const isExpanded = !!expandedEpisodeOverviewIds[ep.id];
+                            const isExpanded =
+                              !!expandedEpisodeOverviewIds[ep.id];
 
                             return (
                               <article key={ep.id} className="msd-episode-card">
@@ -880,73 +910,73 @@ setRecommendedShows(mappedRecommendations);
           </div>
         </section>
 
-            <section className="msd-panel">
-  <h2 className="msd-section-title">Recommended Shows</h2>
-  {extrasLoading ? (
-    <p className="msd-muted">Loading recommendations...</p>
-  ) : recommendedShows.length > 0 ? (
-    <div className="msd-recommended-row">
-      {recommendedShows.map((rec, index) => {
-        const mapped = normalizeMappedShow(rec);
-        const tvdbId =
-          mapped?.resolved_tvdb_id || mapped?.tvdb_id || mapped?.tvdbId;
+        <section className="msd-panel">
+          <h2 className="msd-section-title">Recommended Shows</h2>
+          {extrasLoading ? (
+            <p className="msd-muted">Loading recommendations...</p>
+          ) : recommendedShows.length > 0 ? (
+            <div className="msd-recommended-row">
+              {recommendedShows.map((rec, index) => {
+                const mapped = normalizeMappedShow(rec);
+                const tvdbId =
+                  mapped?.resolved_tvdb_id || mapped?.tvdb_id || mapped?.tvdbId;
 
-        const showName = mapped?.name || mapped?.title || "Unknown show";
-        const posterSrc =
-          mapped?.poster_url ||
-          mapped?.posterUrl ||
-          mapped?.image_url ||
-          mapped?.image ||
-          (mapped?.poster_path
-            ? `https://image.tmdb.org/t/p/w500${mapped.poster_path}`
-            : "");
+                const showName = mapped?.name || mapped?.title || "Unknown show";
+                const posterSrc =
+                  mapped?.poster_url ||
+                  mapped?.posterUrl ||
+                  mapped?.image_url ||
+                  mapped?.image ||
+                  (mapped?.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${mapped.poster_path}`
+                    : "");
 
-        if (!tvdbId) {
-          return (
-            <div
-              key={mapped?.id || `${showName}-${index}`}
-              className="msd-recommended-card"
-            >
-              {posterSrc ? (
-                <img
-                  src={posterSrc}
-                  alt={showName}
-                  className="msd-recommended-card-image"
-                />
-              ) : (
-                <div className="msd-recommended-card-image-placeholder">
-                  {showName.charAt(0)}
-                </div>
-              )}
+                if (!tvdbId) {
+                  return (
+                    <div
+                      key={mapped?.id || `${showName}-${index}`}
+                      className="msd-recommended-card"
+                    >
+                      {posterSrc ? (
+                        <img
+                          src={posterSrc}
+                          alt={showName}
+                          className="msd-recommended-card-image"
+                        />
+                      ) : (
+                        <div className="msd-recommended-card-image-placeholder">
+                          {showName.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={mapped?.id || `${showName}-${index}`}
+                    to={`/show/${tvdbId}`}
+                    className="msd-recommended-card"
+                  >
+                    {posterSrc ? (
+                      <img
+                        src={posterSrc}
+                        alt={showName}
+                        className="msd-recommended-card-image"
+                      />
+                    ) : (
+                      <div className="msd-recommended-card-image-placeholder">
+                        {showName.charAt(0)}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
-          );
-        }
-
-        return (
-          <Link
-            key={mapped?.id || `${showName}-${index}`}
-            to={`/show/${tvdbId}`}
-            className="msd-recommended-card"
-          >
-            {posterSrc ? (
-              <img
-                src={posterSrc}
-                alt={showName}
-                className="msd-recommended-card-image"
-              />
-            ) : (
-              <div className="msd-recommended-card-image-placeholder">
-                {showName.charAt(0)}
-              </div>
-            )}
-          </Link>
-        );
-      })}
-    </div>
-  ) : (
-    <p className="msd-muted">No recommendations yet.</p>
-  )}
-</section>
+          ) : (
+            <p className="msd-muted">No recommendations yet.</p>
+          )}
+        </section>
 
         {!isAdded ? (
           <div className="msd-bottom-action-bar">
