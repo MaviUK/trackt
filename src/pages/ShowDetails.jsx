@@ -127,6 +127,45 @@ function getSafeRankdRating(showData, extras) {
   return null;
 }
 
+function getPreferredEnglishName(showData, extras) {
+  return (
+    showData?.english_name ||
+    showData?.name_eng ||
+    showData?.english_title ||
+    extras?.show?.english_name ||
+    extras?.show?.name_eng ||
+    extras?.show?.english_title ||
+    extras?.series?.english_name ||
+    extras?.series?.name_eng ||
+    extras?.series?.english_title ||
+    extras?.data?.english_name ||
+    extras?.data?.name_eng ||
+    extras?.data?.english_title ||
+    showData?.name ||
+    showData?.show_name ||
+    "Unknown title"
+  );
+}
+
+function getPreferredEnglishOverview(showData, extras) {
+  return (
+    showData?.overview_eng ||
+    showData?.english_overview ||
+    showData?.overview_english ||
+    extras?.show?.overview_eng ||
+    extras?.show?.english_overview ||
+    extras?.show?.overview_english ||
+    extras?.series?.overview_eng ||
+    extras?.series?.english_overview ||
+    extras?.series?.overview_english ||
+    extras?.data?.overview_eng ||
+    extras?.data?.english_overview ||
+    extras?.data?.overview_english ||
+    showData?.overview ||
+    ""
+  );
+}
+
 function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   if (!showData) return null;
 
@@ -135,8 +174,8 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   return {
     id: showData.id ?? null,
     tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
-    show_name: showData.name || showData.show_name || "Unknown title",
-    overview: showData.overview || "",
+    show_name: getPreferredEnglishName(showData, extras),
+    overview: getPreferredEnglishOverview(showData, extras),
     poster_url:
       showData.poster_url || showData.image_url || showData.image || null,
     backdrop_url: getBackdropUrl(showData),
@@ -242,7 +281,13 @@ export default function ShowDetails() {
             id,
             tvdb_id,
             name,
+            english_name,
+            name_eng,
+            english_title,
             overview,
+            overview_eng,
+            english_overview,
+            overview_english,
             status,
             poster_url,
             first_aired,
@@ -326,7 +371,14 @@ export default function ShowDetails() {
         }
 
         const fallbackShow =
-          extras?.show || extras?.series || extras?.data || null;
+          extras?.show_english ||
+          extras?.english_show ||
+          extras?.show ||
+          extras?.series_english ||
+          extras?.series ||
+          extras?.data_english ||
+          extras?.data ||
+          null;
 
         const normalizedShow = normalizeShowPayload(
           dbShow || fallbackShow,
