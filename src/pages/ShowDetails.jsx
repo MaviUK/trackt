@@ -152,8 +152,7 @@ export default function ShowDetails() {
             relationship_types,
             settings,
             rating_average,
-            rating_count,
-            rankd_average
+            rating_count
           `)
           .eq("tvdb_id", tvdbId)
           .maybeSingle();
@@ -273,7 +272,19 @@ export default function ShowDetails() {
           : [];
         const trailerData = extras?.trailer || null;
 
-        setShow(normalizedShow);
+        const safeShow = {
+          ...normalizedShow,
+          rankd_average:
+            normalizedShow.rankd_average != null
+              ? normalizedShow.rankd_average
+              : extras?.rankd_average != null
+              ? Number(extras.rankd_average)
+              : extras?.average_rankd_rating != null
+              ? Number(extras.average_rankd_rating)
+              : null,
+        };
+
+        setShow(safeShow);
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
         setCast(castRows);
@@ -328,10 +339,10 @@ export default function ShowDetails() {
       (ep) => Number(ep.seasonNumber ?? 0) !== 0
     );
 
-    const totalEpisodes = mainEpisodes.length;
-    const totalSeasons = groupedSeasons.length;
-
-    return { totalEpisodes, totalSeasons };
+    return {
+      totalEpisodes: mainEpisodes.length,
+      totalSeasons: groupedSeasons.length,
+    };
   }, [episodes, groupedSeasons]);
 
   const sourceYear = getYear(show?.first_aired);
@@ -410,7 +421,7 @@ export default function ShowDetails() {
       <div className="msd-page">
         <div className="msd-shell">
           <div className="msd-empty">
-            <p>Show not found.</p>
+            <p>{error || "Show not found."}</p>
             <Link to="/search" className="msd-back-link">
               Back to Search
             </Link>
