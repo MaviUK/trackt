@@ -4,6 +4,11 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
+import {
+  enrichTmdbShowsWithMappings,
+  getMappedShowHref,
+  normalizeMappedShow,
+} from "../lib/tmdbMappings";
 
 function makeEpisodeCode(ep) {
   if (Number(ep?.seasonNumber) === 0) {
@@ -865,101 +870,97 @@ export default function ShowDetails() {
           </div>
         </section>
 
-        <section className="msd-panel">
-          <h2 className="msd-section-title">Recommended Shows</h2>
-          {extrasLoading ? (
-            <p className="msd-muted">Loading recommendations...</p>
-          ) : recommendedShows.length > 0 ? (
-            <div className="msd-recommended-row">
-              {recommendedShows.map((rec, index) => {
-                const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
-                const hasTvdbId = !!tvdbIdValue;
-                const linkTarget = hasTvdbId ? `/show/${tvdbIdValue}` : "#";
-                const showName = rec.name || rec.title || "Unknown show";
-                const posterSrc =
-                  rec.poster_url ||
-                  rec.posterUrl ||
-                  rec.image_url ||
-                  rec.image ||
-                  (rec.poster_path
-                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
-                    : "");
+       <section className="msd-panel">
+  <h2 className="msd-section-title">Recommended Shows</h2>
+  {extrasLoading ? (
+    <p className="msd-muted">Loading recommendations...</p>
+  ) : recommendedShows.length > 0 ? (
+    <div className="msd-recommended-row">
+      {recommendedShows.map((rec, index) => {
+        const mapped = normalizeMappedShow(rec);
+        const linkTarget = getMappedShowHref(mapped);
 
-                if (!hasTvdbId) {
-                  return (
-                    <div
-                      key={rec.id || `${showName}-${index}`}
-                      className="msd-recommended-card"
-                    >
-                      {posterSrc ? (
-                        <img
-                          src={posterSrc}
-                          alt={showName}
-                          className="msd-recommended-card-image"
-                        />
-                      ) : (
-                        <div className="msd-recommended-card-image-placeholder">
-                          {showName.charAt(0)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
+        const showName = mapped.name || mapped.title || "Unknown show";
+        const posterSrc =
+          mapped.poster_url ||
+          mapped.posterUrl ||
+          mapped.image_url ||
+          mapped.image ||
+          (mapped.poster_path
+            ? `https://image.tmdb.org/t/p/w500${mapped.poster_path}`
+            : "");
 
-                return (
-                  <Link
-                    key={rec.id || `${showName}-${index}`}
-                    to={linkTarget}
-                    className="msd-recommended-card"
-                  >
-                    {posterSrc ? (
-                      <img
-                        src={posterSrc}
-                        alt={showName}
-                        className="msd-recommended-card-image"
-                      />
-                    ) : (
-                      <div className="msd-recommended-card-image-placeholder">
-                        {showName.charAt(0)}
-                      </div>
-                    )}
-                  </Link>
-                );
-              })}
+        if (!linkTarget || linkTarget === "#") {
+          return (
+            <div
+              key={mapped.id || `${showName}-${index}`}
+              className="msd-recommended-card"
+            >
+              {posterSrc ? (
+                <img
+                  src={posterSrc}
+                  alt={showName}
+                  className="msd-recommended-card-image"
+                />
+              ) : (
+                <div className="msd-recommended-card-image-placeholder">
+                  {showName.charAt(0)}
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="msd-muted">No recommendations yet.</p>
-          )}
-        </section>
+          );
+        }
 
-        {!isAdded ? (
-          <div className="msd-bottom-action-bar">
-            <button
-              type="button"
-              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-              onClick={handleAddShow}
-              disabled={adding}
-            >
-              {adding ? "Adding..." : "Add to My Shows"}
-            </button>
-          </div>
-        ) : (
-          <div className="msd-bottom-action-bar">
-            <Link
-              to={`/my-shows/${show.tvdb_id}`}
-              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-              style={{
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              Open in My Shows
-            </Link>
-          </div>
-        )}
-      </div>
+        return (
+          <Link
+            key={mapped.id || `${showName}-${index}`}
+            to={linkTarget}
+            className="msd-recommended-card"
+          >
+            {posterSrc ? (
+              <img
+                src={posterSrc}
+                alt={showName}
+                className="msd-recommended-card-image"
+              />
+            ) : (
+              <div className="msd-recommended-card-image-placeholder">
+                {showName.charAt(0)}
+              </div>
+            )}
+          </Link>
+        );
+      })}
     </div>
-  );
-}
+  ) : (
+    <p className="msd-muted">No recommendations yet.</p>
+  )}
+</section>
+
+{!isAdded ? (
+  <div className="msd-bottom-action-bar">
+    <button
+      type="button"
+      className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+      onClick={handleAddShow}
+      disabled={adding}
+    >
+      {adding ? "Adding..." : "Add to My Shows"}
+    </button>
+  </div>
+) : (
+  <div className="msd-bottom-action-bar">
+    <Link
+      to={`/my-shows/${show.tvdb_id}`}
+      className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+      style={{
+        textDecoration: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      Open in My Shows
+    </Link>
+  </div>
+)}
