@@ -5,15 +5,6 @@ import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
 
-function sortSeasonGroups(a, b) {
-  const aNum = Number(a[0]);
-  const bNum = Number(b[0]);
-
-  if (aNum === 0 && bNum !== 0) return -1;
-  if (bNum === 0 && aNum !== 0) return 1;
-  return aNum - bNum;
-}
-
 function makeEpisodeCode(ep) {
   if (Number(ep?.seasonNumber) === 0) {
     if (!ep?.number) return "Special";
@@ -31,6 +22,32 @@ function getYear(dateString) {
   const d = new Date(dateString);
   if (Number.isNaN(d.getTime())) return "";
   return String(d.getFullYear());
+}
+
+function sortSeasonGroups(a, b) {
+  const aNum = Number(a[0]);
+  const bNum = Number(b[0]);
+
+  if (aNum === 0 && bNum !== 0) return -1;
+  if (bNum === 0 && aNum !== 0) return 1;
+  return aNum - bNum;
+}
+
+function getBannerFromExtras(extras) {
+  if (!extras || typeof extras !== "object") return null;
+
+  return (
+    extras.backdrop_url ||
+    extras.backdropUrl ||
+    extras.banner_url ||
+    extras.bannerUrl ||
+    extras.background_url ||
+    extras.backgroundUrl ||
+    extras.show?.backdrop_url ||
+    extras.show?.banner_url ||
+    extras.show?.background_url ||
+    null
+  );
 }
 
 function getBackdropUrl(showData) {
@@ -99,6 +116,9 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
       showData.first_air_time ||
       showData.firstAired ||
       null,
+    status: showData.status || null,
+    network: showData.network || "",
+    original_language: showData.original_language || "",
     genres: Array.isArray(showData.genres) ? showData.genres : [],
     relationship_types: Array.isArray(showData.relationship_types)
       ? showData.relationship_types
@@ -127,8 +147,18 @@ function normalizeEpisodePayload(row, index, tvdbId) {
     airDate: row.aired_date || row.airDate || row.aired || null,
     name: row.name || "Untitled episode",
     overview: row.overview || "",
-    image: row.image_url || row.image || null,
+    image: row.image_url || row.image || row.tmdb_still_path || null,
     episode_code: row.episode_code || null,
+    tmdbRating:
+      row.tmdb_vote_average != null &&
+      !Number.isNaN(Number(row.tmdb_vote_average))
+        ? Number(row.tmdb_vote_average)
+        : null,
+    tmdbVoteCount:
+      row.tmdb_vote_count != null &&
+      !Number.isNaN(Number(row.tmdb_vote_count))
+        ? Number(row.tmdb_vote_count)
+        : 0,
   };
 }
 
@@ -145,12 +175,13 @@ export default function ShowDetails() {
   const [episodes, setEpisodes] = useState([]);
   const [expandedSeasons, setExpandedSeasons] = useState({});
   const [cast, setCast] = useState([]);
+  const [crew, setCrew] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
-  const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
-  const [trailer, setTrailer] = useState(null);
-
+  const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [viewer, setViewer] = useState(null);
   const [isAdded, setIsAdded] = useState(false);
+  const [expandedOverview, setExpandedOverview] = useState(false);
+  const [activeTab, setActiveTab] = useState("seasons");
 
   useEffect(() => {
     async function loadShow() {
@@ -171,9 +202,9 @@ export default function ShowDetails() {
           setEpisodes([]);
           setExpandedSeasons({});
           setCast([]);
+          setCrew([]);
           setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-          setTrailer(null);
+          setMobileBannerUrl(null);
           setIsAdded(false);
           return;
         }
@@ -189,9 +220,12 @@ export default function ShowDetails() {
             tvdb_id,
             name,
             overview,
+            status,
             poster_url,
             first_aired,
+            network,
             genres,
+            original_language,
             relationship_types,
             settings,
             rating_average,
@@ -234,7 +268,10 @@ export default function ShowDetails() {
               name,
               overview,
               aired_date,
-              image_url
+              image_url,
+              tmdb_vote_average,
+              tmdb_vote_count,
+              tmdb_still_path
             `)
             .eq("show_id", showData.id)
             .order("season_number", { ascending: true })
@@ -281,9 +318,9 @@ export default function ShowDetails() {
           setEpisodes([]);
           setExpandedSeasons({});
           setCast([]);
+          setCrew([]);
           setRecommendedShows([]);
-          setPeopleAlsoWatch([]);
-          setTrailer(null);
+          setMobileBannerUrl(null);
           setIsAdded(false);
           return;
         }
@@ -302,31 +339,29 @@ export default function ShowDetails() {
         const seasonMap = {};
         normalizedEpisodes.forEach((ep) => {
           const seasonKey = Number(ep.seasonNumber ?? 0);
-          if (seasonKey !== 0 && !(seasonKey in seasonMap)) {
-            seasonMap[seasonKey] = false;
-          }
+          if (seasonKey === 0) return;
+          if (!(seasonKey in seasonMap)) seasonMap[seasonKey] = false;
         });
 
         const castRows = Array.isArray(extras?.cast) ? extras.cast : [];
-        const tvdbPeopleAlsoWatch = Array.isArray(extras?.peopleAlsoWatch)
-          ? extras.peopleAlsoWatch
-          : [];
+        const crewRows = Array.isArray(extras?.crew) ? extras.crew : [];
         const fallbackRecommendations = Array.isArray(extras?.recommendations)
           ? extras.recommendations
           : [];
         const trailerData = extras?.trailer || null;
 
-        setShow(normalizedShow);
+        setShow({
+          ...normalizedShow,
+          trailer: trailerData,
+        });
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
         setCast(castRows);
-        setPeopleAlsoWatch(tvdbPeopleAlsoWatch);
-        setRecommendedShows(
-          tvdbPeopleAlsoWatch.length > 0
-            ? tvdbPeopleAlsoWatch
-            : fallbackRecommendations
-        );
-        setTrailer(trailerData);
+        setCrew(crewRows);
+        setRecommendedShows(fallbackRecommendations);
+        setMobileBannerUrl(getBannerFromExtras(extras) || null);
+        setExpandedOverview(false);
+        setActiveTab("seasons");
       } catch (err) {
         console.error("Failed loading show:", err);
         setError(err.message || "Failed loading show");
@@ -334,9 +369,9 @@ export default function ShowDetails() {
         setEpisodes([]);
         setExpandedSeasons({});
         setCast([]);
+        setCrew([]);
         setRecommendedShows([]);
-        setPeopleAlsoWatch([]);
-        setTrailer(null);
+        setMobileBannerUrl(null);
         setIsAdded(false);
       } finally {
         setLoading(false);
@@ -372,31 +407,37 @@ export default function ShowDetails() {
     );
 
     return {
-      totalEpisodes: mainEpisodes.length,
+      watched: 0,
+      total: mainEpisodes.length,
+      pct: 0,
       totalSeasons: groupedSeasons.length,
     };
   }, [episodes, groupedSeasons]);
 
   const sourceYear = getYear(show?.first_aired);
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
+  const sourceLanguage = show?.original_language || "";
+
   const tmdbRating =
     show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
       ? Number(show.rating_average).toFixed(1)
       : "—";
+
   const rankdRating =
     show?.rankd_average != null && !Number.isNaN(Number(show.rankd_average))
       ? Number(show.rankd_average).toFixed(1)
       : "—";
 
-  const sourceRating =
-    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
-      ? Number(show.rating_average).toFixed(1)
-      : "";
-
   const baseContext = `sourceShowId=${encodeURIComponent(
     show?.tvdb_id || ""
   )}&sourceYear=${encodeURIComponent(
     sourceYear
-  )}&sourceRating=${encodeURIComponent(sourceRating)}`;
+  )}&sourceRating=${encodeURIComponent(
+    sourceRating
+  )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -426,6 +467,7 @@ export default function ShowDetails() {
         poster_url: show.poster_url || null,
         overview: show.overview || null,
         first_air_date: show.first_aired || null,
+        status: show.status || null,
       });
 
       setIsAdded(true);
@@ -454,150 +496,100 @@ export default function ShowDetails() {
         <div className="msd-shell">
           <div className="msd-empty">
             <p>{error || "Show not found."}</p>
-            <Link to="/search" className="msd-back-link">
-              Back to Search
-            </Link>
           </div>
         </div>
       </div>
     );
   }
 
-  const heroBackdrop = show.backdrop_url || show.poster_url || null;
-  const displayYear = getYear(show.first_aired);
-
   return (
     <div className="msd-page">
       <div className="msd-shell">
-        <Link to="/search" className="msd-back-link">
-          ← Back to Search
-        </Link>
-
-        <section
-          className="msd-panel"
-          style={{
-            padding: 0,
-            overflow: "hidden",
-            marginBottom: "18px",
-          }}
-        >
+        <section className="msd-mobile-banner-wrap">
           <div
-            style={{
-              position: "relative",
-              minHeight: "180px",
-              background: heroBackdrop
-                ? `linear-gradient(180deg, rgba(5,10,25,0.10) 0%, rgba(5,10,25,0.65) 55%, rgba(5,10,25,0.96) 100%), url(${heroBackdrop}) center/cover`
-                : "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(5,10,25,1) 100%)",
-              display: "flex",
-              alignItems: "flex-end",
-              padding: "20px",
-            }}
-          >
+            className={`msd-mobile-banner ${
+              mobileBannerUrl ? "" : "msd-mobile-banner-fallback"
+            }`}
+            style={
+              mobileBannerUrl
+                ? { backgroundImage: `url(${mobileBannerUrl})` }
+                : undefined
+            }
+          />
+        </section>
+
+        <section className="msd-hero">
+          <div className="msd-hero-poster-wrap">
             {show.poster_url ? (
               <img
                 src={show.poster_url}
                 alt={show.show_name}
                 className="msd-poster"
-                style={{
-                  width: "110px",
-                  minWidth: "110px",
-                  height: "165px",
-                  objectFit: "cover",
-                  borderRadius: "18px",
-                  boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
               />
             ) : null}
           </div>
 
-          <div style={{ padding: "16px" }}>
-            {!isAdded ? (
-              <button
-                type="button"
-                onClick={handleAddShow}
-                disabled={adding}
-                className="msd-btn msd-btn-primary"
-                style={{ width: "100%", marginBottom: "14px" }}
-              >
-                {adding ? "Adding..." : "Add to My Shows"}
-              </button>
-            ) : (
-              <Link
-                to={`/my-shows/${show.tvdb_id}`}
-                className="msd-btn msd-btn-success"
-                style={{
-                  width: "100%",
-                  marginBottom: "14px",
-                  textAlign: "center",
-                  display: "block",
-                }}
-              >
-                Open in My Shows
-              </Link>
-            )}
-
-            <h1 className="msd-title" style={{ marginBottom: "6px" }}>
-              {show.show_name}
-            </h1>
-
-            {displayYear ? (
-              <div
-                style={{
-                  color: "#cbd5e1",
-                  fontSize: "1.35rem",
-                  fontWeight: 700,
-                  marginBottom: "4px",
-                }}
-              >
-                {displayYear}
+          <div className="msd-hero-main msd-hero-main-mobile">
+            <div className="msd-mobile-top-row">
+              <div className="msd-mobile-title-wrap">
+                <h1 className="msd-title">{show.show_name}</h1>
+                {show.first_aired ? (
+                  <>
+                    <div className="msd-mobile-year">
+                      {new Date(show.first_aired).getFullYear()}
+                    </div>
+                    <div className="msd-mobile-first-aired">
+                      First aired: {formatDate(show.first_aired)}
+                    </div>
+                  </>
+                ) : null}
               </div>
-            ) : null}
 
-            {show.first_aired ? (
-              <div className="msd-meta" style={{ marginBottom: "12px" }}>
-                <div>First aired: {formatDate(show.first_aired)}</div>
-              </div>
-            ) : null}
+              {show.poster_url ? (
+                <img
+                  src={show.poster_url}
+                  alt={show.show_name}
+                  className="msd-mobile-thumb"
+                />
+              ) : null}
+            </div>
 
             {show.overview ? (
-              <p
-                className="msd-overview"
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                  marginBottom: "14px",
-                }}
-              >
-                {show.overview}
-              </p>
+              <div className="msd-overview-wrapper">
+                <p
+                  className={`msd-overview msd-overview-mobile ${
+                    expandedOverview ? "expanded" : "collapsed"
+                  }`}
+                >
+                  {show.overview}
+                </p>
+
+                <button
+                  type="button"
+                  className="msd-overview-dots"
+                  onClick={() => setExpandedOverview((prev) => !prev)}
+                  aria-label={
+                    expandedOverview ? "Collapse overview" : "Expand overview"
+                  }
+                >
+                  •••
+                </button>
+              </div>
             ) : null}
 
-            <div
-              className="msd-stats-row"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "10px",
-                marginTop: "8px",
-              }}
-            >
+            <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Seasons</span>
                 <strong className="msd-stat-value">{stats.totalSeasons}</strong>
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Total Episodes</span>
-                <strong className="msd-stat-value">
-                  {stats.totalEpisodes}
-                </strong>
+                <span className="msd-stat-label">Total</span>
+                <strong className="msd-stat-value">{stats.total}</strong>
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">TMDB Rating</span>
+                <span className="msd-stat-label">TMDB</span>
                 <strong className="msd-stat-value">{tmdbRating}</strong>
               </div>
 
@@ -605,62 +597,28 @@ export default function ShowDetails() {
                 <span className="msd-stat-label">Rank'd</span>
                 <strong className="msd-stat-value">{rankdRating}</strong>
               </div>
-
-              <div className="msd-stat-box" style={{ gridColumn: "1 / -1" }}>
-                <span className="msd-stat-label">Genre</span>
-                <strong
-                  className="msd-stat-value"
-                  style={{
-                    fontSize: "0.95rem",
-                    lineHeight: "1.35",
-                    whiteSpace: "normal",
-                  }}
-                >
-                  {show.genres?.length > 0
-                    ? show.genres.map((genre, index) => (
-                        <span key={genre}>
-                          <Link
-                            to={`/search?genre=${encodeURIComponent(
-                              genre
-                            )}&${baseContext}`}
-                            className="msd-link"
-                          >
-                            {genre}
-                          </Link>
-                          {index < show.genres.length - 1 ? ", " : ""}
-                        </span>
-                      ))
-                    : "—"}
-                </strong>
-              </div>
-
-              <div className="msd-stat-box" style={{ gridColumn: "1 / -1" }}>
-                <span className="msd-stat-label">Play Trailer</span>
-                <strong
-                  className="msd-stat-value"
-                  style={{ fontSize: "1rem", lineHeight: "1.35" }}
-                >
-                  {trailer?.url ? (
-                    <a
-                      href={trailer.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="msd-link"
-                    >
-                      {trailer.name || "Watch Trailer"}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </strong>
-              </div>
             </div>
 
-            {!isAdded ? (
-              <p style={{ color: "#cbd5e1", marginTop: "14px" }}>
-                Personal tracking appears after you add this show.
-              </p>
-            ) : null}
+            <div className="msd-stat-box msd-stat-box-full">
+              <span className="msd-stat-label">
+                {isAdded ? "Already in My Shows" : "Add this show"}
+              </span>
+
+              {isAdded ? (
+                <Link to={`/my-shows/${show.tvdb_id}`} className="msd-btn msd-btn-success">
+                  Open in My Shows
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddShow}
+                  disabled={adding}
+                  className="msd-btn msd-btn-primary"
+                >
+                  {adding ? "Adding..." : "Add to My Shows"}
+                </button>
+              )}
+            </div>
 
             {error ? (
               <p style={{ color: "#fca5a5", marginTop: "14px" }}>{error}</p>
@@ -668,144 +626,327 @@ export default function ShowDetails() {
           </div>
         </section>
 
-        <section className="msd-episodes-section">
-          <h2 className="msd-section-title">Episodes</h2>
-          <div className="msd-seasons">
-            {groupedSeasons.map((season) => (
-              <section key={season.seasonNumber} className="msd-season-card">
-                <button
-                  type="button"
-                  className="msd-season-toggle"
-                  onClick={() => toggleSeason(season.seasonNumber)}
-                >
-                  <div>
-                    <div className="msd-season-title">{season.label}</div>
-                    <div className="msd-season-subtitle">
-                      {season.totalCount} episodes
-                    </div>
-                  </div>
-                  <div className="msd-season-toggle-right">
-                    <span className="msd-season-chevron">
-                      {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
-                    </span>
-                  </div>
-                </button>
+        <section className="msd-content-tabs-section">
+          <div
+            className="msd-content-tabs"
+            role="tablist"
+            aria-label="Show sections"
+          >
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "seasons" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("seasons")}
+            >
+              Seasons
+            </button>
 
-                {expandedSeasons[season.seasonNumber] && (
-                  <div className="msd-episode-list">
-                    {season.episodes.map((ep) => (
-                      <article key={ep.id} className="msd-episode-card">
-                        <div className="msd-episode-top">
-                          <div>
-                            <h3 className="msd-episode-title">
-                              {makeEpisodeCode(ep)} - {ep.name}
-                            </h3>
-                            <div className="msd-episode-date">
-                              Air date: {formatDate(ep.aired)}
-                            </div>
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "cast" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("cast")}
+            >
+              Cast
+            </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "crew" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("crew")}
+            >
+              Crew
+            </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "studio" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("studio")}
+            >
+              Studio
+            </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "genre" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("genre")}
+            >
+              Genre
+            </button>
+          </div>
+
+          <div className="msd-tab-panel">
+            {activeTab === "seasons" && (
+              <>
+                <h2 className="msd-section-title">Seasons</h2>
+                <div className="msd-seasons">
+                  {groupedSeasons.map((season) => (
+                    <section
+                      key={season.seasonNumber}
+                      className="msd-season-card"
+                    >
+                      <button
+                        type="button"
+                        className="msd-season-toggle"
+                        onClick={() => toggleSeason(season.seasonNumber)}
+                      >
+                        <div>
+                          <div className="msd-season-title">{season.label}</div>
+                          <div className="msd-season-subtitle">
+                            {season.totalCount} episodes
                           </div>
                         </div>
+                        <div className="msd-season-toggle-right">
+                          <span className="msd-season-chevron">
+                            {expandedSeasons[season.seasonNumber] ? "▲" : "▼"}
+                          </span>
+                        </div>
+                      </button>
 
-                        {ep.overview ? (
-                          <p className="msd-episode-overview">
-                            {ep.overview}
-                          </p>
-                        ) : null}
-                      </article>
+                      {expandedSeasons[season.seasonNumber] && (
+                        <div className="msd-episode-list">
+                          {season.episodes.map((ep) => (
+                            <article key={ep.id} className="msd-episode-card">
+                              <div
+                                className={`msd-episode-hero ${
+                                  ep.image ? "" : "msd-episode-hero-fallback"
+                                }`}
+                                style={
+                                  ep.image
+                                    ? { backgroundImage: `url(${ep.image})` }
+                                    : undefined
+                                }
+                              >
+                                <div className="msd-episode-hero-overlay">
+                                  <div className="msd-episode-hero-text">
+                                    <h3 className="msd-episode-hero-title">
+                                      {makeEpisodeCode(ep)} - {ep.name}
+                                    </h3>
+                                    <div className="msd-episode-hero-date">
+                                      Air date: {formatDate(ep.aired)}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {ep.overview ? (
+                                <p className="msd-episode-overview msd-episode-overview-mobile-card" style={{ display: "block" }}>
+                                  {ep.overview}
+                                </p>
+                              ) : null}
+
+                              <div className="msd-episode-mobile-actions">
+                                <button
+                                  type="button"
+                                  className="msd-btn msd-btn-primary"
+                                  onClick={handleAddShow}
+                                  disabled={adding}
+                                >
+                                  {adding ? "Adding..." : "Add Show"}
+                                </button>
+
+                                <div className="msd-episode-score-pill">
+                                  {ep.tmdbRating != null
+                                    ? `${Math.round(ep.tmdbRating * 10)}%`
+                                    : "—"}
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {activeTab === "cast" && (
+              <>
+                <h2 className="msd-section-title">Cast</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading cast...</p>
+                ) : cast.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {cast.map((member, index) => (
+                      <div
+                        key={member.id || `${member.personName}-${index}`}
+                        className="msd-cast-card msd-cast-card-mobile"
+                      >
+                        {member.image ? (
+                          <img
+                            src={member.image}
+                            alt={member.personName || "Cast member"}
+                            className="msd-cast-image msd-cast-image-mobile"
+                          />
+                        ) : (
+                          <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                        )}
+                        <div className="msd-cast-name">
+                          {member.personName || "Unknown actor"}
+                        </div>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="msd-muted">No cast available.</p>
                 )}
-              </section>
-            ))}
+              </>
+            )}
+
+            {activeTab === "crew" && (
+              <>
+                <h2 className="msd-section-title">Crew</h2>
+                {extrasLoading ? (
+                  <p className="msd-muted">Loading crew...</p>
+                ) : crew.length > 0 ? (
+                  <div className="msd-cast-grid msd-cast-grid-mobile">
+                    {crew.map((member, index) => {
+                      const personName = member.personName || "Unknown crew";
+
+                      return (
+                        <div
+                          key={member.id || `${personName}-${index}`}
+                          className="msd-cast-card msd-cast-card-mobile"
+                        >
+                          {member.image ? (
+                            <img
+                              src={member.image}
+                              alt={personName}
+                              className="msd-cast-image msd-cast-image-mobile"
+                            />
+                          ) : (
+                            <div className="msd-cast-image msd-cast-image-mobile msd-cast-placeholder" />
+                          )}
+                          <div className="msd-cast-name">{personName}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="msd-muted">No crew available yet.</p>
+                )}
+              </>
+            )}
+
+            {activeTab === "studio" && (
+              <>
+                <h2 className="msd-section-title">Studio</h2>
+                <div className="msd-info-grid">
+                  <div className="msd-info-card">
+                    <span className="msd-stat-label">Studio</span>
+                    <strong className="msd-stat-value">
+                      {show.network ? (
+                        <Link
+                          to={`/search?network=${encodeURIComponent(
+                            show.network
+                          )}&${baseContext}`}
+                          className="msd-link"
+                        >
+                          {show.network}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === "genre" && (
+              <>
+                <h2 className="msd-section-title">Genre</h2>
+                <div className="msd-info-grid">
+                  {show.genres?.length > 0 ? (
+                    show.genres.map((genre) => (
+                      <div key={genre} className="msd-info-card">
+                        <Link
+                          to={`/search?genre=${encodeURIComponent(
+                            genre
+                          )}&${baseContext}`}
+                          className="msd-link msd-info-link"
+                        >
+                          {genre}
+                        </Link>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="msd-muted">No genres available.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
-        <section className="msd-panel msd-panel-spaced">
-          <h2 className="msd-section-title">Cast</h2>
-          {extrasLoading ? (
-            <p className="msd-muted">Loading cast...</p>
-          ) : cast.length > 0 ? (
-            <div className="msd-cast-grid">
-              {cast.map((member, index) => (
-                <div
-                  key={member.id || `${member.personName}-${index}`}
-                  className="msd-cast-card"
-                >
-                  {member.image ? (
-                    <img
-                      src={member.image}
-                      alt={member.personName || "Cast member"}
-                      className="msd-cast-image"
-                    />
-                  ) : null}
-                  <div className="msd-cast-name">
-                    {member.personName || "Unknown actor"}
-                  </div>
-                  <div className="msd-cast-role">
-                    {member.characterName || "Cast"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="msd-muted">No cast available.</p>
-          )}
-        </section>
-
         <section className="msd-panel">
-          <h2 className="msd-section-title">
-            {peopleAlsoWatch.length > 0
-              ? "People Also Watch"
-              : "Recommended Shows"}
-          </h2>
+          <h2 className="msd-section-title">Recommended Shows</h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
           ) : recommendedShows.length > 0 ? (
-            <div className="msd-recommended-grid">
+            <div className="msd-recommended-row">
               {recommendedShows.map((rec, index) => {
                 const tvdbIdValue = rec.tvdb_id || rec.tvdbId;
                 const hasTvdbId = !!tvdbIdValue;
                 const linkTarget = hasTvdbId ? `/show/${tvdbIdValue}` : "#";
+                const showName = rec.name || rec.title || "Unknown show";
+                const posterSrc =
+                  rec.poster_url ||
+                  rec.posterUrl ||
+                  rec.image_url ||
+                  rec.image ||
+                  (rec.poster_path
+                    ? `https://image.tmdb.org/t/p/w500${rec.poster_path}`
+                    : "");
 
-                const content = (
-                  <>
-                    {rec.poster_url || rec.posterUrl ? (
-                      <img
-                        src={rec.poster_url || rec.posterUrl}
-                        alt={rec.name || "Recommended show"}
-                        className="msd-rec-poster"
-                      />
-                    ) : null}
-                    <div className="msd-rec-title">
-                      {rec.name || "Unknown show"}
-                    </div>
-                    {rec.first_aired || rec.firstAired ? (
-                      <div className="msd-rec-date">
-                        {formatDate(rec.first_aired || rec.firstAired)}
-                      </div>
-                    ) : null}
-                  </>
-                );
-
-                if (hasTvdbId) {
+                if (!hasTvdbId) {
                   return (
-                    <Link
-                      key={rec.id || `${rec.name}-${index}`}
-                      to={linkTarget}
-                      className="msd-rec-card"
+                    <div
+                      key={rec.id || `${showName}-${index}`}
+                      className="msd-recommended-card"
                     >
-                      {content}
-                    </Link>
+                      {posterSrc ? (
+                        <img
+                          src={posterSrc}
+                          alt={showName}
+                          className="msd-recommended-card-image"
+                        />
+                      ) : (
+                        <div className="msd-recommended-card-image-placeholder">
+                          {showName.charAt(0)}
+                        </div>
+                      )}
+                    </div>
                   );
                 }
 
                 return (
-                  <div
-                    key={rec.id || `${rec.name}-${index}`}
-                    className="msd-rec-card"
+                  <Link
+                    key={rec.id || `${showName}-${index}`}
+                    to={linkTarget}
+                    className="msd-recommended-card"
                   >
-                    {content}
-                  </div>
+                    {posterSrc ? (
+                      <img
+                        src={posterSrc}
+                        alt={showName}
+                        className="msd-recommended-card-image"
+                      />
+                    ) : (
+                      <div className="msd-recommended-card-image-placeholder">
+                        {showName.charAt(0)}
+                      </div>
+                    )}
+                  </Link>
                 );
               })}
             </div>
