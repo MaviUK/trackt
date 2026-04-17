@@ -63,13 +63,17 @@ function getBackdropUrl(showData) {
   );
 }
 
-function getSafeTmdbRating(showData) {
+function getSafeTmdbRating(showData, extras) {
   const candidates = [
+    extras?.tmdb_vote_average,
+    extras?.tmdbRating,
+    extras?.show?.tmdb_vote_average,
+    extras?.show?.vote_average,
+    extras?.show?.tmdb_rating,
     showData?.tmdb_rating,
     showData?.tmdb_vote_average,
     showData?.vote_average,
     showData?.rating_average,
-    showData?.score,
   ];
 
   for (const value of candidates) {
@@ -124,7 +128,7 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
       ? showData.relationship_types
       : [],
     settings: Array.isArray(showData.settings) ? showData.settings : [],
-    rating_average: getSafeTmdbRating(showData),
+    rating_average: getSafeTmdbRating(showData, extras),
     rating_count:
       showData.rating_count != null ? Number(showData.rating_count) : null,
     rankd_average: getSafeRankdRating(showData, extras),
@@ -149,16 +153,6 @@ function normalizeEpisodePayload(row, index, tvdbId) {
     overview: row.overview || "",
     image: row.image_url || row.image || row.tmdb_still_path || null,
     episode_code: row.episode_code || null,
-    tmdbRating:
-      row.tmdb_vote_average != null &&
-      !Number.isNaN(Number(row.tmdb_vote_average))
-        ? Number(row.tmdb_vote_average)
-        : null,
-    tmdbVoteCount:
-      row.tmdb_vote_count != null &&
-      !Number.isNaN(Number(row.tmdb_vote_count))
-        ? Number(row.tmdb_vote_count)
-        : 0,
   };
 }
 
@@ -182,6 +176,9 @@ export default function ShowDetails() {
   const [isAdded, setIsAdded] = useState(false);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
+  const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
+    {}
+  );
 
   useEffect(() => {
     async function loadShow() {
@@ -269,8 +266,6 @@ export default function ShowDetails() {
               overview,
               aired_date,
               image_url,
-              tmdb_vote_average,
-              tmdb_vote_count,
               tmdb_still_path
             `)
             .eq("show_id", showData.id)
@@ -407,9 +402,7 @@ export default function ShowDetails() {
     );
 
     return {
-      watched: 0,
       total: mainEpisodes.length,
-      pct: 0,
       totalSeasons: groupedSeasons.length,
     };
   }, [episodes, groupedSeasons]);
@@ -578,46 +571,25 @@ export default function ShowDetails() {
             ) : null}
 
             <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Seasons</span>
-    <strong className="msd-stat-value">{stats.totalSeasons}</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Seasons</span>
+                <strong className="msd-stat-value">{stats.totalSeasons}</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Episodes</span>
-    <strong className="msd-stat-value">{stats.total}</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Episodes</span>
+                <strong className="msd-stat-value">{stats.total}</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Rating</span>
-    <strong className="msd-stat-value">{tmdbRating}</strong>
-  </div>
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Rating</span>
+                <strong className="msd-stat-value">{tmdbRating}</strong>
+              </div>
 
-  <div className="msd-stat-box">
-    <span className="msd-stat-label">Rank'd</span>
-    <strong className="msd-stat-value">{rankdRating}</strong>
-  </div>
-</div>
-
-            <div className="msd-stat-box msd-stat-box-full">
-              <span className="msd-stat-label">
-                {isAdded ? "Already in My Shows" : "Add this show"}
-              </span>
-
-              {isAdded ? (
-                <Link to={`/my-shows/${show.tvdb_id}`} className="msd-btn msd-btn-success">
-                  Open in My Shows
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleAddShow}
-                  disabled={adding}
-                  className="msd-btn msd-btn-primary"
-                >
-                  {adding ? "Adding..." : "Add to My Shows"}
-                </button>
-              )}
+              <div className="msd-stat-box">
+                <span className="msd-stat-label">Rank'd</span>
+                <strong className="msd-stat-value">{rankdRating}</strong>
+              </div>
             </div>
 
             {error ? (
@@ -713,54 +685,59 @@ export default function ShowDetails() {
 
                       {expandedSeasons[season.seasonNumber] && (
                         <div className="msd-episode-list">
-                          {season.episodes.map((ep) => (
-                            <article key={ep.id} className="msd-episode-card">
-                              <div
-                                className={`msd-episode-hero ${
-                                  ep.image ? "" : "msd-episode-hero-fallback"
-                                }`}
-                                style={
-                                  ep.image
-                                    ? { backgroundImage: `url(${ep.image})` }
-                                    : undefined
-                                }
-                              >
-                                <div className="msd-episode-hero-overlay">
-                                  <div className="msd-episode-hero-text">
-                                    <h3 className="msd-episode-hero-title">
-                                      {makeEpisodeCode(ep)} - {ep.name}
-                                    </h3>
-                                    <div className="msd-episode-hero-date">
-                                      Air date: {formatDate(ep.aired)}
+                          {season.episodes.map((ep) => {
+                            const isExpanded = !!expandedEpisodeOverviewIds[ep.id];
+
+                            return (
+                              <article key={ep.id} className="msd-episode-card">
+                                <div
+                                  className={`msd-episode-hero ${
+                                    ep.image ? "" : "msd-episode-hero-fallback"
+                                  }`}
+                                  style={
+                                    ep.image
+                                      ? { backgroundImage: `url(${ep.image})` }
+                                      : undefined
+                                  }
+                                >
+                                  <div className="msd-episode-hero-overlay">
+                                    <div className="msd-episode-hero-text">
+                                      <h3 className="msd-episode-hero-title">
+                                        {makeEpisodeCode(ep)} - {ep.name}
+                                      </h3>
+                                      <div className="msd-episode-hero-date">
+                                        Air date: {formatDate(ep.aired)}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
 
-                              {ep.overview ? (
-                                <p className="msd-episode-overview msd-episode-overview-mobile-card" style={{ display: "block" }}>
-                                  {ep.overview}
-                                </p>
-                              ) : null}
-
-                              <div className="msd-episode-mobile-actions">
                                 <button
                                   type="button"
-                                  className="msd-btn msd-btn-primary"
-                                  onClick={handleAddShow}
-                                  disabled={adding}
+                                  className="msd-episode-more-btn"
+                                  onClick={() =>
+                                    setExpandedEpisodeOverviewIds((prev) => ({
+                                      ...prev,
+                                      [ep.id]: !prev[ep.id],
+                                    }))
+                                  }
+                                  aria-label={
+                                    isExpanded
+                                      ? "Hide episode overview"
+                                      : "Show episode overview"
+                                  }
                                 >
-                                  {adding ? "Adding..." : "Add Show"}
+                                  •••
                                 </button>
 
-                                <div className="msd-episode-score-pill">
-                                  {ep.tmdbRating != null
-                                    ? `${Math.round(ep.tmdbRating * 10)}%`
-                                    : "—"}
-                                </div>
-                              </div>
-                            </article>
-                          ))}
+                                {isExpanded && ep.overview ? (
+                                  <p className="msd-episode-overview msd-episode-overview-mobile-card">
+                                    {ep.overview}
+                                  </p>
+                                ) : null}
+                              </article>
+                            );
+                          })}
                         </div>
                       )}
                     </section>
@@ -954,6 +931,34 @@ export default function ShowDetails() {
             <p className="msd-muted">No recommendations yet.</p>
           )}
         </section>
+
+        {!isAdded ? (
+          <div className="msd-bottom-action-bar">
+            <button
+              type="button"
+              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+              onClick={handleAddShow}
+              disabled={adding}
+            >
+              {adding ? "Adding..." : "Add to My Shows"}
+            </button>
+          </div>
+        ) : (
+          <div className="msd-bottom-action-bar">
+            <Link
+              to={`/my-shows/${show.tvdb_id}`}
+              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              Open in My Shows
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
