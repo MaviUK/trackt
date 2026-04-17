@@ -1,3 +1,5 @@
+import { pickOverview, pickTitle } from './_tvdbText.js';
+
 export async function handler(event) {
   try {
     const tvdbId = event.queryStringParameters?.tvdb_id;
@@ -46,7 +48,7 @@ export async function handler(event) {
     }
 
     const showRes = await fetch(
-      `https://api4.thetvdb.com/v4/series/${encodeURIComponent(tvdbId)}/extended`,
+      `https://api4.thetvdb.com/v4/series/${encodeURIComponent(tvdbId)}/extended?language=en`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -112,9 +114,9 @@ export async function handler(event) {
     const payload = {
       tvdb_id: Number(series?.id) || null,
       slug: series?.slug ?? null,
-      name: pickBestTitle(series?.name, series?.seriesName, series?.series_name, series?.title),
+      name: pickTitle(series?.name, series?.seriesName, series?.originalName),
       original_name: series?.originalName ?? null,
-      overview: pickBestOverview(series?.overview, series?.description, series?.plot),
+      overview: pickOverview(series?.overview) || null,
       status:
         typeof series?.status === "object"
           ? series?.status?.name ?? null
@@ -149,30 +151,3 @@ export async function handler(event) {
     };
   }
 }
-function cleanText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function looksLikeOverview(text) {
-  const value = cleanText(text);
-  if (!value) return false;
-  if (value.length > 120) return true;
-  if (value.includes("\n")) return true;
-  const words = value.split(/\s+/).filter(Boolean);
-  if (words.length > 14) return true;
-  if (/[.!?]$/.test(value) && words.length > 6) return true;
-  if (/[,;:]/.test(value) && words.length > 10) return true;
-  return false;
-}
-
-function pickBestTitle(...candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  const strict = cleaned.filter((value) => !looksLikeOverview(value));
-  return strict[0] || cleaned[0] || null;
-}
-
-function pickBestOverview(...candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  return cleaned.find((value) => value.length > 20) || cleaned[0] || null;
-}
-

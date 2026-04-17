@@ -141,7 +141,7 @@ export async function handler(event) {
         const result = await fetchJsonWithTimeout(
           `https://api4.thetvdb.com/v4/series/${encodeURIComponent(
             tvdbId
-          )}/episodes/default?page=${page}`,
+          )}/episodes/default?page=${page}&language=en`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

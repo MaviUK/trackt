@@ -1,3 +1,5 @@
+import { pickOverview, pickTitle } from './_tvdbText.js';
+
 function normalizeNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -155,36 +157,6 @@ function dedupeByValue(values) {
   );
 }
 
-function cleanText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function looksLikeOverview(text) {
-  const value = cleanText(text);
-  if (!value) return false;
-  if (value.length > 120) return true;
-  if (value.includes("\n")) return true;
-
-  const words = value.split(/\s+/).filter(Boolean);
-  if (words.length > 14) return true;
-
-  if (/[.!?]$/.test(value) && words.length > 6) return true;
-  if (/[,;:]/.test(value) && words.length > 10) return true;
-
-  return false;
-}
-
-function pickBestTitle(...candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  const strict = cleaned.filter((value) => !looksLikeOverview(value));
-  return strict[0] || cleaned[0] || "Unknown title";
-}
-
-function pickBestOverview(...candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  return cleaned.find((value) => value.length > 20) || cleaned[0] || "";
-}
-
 function normalizeSearchResult(item) {
   const rawGenres = Array.isArray(item?.genres)
     ? item.genres
@@ -194,13 +166,8 @@ function normalizeSearchResult(item) {
 
   return {
     tvdb_id: Number(item?.tvdb_id || item?.id) || null,
-    name: pickBestTitle(
-      item?.seriesName,
-      item?.series_name,
-      item?.name,
-      item?.title
-    ),
-    overview: pickBestOverview(item?.overview, item?.description, item?.plot),
+    name: pickTitle(item?.name, item?.seriesName, item?.aliases?.[0]),
+    overview: pickOverview(item?.overview),
     status:
       typeof item?.status === "object"
         ? item?.status?.name || null
@@ -311,13 +278,8 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
-    name: pickBestTitle(
-      series?.name,
-      series?.seriesName,
-      series?.series_name,
-      series?.title
-    ),
-    overview: pickBestOverview(series?.overview, series?.description, series?.plot),
+    name: pickTitle(series?.name, series?.seriesName, series?.originalName),
+    overview: pickOverview(series?.overview),
     status:
       typeof series?.status === "object"
         ? series?.status?.name || null
@@ -463,7 +425,7 @@ async function loginToTvdb() {
 
 async function searchTvdb(token, term) {
   const searchRes = await fetch(
-    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}`,
+    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}&language=en`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -493,7 +455,7 @@ async function searchTvdb(token, term) {
 
 async function fetchSeriesDetails(token, tvdbId) {
   const res = await fetch(
-    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended`,
+    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended?language=en`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -697,7 +659,15 @@ export async function handler(event) {
     if (query && !genre && !network && !relationshipType && !setting) {
       const tvdbResults = await searchTvdb(token, query).catch(() => []);
 
-      const ranked = dedupeByTvdbId(tvdbResults)
+      const baseResults = dedupeByTvdbId(tvdbResults).slice(0, 20);
+      const enrichedResults = [];
+
+      for (const item of baseResults) {
+        const details = await fetchSeriesDetails(token, item.tvdb_id);
+        enrichedResults.push(details || item);
+      }
+
+      const ranked = dedupeByTvdbId(enrichedResults)
         .map((item) => ({
           ...item,
           _score: scoreShow(item, {

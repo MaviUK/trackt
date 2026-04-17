@@ -88,6 +88,28 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
   }
 }
 
+
+function looksLikeOverviewText(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return false;
+  if (text.length > 120) return true;
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 16) return true;
+  if (/[.!?]/.test(text) && words.length > 8) return true;
+  return false;
+}
+
+function pickSafeTitle(...candidates) {
+  for (const candidate of candidates) {
+    const text = typeof candidate === 'string' ? candidate.trim() : '';
+    if (!text) continue;
+    if (looksLikeOverviewText(text)) continue;
+    if (text.length > 80) continue;
+    return text;
+  }
+  return 'Unknown title';
+}
+
 function dedupeByKey(rows, getKey) {
   const map = new Map();
 
@@ -100,37 +122,8 @@ function dedupeByKey(rows, getKey) {
   return [...map.values()];
 }
 
-function cleanText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function looksLikeOverview(text) {
-  const value = cleanText(text);
-  if (!value) return false;
-  if (value.length > 120) return true;
-  if (value.includes("\n")) return true;
-
-  const words = value.split(/\s+/).filter(Boolean);
-  if (words.length > 14) return true;
-
-  if (/[.!?]$/.test(value) && words.length > 6) return true;
-  if (/[,;:]/.test(value) && words.length > 10) return true;
-
-  return false;
-}
-
-function pickFirstTitleLike(candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  return cleaned.find((value) => !looksLikeOverview(value)) || cleaned[0] || "Unknown title";
-}
-
-function pickFirstOverviewLike(candidates) {
-  const cleaned = candidates.map(cleanText).filter(Boolean);
-  return cleaned.find((value) => value.length > 20) || cleaned[0] || null;
-}
-
 function pickEnglishName(showDetails) {
-  return pickFirstTitleLike([
+  return pickSafeTitle(
     showDetails?.english_name,
     showDetails?.name_eng,
     showDetails?.english_title,
@@ -140,19 +133,20 @@ function pickEnglishName(showDetails) {
     showDetails?.translations?.eng?.name,
     showDetails?.translations?.en?.name,
     showDetails?.name,
-    showDetails?.show_name,
-  ]);
+    showDetails?.show_name
+  );
 }
 
 function pickEnglishOverview(showDetails) {
-  return pickFirstOverviewLike([
-    showDetails?.english_overview,
-    showDetails?.overview_eng,
-    showDetails?.overview_english,
-    showDetails?.translations?.eng?.overview,
-    showDetails?.translations?.en?.overview,
-    showDetails?.overview,
-  ]);
+  return (
+    showDetails?.english_overview ||
+    showDetails?.overview_eng ||
+    showDetails?.overview_english ||
+    showDetails?.translations?.eng?.overview ||
+    showDetails?.translations?.en?.overview ||
+    showDetails?.overview ||
+    null
+  );
 }
 
 function buildShowPayload(showDetails) {

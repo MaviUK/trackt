@@ -1,3 +1,5 @@
+import { pickOverview, pickTitle } from './_tvdbText.js';
+
 const TVDB_BASE_URL = "https://api4.thetvdb.com/v4";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -82,7 +84,8 @@ async function getTvdbToken() {
 async function tvdbGet(path) {
   const token = await getTvdbToken();
 
-  const res = await fetch(`${TVDB_BASE_URL}${path}`, {
+  const separator = path.includes('?') ? '&' : '?';
+  const res = await fetch(`${TVDB_BASE_URL}${path}${separator}language=en`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
@@ -159,17 +162,8 @@ function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
 
   return {
     tvdb_id: tvdbId,
-    name: pickBestTitle(
-      seriesData?.name,
-      seriesData?.seriesName,
-      seriesData?.series_name,
-      seriesData?.translations?.name
-    ),
-    overview: pickBestOverview(
-      seriesData?.overview,
-      seriesData?.translations?.overview,
-      seriesData?.description
-    ),
+    name: pickTitle(seriesData?.name, seriesData?.seriesName, seriesData?.translations?.name),
+    overview: pickOverview(seriesData?.overview, seriesData?.translations?.overview),
     status: seriesData?.status?.name || seriesData?.status || null,
     poster_url: pickImage(
       seriesData?.image,
@@ -232,8 +226,8 @@ function normalizeEpisodes(seriesData, tvdbId) {
         ep?.episodeCode ||
         ep?.episode_code ||
         null,
-      name: ep?.name || "Untitled episode",
-      overview: ep?.overview || "",
+      name: pickTitle(ep?.name, "Untitled episode"),
+      overview: pickOverview(ep?.overview),
       aired_date:
         ep?.aired ||
         ep?.airDate ||
@@ -277,8 +271,8 @@ async function getSeriesEpisodesDefault(tvdbId) {
           ep?.episodeCode ||
           ep?.episode_code ||
           null,
-        name: ep?.name || "Untitled episode",
-        overview: ep?.overview || "",
+        name: pickTitle(ep?.name, "Untitled episode"),
+        overview: pickOverview(ep?.overview),
         aired_date:
           ep?.aired ||
           ep?.airDate ||
@@ -400,12 +394,12 @@ function buildRecommendationItem(item, index, prefix = "rec") {
     item?.remoteIds?.tvdb ||
     null;
 
-  const name = pickBestTitle(
-    item?.name,
-    item?.seriesName,
-    item?.series_name,
-    item?.translations?.name
-  );
+  const name =
+    item?.name ||
+    item?.seriesName ||
+    item?.series_name ||
+    item?.translations?.name ||
+    null;
 
   const posterUrl = pickImage(
     item?.poster_url,
@@ -501,12 +495,12 @@ async function getPeopleAlsoWatch(tvdbId) {
           id: item?.id || `paw-${index}`,
           tvdb_id: item?.id || item?.tvdb_id || item?.tvdbId || null,
           tvdbId: item?.id || item?.tvdb_id || item?.tvdbId || null,
-          name: pickBestTitle(
-            item?.name,
-            item?.seriesName,
-            item?.series_name,
-            item?.translations?.name
-          ),
+          name:
+            item?.name ||
+            item?.seriesName ||
+            item?.series_name ||
+            item?.translations?.name ||
+            null,
           poster_url: pickImage(
             item?.image,
             item?.thumbnail,
