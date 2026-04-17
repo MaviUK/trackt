@@ -5,7 +5,6 @@ import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
 import {
-  enrichTmdbShowsWithMappings,
   getMappedShowHref,
   normalizeMappedShow,
 } from "../lib/tmdbMappings";
