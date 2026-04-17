@@ -1,369 +1,454 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { formatDate } from "../lib/date";
-import { supabase } from "../lib/supabase";
 import { addShowToUserList } from "../lib/userShows";
+import { supabase } from "../lib/supabase";
+import { formatDate } from "../lib/date";
+import {
+  getMappedShowHref,
+  normalizeMappedShow,
+} from "../lib/tmdbMappings";
+import "./ActorPage.css";
 
-export default function ActorShows() {
+function buildFallbackActor(name, credits) {
+  const firstWithImage = credits.find((item) => item?.profile_url);
+
+  return {
+    name: decodeURIComponent(name || "").replace(/\+/g, " "),
+    biography: "",
+    birthday: "",
+    place_of_birth: "",
+    profile_url: firstWithImage?.profile_url || "",
+  };
+}
+
+function getBackdrop(show) {
+  return (
+    show.backdrop_url ||
+    show.background_url ||
+    show.banner_url ||
+    show.fanart_url ||
+    show.image_url ||
+    show.poster_url ||
+    null
+  );
+}
+
+export default function ActorPage() {
   const { name } = useParams();
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [name]);
+
   const [loading, setLoading] = useState(true);
-  const [shows, setShows] = useState([]);
+  const [actor, setActor] = useState(null);
+  const [credits, setCredits] = useState([]);
   const [error, setError] = useState("");
   const [addingId, setAddingId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
-
-  async function markAlreadySaved(results) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !results.length) {
-      setSavedIds(new Set());
-      return;
-    }
-
-    const tvdbIds = results
-      .map((show) => Number(show.tvdb_id))
-      .filter(Boolean);
-
-    if (!tvdbIds.length) {
-      setSavedIds(new Set());
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("user_shows_new")
-      .select("show_id, shows!inner(tvdb_id)")
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error("Failed checking saved shows:", error);
-      setSavedIds(new Set());
-      return;
-    }
-
-    const matchedIds = new Set(
-      (data || [])
-        .map((row) => row.shows?.tvdb_id)
-        .filter((id) => tvdbIds.includes(Number(id)))
-        .map(String)
-    );
-
-    setSavedIds(matchedIds);
-  }
+  const [bioOpen, setBioOpen] = useState(false);
+  const [openShowDescriptionKey, setOpenShowDescriptionKey] = useState(null);
 
   useEffect(() => {
-    async function loadActorShows() {
-      if (!name) {
-        setShows([]);
-        setLoading(false);
+    let cancelled = false;
+
+    async function loadSavedShows() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (!cancelled) setSavedIds(new Set());
         return;
       }
 
-      setLoading(true);
-      setError("");
+      const { data, error } = await supabase
+        .from("user_shows_new")
+        .select("shows!inner(tvdb_id)")
+        .eq("user_id", user.id);
 
-      try {
-        const res = await fetch(
-          `/.netlify/functions/getActorShows?name=${encodeURIComponent(name)}`
-        );
-        const data = await res.json();
+      if (error) {
+        console.warn("Failed loading saved ids", error);
+        return;
+      }
 
-        if (!res.ok) {
-          throw new Error(data?.message || "Failed to load actor shows");
-        }
+      const ids = new Set(
+        (data || [])
+          .map((row) => row?.shows?.tvdb_id)
+          .filter(Boolean)
+          .map(String)
+      );
 
-        const results = Array.isArray(data) ? data : [];
-        setShows(results);
-        await markAlreadySaved(results);
-      } catch (err) {
-        console.error("Failed loading actor shows:", err);
-        setError(err.message || "Failed loading actor shows");
-        setShows([]);
-        setSavedIds(new Set());
-      } finally {
-        setLoading(false);
+      if (!cancelled) {
+        setSavedIds(ids);
       }
     }
 
-    loadActorShows();
+    async function loadActor() {
+      setLoading(true);
+      setError("");
+      setBioOpen(false);
+      setOpenShowDescriptionKey(null);
+
+      try {
+        const response = await fetch(
+          `/.netlify/functions/getActorShows?name=${encodeURIComponent(name)}`
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Failed to load actor shows");
+        }
+
+        const rawCredits = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.credits)
+            ? data.credits
+            : [];
+
+        const normalizedCredits = rawCredits.map((item) =>
+          normalizeMappedShow({
+            ...item,
+            source: item?.source || "tmdb",
+            name: item?.name || item?.title || item?.show_name || "Unknown show",
+            first_air_date:
+              item?.first_air_date ||
+              item?.firstAired ||
+              item?.first_aired ||
+              "",
+            poster_url:
+              item?.poster_url ||
+              item?.posterUrl ||
+              item?.image_url ||
+              (item?.poster_path
+                ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                : ""),
+            backdrop_url:
+              item?.backdrop_url ||
+              item?.background_url ||
+              item?.banner_url ||
+              item?.fanart_url ||
+              (item?.backdrop_path
+                ? `https://image.tmdb.org/t/p/original${item.backdrop_path}`
+                : ""),
+          })
+        );
+
+        const actorPayload =
+          data?.actor || buildFallbackActor(name, normalizedCredits);
+
+        if (!cancelled) {
+          setActor(actorPayload);
+          setCredits(normalizedCredits);
+        }
+
+        await loadSavedShows();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || "Failed to load actor shows");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadActor();
+
+    return () => {
+      cancelled = true;
+    };
   }, [name]);
 
   async function handleAddShow(event, show) {
     event.preventDefault();
     event.stopPropagation();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    if (!show?.resolved_tvdb_id || addingId) return;
 
-    if (!user) {
-      setError("Please log in to add shows.");
-      return;
-    }
-
-    if (!show.tvdb_id) {
-      setError("This show is TMDB-only right now and cannot be added yet.");
-      return;
-    }
-
-    const tvdbId = String(show.tvdb_id);
-    setAddingId(tvdbId);
-    setError("");
+    setAddingId(show.resolved_tvdb_id);
 
     try {
-      await addShowToUserList({
-        tvdb_id: Number(show.tvdb_id),
-        name: show.name || show.show_name || "Unknown Show",
-        poster_url: show.image_url || show.poster_url || null,
-        overview: show.overview || null,
-        first_air_date: show.first_air_time || show.first_aired || null,
-        status: show.status || null,
-      });
-
+      await addShowToUserList(show.resolved_tvdb_id);
       setSavedIds((prev) => {
         const next = new Set(prev);
-        next.add(tvdbId);
+        next.add(String(show.resolved_tvdb_id));
         return next;
       });
     } catch (err) {
-      console.error("Failed to add show:", err);
-      setError(err.message || "Failed to add show.");
+      console.error("Failed adding show", err);
+      alert(err.message || "Failed to add show");
     } finally {
       setAddingId(null);
     }
   }
 
+  function toggleShowDescription(event, key) {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpenShowDescriptionKey((prev) => (prev === key ? null : key));
+  }
+
+  function toggleBio(event) {
+    event.preventDefault();
+    setBioOpen((prev) => !prev);
+  }
+
+  if (loading) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">Loading actor...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!actor) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">
+            <p>Actor not found.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="page">
-      <div className="page-shell">
-        <div className="page-header">
-          <h1>{decodeURIComponent(name || "")}</h1>
-          <p>TV shows this actor appears in.</p>
-        </div>
+    <div className="actor-page">
+      <div className="actor-shell">
+        <section className="actor-hero">
+          {actor.profile_url ? (
+            <img
+              src={actor.profile_url}
+              alt={actor.name}
+              className="actor-poster"
+            />
+          ) : (
+            <div className="actor-poster actor-poster-empty">No image</div>
+          )}
 
-        <div style={{ marginBottom: "18px" }}>
-          <Link to="/search" className="msd-back-link">
-            ← Back to Search
-          </Link>
-        </div>
+          <div className="actor-hero-main">
+            <div className="actor-title-row">
+              <h1 className="actor-title">{actor.name}</h1>
+            </div>
 
-        {loading ? (
-          <p style={{ color: "#cbd5e1" }}>Loading actor shows...</p>
-        ) : error ? (
-          <p style={{ color: "#fca5a5" }}>{error}</p>
-        ) : shows.length === 0 ? (
-          <p style={{ color: "#cbd5e1" }}>No TV shows found for this actor.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {shows.map((show) => {
-              const itemId = String(show.tvdb_id || show.tmdb_id || show.id);
-              const tvdbId = show.tvdb_id ? String(show.tvdb_id) : null;
-              const isSaved = tvdbId ? savedIds.has(tvdbId) : false;
-              const isAdding = addingId === tvdbId;
-              const canAdd = !!tvdbId;
+            <div className="actor-meta">
+              {actor.birthday ? (
+                <div className="actor-meta-pill">
+                  <span className="actor-meta-label">Born</span>
+                  <span className="actor-meta-value">
+                    {formatDate(actor.birthday)}
+                  </span>
+                </div>
+              ) : null}
 
-              const detailHref = tvdbId
-                ? isSaved
-                  ? `/my-shows/${tvdbId}`
-                  : `/show/${tvdbId}`
-                : null;
+              {actor.place_of_birth ? (
+                <div className="actor-meta-pill">
+                  <span className="actor-meta-label">Place of birth</span>
+                  <span className="actor-meta-value">
+                    {actor.place_of_birth}
+                  </span>
+                </div>
+              ) : null}
 
-              const poster = show.image_url || show.poster_url || null;
+              <div className="actor-meta-pill">
+                <span className="actor-meta-label">Shows</span>
+                <span className="actor-meta-value">{credits.length}</span>
+              </div>
+            </div>
 
-              return (
-                <div
-                  key={itemId}
-                  className="show-card"
-                  style={{ padding: "14px" }}
+            {bioOpen && actor.biography ? (
+              <div className="actor-bio-panel">
+                <p className="actor-overview">{actor.biography}</p>
+              </div>
+            ) : actor.biography ? (
+              <div className="actor-bio-hint">
+                <span>Tap</span>
+                <button
+                  type="button"
+                  className="actor-dots-plain"
+                  onClick={toggleBio}
+                  aria-label="Show biography"
+                  aria-expanded={bioOpen}
                 >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "88px minmax(0, 1fr)",
-                      gap: "14px",
-                      alignItems: "start",
-                    }}
+                  <span />
+                  <span />
+                  <span />
+                </button>
+                <span>to view bio</span>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="actor-shows-section">
+          <h2 className="actor-section-title">Shows</h2>
+
+          {credits.length === 0 ? (
+            <div className="actor-empty">
+              <p>No TV shows found for this actor.</p>
+            </div>
+          ) : (
+            <div className="actor-shows-list">
+              {credits.map((show, index) => {
+                const showName = show.name || "Unknown show";
+                const href = getMappedShowHref(show);
+                const canAdd = Boolean(show?.resolved_tvdb_id);
+                const alreadySaved = canAdd
+                  ? savedIds.has(String(show.resolved_tvdb_id))
+                  : false;
+
+                const showKey =
+                  show.tmdb_id ||
+                  show.id ||
+                  show.resolved_tvdb_id ||
+                  `${showName}-${index}`;
+
+                const descriptionOpen = openShowDescriptionKey === showKey;
+                const backdrop = getBackdrop(show);
+
+                return (
+                  <article
+                    key={showKey}
+                    className="actor-show-banner-card"
+                    style={
+                      backdrop
+                        ? {
+                            backgroundImage: `linear-gradient(90deg, rgba(10,16,28,0.92) 0%, rgba(10,16,28,0.84) 38%, rgba(10,16,28,0.92) 100%), url("${backdrop}")`,
+                          }
+                        : undefined
+                    }
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
-                        alignItems: "stretch",
-                      }}
-                    >
-                      {detailHref ? (
-                        <Link to={detailHref} style={{ display: "block" }}>
-                          {poster ? (
+                    <Link to={href} className="actor-show-banner-link">
+                      <div className="actor-show-banner-inner">
+                        <div className="actor-show-poster-wrap">
+                          {show.poster_url ? (
                             <img
-                              src={poster}
-                              alt={show.name || "Show poster"}
-                              style={{
-                                width: "88px",
-                                height: "128px",
-                                borderRadius: "12px",
-                                objectFit: "cover",
-                                display: "block",
-                                background: "#111827",
-                              }}
+                              src={show.poster_url}
+                              alt={showName}
+                              className="actor-show-poster"
                             />
                           ) : (
-                            <div
-                              style={{
-                                width: "88px",
-                                height: "128px",
-                                borderRadius: "12px",
-                                background: "#111827",
-                              }}
-                            />
+                            <div className="actor-show-poster actor-show-poster-placeholder">
+                              No image
+                            </div>
                           )}
-                        </Link>
-                      ) : poster ? (
-                        <img
-                          src={poster}
-                          alt={show.name || "Show poster"}
-                          style={{
-                            width: "88px",
-                            height: "128px",
-                            borderRadius: "12px",
-                            objectFit: "cover",
-                            display: "block",
-                            background: "#111827",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: "88px",
-                            height: "128px",
-                            borderRadius: "12px",
-                            background: "#111827",
-                          }}
-                        />
-                      )}
+                        </div>
 
-                      <button
-                        type="button"
-                        onClick={(e) => handleAddShow(e, show)}
-                        disabled={!canAdd || isSaved || isAdding}
-                        className={`msd-btn ${
-                          isSaved ? "msd-btn-success" : "msd-btn-primary"
-                        }`}
-                        style={{
-                          width: "100%",
-                          padding: "9px 10px",
-                          fontSize: "0.9rem",
-                        }}
-                        title={!canAdd ? "TMDB-only result cannot be added yet" : ""}
-                      >
-                        {!canAdd
-                          ? "TMDB Only"
-                          : isSaved
-                          ? "Added"
-                          : isAdding
-                          ? "Adding..."
-                          : "Add"}
-                      </button>
-                    </div>
+                        <div className="actor-show-content">
+                          <h3 className="actor-show-title">{showName}</h3>
 
-                    <div style={{ minWidth: 0 }}>
-                      {detailHref ? (
-                        <Link
-                          to={detailHref}
-                          style={{
-                            textDecoration: "none",
-                            color: "inherit",
-                            minWidth: 0,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "1.05rem",
-                              fontWeight: "800",
-                              color: "#f8fafc",
-                              marginBottom: "8px",
-                              lineHeight: "1.2",
-                            }}
-                          >
-                            {show.name || "Unknown title"}
+                          <div className="actor-show-meta">
+                            {show.first_air_date ? (
+                              <div className="actor-show-meta-row">
+                                <span className="actor-show-meta-label">
+                                  First aired
+                                </span>
+                                <span className="actor-show-meta-value">
+                                  {formatDate(show.first_air_date)}
+                                </span>
+                              </div>
+                            ) : null}
+
+                            {show.character ? (
+                              <div className="actor-show-meta-row">
+                                <span className="actor-show-meta-label">
+                                  Character
+                                </span>
+                                <span className="actor-show-meta-value">
+                                  {show.character}
+                                </span>
+                              </div>
+                            ) : null}
                           </div>
-                        </Link>
-                      ) : (
-                        <div
-                          style={{
-                            fontSize: "1.05rem",
-                            fontWeight: "800",
-                            color: "#f8fafc",
-                            marginBottom: "8px",
-                            lineHeight: "1.2",
-                          }}
-                        >
-                          {show.name || "Unknown title"}
+
+                          <div className="actor-show-actions">
+                            <div className="actor-show-dots-center">
+                              {show.overview ? (
+                                <button
+                                  type="button"
+                                  className="actor-dots-plain"
+                                  onClick={(event) =>
+                                    toggleShowDescription(event, showKey)
+                                  }
+                                  aria-label={
+                                    descriptionOpen
+                                      ? "Hide show description"
+                                      : "Show show description"
+                                  }
+                                  aria-expanded={descriptionOpen}
+                                >
+                                  <span />
+                                  <span />
+                                  <span />
+                                </button>
+                              ) : null}
+                            </div>
+
+                            {canAdd ? (
+                              alreadySaved ? (
+                                <div
+                                  className="actor-show-add-btn is-saved"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                  }}
+                                >
+                                  Added
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="actor-show-add-btn"
+                                  disabled={addingId === show.resolved_tvdb_id}
+                                  onClick={(event) => handleAddShow(event, show)}
+                                >
+                                  {addingId === show.resolved_tvdb_id
+                                    ? "Adding..."
+                                    : "Add Show"}
+                                </button>
+                              )
+                            ) : null}
+                          </div>
+
+                          {descriptionOpen && show.overview ? (
+                            <div
+                              className="actor-show-description-panel"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <p className="actor-show-overview">
+                                {show.overview}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
-                      )}
-
-                      {(show.first_air_time || show.first_aired) && (
-                        <p
-                          style={{
-                            margin: "0 0 10px 0",
-                            color: "#cbd5e1",
-                            fontWeight: "600",
-                          }}
-                        >
-                          First aired:{" "}
-                          {formatDate(show.first_air_time || show.first_aired)}
-                        </p>
-                      )}
-
-                      {show.network && (
-                        <p
-                          style={{
-                            margin: "0 0 10px 0",
-                            color: "#93c5fd",
-                            fontWeight: "600",
-                          }}
-                        >
-                          Network: {show.network}
-                        </p>
-                      )}
-
-                      {show.overview && (
-                        <p
-                          style={{
-                            margin: 0,
-                            color: "#dbe4f3",
-                            lineHeight: "1.45",
-                          }}
-                        >
-                          {show.overview.length > 180
-                            ? `${show.overview.slice(0, 180)}...`
-                            : show.overview}
-                        </p>
-                      )}
-
-                      {detailHref ? (
-                        <div style={{ marginTop: "12px" }}>
-                          <Link
-                            to={detailHref}
-                            style={{
-                              color: "#93c5fd",
-                              fontWeight: 700,
-                              textDecoration: "none",
-                            }}
-                          >
-                            {isSaved ? "Open in My Shows →" : "View details →"}
-                          </Link>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                      </div>
+                    </Link>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
