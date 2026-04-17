@@ -232,22 +232,28 @@ function applyEnglishEpisodeText(episode) {
 }
 
 function normalizeSearchResult(item) {
-  const rawGenres = Array.isArray(item?.genres)
-    ? item.genres
-    : Array.isArray(item?.genre)
-    ? item.genre
+  const normalizedItem = applyEnglishSeriesText(item);
+
+  const rawGenres = Array.isArray(normalizedItem?.genres)
+    ? normalizedItem.genres
+    : Array.isArray(normalizedItem?.genre)
+    ? normalizedItem.genre
     : [];
 
   return {
-    tvdb_id: Number(item?.tvdb_id || item?.id) || null,
+    tvdb_id: Number(normalizedItem?.tvdb_id || normalizedItem?.id) || null,
     name:
-      extractEnglishTranslationValue(item?.translations, "name") ||
-      item?.name ||
-      item?.seriesName ||
+      normalizedItem?.english_name ||
+      extractEnglishTranslationValue(normalizedItem?.translations, "name") ||
+      extractEnglishTranslationValue(normalizedItem?.nameTranslations, "name") ||
+      normalizedItem?.name ||
+      normalizedItem?.seriesName ||
       "Unknown title",
     overview:
-      extractEnglishTranslationValue(item?.translations, "overview") ||
-      item?.overview ||
+      normalizedItem?.english_overview ||
+      extractEnglishTranslationValue(normalizedItem?.translations, "overview") ||
+      extractEnglishTranslationValue(normalizedItem?.overviewTranslations, "overview") ||
+      normalizedItem?.overview ||
       "",
     status:
       typeof item?.status === "object"
@@ -532,13 +538,32 @@ async function searchTvdb(token, term) {
 
   const allResults = Array.isArray(searchData?.data) ? searchData.data : [];
 
-  return allResults
+  const baseResults = allResults
     .filter((item) => {
       const type = String(item?.type || "").toLowerCase();
       return type === "series";
     })
     .map(normalizeSearchResult)
     .filter((item) => item.tvdb_id);
+
+  const enrichedResults = await Promise.all(
+    baseResults.map(async (item) => {
+      try {
+        const detailed = await fetchSeriesDetails(token, item.tvdb_id);
+        return detailed
+          ? {
+              ...item,
+              ...detailed,
+              tvdb_id: item.tvdb_id,
+            }
+          : item;
+      } catch {
+        return item;
+      }
+    })
+  );
+
+  return enrichedResults;
 }
 
 async function fetchSeriesDetails(token, tvdbId) {
