@@ -276,37 +276,106 @@
 /* ---------------- MOBILE ---------------- */
 
 @media (max-width: 768px) {
+  .actor-page {
+    padding-top: 100px;
+    padding-bottom: 150px;
+  }
+
   .actor-hero {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: 120px 1fr;
+    grid-template-areas:
+      "poster topspace"
+      "title title"
+      "meta meta"
+      "dots dots"
+      "bio bio";
+    gap: 14px;
+    padding: 18px;
+    align-items: start;
   }
 
   .actor-poster {
-    width: 100%;
-    max-width: 260px;
-    height: auto;
-    aspect-ratio: 3 / 4;
-    margin: 0 auto;
+    grid-area: poster;
+    width: 120px;
+    height: 170px;
+    max-width: none;
+    aspect-ratio: auto;
+    margin: 0;
+    border-radius: 26px;
+    object-fit: cover;
     display: block;
   }
 
   .actor-hero-main {
-    width: 100%;
+    display: contents;
+  }
+
+  .actor-title-row {
+    grid-area: title;
+    margin: 0;
+    justify-content: flex-start;
   }
 
   .actor-title {
-    font-size: 1.8rem;
-    text-align: center;
+    font-size: 1.2rem;
+    line-height: 1.1;
+    text-align: left;
+    margin: 0;
   }
 
   .actor-meta {
+    grid-area: meta;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    align-items: stretch;
+    gap: 10px;
+    margin: 0;
   }
 
   .actor-meta-pill {
     width: 100%;
     justify-content: space-between;
+    border-radius: 18px;
+    padding: 14px 18px;
+  }
+
+  .actor-bio-dots-row {
+    grid-area: dots;
+    margin: 0;
+    justify-content: center;
+  }
+
+  .actor-bio-panel {
+    grid-area: bio;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .actor-page {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: 160px;
+  }
+
+  .actor-hero {
+    grid-template-columns: 110px 1fr;
+    padding: 16px;
+    border-radius: 22px;
+    gap: 12px;
+  }
+
+  .actor-poster {
+    width: 110px;
+    height: 156px;
+    border-radius: 22px;
+  }
+
+  .actor-title {
+    font-size: 1.05rem;
+  }
+
+  .actor-meta-pill {
+    border-radius: 16px;
+    padding: 13px 16px;
   }
 }
