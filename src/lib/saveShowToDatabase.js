@@ -100,18 +100,55 @@ function dedupeByKey(rows, getKey) {
   return [...map.values()];
 }
 
+function pickEnglishName(showDetails) {
+  return (
+    showDetails?.english_name ||
+    showDetails?.name_eng ||
+    showDetails?.english_title ||
+    showDetails?.nameEn ||
+    showDetails?.seriesName ||
+    showDetails?.series_name ||
+    showDetails?.translations?.eng?.name ||
+    showDetails?.translations?.en?.name ||
+    showDetails?.name ||
+    showDetails?.show_name ||
+    "Unknown title"
+  );
+}
+
+function pickEnglishOverview(showDetails) {
+  return (
+    showDetails?.english_overview ||
+    showDetails?.overview_eng ||
+    showDetails?.overview_english ||
+    showDetails?.translations?.eng?.overview ||
+    showDetails?.translations?.en?.overview ||
+    showDetails?.overview ||
+    null
+  );
+}
+
 function buildShowPayload(showDetails) {
   const tvdbId = Number(showDetails.tvdb_id || showDetails.id);
   if (!tvdbId) {
     throw new Error("Missing valid TVDB show id");
   }
 
+  const englishName = pickEnglishName(showDetails);
+  const englishOverview = pickEnglishOverview(showDetails);
+
   return {
     tvdb_id: tvdbId,
     slug: showDetails.slug ?? null,
-    name: showDetails.name ?? showDetails.show_name ?? "Unknown title",
-    original_name: showDetails.original_name ?? null,
-    overview: showDetails.overview ?? null,
+    name: englishName,
+    english_name: englishName,
+    original_name:
+      showDetails.original_name ??
+      (showDetails.name && showDetails.name !== englishName
+        ? showDetails.name
+        : null),
+    overview: englishOverview,
+    english_overview: englishOverview,
     status:
       typeof showDetails.status === "object"
         ? showDetails.status?.name ?? null
@@ -146,7 +183,11 @@ function buildShowPayload(showDetails) {
       showDetails.image_url ??
       showDetails.image ??
       null,
-    backdrop_url: showDetails.backdrop_url ?? showDetails.backdrop ?? null,
+    backdrop_url:
+      showDetails.backdrop_url ??
+      showDetails.backdrop ??
+      showDetails.background_url ??
+      null,
     banner_url: showDetails.banner_url ?? showDetails.banner ?? null,
     external_ids: showDetails.external_ids ?? {},
     rating_average: normalizeNumber(
