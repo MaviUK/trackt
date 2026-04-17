@@ -1286,4 +1286,26 @@
   .msd-overview {
     font-size: 0.98rem;
   }
+  .msd-stats-row-four {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 768px) {
+  .msd-stats-row-four {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .msd-stats-row-four .msd-stat-box {
+    padding: 10px 8px;
+  }
+
+  .msd-stats-row-four .msd-stat-label {
+    font-size: 0.72rem;
+  }
+
+  .msd-stats-row-four .msd-stat-value {
+    font-size: 1rem;
+  }
+}
 }
