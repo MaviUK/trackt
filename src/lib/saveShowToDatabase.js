@@ -88,28 +88,6 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
   }
 }
 
-
-function looksLikeOverviewText(value) {
-  const text = typeof value === 'string' ? value.trim() : '';
-  if (!text) return false;
-  if (text.length > 120) return true;
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length > 16) return true;
-  if (/[.!?]/.test(text) && words.length > 8) return true;
-  return false;
-}
-
-function pickSafeTitle(...candidates) {
-  for (const candidate of candidates) {
-    const text = typeof candidate === 'string' ? candidate.trim() : '';
-    if (!text) continue;
-    if (looksLikeOverviewText(text)) continue;
-    if (text.length > 80) continue;
-    return text;
-  }
-  return 'Unknown title';
-}
-
 function dedupeByKey(rows, getKey) {
   const map = new Map();
 
@@ -122,8 +100,22 @@ function dedupeByKey(rows, getKey) {
   return [...map.values()];
 }
 
+function looksLikeOverviewText(value) {
+  if (typeof value !== "string") return false;
+
+  const text = value.trim();
+  if (!text) return false;
+  if (text.length > 140) return true;
+  if (/^[^.?!]{0,40}[.?!]\s+[A-Z]/.test(text)) return true;
+  if (/(the story|follows|centers on|focuses on|about|journey)/i.test(text)) {
+    return true;
+  }
+
+  return false;
+}
+
 function pickEnglishName(showDetails) {
-  return pickSafeTitle(
+  const candidates = [
     showDetails?.english_name,
     showDetails?.name_eng,
     showDetails?.english_title,
@@ -133,8 +125,18 @@ function pickEnglishName(showDetails) {
     showDetails?.translations?.eng?.name,
     showDetails?.translations?.en?.name,
     showDetails?.name,
-    showDetails?.show_name
-  );
+    showDetails?.show_name,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const value = candidate.trim();
+    if (!value) continue;
+    if (looksLikeOverviewText(value)) continue;
+    return value;
+  }
+
+  return "Unknown title";
 }
 
 function pickEnglishOverview(showDetails) {

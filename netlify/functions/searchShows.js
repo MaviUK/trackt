@@ -1,5 +1,3 @@
-import { pickOverview, pickTitle } from './_tvdbText.js';
-
 function normalizeNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -157,17 +155,111 @@ function dedupeByValue(values) {
   );
 }
 
+function extractEnglishTranslationValue(translations, key) {
+  if (!translations) return null;
+
+  const candidateBuckets = [
+    translations?.eng,
+    translations?.en,
+    translations?.english,
+    translations?.ENG,
+    translations?.EN,
+  ].filter(Boolean);
+
+  for (const bucket of candidateBuckets) {
+    if (bucket && typeof bucket === "object") {
+      const value = bucket[key] ?? bucket?.[key?.toLowerCase?.() ?? key] ?? null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  const flatArrays = [
+    Array.isArray(translations) ? translations : null,
+    Array.isArray(translations?.translations) ? translations.translations : null,
+    Array.isArray(translations?.overviewTranslations) ? translations.overviewTranslations : null,
+    Array.isArray(translations?.nameTranslations) ? translations.nameTranslations : null,
+  ].filter(Boolean);
+
+  for (const arr of flatArrays) {
+    for (const item of arr) {
+      const lang = String(
+        item?.language || item?.languageCode || item?.lang || item?.iso639_2 || item?.iso639_1 || ""
+      ).trim().toLowerCase();
+      if (!["eng", "en", "english"].includes(lang)) continue;
+
+      const value =
+        key === "name"
+          ? item?.[key] ?? item?.name ?? item?.value ?? item?.text ?? null
+          : key === "overview"
+          ? item?.[key] ?? item?.overview ?? item?.value ?? item?.text ?? null
+          : item?.[key] ?? item?.value ?? item?.text ?? null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function applyEnglishSeriesText(series) {
+  if (!series || typeof series !== "object") return series;
+
+  const englishName =
+    extractEnglishTranslationValue(series?.translations, "name") ||
+    extractEnglishTranslationValue(series?.nameTranslations, "name");
+  const englishOverview =
+    extractEnglishTranslationValue(series?.translations, "overview") ||
+    extractEnglishTranslationValue(series?.overviewTranslations, "overview");
+
+  return {
+    ...series,
+    english_name: englishName || null,
+    english_overview: englishOverview || null,
+    name: englishName || series?.name || null,
+    overview: englishOverview || series?.overview || null,
+  };
+}
+
+function applyEnglishEpisodeText(episode) {
+  if (!episode || typeof episode !== "object") return episode;
+
+  const englishName =
+    extractEnglishTranslationValue(episode?.translations, "name") ||
+    extractEnglishTranslationValue(episode?.nameTranslations, "name");
+  const englishOverview =
+    extractEnglishTranslationValue(episode?.translations, "overview") ||
+    extractEnglishTranslationValue(episode?.overviewTranslations, "overview");
+
+  return {
+    ...episode,
+    name: englishName || episode?.name || null,
+    overview: englishOverview || episode?.overview || null,
+  };
+}
+
 function normalizeSearchResult(item) {
-  const rawGenres = Array.isArray(item?.genres)
-    ? item.genres
-    : Array.isArray(item?.genre)
-    ? item.genre
+  const normalizedItem = applyEnglishSeriesText(item);
+
+  const rawGenres = Array.isArray(normalizedItem?.genres)
+    ? normalizedItem.genres
+    : Array.isArray(normalizedItem?.genre)
+    ? normalizedItem.genre
     : [];
 
   return {
-    tvdb_id: Number(item?.tvdb_id || item?.id) || null,
-    name: pickTitle(item?.name, item?.seriesName, item?.aliases?.[0]),
-    overview: pickOverview(item?.overview),
+    tvdb_id: Number(normalizedItem?.tvdb_id || normalizedItem?.id) || null,
+    name:
+      normalizedItem?.english_name ||
+      extractEnglishTranslationValue(normalizedItem?.translations, "name") ||
+      extractEnglishTranslationValue(normalizedItem?.nameTranslations, "name") ||
+      normalizedItem?.name ||
+      normalizedItem?.seriesName ||
+      "Unknown title",
+    overview:
+      normalizedItem?.english_overview ||
+      extractEnglishTranslationValue(normalizedItem?.translations, "overview") ||
+      extractEnglishTranslationValue(normalizedItem?.overviewTranslations, "overview") ||
+      normalizedItem?.overview ||
+      "",
     status:
       typeof item?.status === "object"
         ? item?.status?.name || null
@@ -278,8 +370,14 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
-    name: pickTitle(series?.name, series?.seriesName, series?.originalName),
-    overview: pickOverview(series?.overview),
+    name:
+      extractEnglishTranslationValue(series?.translations, "name") ||
+      series?.name ||
+      "Unknown title",
+    overview:
+      extractEnglishTranslationValue(series?.translations, "overview") ||
+      series?.overview ||
+      "",
     status:
       typeof series?.status === "object"
         ? series?.status?.name || null
@@ -425,11 +523,12 @@ async function loginToTvdb() {
 
 async function searchTvdb(token, term) {
   const searchRes = await fetch(
-    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}&language=en`,
+    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}&language=eng&meta=translations`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
+        "Accept-Language": "eng",
       },
     }
   );
@@ -444,22 +543,42 @@ async function searchTvdb(token, term) {
 
   const allResults = Array.isArray(searchData?.data) ? searchData.data : [];
 
-  return allResults
+  const baseResults = allResults
     .filter((item) => {
       const type = String(item?.type || "").toLowerCase();
       return type === "series";
     })
     .map(normalizeSearchResult)
     .filter((item) => item.tvdb_id);
+
+  const enrichedResults = await Promise.all(
+    baseResults.map(async (item) => {
+      try {
+        const detailed = await fetchSeriesDetails(token, item.tvdb_id);
+        return detailed
+          ? {
+              ...item,
+              ...detailed,
+              tvdb_id: item.tvdb_id,
+            }
+          : item;
+      } catch {
+        return item;
+      }
+    })
+  );
+
+  return enrichedResults;
 }
 
 async function fetchSeriesDetails(token, tvdbId) {
   const res = await fetch(
-    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended?language=en`,
+    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended?language=eng&meta=translations`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
+        "Accept-Language": "eng",
       },
     }
   );
@@ -470,7 +589,7 @@ async function fetchSeriesDetails(token, tvdbId) {
     return null;
   }
 
-  return normalizeSeriesDetails(data.data);
+  return normalizeSeriesDetails(applyEnglishSeriesText(data.data));
 }
 
 function scoreShow(show, options) {
@@ -659,15 +778,7 @@ export async function handler(event) {
     if (query && !genre && !network && !relationshipType && !setting) {
       const tvdbResults = await searchTvdb(token, query).catch(() => []);
 
-      const baseResults = dedupeByTvdbId(tvdbResults).slice(0, 20);
-      const enrichedResults = [];
-
-      for (const item of baseResults) {
-        const details = await fetchSeriesDetails(token, item.tvdb_id);
-        enrichedResults.push(details || item);
-      }
-
-      const ranked = dedupeByTvdbId(enrichedResults)
+      const ranked = dedupeByTvdbId(tvdbResults)
         .map((item) => ({
           ...item,
           _score: scoreShow(item, {

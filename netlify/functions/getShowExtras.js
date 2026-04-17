@@ -1,5 +1,3 @@
-import { pickOverview, pickTitle } from './_tvdbText.js';
-
 const TVDB_BASE_URL = "https://api4.thetvdb.com/v4";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -84,11 +82,14 @@ async function getTvdbToken() {
 async function tvdbGet(path) {
   const token = await getTvdbToken();
 
-  const separator = path.includes('?') ? '&' : '?';
-  const res = await fetch(`${TVDB_BASE_URL}${path}${separator}language=en`, {
+  const separator = path.includes("?") ? "&" : "?";
+  const url = `${TVDB_BASE_URL}${path}${separator}language=eng&meta=translations`;
+
+  const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
+      "Accept-Language": "eng",
     },
   });
 
@@ -96,13 +97,94 @@ async function tvdbGet(path) {
 
   if (!res.ok) {
     throw new Error(
-      `TVDB request failed (${res.status}) for ${path}: ${
+      `TVDB request failed (${res.status}) for ${url}: ${
         json?.message || json?.status || "Unknown error"
       }`
     );
   }
 
   return json;
+}
+
+function extractEnglishTranslationValue(translations, key) {
+  if (!translations) return null;
+
+  const candidateBuckets = [
+    translations?.eng,
+    translations?.en,
+    translations?.english,
+    translations?.ENG,
+    translations?.EN,
+  ].filter(Boolean);
+
+  for (const bucket of candidateBuckets) {
+    if (bucket && typeof bucket === "object") {
+      const value = bucket[key] ?? bucket?.[key?.toLowerCase?.() ?? key] ?? null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  const flatArrays = [
+    Array.isArray(translations) ? translations : null,
+    Array.isArray(translations?.translations) ? translations.translations : null,
+    Array.isArray(translations?.overviewTranslations) ? translations.overviewTranslations : null,
+    Array.isArray(translations?.nameTranslations) ? translations.nameTranslations : null,
+  ].filter(Boolean);
+
+  for (const arr of flatArrays) {
+    for (const item of arr) {
+      const lang = String(
+        item?.language || item?.languageCode || item?.lang || item?.iso639_2 || item?.iso639_1 || ""
+      ).trim().toLowerCase();
+      if (!["eng", "en", "english"].includes(lang)) continue;
+
+      const value =
+        key === "name"
+          ? item?.[key] ?? item?.name ?? item?.value ?? item?.text ?? null
+          : key === "overview"
+          ? item?.[key] ?? item?.overview ?? item?.value ?? item?.text ?? null
+          : item?.[key] ?? item?.value ?? item?.text ?? null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function applyEnglishSeriesText(series) {
+  if (!series || typeof series !== "object") return series;
+
+  const englishName =
+    extractEnglishTranslationValue(series?.translations, "name") ||
+    extractEnglishTranslationValue(series?.nameTranslations, "name");
+  const englishOverview =
+    extractEnglishTranslationValue(series?.translations, "overview") ||
+    extractEnglishTranslationValue(series?.overviewTranslations, "overview");
+
+  return {
+    ...series,
+    english_name: englishName || null,
+    english_overview: englishOverview || null,
+    name: englishName || series?.name || null,
+    overview: englishOverview || series?.overview || null,
+  };
+}
+
+function applyEnglishEpisodeText(episode) {
+  if (!episode || typeof episode !== "object") return episode;
+
+  const englishName =
+    extractEnglishTranslationValue(episode?.translations, "name") ||
+    extractEnglishTranslationValue(episode?.nameTranslations, "name");
+  const englishOverview =
+    extractEnglishTranslationValue(episode?.translations, "overview") ||
+    extractEnglishTranslationValue(episode?.overviewTranslations, "overview");
+
+  return {
+    ...episode,
+    name: englishName || episode?.name || null,
+    overview: englishOverview || episode?.overview || null,
+  };
 }
 
 function pickImage(...values) {
@@ -162,8 +244,19 @@ function normalizeShow(seriesData, tvdbId, tmdbBackdropUrl = null) {
 
   return {
     tvdb_id: tvdbId,
-    name: pickTitle(seriesData?.name, seriesData?.seriesName, seriesData?.translations?.name),
-    overview: pickOverview(seriesData?.overview, seriesData?.translations?.overview),
+    name:
+      seriesData?.english_name ||
+      extractEnglishTranslationValue(seriesData?.translations, "name") ||
+      seriesData?.name ||
+      seriesData?.seriesName ||
+      seriesData?.translations?.name ||
+      "Unknown title",
+    overview:
+      seriesData?.english_overview ||
+      extractEnglishTranslationValue(seriesData?.translations, "overview") ||
+      seriesData?.overview ||
+      seriesData?.translations?.overview ||
+      "",
     status: seriesData?.status?.name || seriesData?.status || null,
     poster_url: pickImage(
       seriesData?.image,
@@ -226,8 +319,14 @@ function normalizeEpisodes(seriesData, tvdbId) {
         ep?.episodeCode ||
         ep?.episode_code ||
         null,
-      name: pickTitle(ep?.name, "Untitled episode"),
-      overview: pickOverview(ep?.overview),
+      name:
+        extractEnglishTranslationValue(ep?.translations, "name") ||
+        ep?.name ||
+        "Untitled episode",
+      overview:
+        extractEnglishTranslationValue(ep?.translations, "overview") ||
+        ep?.overview ||
+        "",
       aired_date:
         ep?.aired ||
         ep?.airDate ||
@@ -271,8 +370,8 @@ async function getSeriesEpisodesDefault(tvdbId) {
           ep?.episodeCode ||
           ep?.episode_code ||
           null,
-        name: pickTitle(ep?.name, "Untitled episode"),
-        overview: pickOverview(ep?.overview),
+        name: ep?.name || "Untitled episode",
+        overview: ep?.overview || "",
         aired_date:
           ep?.aired ||
           ep?.airDate ||
@@ -839,7 +938,7 @@ export async function handler(event) {
     }
 
     const seriesJson = await tvdbGet(`/series/${tvdbId}/extended`);
-    const seriesData = seriesJson?.data || {};
+    const seriesData = applyEnglishSeriesText(seriesJson?.data || {});
 
     const {
       providers,

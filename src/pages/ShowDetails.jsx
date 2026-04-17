@@ -278,26 +278,7 @@ export default function ShowDetails() {
         const { data: showData, error: showError } = await supabase
           .from("shows")
           .select(`
-            id,
-            tvdb_id,
-            name,
-            english_name,
-            name_eng,
-            english_title,
-            overview,
-            overview_eng,
-            english_overview,
-            overview_english,
-            status,
-            poster_url,
-            first_aired,
-            network,
-            genres,
-            original_language,
-            relationship_types,
-            settings,
-            rating_average,
-            rating_count
+            *
           `)
           .eq("tvdb_id", tvdbId)
           .maybeSingle();
