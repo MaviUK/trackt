@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import {
   getMappedShowHref,
-  isMappedToTvdb,
   normalizeMappedShow,
 } from "../lib/tmdbMappings";
 import "./ActorPage.css";
@@ -30,6 +29,17 @@ function getBackdrop(show) {
     show.fanart_url ||
     show.image_url ||
     show.poster_url ||
+    null
+  );
+}
+
+function getResolvedTvdbId(show) {
+  return (
+    show?.resolved_tvdb_id ||
+    show?.tvdb_id ||
+    show?.mapped_tvdb_id ||
+    show?.show_tvdb_id ||
+    show?.tvdb ||
     null
   );
 }
@@ -107,8 +117,8 @@ export default function ActorPage() {
             ? data.credits
             : [];
 
-        const normalizedCredits = rawCredits.map((item) =>
-          normalizeMappedShow({
+        const normalizedCredits = rawCredits.map((item) => {
+          const mapped = normalizeMappedShow({
             ...item,
             source: item?.source || "tmdb",
             name: item?.name || item?.title || item?.show_name || "Unknown show",
@@ -129,15 +139,24 @@ export default function ActorPage() {
               item?.background_url ||
               item?.banner_url ||
               item?.fanart_url ||
-              item?.backdrop_path
-                ? item?.backdrop_url ||
-                  item?.background_url ||
-                  item?.banner_url ||
-                  item?.fanart_url ||
-                  `https://image.tmdb.org/t/p/original${item.backdrop_path}`
-                : "",
-          })
-        );
+              (item?.backdrop_path
+                ? `https://image.tmdb.org/t/p/original${item.backdrop_path}`
+                : ""),
+          });
+
+          const fallbackTvdbId =
+            item?.resolved_tvdb_id ||
+            item?.tvdb_id ||
+            item?.mapped_tvdb_id ||
+            item?.show_tvdb_id ||
+            item?.tvdb ||
+            null;
+
+          return {
+            ...mapped,
+            resolved_tvdb_id: mapped?.resolved_tvdb_id || fallbackTvdbId || null,
+          };
+        });
 
         const actorPayload =
           data?.actor || buildFallbackActor(name, normalizedCredits);
@@ -166,16 +185,20 @@ export default function ActorPage() {
     };
   }, [name]);
 
-  async function handleAddShow(show) {
-    if (!show?.resolved_tvdb_id || addingId) return;
+  async function handleAddShow(event, show) {
+    event.preventDefault();
+    event.stopPropagation();
 
-    setAddingId(show.resolved_tvdb_id);
+    const tvdbId = getResolvedTvdbId(show);
+    if (!tvdbId || addingId) return;
+
+    setAddingId(String(tvdbId));
 
     try {
-      await addShowToUserList(show.resolved_tvdb_id);
+      await addShowToUserList(tvdbId);
       setSavedIds((prev) => {
         const next = new Set(prev);
-        next.add(String(show.resolved_tvdb_id));
+        next.add(String(tvdbId));
         return next;
       });
     } catch (err) {
@@ -186,8 +209,16 @@ export default function ActorPage() {
     }
   }
 
-  function toggleShowDescription(key) {
+  function toggleShowDescription(event, key) {
+    event.preventDefault();
+    event.stopPropagation();
     setOpenShowDescriptionKey((prev) => (prev === key ? null : key));
+  }
+
+  function toggleBio(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setBioOpen((prev) => !prev);
   }
 
   if (loading) {
@@ -204,9 +235,6 @@ export default function ActorPage() {
     return (
       <div className="actor-page">
         <div className="actor-shell">
-          <Link to="/search" className="actor-back-link">
-            ← Back to Search
-          </Link>
           <div className="actor-empty">
             <p>{error}</p>
           </div>
@@ -219,9 +247,6 @@ export default function ActorPage() {
     return (
       <div className="actor-page">
         <div className="actor-shell">
-          <Link to="/search" className="actor-back-link">
-            ← Back to Search
-          </Link>
           <div className="actor-empty">
             <p>Actor not found.</p>
           </div>
@@ -233,10 +258,6 @@ export default function ActorPage() {
   return (
     <div className="actor-page">
       <div className="actor-shell">
-        <Link to="/search" className="actor-back-link">
-          ← Back to Search
-        </Link>
-
         <section className="actor-hero">
           {actor.profile_url ? (
             <img
@@ -251,20 +272,6 @@ export default function ActorPage() {
           <div className="actor-hero-main">
             <div className="actor-title-row">
               <h1 className="actor-title">{actor.name}</h1>
-
-              {actor.biography ? (
-                <button
-                  type="button"
-                  className={`actor-dots-btn ${bioOpen ? "is-open" : ""}`}
-                  onClick={() => setBioOpen((prev) => !prev)}
-                  aria-label={bioOpen ? "Hide biography" : "Show biography"}
-                  aria-expanded={bioOpen}
-                >
-                  <span />
-                  <span />
-                  <span />
-                </button>
-              ) : null}
             </div>
 
             <div className="actor-meta">
@@ -292,15 +299,43 @@ export default function ActorPage() {
               </div>
             </div>
 
-            {bioOpen && actor.biography ? (
-              <div className="actor-bio-panel">
-                <p className="actor-overview">{actor.biography}</p>
-              </div>
-            ) : (
-              <p className="actor-overview actor-overview-muted">
-                Tap the 3 dots to view bio.
-              </p>
-            )}
+            {actor.biography ? (
+              bioOpen ? (
+                <>
+                  <div className="actor-bio-dots-row">
+                    <button
+                      type="button"
+                      className="actor-dots-plain"
+                      onClick={toggleBio}
+                      aria-label="Hide biography"
+                      aria-expanded={bioOpen}
+                    >
+                      <span />
+                      <span />
+                      <span />
+                    </button>
+                  </div>
+
+                  <div className="actor-bio-panel">
+                    <p className="actor-overview">{actor.biography}</p>
+                  </div>
+                </>
+              ) : (
+                <div className="actor-bio-dots-row">
+                  <button
+                    type="button"
+                    className="actor-dots-plain"
+                    onClick={toggleBio}
+                    aria-label="Show biography"
+                    aria-expanded={bioOpen}
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </button>
+                </div>
+              )
+            ) : null}
           </div>
         </section>
 
@@ -315,16 +350,18 @@ export default function ActorPage() {
             <div className="actor-shows-list">
               {credits.map((show, index) => {
                 const showName = show.name || "Unknown show";
-                const mapped = isMappedToTvdb(show);
                 const href = getMappedShowHref(show);
-                const alreadySaved = show?.resolved_tvdb_id
-                  ? savedIds.has(String(show.resolved_tvdb_id))
+
+                const resolvedTvdbId = getResolvedTvdbId(show);
+                const canAdd = Boolean(resolvedTvdbId);
+                const alreadySaved = canAdd
+                  ? savedIds.has(String(resolvedTvdbId))
                   : false;
 
                 const showKey =
                   show.tmdb_id ||
                   show.id ||
-                  show.resolved_tvdb_id ||
+                  resolvedTvdbId ||
                   `${showName}-${index}`;
 
                 const descriptionOpen = openShowDescriptionKey === showKey;
@@ -342,102 +379,124 @@ export default function ActorPage() {
                         : undefined
                     }
                   >
-                    <div className="actor-show-banner-inner">
-                      <Link to={href} className="actor-show-poster-link">
-                        {show.poster_url ? (
-                          <img
-                            src={show.poster_url}
-                            alt={showName}
-                            className="actor-show-poster"
-                          />
-                        ) : (
-                          <div className="actor-show-poster actor-show-poster-placeholder">
-                            No image
-                          </div>
-                        )}
-                      </Link>
-
-                      <div className="actor-show-content">
-                        <div className="actor-show-top-row">
-                          <Link to={href} className="actor-show-title-link">
-                            <h3 className="actor-show-title">{showName}</h3>
-                          </Link>
-
-                          <button
-                            type="button"
-                            className={`actor-dots-btn actor-show-dots ${descriptionOpen ? "is-open" : ""}`}
-                            onClick={() => toggleShowDescription(showKey)}
-                            aria-label={
-                              descriptionOpen
-                                ? "Hide show description"
-                                : "Show show description"
-                            }
-                            aria-expanded={descriptionOpen}
-                          >
-                            <span />
-                            <span />
-                            <span />
-                          </button>
+                    <Link to={href} className="actor-show-banner-link">
+                      <div className="actor-show-banner-inner">
+                        <div className="actor-show-poster-wrap">
+                          {show.poster_url ? (
+                            <img
+                              src={show.poster_url}
+                              alt={showName}
+                              className="actor-show-poster"
+                            />
+                          ) : (
+                            <div className="actor-show-poster actor-show-poster-placeholder">
+                              No image
+                            </div>
+                          )}
                         </div>
 
-                        <div className="actor-show-meta">
-                          {show.first_air_date ? (
-                            <div className="actor-show-meta-row">
-                              <span className="actor-show-meta-label">
-                                First aired
-                              </span>
-                              <span className="actor-show-meta-value">
-                                {formatDate(show.first_air_date)}
-                              </span>
-                            </div>
-                          ) : null}
+                        <div className="actor-show-content">
+                          <h3 className="actor-show-title">{showName}</h3>
 
-                          {show.character ? (
-                            <div className="actor-show-meta-row">
-                              <span className="actor-show-meta-label">
-                                Character
-                              </span>
-                              <span className="actor-show-meta-value">
-                                {show.character}
-                              </span>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {descriptionOpen && show.overview ? (
-                          <div className="actor-show-description-panel">
-                            <p className="actor-show-overview">
-                              {show.overview}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        <div className="actor-show-actions">
-                          <Link to={href} className="actor-view-link">
-                            {mapped ? "View details →" : "Search show →"}
-                          </Link>
-
-                          {mapped ? (
-                            alreadySaved ? (
-                              <div className="actor-show-add-btn is-saved">
-                                Added
+                          <div className="actor-show-meta">
+                            {show.first_air_date ? (
+                              <div className="actor-show-meta-row">
+                                <span className="actor-show-meta-label">
+                                  First aired
+                                </span>
+                                <span className="actor-show-meta-value">
+                                  {formatDate(show.first_air_date)}
+                                </span>
                               </div>
+                            ) : null}
+
+                            {show.character ? (
+                              <div className="actor-show-meta-row">
+                                <span className="actor-show-meta-label">
+                                  Character
+                                </span>
+                                <span className="actor-show-meta-value">
+                                  {show.character}
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="actor-show-actions">
+                            <div className="actor-show-dots-center">
+                              {show.overview ? (
+                                <button
+                                  type="button"
+                                  className="actor-dots-plain"
+                                  onClick={(event) =>
+                                    toggleShowDescription(event, showKey)
+                                  }
+                                  aria-label={
+                                    descriptionOpen
+                                      ? "Hide show description"
+                                      : "Show show description"
+                                  }
+                                  aria-expanded={descriptionOpen}
+                                >
+                                  <span />
+                                  <span />
+                                  <span />
+                                </button>
+                              ) : null}
+                            </div>
+
+                            {canAdd ? (
+                              alreadySaved ? (
+                                <div
+                                  className="actor-show-add-btn is-saved"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                  }}
+                                >
+                                  Added
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="actor-show-add-btn"
+                                  disabled={addingId === String(resolvedTvdbId)}
+                                  onClick={(event) => handleAddShow(event, show)}
+                                >
+                                  {addingId === String(resolvedTvdbId)
+                                    ? "Adding..."
+                                    : "Add Show"}
+                                </button>
+                              )
                             ) : (
-                              <button
-                                type="button"
-                                className="actor-show-add-btn"
-                                disabled={addingId === show.resolved_tvdb_id}
-                                onClick={() => handleAddShow(show)}
+                              <div
+                                className="actor-show-add-btn is-missing"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                }}
                               >
-                                {addingId === show.resolved_tvdb_id
-                                  ? "Adding..."
-                                  : "Add Show"}
-                              </button>
-                            )
+                                Missing TVDB ID
+                              </div>
+                            )}
+                          </div>
+
+                          {descriptionOpen && show.overview ? (
+                            <div
+                              className="actor-show-description-panel"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                              }}
+                            >
+                              <p className="actor-show-overview">
+                                {show.overview}
+                              </p>
+                            </div>
                           ) : null}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   </article>
                 );
               })}
