@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { addShowToUserList } from "../lib/userShows";
 import { supabase } from "../lib/supabase";
@@ -12,6 +12,7 @@ import "./ActorPage.css";
 
 function buildFallbackActor(name, credits) {
   const firstWithImage = credits.find((item) => item?.profile_url);
+
   return {
     name: decodeURIComponent(name || "").replace(/\+/g, " "),
     biography: "",
@@ -22,8 +23,12 @@ function buildFallbackActor(name, credits) {
   };
 }
 
+function getActorStatCount(credits) {
+  return Array.isArray(credits) ? credits.length : 0;
+}
+
 export default function ActorPage() {
-    const { name } = useParams();
+  const { name } = useParams();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -88,8 +93,8 @@ export default function ActorPage() {
         const rawCredits = Array.isArray(data)
           ? data
           : Array.isArray(data?.credits)
-          ? data.credits
-          : [];
+            ? data.credits
+            : [];
 
         const normalizedCredits = rawCredits.map((item) =>
           normalizeMappedShow({
@@ -162,7 +167,7 @@ export default function ActorPage() {
     return (
       <div className="actor-page">
         <div className="actor-shell">
-          <div className="actor-loading">Loading actor...</div>
+          <div className="actor-empty">Loading actor...</div>
         </div>
       </div>
     );
@@ -175,7 +180,9 @@ export default function ActorPage() {
           <Link to="/search" className="actor-back-link">
             ← Back to Search
           </Link>
-          <p className="actor-error">{error}</p>
+          <div className="actor-empty">
+            <p>{error}</p>
+          </div>
         </div>
       </div>
     );
@@ -188,7 +195,9 @@ export default function ActorPage() {
           <Link to="/search" className="actor-back-link">
             ← Back to Search
           </Link>
-          <p className="actor-error">Actor not found.</p>
+          <div className="actor-empty">
+            <p>Actor not found.</p>
+          </div>
         </div>
       </div>
     );
@@ -217,14 +226,40 @@ export default function ActorPage() {
 
             <div className="actor-meta">
               {actor.known_for_department ? (
-                <div>{actor.known_for_department}</div>
+                <div>
+                  <span className="actor-meta-label">Known for</span>
+                  <span className="actor-meta-value">
+                    {actor.known_for_department}
+                  </span>
+                </div>
               ) : null}
+
               {actor.birthday ? (
-                <div>Born: {formatDate(actor.birthday)}</div>
+                <div>
+                  <span className="actor-meta-label">Born</span>
+                  <span className="actor-meta-value">
+                    {formatDate(actor.birthday)}
+                  </span>
+                </div>
               ) : null}
+
               {actor.place_of_birth ? (
-                <div>{actor.place_of_birth}</div>
+                <div>
+                  <span className="actor-meta-label">Place of birth</span>
+                  <span className="actor-meta-value">
+                    {actor.place_of_birth}
+                  </span>
+                </div>
               ) : null}
+            </div>
+
+            <div className="actor-stats-row">
+              <div className="actor-stat-box">
+                <span className="actor-stat-label">Shows</span>
+                <span className="actor-stat-value">
+                  {getActorStatCount(credits)}
+                </span>
+              </div>
             </div>
 
             {actor.biography ? (
@@ -241,7 +276,9 @@ export default function ActorPage() {
           <h2 className="actor-section-title">Shows</h2>
 
           {credits.length === 0 ? (
-            <p className="actor-empty">No TV shows found for this actor.</p>
+            <div className="actor-empty">
+              <p>No TV shows found for this actor.</p>
+            </div>
           ) : (
             <div className="actor-shows-list">
               {credits.map((show, index) => {
@@ -258,40 +295,50 @@ export default function ActorPage() {
                     className="actor-show-card"
                   >
                     <Link to={href} className="actor-show-clickable">
-                      <div className="actor-show-left">
-                        {show.poster_url ? (
-                          <img
-                            src={show.poster_url}
-                            alt={showName}
-                            className="actor-show-poster"
-                          />
-                        ) : (
-                          <div className="actor-show-poster actor-show-poster-empty">
-                            No image
-                          </div>
-                        )}
-                      </div>
+                      {show.poster_url ? (
+                        <img
+                          src={show.poster_url}
+                          alt={showName}
+                          className="actor-show-poster"
+                        />
+                      ) : (
+                        <div className="actor-show-poster actor-show-poster-empty">
+                          No image
+                        </div>
+                      )}
 
-                      <div className="actor-show-body">
+                      <div className="actor-show-content">
                         <h3 className="actor-show-title">{showName}</h3>
 
-                        {show.first_air_date ? (
-                          <div className="actor-show-date">
-                            First aired: {formatDate(show.first_air_date)}
-                          </div>
-                        ) : null}
+                        <div className="actor-show-meta">
+                          {show.first_air_date ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                First aired
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {formatDate(show.first_air_date)}
+                              </span>
+                            </div>
+                          ) : null}
 
-                        {show.character ? (
-                          <div className="actor-show-character">
-                            Character: {show.character}
-                          </div>
-                        ) : null}
+                          {show.character ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                Character
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {show.character}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
 
                         {show.overview ? (
                           <p className="actor-show-overview">{show.overview}</p>
                         ) : null}
 
-                        <div className="actor-show-links">
+                        <div className="actor-show-actions">
                           <span className="actor-view-link">
                             {mapped ? "View details →" : "Search show →"}
                           </span>
@@ -302,19 +349,17 @@ export default function ActorPage() {
                     {mapped ? (
                       <div className="actor-show-side-action">
                         {alreadySaved ? (
-                          <div className="actor-show-action actor-show-action-saved">
-                            Added
-                          </div>
+                          <div className="actor-show-add-btn is-saved">Added</div>
                         ) : (
                           <button
                             type="button"
-                            className="actor-show-action"
+                            className="actor-show-add-btn"
                             disabled={addingId === show.resolved_tvdb_id}
                             onClick={() => handleAddShow(show)}
                           >
                             {addingId === show.resolved_tvdb_id
                               ? "Adding..."
-                              : "Add"}
+                              : "Add Show"}
                           </button>
                         )}
                       </div>
