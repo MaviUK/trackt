@@ -176,7 +176,18 @@ export default function MyShows() {
           archived_at,
           added_at,
           created_at,
-          shows!inner(*)
+          shows!inner(
+            id,
+            tvdb_id,
+            name,
+            english_name,
+            name_eng,
+            english_title,
+            overview,
+            status,
+            poster_url,
+            first_aired
+          )
         `)
         .eq("user_id", user.id);
 

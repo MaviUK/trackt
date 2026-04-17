@@ -12,7 +12,7 @@ function startOfToday() {
 
 function formatGroupLabel(dateString) {
   const date = new Date(dateString);
-  return date.toLocaleDateString("en-GB", {
+  return date.toLocaleDateString(undefined, {
     weekday: "short",
     day: "numeric",
     month: "short",

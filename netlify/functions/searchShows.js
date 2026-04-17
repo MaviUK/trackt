@@ -155,106 +155,52 @@ function dedupeByValue(values) {
   );
 }
 
-function extractEnglishTranslationValue(translations, key) {
-  if (!translations) return null;
-
-  const candidateBuckets = [
-    translations?.eng,
-    translations?.en,
-    translations?.english,
-    translations?.ENG,
-    translations?.EN,
-  ].filter(Boolean);
-
-  for (const bucket of candidateBuckets) {
-    if (bucket && typeof bucket === "object") {
-      const value = bucket[key] ?? bucket?.[key?.toLowerCase?.() ?? key] ?? null;
-      if (typeof value === "string" && value.trim()) return value.trim();
-    }
-  }
-
-  const flatArrays = [
-    Array.isArray(translations) ? translations : null,
-    Array.isArray(translations?.translations) ? translations.translations : null,
-    Array.isArray(translations?.overviewTranslations) ? translations.overviewTranslations : null,
-    Array.isArray(translations?.nameTranslations) ? translations.nameTranslations : null,
-  ].filter(Boolean);
-
-  for (const arr of flatArrays) {
-    for (const item of arr) {
-      const lang = String(
-        item?.language || item?.languageCode || item?.lang || item?.iso639_2 || item?.iso639_1 || ""
-      ).trim().toLowerCase();
-      if (!["eng", "en", "english"].includes(lang)) continue;
-
-      const value = item?.[key] ?? item?.value ?? item?.text ?? item?.name ?? item?.overview ?? null;
-      if (typeof value === "string" && value.trim()) return value.trim();
-    }
-  }
-
-  return null;
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function applyEnglishSeriesText(series) {
-  if (!series || typeof series !== "object") return series;
+function looksLikeOverview(text) {
+  const value = cleanText(text);
+  if (!value) return false;
+  if (value.length > 120) return true;
+  if (value.includes("\n")) return true;
 
-  const englishName =
-    extractEnglishTranslationValue(series?.translations, "name") ||
-    extractEnglishTranslationValue(series?.nameTranslations, "name");
-  const englishOverview =
-    extractEnglishTranslationValue(series?.translations, "overview") ||
-    extractEnglishTranslationValue(series?.overviewTranslations, "overview");
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length > 14) return true;
 
-  return {
-    ...series,
-    english_name: englishName || null,
-    english_overview: englishOverview || null,
-    name: englishName || series?.name || null,
-    overview: englishOverview || series?.overview || null,
-  };
+  if (/[.!?]$/.test(value) && words.length > 6) return true;
+  if (/[,;:]/.test(value) && words.length > 10) return true;
+
+  return false;
 }
 
-function applyEnglishEpisodeText(episode) {
-  if (!episode || typeof episode !== "object") return episode;
+function pickBestTitle(...candidates) {
+  const cleaned = candidates.map(cleanText).filter(Boolean);
+  const strict = cleaned.filter((value) => !looksLikeOverview(value));
+  return strict[0] || cleaned[0] || "Unknown title";
+}
 
-  const englishName =
-    extractEnglishTranslationValue(episode?.translations, "name") ||
-    extractEnglishTranslationValue(episode?.nameTranslations, "name");
-  const englishOverview =
-    extractEnglishTranslationValue(episode?.translations, "overview") ||
-    extractEnglishTranslationValue(episode?.overviewTranslations, "overview");
-
-  return {
-    ...episode,
-    name: englishName || episode?.name || null,
-    overview: englishOverview || episode?.overview || null,
-  };
+function pickBestOverview(...candidates) {
+  const cleaned = candidates.map(cleanText).filter(Boolean);
+  return cleaned.find((value) => value.length > 20) || cleaned[0] || "";
 }
 
 function normalizeSearchResult(item) {
-  const normalizedItem = applyEnglishSeriesText(item);
-
-  const rawGenres = Array.isArray(normalizedItem?.genres)
-    ? normalizedItem.genres
-    : Array.isArray(normalizedItem?.genre)
-    ? normalizedItem.genre
+  const rawGenres = Array.isArray(item?.genres)
+    ? item.genres
+    : Array.isArray(item?.genre)
+    ? item.genre
     : [];
 
   return {
-    tvdb_id: Number(normalizedItem?.tvdb_id || normalizedItem?.id) || null,
-    name:
-      normalizedItem?.english_name ||
-      extractEnglishTranslationValue(normalizedItem?.translations, "name") ||
-      extractEnglishTranslationValue(normalizedItem?.nameTranslations, "name") ||
-      normalizedItem?.name ||
-      normalizedItem?.seriesName ||
-      "Unknown title",
-    overview:
-      normalizedItem?.english_overview ||
-      extractEnglishTranslationValue(normalizedItem?.translations, "overview") ||
-      extractEnglishTranslationValue(normalizedItem?.overviewTranslations, "overview") ||
-      normalizedItem?.overview ||
-      "",
+    tvdb_id: Number(item?.tvdb_id || item?.id) || null,
+    name: pickBestTitle(
+      item?.seriesName,
+      item?.series_name,
+      item?.name,
+      item?.title
+    ),
+    overview: pickBestOverview(item?.overview, item?.description, item?.plot),
     status:
       typeof item?.status === "object"
         ? item?.status?.name || null
@@ -365,14 +311,13 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
-    name:
-      extractEnglishTranslationValue(series?.translations, "name") ||
-      series?.name ||
-      "Unknown title",
-    overview:
-      extractEnglishTranslationValue(series?.translations, "overview") ||
-      series?.overview ||
-      "",
+    name: pickBestTitle(
+      series?.name,
+      series?.seriesName,
+      series?.series_name,
+      series?.title
+    ),
+    overview: pickBestOverview(series?.overview, series?.description, series?.plot),
     status:
       typeof series?.status === "object"
         ? series?.status?.name || null
@@ -518,12 +463,11 @@ async function loginToTvdb() {
 
 async function searchTvdb(token, term) {
   const searchRes = await fetch(
-    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}&language=eng&meta=translations`,
+    `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(term)}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
-        "Accept-Language": "eng",
       },
     }
   );
@@ -538,42 +482,22 @@ async function searchTvdb(token, term) {
 
   const allResults = Array.isArray(searchData?.data) ? searchData.data : [];
 
-  const baseResults = allResults
+  return allResults
     .filter((item) => {
       const type = String(item?.type || "").toLowerCase();
       return type === "series";
     })
     .map(normalizeSearchResult)
     .filter((item) => item.tvdb_id);
-
-  const enrichedResults = await Promise.all(
-    baseResults.map(async (item) => {
-      try {
-        const detailed = await fetchSeriesDetails(token, item.tvdb_id);
-        return detailed
-          ? {
-              ...item,
-              ...detailed,
-              tvdb_id: item.tvdb_id,
-            }
-          : item;
-      } catch {
-        return item;
-      }
-    })
-  );
-
-  return enrichedResults;
 }
 
 async function fetchSeriesDetails(token, tvdbId) {
   const res = await fetch(
-    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended?language=eng&meta=translations`,
+    `https://api4.thetvdb.com/v4/series/${tvdbId}/extended`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
-        "Accept-Language": "eng",
       },
     }
   );
@@ -584,7 +508,7 @@ async function fetchSeriesDetails(token, tvdbId) {
     return null;
   }
 
-  return normalizeSeriesDetails(applyEnglishSeriesText(data.data));
+  return normalizeSeriesDetails(data.data);
 }
 
 function scoreShow(show, options) {

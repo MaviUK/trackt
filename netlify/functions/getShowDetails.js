@@ -1,79 +1,3 @@
-function extractEnglishTranslationValue(translations, key) {
-  if (!translations) return null;
-
-  const candidateBuckets = [
-    translations?.eng,
-    translations?.en,
-    translations?.english,
-    translations?.ENG,
-    translations?.EN,
-  ].filter(Boolean);
-
-  for (const bucket of candidateBuckets) {
-    if (bucket && typeof bucket === "object") {
-      const value = bucket[key] ?? bucket?.[key?.toLowerCase?.() ?? key] ?? null;
-      if (typeof value === "string" && value.trim()) return value.trim();
-    }
-  }
-
-  const flatArrays = [
-    Array.isArray(translations) ? translations : null,
-    Array.isArray(translations?.translations) ? translations.translations : null,
-    Array.isArray(translations?.overviewTranslations) ? translations.overviewTranslations : null,
-    Array.isArray(translations?.nameTranslations) ? translations.nameTranslations : null,
-  ].filter(Boolean);
-
-  for (const arr of flatArrays) {
-    for (const item of arr) {
-      const lang = String(
-        item?.language || item?.languageCode || item?.lang || item?.iso639_2 || item?.iso639_1 || ""
-      ).trim().toLowerCase();
-      if (!["eng", "en", "english"].includes(lang)) continue;
-
-      const value = item?.[key] ?? item?.value ?? item?.text ?? item?.name ?? item?.overview ?? null;
-      if (typeof value === "string" && value.trim()) return value.trim();
-    }
-  }
-
-  return null;
-}
-
-function applyEnglishSeriesText(series) {
-  if (!series || typeof series !== "object") return series;
-
-  const englishName =
-    extractEnglishTranslationValue(series?.translations, "name") ||
-    extractEnglishTranslationValue(series?.nameTranslations, "name");
-  const englishOverview =
-    extractEnglishTranslationValue(series?.translations, "overview") ||
-    extractEnglishTranslationValue(series?.overviewTranslations, "overview");
-
-  return {
-    ...series,
-    english_name: englishName || null,
-    english_overview: englishOverview || null,
-    name: englishName || series?.name || null,
-    overview: englishOverview || series?.overview || null,
-  };
-}
-
-function applyEnglishEpisodeText(episode) {
-  if (!episode || typeof episode !== "object") return episode;
-
-  const englishName =
-    extractEnglishTranslationValue(episode?.translations, "name") ||
-    extractEnglishTranslationValue(episode?.nameTranslations, "name");
-  const englishOverview =
-    extractEnglishTranslationValue(episode?.translations, "overview") ||
-    extractEnglishTranslationValue(episode?.overviewTranslations, "overview");
-
-  return {
-    ...episode,
-    name: englishName || episode?.name || null,
-    overview: englishOverview || episode?.overview || null,
-  };
-}
-
 function toTextArray(value) {
   if (!value) return [];
 
@@ -219,11 +143,10 @@ export async function handler(event) {
       };
     }
 
-    const showRes = await fetch(`https://api4.thetvdb.com/v4/series/${tvdbId}/extended?language=eng&meta=translations`, {
+    const showRes = await fetch(`https://api4.thetvdb.com/v4/series/${tvdbId}/extended`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
-        "Accept-Language": "eng",
       },
     });
 
@@ -239,7 +162,7 @@ export async function handler(event) {
       };
     }
 
-    const series = applyEnglishSeriesText(showData?.data);
+    const series = showData?.data;
 
     if (!series) {
       return {
@@ -284,9 +207,9 @@ export async function handler(event) {
     const payload = {
       tvdb_id: series?.id ?? null,
       slug: series?.slug ?? null,
-      name: series?.english_name ?? series?.name ?? null,
+      name: pickBestTitle(series?.name, series?.seriesName, series?.series_name, series?.title),
       original_name: series?.originalName ?? null,
-      overview: series?.english_overview ?? series?.overview ?? null,
+      overview: pickBestOverview(series?.overview, series?.description, series?.plot),
       status:
         typeof series?.status === "object"
           ? series?.status?.name ?? null
@@ -326,3 +249,30 @@ export async function handler(event) {
     };
   }
 }
+function cleanText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function looksLikeOverview(text) {
+  const value = cleanText(text);
+  if (!value) return false;
+  if (value.length > 120) return true;
+  if (value.includes("\n")) return true;
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length > 14) return true;
+  if (/[.!?]$/.test(value) && words.length > 6) return true;
+  if (/[,;:]/.test(value) && words.length > 10) return true;
+  return false;
+}
+
+function pickBestTitle(...candidates) {
+  const cleaned = candidates.map(cleanText).filter(Boolean);
+  const strict = cleaned.filter((value) => !looksLikeOverview(value));
+  return strict[0] || cleaned[0] || null;
+}
+
+function pickBestOverview(...candidates) {
+  const cleaned = candidates.map(cleanText).filter(Boolean);
+  return cleaned.find((value) => value.length > 20) || cleaned[0] || null;
+}
+
