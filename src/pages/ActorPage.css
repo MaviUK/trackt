@@ -2,7 +2,7 @@
   min-height: 100vh;
   background: #0b1020;
   color: #f8fafc;
-  padding: 20px 16px 120px;
+  padding: 20px 16px 150px;
 }
 
 .actor-shell {
@@ -101,6 +101,37 @@
   font-weight: 700;
 }
 
+.actor-bio-dots-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.actor-dots-plain {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  margin: 0;
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  min-width: 36px;
+}
+
+.actor-dots-plain span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  display: block;
+}
+
 .actor-bio-panel {
   margin-top: 10px;
   background: rgba(255, 255, 255, 0.04);
@@ -114,40 +145,6 @@
   color: #dbe4f3;
   font-size: 1.02rem;
   line-height: 1.65;
-}
-
-.actor-bio-hint {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #a5b4cc;
-  text-align: center;
-  font-size: 0.98rem;
-}
-
-.actor-dots-plain {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  color: #f8fafc;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: pointer;
-  min-width: 22px;
-}
-
-.actor-dots-plain span {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  display: block;
 }
 
 .actor-shows-section {
@@ -333,6 +330,14 @@
   text-align: center;
 }
 
+.actor-show-add-btn.is-missing {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #a5b4cc;
+  cursor: default;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
   .actor-hero {
     grid-template-columns: 1fr;
@@ -351,7 +356,7 @@
 @media (max-width: 768px) {
   .actor-page {
     padding-top: 100px;
-    padding-bottom: 140px;
+    padding-bottom: 150px;
   }
 
   .actor-show-banner-inner {
@@ -386,7 +391,7 @@
   .actor-page {
     padding-left: 12px;
     padding-right: 12px;
-    padding-bottom: 150px;
+    padding-bottom: 160px;
   }
 
   .actor-hero {
@@ -431,9 +436,5 @@
   .actor-show-meta-label,
   .actor-show-meta-value {
     font-size: 0.88rem;
-  }
-
-  .actor-bio-hint {
-    font-size: 0.94rem;
   }
 }
