@@ -5,35 +5,6 @@ import { formatDate } from "../lib/date";
 import { addShowToUserList } from "../lib/userShows";
 import "./MyShowDetails.css";
 
-function isFuture(dateString) {
-  if (!dateString) return false;
-  const d = new Date(dateString);
-  return !Number.isNaN(d.getTime()) && d > new Date();
-}
-
-function getDaysUntil(dateString) {
-  if (!dateString) return null;
-  const now = new Date();
-  const target = new Date(dateString);
-  if (Number.isNaN(target.getTime())) return null;
-
-  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const targetStart = new Date(
-    target.getFullYear(),
-    target.getMonth(),
-    target.getDate()
-  );
-
-  return Math.ceil((targetStart.getTime() - nowStart.getTime()) / 86400000);
-}
-
-function getYear(dateString) {
-  if (!dateString) return "";
-  const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return "";
-  return String(d.getFullYear());
-}
-
 function sortSeasonGroups(a, b) {
   const aNum = Number(a[0]);
   const bNum = Number(b[0]);
@@ -55,6 +26,13 @@ function makeEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function getYear(dateString) {
+  if (!dateString) return "";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
+  return String(d.getFullYear());
+}
+
 function normalizeShowPayload(showData, tvdbIdFallback) {
   if (!showData) return null;
 
@@ -70,10 +48,6 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
       showData.first_air_time ||
       showData.firstAired ||
       null,
-    status: showData.status || null,
-    network: showData.network || "",
-    original_language:
-      showData.original_language || showData.originalLanguage || "",
     genres: Array.isArray(showData.genres) ? showData.genres : [],
     relationship_types: Array.isArray(showData.relationship_types)
       ? showData.relationship_types
@@ -85,6 +59,12 @@ function normalizeShowPayload(showData, tvdbIdFallback) {
         : null,
     rating_count:
       showData.rating_count != null ? Number(showData.rating_count) : null,
+    rankd_average:
+      showData.rankd_average != null
+        ? Number(showData.rankd_average)
+        : showData.average_rankd_rating != null
+        ? Number(showData.average_rankd_rating)
+        : null,
   };
 }
 
@@ -124,7 +104,6 @@ export default function ShowDetails() {
   const [cast, setCast] = useState([]);
   const [recommendedShows, setRecommendedShows] = useState([]);
   const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
-  const [providers, setProviders] = useState([]);
   const [trailer, setTrailer] = useState(null);
 
   const [viewer, setViewer] = useState(null);
@@ -151,7 +130,6 @@ export default function ShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
-          setProviders([]);
           setTrailer(null);
           setIsAdded(false);
           return;
@@ -168,16 +146,14 @@ export default function ShowDetails() {
             tvdb_id,
             name,
             overview,
-            status,
             poster_url,
             first_aired,
-            network,
             genres,
-            original_language,
             relationship_types,
             settings,
             rating_average,
-            rating_count
+            rating_count,
+            rankd_average
           `)
           .eq("tvdb_id", tvdbId)
           .maybeSingle();
@@ -264,7 +240,6 @@ export default function ShowDetails() {
           setCast([]);
           setRecommendedShows([]);
           setPeopleAlsoWatch([]);
-          setProviders([]);
           setTrailer(null);
           setIsAdded(false);
           return;
@@ -296,9 +271,6 @@ export default function ShowDetails() {
         const fallbackRecommendations = Array.isArray(extras?.recommendations)
           ? extras.recommendations
           : [];
-        const providerRows = Array.isArray(extras?.providers)
-          ? extras.providers
-          : [];
         const trailerData = extras?.trailer || null;
 
         setShow(normalizedShow);
@@ -311,7 +283,6 @@ export default function ShowDetails() {
             ? tvdbPeopleAlsoWatch
             : fallbackRecommendations
         );
-        setProviders(providerRows);
         setTrailer(trailerData);
       } catch (err) {
         console.error("Failed loading show:", err);
@@ -322,7 +293,6 @@ export default function ShowDetails() {
         setCast([]);
         setRecommendedShows([]);
         setPeopleAlsoWatch([]);
-        setProviders([]);
         setTrailer(null);
         setIsAdded(false);
       } finally {
@@ -360,23 +330,30 @@ export default function ShowDetails() {
 
     const totalEpisodes = mainEpisodes.length;
     const totalSeasons = groupedSeasons.length;
-    const nextEpisode = mainEpisodes.find((ep) => isFuture(ep.aired));
 
-    return { totalEpisodes, totalSeasons, nextEpisode };
+    return { totalEpisodes, totalSeasons };
   }, [episodes, groupedSeasons]);
 
   const sourceYear = getYear(show?.first_aired);
+  const tmdbRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "—";
+  const rankdRating =
+    show?.rankd_average != null && !Number.isNaN(Number(show.rankd_average))
+      ? Number(show.rankd_average).toFixed(1)
+      : "—";
+
   const sourceRating =
     show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
       ? Number(show.rating_average).toFixed(1)
       : "";
-  const sourceLanguage = show?.original_language || "";
 
   const baseContext = `sourceShowId=${encodeURIComponent(
     show?.tvdb_id || ""
-  )}&sourceYear=${encodeURIComponent(sourceYear)}&sourceRating=${encodeURIComponent(
-    sourceRating
-  )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
+  )}&sourceYear=${encodeURIComponent(
+    sourceYear
+  )}&sourceRating=${encodeURIComponent(sourceRating)}`;
 
   function toggleSeason(seasonNumber) {
     setExpandedSeasons((prev) => ({
@@ -406,7 +383,6 @@ export default function ShowDetails() {
         poster_url: show.poster_url || null,
         overview: show.overview || null,
         first_air_date: show.first_aired || null,
-        status: show.status || null,
       });
 
       setIsAdded(true);
@@ -443,11 +419,6 @@ export default function ShowDetails() {
       </div>
     );
   }
-
-  const streamingText =
-    providers.length > 0
-      ? providers.map((provider) => provider.name).join(", ")
-      : "—";
 
   return (
     <div className="msd-page">
@@ -504,18 +475,6 @@ export default function ShowDetails() {
               {show.first_aired ? (
                 <div>First aired: {formatDate(show.first_aired)}</div>
               ) : null}
-              {stats.nextEpisode ? (
-                <div>
-                  Next episode: {formatDate(stats.nextEpisode.aired)} (
-                  {getDaysUntil(stats.nextEpisode.aired) === 0
-                    ? "TODAY"
-                    : getDaysUntil(stats.nextEpisode.aired) === 1
-                    ? "IN 1 DAY"
-                    : `IN ${getDaysUntil(stats.nextEpisode.aired)} DAYS`}
-                  )
-                </div>
-              ) : null}
-              {show.status ? <div>Status: {show.status}</div> : null}
             </div>
 
             <div
@@ -540,31 +499,13 @@ export default function ShowDetails() {
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Network</span>
-                <strong className="msd-stat-value">
-                  {show.network ? (
-                    <Link
-                      to={`/search?network=${encodeURIComponent(
-                        show.network
-                      )}&${baseContext}`}
-                      className="msd-link"
-                    >
-                      {show.network}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </strong>
+                <span className="msd-stat-label">TMDB Rating</span>
+                <strong className="msd-stat-value">{tmdbRating}</strong>
               </div>
 
               <div className="msd-stat-box">
-                <span className="msd-stat-label">Streaming</span>
-                <strong
-                  className="msd-stat-value"
-                  style={{ fontSize: "1rem", lineHeight: "1.3" }}
-                >
-                  {streamingText}
-                </strong>
+                <span className="msd-stat-label">Rank'd</span>
+                <strong className="msd-stat-value">{rankdRating}</strong>
               </div>
 
               <div className="msd-stat-box">
@@ -588,16 +529,9 @@ export default function ShowDetails() {
                 </strong>
               </div>
 
-              <div className="msd-stat-box">
-                <span className="msd-stat-label">Language</span>
-                <strong className="msd-stat-value">
-                  {show.original_language || "—"}
-                </strong>
-              </div>
-
               <div
                 className="msd-stat-box"
-                style={{ gridColumn: "span 2" }}
+                style={{ gridColumn: "span 3" }}
               >
                 <span className="msd-stat-label">Play Trailer</span>
                 <strong
