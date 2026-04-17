@@ -46,6 +46,16 @@ function chunkArray(items, size) {
   return chunks;
 }
 
+function getPreferredShowName(showRow) {
+  return (
+    showRow?.english_name ||
+    showRow?.name_eng ||
+    showRow?.english_title ||
+    showRow?.name ||
+    "Unknown title"
+  );
+}
+
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
@@ -170,6 +180,9 @@ export default function MyShows() {
             id,
             tvdb_id,
             name,
+            english_name,
+            name_eng,
+            english_title,
             overview,
             status,
             poster_url,
@@ -189,7 +202,7 @@ export default function MyShows() {
         added_at: row.added_at,
         created_at: row.created_at,
         tvdb_id: row.shows.tvdb_id,
-        show_name: row.shows.name || "Unknown title",
+        show_name: getPreferredShowName(row.shows),
         overview: row.shows.overview || "",
         status: row.shows.status || null,
         poster_url: row.shows.poster_url || null,
