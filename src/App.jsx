@@ -459,11 +459,7 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/my-shows/:id"
-          element={
-            <ProtectedRoute session={session}>
-              <MyShowDetails />
+        <Route path="/my-shows/:id" element={<MyShowDetails />} />
             </ProtectedRoute>
           }
         />
