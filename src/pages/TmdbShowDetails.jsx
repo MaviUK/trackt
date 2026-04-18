@@ -38,6 +38,16 @@ function getGenres(show) {
   return show.genres.map((item) => item?.name).filter(Boolean);
 }
 
+function getCast(show) {
+  if (!Array.isArray(show?.cast)) return [];
+  return show.cast;
+}
+
+function getCrew(show) {
+  if (!Array.isArray(show?.crew)) return [];
+  return show.crew;
+}
+
 export default function TmdbShowDetails() {
   const { tmdbId } = useParams();
 
@@ -157,6 +167,8 @@ export default function TmdbShowDetails() {
   const episodeCount = useMemo(() => getEpisodeCount(show), [show]);
   const networks = useMemo(() => getNetworks(show), [show]);
   const genres = useMemo(() => getGenres(show), [show]);
+  const cast = useMemo(() => getCast(show), [show]);
+  const crew = useMemo(() => getCrew(show), [show]);
 
   if (loading) {
     return (
@@ -187,17 +199,17 @@ export default function TmdbShowDetails() {
     <div className="show-details-page">
       <div className="show-details-shell">
         <section
-          className="show-details-hero"
+          className="show-details-hero tmdb-show-details-hero"
           style={
             backdrop
               ? {
-                  backgroundImage: `linear-gradient(180deg, rgba(7,11,20,0.16) 0%, rgba(7,11,20,0.72) 60%, rgba(7,11,20,0.96) 100%), url("${backdrop}")`,
+                  backgroundImage: `linear-gradient(180deg, rgba(7,11,20,0.10) 0%, rgba(7,11,20,0.60) 52%, rgba(7,11,20,0.96) 100%), url("${backdrop}")`,
                 }
               : undefined
           }
         >
-          <div className="show-details-hero-inner">
-            <div className="show-details-main">
+          <div className="show-details-hero-inner tmdb-show-details-hero-inner">
+            <div className="show-details-main tmdb-show-details-main">
               <h1 className="show-details-title">{show.name}</h1>
 
               {show.first_air_date ? (
@@ -212,7 +224,9 @@ export default function TmdbShowDetails() {
                 </div>
               ) : null}
 
-              <p className="show-details-overview">{overview}</p>
+              <p className="show-details-overview tmdb-show-details-overview">
+                {overview}
+              </p>
 
               <div className="show-details-dots">• • •</div>
 
@@ -256,6 +270,26 @@ export default function TmdbShowDetails() {
                 <button
                   type="button"
                   className={`show-details-tab ${
+                    activeTab === "cast" ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveTab("cast")}
+                >
+                  Cast
+                </button>
+
+                <button
+                  type="button"
+                  className={`show-details-tab ${
+                    activeTab === "crew" ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveTab("crew")}
+                >
+                  Crew
+                </button>
+
+                <button
+                  type="button"
+                  className={`show-details-tab ${
                     activeTab === "network" ? "is-active" : ""
                   }`}
                   onClick={() => setActiveTab("network")}
@@ -276,7 +310,7 @@ export default function TmdbShowDetails() {
             </div>
 
             {show.poster_url ? (
-              <div className="show-details-poster-wrap">
+              <div className="show-details-poster-wrap tmdb-show-details-poster-wrap">
                 <img
                   src={show.poster_url}
                   alt={show.name}
@@ -308,9 +342,7 @@ export default function TmdbShowDetails() {
                         className="show-details-season-header"
                         onClick={() => toggleSeason(seasonNumber)}
                       >
-                        <span>
-                          {season?.name || `Season ${seasonNumber}`}
-                        </span>
+                        <span>{season?.name || `Season ${seasonNumber}`}</span>
                         <span className="show-details-season-chevron">
                           {isExpanded ? "▴" : "▾"}
                         </span>
@@ -338,6 +370,48 @@ export default function TmdbShowDetails() {
                     </div>
                   );
                 })}
+              </div>
+            </>
+          ) : null}
+
+          {activeTab === "cast" ? (
+            <>
+              <h2 className="show-details-section-title">Cast</h2>
+              <div className="show-details-pill-list">
+                {cast.length ? (
+                  cast.map((person) => (
+                    <div
+                      key={`${person?.id || person?.name}-${person?.character || ""}`}
+                      className="show-details-pill"
+                    >
+                      {person?.name}
+                      {person?.character ? ` — ${person.character}` : ""}
+                    </div>
+                  ))
+                ) : (
+                  <div className="show-details-empty">No cast data available.</div>
+                )}
+              </div>
+            </>
+          ) : null}
+
+          {activeTab === "crew" ? (
+            <>
+              <h2 className="show-details-section-title">Crew</h2>
+              <div className="show-details-pill-list">
+                {crew.length ? (
+                  crew.map((person) => (
+                    <div
+                      key={`${person?.id || person?.name}-${person?.job || ""}`}
+                      className="show-details-pill"
+                    >
+                      {person?.name}
+                      {person?.job ? ` — ${person.job}` : ""}
+                    </div>
+                  ))
+                ) : (
+                  <div className="show-details-empty">No crew data available.</div>
+                )}
               </div>
             </>
           ) : null}
