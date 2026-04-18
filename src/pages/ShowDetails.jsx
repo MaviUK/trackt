@@ -174,6 +174,7 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   return {
     id: showData.id ?? null,
     tvdb_id: showData.tvdb_id ?? tvdbIdFallback ?? null,
+    tmdb_id: showData.tmdb_id ?? null,
     show_name: getPreferredEnglishName(showData, extras),
     overview: getPreferredEnglishOverview(showData, extras),
     poster_url:
@@ -181,13 +182,16 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
     backdrop_url: getBackdropUrl(showData),
     first_aired:
       showData.first_aired ||
+      showData.first_air_date ||
       showData.first_air_time ||
       showData.firstAired ||
       null,
     status: showData.status || null,
     network: showData.network || "",
     original_language: showData.original_language || "",
-    genres: Array.isArray(showData.genres) ? showData.genres : [],
+    genres: Array.isArray(showData.genres)
+      ? showData.genres.map((g) => (typeof g === "string" ? g : g?.name)).filter(Boolean)
+      : [],
     relationship_types: Array.isArray(showData.relationship_types)
       ? showData.relationship_types
       : [],
@@ -200,30 +204,116 @@ function normalizeShowPayload(showData, tvdbIdFallback, extras = null) {
   };
 }
 
-function normalizeEpisodePayload(row, index, tvdbId) {
+function normalizeEpisodePayload(row, index, fallbackId) {
   return {
     id:
       row.id ||
       row.tvdb_id ||
       row.tvdbId ||
-      `${tvdbId}-${row.season_number ?? row.seasonNumber ?? 0}-${
+      `${fallbackId}-${row.season_number ?? row.seasonNumber ?? row.season_number ?? 0}-${
         row.episode_number ?? row.number ?? 0
       }-${index}`,
     tvdb_episode_id: row.tvdb_id || row.tvdbId || null,
     seasonNumber: row.season_number ?? row.seasonNumber ?? 0,
     number: row.episode_number ?? row.number ?? 0,
-    aired: row.aired_date || row.airDate || row.aired || null,
-    airDate: row.aired_date || row.airDate || row.aired || null,
+    aired: row.aired_date || row.airDate || row.air_date || row.aired || null,
+    airDate: row.aired_date || row.airDate || row.air_date || row.aired || null,
     name: row.name || "Untitled episode",
     overview: row.overview || "",
-    image: row.image_url || row.image || row.tmdb_still_path || null,
+    image:
+      row.image_url ||
+      row.image ||
+      row.still_url ||
+      row.still_path ||
+      row.tmdb_still_path ||
+      null,
     episode_code: row.episode_code || null,
   };
 }
 
+function normalizeTmdbExtras(data) {
+  if (!data || typeof data !== "object") return null;
+
+  const cast = Array.isArray(data.cast)
+    ? data.cast.map((member) => ({
+        id: member?.id ?? null,
+        personName: member?.name || "Unknown actor",
+        character: member?.character || "",
+        image: member?.profile_path
+          ? `https://image.tmdb.org/t/p/w185${member.profile_path}`
+          : member?.image || null,
+      }))
+    : [];
+
+  const crew = Array.isArray(data.crew)
+    ? data.crew.map((member) => ({
+        id: member?.id ?? null,
+        personName: member?.name || "Unknown crew",
+        job: member?.job || "",
+        image: member?.profile_path
+          ? `https://image.tmdb.org/t/p/w185${member.profile_path}`
+          : member?.image || null,
+      }))
+    : [];
+
+  const episodes = [];
+  if (Array.isArray(data.seasons)) {
+    data.seasons.forEach((season) => {
+      const seasonNum = Number(season?.season_number ?? 0);
+      const count = Number(season?.episode_count ?? 0);
+
+      for (let i = 1; i <= count; i += 1) {
+        episodes.push({
+          id: `${data.tmdb_id || data.id}-${seasonNum}-${i}`,
+          season_number: seasonNum,
+          episode_number: i,
+          name: `Episode ${i}`,
+          overview: "",
+          aired_date: season?.air_date || null,
+          image_url: null,
+        });
+      }
+    });
+  }
+
+  return {
+    show: {
+      id: data.id ?? data.tmdb_id ?? null,
+      tmdb_id: data.tmdb_id ?? data.id ?? null,
+      tvdb_id: data.tvdb_id ?? null,
+      name: data.name || "Unknown title",
+      show_name: data.name || "Unknown title",
+      overview: data.overview || "",
+      poster_url: data.poster_url || null,
+      backdrop_url: data.backdrop_url || null,
+      first_air_date: data.first_air_date || null,
+      first_aired: data.first_air_date || null,
+      status: data.status || null,
+      network:
+        Array.isArray(data.networks) && data.networks.length > 0
+          ? data.networks
+              .map((item) => item?.name)
+              .filter(Boolean)
+              .join(", ")
+          : "",
+      original_language: data.original_language || "",
+      genres: Array.isArray(data.genres)
+        ? data.genres.map((g) => g?.name).filter(Boolean)
+        : [],
+      tmdb_vote_average: data.vote_average ?? null,
+    },
+    banner_url: data.backdrop_url || null,
+    cast,
+    crew,
+    episodes,
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+  };
+}
+
 export default function ShowDetails() {
-  const { id } = useParams();
+  const { id, tmdbId } = useParams();
   const navigate = useNavigate();
+  const isTmdbFallback = Boolean(tmdbId);
 
   const [loading, setLoading] = useState(true);
   const [extrasLoading, setExtrasLoading] = useState(false);
@@ -258,8 +348,22 @@ export default function ShowDetails() {
 
         setViewer(user || null);
 
-        const tvdbId = Number(id);
-        if (Number.isNaN(tvdbId)) {
+        const numericTvdbId = Number(id);
+        const numericTmdbId = Number(tmdbId);
+
+        if (!isTmdbFallback && Number.isNaN(numericTvdbId)) {
+          setShow(null);
+          setEpisodes([]);
+          setExpandedSeasons({});
+          setCast([]);
+          setCrew([]);
+          setRecommendedShows([]);
+          setMobileBannerUrl(null);
+          setIsAdded(false);
+          return;
+        }
+
+        if (isTmdbFallback && Number.isNaN(numericTmdbId)) {
           setShow(null);
           setEpisodes([]);
           setExpandedSeasons({});
@@ -275,29 +379,91 @@ export default function ShowDetails() {
         let dbEpisodes = [];
         let extras = null;
 
-        const { data: showData, error: showError } = await supabase
-          .from("shows")
-          .select(`
-            *
-          `)
-          .eq("tvdb_id", tvdbId)
-          .maybeSingle();
+        if (!isTmdbFallback) {
+          const { data: showData, error: showError } = await supabase
+            .from("shows")
+            .select(`*`)
+            .eq("tvdb_id", numericTvdbId)
+            .maybeSingle();
 
-        if (showError) throw showError;
+          if (showError) throw showError;
 
-        if (showData) {
-          dbShow = showData;
+          if (showData) {
+            dbShow = showData;
 
+            if (user) {
+              const { data: userShowData, error: userShowError } = await supabase
+                .from("user_shows_new")
+                .select("id")
+                .eq("user_id", user.id)
+                .eq("show_id", showData.id)
+                .maybeSingle();
+
+              if (userShowError) {
+                console.warn("user show fetch failed", userShowError);
+              }
+
+              setIsAdded(!!userShowData);
+            } else {
+              setIsAdded(false);
+            }
+
+            const { data: episodeRows, error: episodeError } = await supabase
+              .from("episodes")
+              .select(`
+                id,
+                tvdb_id,
+                show_id,
+                season_number,
+                episode_number,
+                episode_code,
+                name,
+                overview,
+                aired_date,
+                image_url,
+                tmdb_still_path
+              `)
+              .eq("show_id", showData.id)
+              .order("season_number", { ascending: true })
+              .order("episode_number", { ascending: true });
+
+            if (episodeError) throw episodeError;
+
+            dbEpisodes = (episodeRows || []).map((row, index) =>
+              normalizeEpisodePayload(row, index, numericTvdbId)
+            );
+          } else {
+            setIsAdded(false);
+          }
+
+          try {
+            setExtrasLoading(true);
+
+            const extrasRes = await fetch(
+              `/.netlify/functions/getShowExtras?tvdbId=${numericTvdbId}`
+            );
+
+            if (extrasRes.ok) {
+              extras = await extrasRes.json();
+            } else {
+              console.warn(`getShowExtras returned ${extrasRes.status}`);
+            }
+          } catch (extrasError) {
+            console.error("Failed loading TVDB extras:", extrasError);
+          } finally {
+            setExtrasLoading(false);
+          }
+        } else {
           if (user) {
             const { data: userShowData, error: userShowError } = await supabase
               .from("user_shows_new")
               .select("id")
               .eq("user_id", user.id)
-              .eq("show_id", showData.id)
+              .eq("tmdb_id", numericTmdbId)
               .maybeSingle();
 
             if (userShowError) {
-              console.warn("user show fetch failed", userShowError);
+              console.warn("user TMDB show fetch failed", userShowError);
             }
 
             setIsAdded(!!userShowData);
@@ -305,50 +471,24 @@ export default function ShowDetails() {
             setIsAdded(false);
           }
 
-          const { data: episodeRows, error: episodeError } = await supabase
-            .from("episodes")
-            .select(`
-              id,
-              tvdb_id,
-              show_id,
-              season_number,
-              episode_number,
-              episode_code,
-              name,
-              overview,
-              aired_date,
-              image_url,
-              tmdb_still_path
-            `)
-            .eq("show_id", showData.id)
-            .order("season_number", { ascending: true })
-            .order("episode_number", { ascending: true });
+          try {
+            setExtrasLoading(true);
 
-          if (episodeError) throw episodeError;
+            const extrasRes = await fetch(
+              `/.netlify/functions/getTmdbShowDetails?tmdbId=${numericTmdbId}`
+            );
 
-          dbEpisodes = (episodeRows || []).map((row, index) =>
-            normalizeEpisodePayload(row, index, tvdbId)
-          );
-        } else {
-          setIsAdded(false);
-        }
-
-        try {
-          setExtrasLoading(true);
-
-          const extrasRes = await fetch(
-            `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
-          );
-
-          if (extrasRes.ok) {
-            extras = await extrasRes.json();
-          } else {
-            console.warn(`getShowExtras returned ${extrasRes.status}`);
+            if (extrasRes.ok) {
+              const tmdbData = await extrasRes.json();
+              extras = normalizeTmdbExtras(tmdbData);
+            } else {
+              console.warn(`getTmdbShowDetails returned ${extrasRes.status}`);
+            }
+          } catch (extrasError) {
+            console.error("Failed loading TMDB extras:", extrasError);
+          } finally {
+            setExtrasLoading(false);
           }
-        } catch (extrasError) {
-          console.error("Failed loading TVDB extras:", extrasError);
-        } finally {
-          setExtrasLoading(false);
         }
 
         const fallbackShow =
@@ -363,7 +503,7 @@ export default function ShowDetails() {
 
         const normalizedShow = normalizeShowPayload(
           dbShow || fallbackShow,
-          tvdbId,
+          !isTmdbFallback ? numericTvdbId : null,
           extras
         );
 
@@ -379,6 +519,10 @@ export default function ShowDetails() {
           return;
         }
 
+        if (isTmdbFallback && numericTmdbId) {
+          normalizedShow.tmdb_id = numericTmdbId;
+        }
+
         const fallbackEpisodes = Array.isArray(extras?.episodes)
           ? extras.episodes
           : [];
@@ -387,7 +531,11 @@ export default function ShowDetails() {
           dbEpisodes.length > 0
             ? dbEpisodes
             : fallbackEpisodes.map((row, index) =>
-                normalizeEpisodePayload(row, index, tvdbId)
+                normalizeEpisodePayload(
+                  row,
+                  index,
+                  isTmdbFallback ? numericTmdbId : numericTvdbId
+                )
               );
 
         const seasonMap = {};
@@ -418,6 +566,7 @@ export default function ShowDetails() {
         setShow({
           ...normalizedShow,
           trailer: trailerData,
+          is_tmdb_fallback: isTmdbFallback,
         });
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
@@ -444,11 +593,11 @@ export default function ShowDetails() {
     }
 
     loadShow();
-  }, [id]);
+  }, [id, tmdbId, isTmdbFallback]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [id]);
+  }, [id, tmdbId]);
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
@@ -502,7 +651,7 @@ export default function ShowDetails() {
       : "—";
 
   const baseContext = `sourceShowId=${encodeURIComponent(
-    show?.tvdb_id || ""
+    show?.tvdb_id || show?.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
     sourceYear
   )}&sourceRating=${encodeURIComponent(
@@ -522,8 +671,8 @@ export default function ShowDetails() {
       return;
     }
 
-    if (!show?.tvdb_id) {
-      setError("This show cannot be added yet because it has no TVDB id.");
+    if (!show?.tvdb_id && !show?.tmdb_id) {
+      setError("This show cannot be added yet because it has no supported id.");
       return;
     }
 
@@ -532,16 +681,30 @@ export default function ShowDetails() {
 
     try {
       await addShowToUserList({
-        tvdb_id: Number(show.tvdb_id),
+        tvdb_id: show?.tvdb_id ? Number(show.tvdb_id) : null,
+        tmdb_id: show?.tmdb_id ? Number(show.tmdb_id) : null,
+        id: show?.tvdb_id
+          ? Number(show.tvdb_id)
+          : show?.tmdb_id
+            ? Number(show.tmdb_id)
+            : null,
         name: show.show_name || "Unknown Show",
         poster_url: show.poster_url || null,
+        backdrop_url: show.backdrop_url || null,
         overview: show.overview || null,
         first_air_date: show.first_aired || null,
+        first_aired: show.first_aired || null,
         status: show.status || null,
+        source: show?.is_tmdb_fallback ? "tmdb" : "tvdb",
       });
 
       setIsAdded(true);
-      navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
+
+      if (show?.tvdb_id) {
+        navigate(`/my-shows/${show.tvdb_id}`, { replace: true });
+      } else if (show?.tmdb_id) {
+        navigate(`/show/tmdb/${show.tmdb_id}`, { replace: true });
+      }
     } catch (err) {
       console.error("Failed to add show:", err);
       setError(err.message || "Failed to add show.");
@@ -951,8 +1114,9 @@ export default function ShowDetails() {
             <div className="msd-recommended-row">
               {recommendedShows.map((rec, index) => {
                 const mapped = normalizeMappedShow(rec);
-                const tvdbId =
+                const recTvdbId =
                   mapped?.resolved_tvdb_id || mapped?.tvdb_id || mapped?.tvdbId;
+                const recTmdbId = mapped?.tmdb_id || mapped?.id;
 
                 const showName = mapped?.name || mapped?.title || "Unknown show";
                 const posterSrc =
@@ -964,7 +1128,13 @@ export default function ShowDetails() {
                     ? `https://image.tmdb.org/t/p/w500${mapped.poster_path}`
                     : "");
 
-                if (!tvdbId) {
+                const href = recTvdbId
+                  ? `/show/${recTvdbId}`
+                  : recTmdbId
+                    ? `/show/tmdb/${recTmdbId}`
+                    : null;
+
+                if (!href) {
                   return (
                     <div
                       key={mapped?.id || `${showName}-${index}`}
@@ -988,7 +1158,7 @@ export default function ShowDetails() {
                 return (
                   <Link
                     key={mapped?.id || `${showName}-${index}`}
-                    to={`/show/${tvdbId}`}
+                    to={href}
                     className="msd-recommended-card"
                   >
                     {posterSrc ? (
@@ -1024,18 +1194,33 @@ export default function ShowDetails() {
           </div>
         ) : (
           <div className="msd-bottom-action-bar">
-            <Link
-              to={`/my-shows/${show.tvdb_id}`}
-              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-              style={{
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              Open in My Shows
-            </Link>
+            {show.tvdb_id ? (
+              <Link
+                to={`/my-shows/${show.tvdb_id}`}
+                className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+                style={{
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                Open in My Shows
+              </Link>
+            ) : show.tmdb_id ? (
+              <Link
+                to={`/show/tmdb/${show.tmdb_id}`}
+                className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+                style={{
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                Open Show
+              </Link>
+            ) : null}
           </div>
         )}
       </div>
