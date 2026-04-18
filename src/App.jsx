@@ -7,7 +7,7 @@ import {
   getMappedShowHref,
   normalizeMappedShow,
 } from "../lib/tmdbMappings";
-import "./ActorPage.css";
+
 
 function buildFallbackActor(name, credits) {
   const firstWithImage = credits.find((item) => item?.profile_url);
