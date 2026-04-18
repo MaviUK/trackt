@@ -21,7 +21,6 @@ import ActorPage from "./pages/ActorPage";
 import Rankd from "./pages/Rankd";
 import BurgrsBanner from "./components/BurgrsBanner";
 import { supabase } from "./lib/supabase";
-import TmdbShowDetails from "./pages/TmdbShowDetails";
 
 function HomeIcon() {
   return (
@@ -502,7 +501,7 @@ function AppLayout() {
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-        <Route path="/show/tmdb/:tmdbId" element={<TmdbShowDetails />} />
+        <Route path="/show/tmdb/:tmdbId" element={<ShowDetails />} />
       </Routes>
 
       <MobileBottomNav session={session} />
