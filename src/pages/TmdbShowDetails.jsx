@@ -1,20 +1,57 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { addShowToUserList } from "../lib/userShows";
+import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
-import "./MyShowDetails.css";
+import "./ShowDetails.css";
 
-function getEpisodeCount(seasons) {
-  return (seasons || []).reduce(
-    (total, season) => total + (Number(season?.episode_count) || 0),
+function getHeroBackdrop(show) {
+  return show?.backdrop_url || show?.poster_url || "";
+}
+
+function getOverview(show) {
+  return show?.overview || "No overview available.";
+}
+
+function getSeasonCount(show) {
+  return Number(show?.number_of_seasons || show?.seasons?.length || 0);
+}
+
+function getEpisodeCount(show) {
+  if (Number(show?.number_of_episodes || 0) > 0) {
+    return Number(show.number_of_episodes);
+  }
+
+  return (show?.seasons || []).reduce(
+    (total, season) => total + Number(season?.episode_count || 0),
     0
   );
 }
 
+function getNetworks(show) {
+  if (!Array.isArray(show?.networks)) return [];
+  return show.networks.map((item) => item?.name).filter(Boolean);
+}
+
+function getGenres(show) {
+  if (!Array.isArray(show?.genres)) return [];
+  return show.genres.map((item) => item?.name).filter(Boolean);
+}
+
 export default function TmdbShowDetails() {
   const { tmdbId } = useParams();
+
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("seasons");
+  const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [adding, setAdding] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [tmdbId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +69,7 @@ export default function TmdbShowDetails() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data?.message || "Failed to load TMDB show");
+          throw new Error(data?.message || "Failed to load show");
         }
 
         if (!cancelled) {
@@ -40,7 +77,7 @@ export default function TmdbShowDetails() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err?.message || "Failed to load TMDB show");
+          setError(err?.message || "Failed to load show");
         }
       } finally {
         if (!cancelled) {
@@ -49,12 +86,77 @@ export default function TmdbShowDetails() {
       }
     }
 
+    async function loadSavedState() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !tmdbId) {
+        if (!cancelled) setIsSaved(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_shows_new")
+        .select("id, tmdb_id")
+        .eq("user_id", user.id)
+        .eq("tmdb_id", Number(tmdbId))
+        .limit(1)
+        .maybeSingle();
+
+      if (!cancelled) {
+        setIsSaved(Boolean(data) && !error);
+      }
+    }
+
     loadShow();
+    loadSavedState();
 
     return () => {
       cancelled = true;
     };
   }, [tmdbId]);
+
+  async function handleAddShow() {
+    if (!show || adding || isSaved) return;
+
+    setAdding(true);
+
+    try {
+      await addShowToUserList({
+        id: Number(show.tmdb_id),
+        tmdb_id: Number(show.tmdb_id),
+        tvdb_id: show.tvdb_id ? Number(show.tvdb_id) : null,
+        name: show.name || "Unknown show",
+        overview: show.overview || null,
+        poster_url: show.poster_url || null,
+        backdrop_url: show.backdrop_url || null,
+        first_air_date: show.first_air_date || null,
+        first_aired: show.first_air_date || null,
+        status: show.status || null,
+        source: "tmdb",
+      });
+
+      setIsSaved(true);
+    } catch (err) {
+      console.error("Failed adding TMDB show", err);
+      alert(err?.message || "Failed to add show");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function toggleSeason(seasonNumber) {
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
+  }
+
+  const seasonCount = useMemo(() => getSeasonCount(show), [show]);
+  const episodeCount = useMemo(() => getEpisodeCount(show), [show]);
+  const networks = useMemo(() => getNetworks(show), [show]);
+  const genres = useMemo(() => getGenres(show), [show]);
 
   if (loading) {
     return (
@@ -78,9 +180,8 @@ export default function TmdbShowDetails() {
     );
   }
 
-  const backdrop = show.backdrop_url || show.poster_url || "";
-  const seasons = show.seasons || [];
-  const episodeCount = getEpisodeCount(seasons);
+  const backdrop = getHeroBackdrop(show);
+  const overview = getOverview(show);
 
   return (
     <div className="show-details-page">
@@ -90,7 +191,7 @@ export default function TmdbShowDetails() {
           style={
             backdrop
               ? {
-                  backgroundImage: `linear-gradient(180deg, rgba(7,11,20,0.25) 0%, rgba(7,11,20,0.82) 72%, rgba(7,11,20,0.96) 100%), url("${backdrop}")`,
+                  backgroundImage: `linear-gradient(180deg, rgba(7,11,20,0.16) 0%, rgba(7,11,20,0.72) 60%, rgba(7,11,20,0.96) 100%), url("${backdrop}")`,
                 }
               : undefined
           }
@@ -100,61 +201,192 @@ export default function TmdbShowDetails() {
               <h1 className="show-details-title">{show.name}</h1>
 
               {show.first_air_date ? (
+                <div className="show-details-year">
+                  {new Date(show.first_air_date).getFullYear()}
+                </div>
+              ) : null}
+
+              {show.first_air_date ? (
                 <div className="show-details-subtitle">
                   First aired: {formatDate(show.first_air_date)}
                 </div>
               ) : null}
 
-              {show.overview ? (
-                <p className="show-details-overview">{show.overview}</p>
-              ) : null}
+              <p className="show-details-overview">{overview}</p>
 
-              <div className="show-details-stats">
-                <div className="show-details-stat">
-                  <span>Seasons</span>
-                  <strong>{show.number_of_seasons || seasons.length || 0}</strong>
+              <div className="show-details-dots">• • •</div>
+
+              <div className="show-details-stats-grid">
+                <div className="show-details-stat-card">
+                  <span className="show-details-stat-label">Seasons</span>
+                  <strong className="show-details-stat-value">{seasonCount}</strong>
                 </div>
-                <div className="show-details-stat">
-                  <span>Episodes</span>
-                  <strong>{show.number_of_episodes || episodeCount || 0}</strong>
+
+                <div className="show-details-stat-card">
+                  <span className="show-details-stat-label">Episodes</span>
+                  <strong className="show-details-stat-value">{episodeCount}</strong>
                 </div>
-                <div className="show-details-stat">
-                  <span>Rating</span>
-                  <strong>
-                    {show.vote_average ? Number(show.vote_average).toFixed(1) : "—"}
+
+                <div className="show-details-stat-card">
+                  <span className="show-details-stat-label">Rating</span>
+                  <strong className="show-details-stat-value">
+                    {show.vote_average
+                      ? Number(show.vote_average).toFixed(1)
+                      : "—"}
                   </strong>
                 </div>
+
+                <div className="show-details-stat-card">
+                  <span className="show-details-stat-label">Rank'd</span>
+                  <strong className="show-details-stat-value">—</strong>
+                </div>
               </div>
 
-              <div className="show-details-note">
-                TMDB fallback page
+              <div className="show-details-tabs">
+                <button
+                  type="button"
+                  className={`show-details-tab ${
+                    activeTab === "seasons" ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveTab("seasons")}
+                >
+                  Seasons
+                </button>
+
+                <button
+                  type="button"
+                  className={`show-details-tab ${
+                    activeTab === "network" ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveTab("network")}
+                >
+                  Studio
+                </button>
+
+                <button
+                  type="button"
+                  className={`show-details-tab ${
+                    activeTab === "genre" ? "is-active" : ""
+                  }`}
+                  onClick={() => setActiveTab("genre")}
+                >
+                  Genre
+                </button>
               </div>
             </div>
+
+            {show.poster_url ? (
+              <div className="show-details-poster-wrap">
+                <img
+                  src={show.poster_url}
+                  alt={show.name}
+                  className="show-details-poster"
+                />
+              </div>
+            ) : null}
           </div>
         </section>
 
-        <section className="show-details-section">
-          <h2>Seasons</h2>
+        <section className="show-details-content">
+          {activeTab === "seasons" ? (
+            <>
+              <h2 className="show-details-section-title">Seasons</h2>
 
-          {seasons.length === 0 ? (
-            <div className="show-details-empty">No seasons available.</div>
-          ) : (
-            <div className="show-details-seasons">
-              {seasons.map((season) => (
-                <div
-                  key={season.id || season.season_number}
-                  className="show-details-season-card"
-                >
-                  <strong>{season.name || `Season ${season.season_number}`}</strong>
-                  <div>
-                    {season.air_date ? formatDate(season.air_date) : "No air date"}
-                  </div>
-                  <div>{season.episode_count || 0} episodes</div>
-                </div>
-              ))}
-            </div>
-          )}
+              <div className="show-details-season-list">
+                {(show.seasons || []).map((season) => {
+                  const seasonNumber =
+                    season?.season_number ?? season?.number ?? Math.random();
+                  const isExpanded = Boolean(expandedSeasons[seasonNumber]);
+
+                  return (
+                    <div
+                      key={season?.id || seasonNumber}
+                      className="show-details-season-item"
+                    >
+                      <button
+                        type="button"
+                        className="show-details-season-header"
+                        onClick={() => toggleSeason(seasonNumber)}
+                      >
+                        <span>
+                          {season?.name || `Season ${seasonNumber}`}
+                        </span>
+                        <span className="show-details-season-chevron">
+                          {isExpanded ? "▴" : "▾"}
+                        </span>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="show-details-season-body">
+                          {season?.air_date ? (
+                            <div className="show-details-season-meta">
+                              {formatDate(season.air_date)}
+                            </div>
+                          ) : null}
+
+                          <div className="show-details-season-meta">
+                            {season?.episode_count || 0} episodes
+                          </div>
+
+                          {season?.overview ? (
+                            <p className="show-details-season-overview">
+                              {season.overview}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
+
+          {activeTab === "network" ? (
+            <>
+              <h2 className="show-details-section-title">Studio</h2>
+              <div className="show-details-pill-list">
+                {networks.length ? (
+                  networks.map((network) => (
+                    <div key={network} className="show-details-pill">
+                      {network}
+                    </div>
+                  ))
+                ) : (
+                  <div className="show-details-empty">No studio data available.</div>
+                )}
+              </div>
+            </>
+          ) : null}
+
+          {activeTab === "genre" ? (
+            <>
+              <h2 className="show-details-section-title">Genre</h2>
+              <div className="show-details-pill-list">
+                {genres.length ? (
+                  genres.map((genre) => (
+                    <div key={genre} className="show-details-pill">
+                      {genre}
+                    </div>
+                  ))
+                ) : (
+                  <div className="show-details-empty">No genre data available.</div>
+                )}
+              </div>
+            </>
+          ) : null}
         </section>
+
+        <div className="show-details-bottom-action">
+          <button
+            type="button"
+            className="show-details-add-btn"
+            disabled={adding || isSaved}
+            onClick={handleAddShow}
+          >
+            {isSaved ? "Added to My Shows" : adding ? "Adding..." : "Add to My Shows"}
+          </button>
+        </div>
       </div>
     </div>
   );
