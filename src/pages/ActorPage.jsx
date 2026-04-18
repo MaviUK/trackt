@@ -239,7 +239,25 @@ export default function ActorPage() {
     setAddingId(String(tvdbId));
 
     try {
-      await addShowToUserList(tvdbId);
+      await addShowToUserList({
+        tvdb_id: Number(tvdbId),
+        id: Number(tvdbId),
+        name: show?.name || show?.title || "Unknown show",
+        overview: show?.overview || null,
+        poster_url: show?.poster_url || show?.image_url || null,
+        backdrop_url:
+          show?.backdrop_url ||
+          show?.background_url ||
+          show?.banner_url ||
+          show?.fanart_url ||
+          null,
+        first_air_date: show?.first_air_date || show?.first_aired || null,
+        first_aired: show?.first_air_date || show?.first_aired || null,
+        character: show?.character || null,
+        tmdb_id: show?.tmdb_id ? Number(show.tmdb_id) : null,
+        status: show?.status || null,
+      });
+
       setSavedIds((prev) => {
         const next = new Set(prev);
         next.add(String(tvdbId));
