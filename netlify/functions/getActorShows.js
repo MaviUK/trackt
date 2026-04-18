@@ -211,19 +211,36 @@ export const handler = async (event) => {
       }));
     }
 
-    const output = mappedCredits.map((item) => ({
-      tvdb_id: item?.tvdb_id ?? null,
-      tmdb_id: item?.tmdb_id ?? null,
-      name: item?.name || "",
-      overview: item?.overview || "",
-      first_air_date: item?.first_air_date || null,
-      image_url: item?.image_url || null,
-      poster_url: item?.poster_url || null,
-      rating_average: Number(item?.vote_average || 0),
-      rating_count: Number(item?.vote_count || 0),
-      character: item?.character || "",
-      mapping_status: item?.mapping_status || null,
-    }));
+    const output = mappedCredits.map((item) => {
+  const resolvedTvdbId =
+    item?.resolved_tvdb_id ??
+    item?.tvdb_id ??
+    item?.mapped_tvdb_id ??
+    item?.show_tvdb_id ??
+    null;
+
+  return {
+    id: item?.id ?? null,
+    tmdb_id: item?.tmdb_id ?? null,
+    tvdb_id: item?.tvdb_id ?? null,
+    resolved_tvdb_id: resolvedTvdbId,
+    mapped_tvdb_id: resolvedTvdbId,
+    name: item?.name || "",
+    overview: item?.overview || "",
+    first_air_date: item?.first_air_date || null,
+    image_url: item?.image_url || null,
+    poster_url: item?.poster_url || null,
+    backdrop_url:
+      item?.backdrop_url ||
+      (item?.backdrop_path
+        ? buildTmdbImageUrl(item.backdrop_path, "original")
+        : null),
+    rating_average: Number(item?.vote_average || 0),
+    rating_count: Number(item?.vote_count || 0),
+    character: item?.character || "",
+    mapping_status: item?.mapping_status || null,
+  };
+});
 
     return jsonResponse(200, {
       actor: {
