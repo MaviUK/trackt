@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatDate } from "../lib/date";
-import "./ShowDetails.css";
+import "./MyShowDetails.css";
 
 function getEpisodeCount(seasons) {
   return (seasons || []).reduce(
