@@ -443,6 +443,7 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/show/:id"
           element={
@@ -451,6 +452,16 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/show/tmdb/:tmdbId"
+          element={
+            <ProtectedRoute session={session}>
+              <ShowDetails />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/my-shows"
           element={
@@ -459,10 +470,25 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
-        <Route path="/my-shows/:id" element={<MyShowDetails />} />
+
+        <Route
+          path="/my-shows/:id"
+          element={
+            <ProtectedRoute session={session}>
+              <MyShowDetails />
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/my-shows/tmdb/:tmdbId"
+          element={
+            <ProtectedRoute session={session}>
+              <MyShowDetails />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/actor/:name"
           element={
@@ -471,6 +497,7 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/calendar"
           element={
@@ -479,6 +506,7 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/profile/edit"
           element={
@@ -487,6 +515,7 @@ function AppLayout() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/rankd"
           element={
@@ -497,7 +526,6 @@ function AppLayout() {
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-        <Route path="/show/tmdb/:tmdbId" element={<ShowDetails />} />
       </Routes>
 
       <MobileBottomNav session={session} />
