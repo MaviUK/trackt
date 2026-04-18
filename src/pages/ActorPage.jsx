@@ -75,11 +75,27 @@ function getResolvedTvdbId(show) {
   return getTvdbIdFromHref(href);
 }
 
+function getResolvedTmdbId(show) {
+  if (!show) return null;
+
+  const id = show?.tmdb_id || show?.id || show?.series_tmdb_id || null;
+  return id ? String(id) : null;
+}
+
 function getShowDestination(show, alreadySaved) {
   const tvdbId = getResolvedTvdbId(show);
+  const tmdbId = getResolvedTmdbId(show);
 
   if (alreadySaved && tvdbId) {
     return `/my-shows/${tvdbId}`;
+  }
+
+  if (tvdbId) {
+    return `/show/${tvdbId}`;
+  }
+
+  if (tmdbId) {
+    return `/show/tmdb/${tmdbId}`;
   }
 
   return show?.href || getMappedShowHref(show);
@@ -425,8 +441,9 @@ export default function ActorPage() {
               {credits.map((show, index) => {
                 const showName = show.name || "Unknown show";
                 const resolvedTvdbId = getResolvedTvdbId(show);
-                const canAdd = Boolean(resolvedTvdbId);
-                const alreadySaved = canAdd
+                const resolvedTmdbId = getResolvedTmdbId(show);
+                const canAdd = Boolean(resolvedTvdbId || resolvedTmdbId);
+                const alreadySaved = resolvedTvdbId
                   ? savedIdsLookup.has(String(resolvedTvdbId))
                   : false;
                 const destinationHref = getShowDestination(show, alreadySaved);
@@ -435,6 +452,7 @@ export default function ActorPage() {
                   show.tmdb_id ||
                   show.id ||
                   resolvedTvdbId ||
+                  resolvedTmdbId ||
                   `${showName}-${index}`;
 
                 const descriptionOpen = openShowDescriptionKey === showKey;
@@ -525,26 +543,35 @@ export default function ActorPage() {
                             ) : null}
                           </div>
 
-                          {canAdd ? (
-                            alreadySaved ? (
-                              <div className="actor-show-add-btn is-saved">
-                                Added
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="actor-show-add-btn"
-                                disabled={addingId === String(resolvedTvdbId)}
-                                onClick={(event) => handleAddShow(event, show)}
-                              >
-                                {addingId === String(resolvedTvdbId)
-                                  ? "Adding..."
-                                  : "Add Show"}
-                              </button>
-                            )
+                          {alreadySaved ? (
+                            <Link
+                              to={destinationHref}
+                              className="actor-show-add-btn is-saved"
+                            >
+                              Added
+                            </Link>
+                          ) : resolvedTvdbId ? (
+                            <button
+                              type="button"
+                              className="actor-show-add-btn"
+                              disabled={addingId === String(resolvedTvdbId)}
+                              onClick={(event) => handleAddShow(event, show)}
+                            >
+                              {addingId === String(resolvedTvdbId)
+                                ? "Adding..."
+                                : "Add Show"}
+                            </button>
+                          ) : resolvedTmdbId ? (
+                            <Link to={destinationHref} className="actor-show-add-btn is-tmdb">
+                              View on TMDB
+                            </Link>
+                          ) : canAdd ? (
+                            <Link to={destinationHref} className="actor-show-add-btn is-tmdb">
+                              Open Show
+                            </Link>
                           ) : (
                             <div className="actor-show-add-btn is-missing">
-                              Missing TVDB ID
+                              Missing IDs
                             </div>
                           )}
                         </div>
