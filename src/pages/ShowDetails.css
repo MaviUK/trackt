@@ -257,3 +257,134 @@
     padding: 240px 16px 20px;
   }
 }
+
+.show-details-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 620px;
+  background-size: cover;
+  background-position: center top;
+}
+
+.show-details-hero-art {
+  height: 330px;
+}
+
+.show-details-hero-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 24px;
+  align-items: end;
+  padding: 0 20px 28px;
+  margin-top: -92px;
+  position: relative;
+  z-index: 1;
+}
+
+.show-details-hero-main {
+  min-width: 0;
+}
+
+.show-details-title {
+  margin: 0 0 8px;
+  font-size: 3.25rem;
+  line-height: 0.95;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.04em;
+}
+
+.show-details-year {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #b8c0d7;
+  margin-bottom: 6px;
+}
+
+.show-details-subtitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #d8deee;
+  margin-bottom: 22px;
+}
+
+.show-details-overview {
+  max-width: 760px;
+  color: #eef3ff;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.show-details-poster-wrap {
+  display: flex;
+  justify-content: flex-end;
+  align-items: end;
+}
+
+.show-details-poster {
+  width: 180px;
+  height: 260px;
+  object-fit: cover;
+  border-radius: 22px;
+  display: block;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 768px) {
+  .show-details-hero {
+    min-height: auto;
+  }
+
+  .show-details-hero-art {
+    height: 240px;
+  }
+
+  .show-details-hero-content {
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: 12px;
+    padding: 0 16px 22px;
+    margin-top: -78px;
+  }
+
+  .show-details-title {
+    font-size: 2.35rem;
+  }
+
+  .show-details-overview {
+    font-size: 0.98rem;
+    -webkit-line-clamp: 4;
+  }
+
+  .show-details-poster {
+    width: 112px;
+    height: 162px;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .show-details-hero-art {
+    height: 225px;
+  }
+
+  .show-details-hero-content {
+    grid-template-columns: minmax(0, 1fr) 102px;
+    gap: 12px;
+    margin-top: -72px;
+  }
+
+  .show-details-title {
+    font-size: 2.05rem;
+  }
+
+  .show-details-poster {
+    width: 102px;
+    height: 148px;
+    border-radius: 16px;
+  }
+}
