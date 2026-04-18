@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { addShowToUserList } from "../lib/userShows";
-import { supabase } from "../lib/supabase";
-import { formatDate } from "../lib/date";
+import { addShowToUserList } from "./lib/userShows";
+import { supabase } from "./lib/supabase";
+import { formatDate } from "./lib/date";
 import {
   getMappedShowHref,
   normalizeMappedShow,
-} from "../lib/tmdbMappings";
+} from "./lib/tmdbMappings";
 import "./ActorPage.css";
 
 function buildFallbackActor(name, credits) {
