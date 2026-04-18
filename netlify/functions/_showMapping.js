@@ -52,6 +52,31 @@ function buildPosterUrl(posterPath) {
   return posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "";
 }
 
+async function fetchTmdbTvdbId(tmdbId) {
+  if (!tmdbId) return null;
+
+  try {
+    const apiKey = process.env.TMDB_API_KEY;
+    if (!apiKey) return null;
+
+    const res = await fetch(
+      `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids?api_key=${apiKey}`
+    );
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      console.error("TMDB external_ids failed:", tmdbId, json);
+      return null;
+    }
+
+    return json?.tvdb_id ? Number(json.tvdb_id) : null;
+  } catch (err) {
+    console.error("TMDB external_ids error:", tmdbId, err);
+    return null;
+  }
+}
+
 async function searchTvdbShow(name, year) {
   try {
     const token = await getTvdbToken();
@@ -92,7 +117,7 @@ async function searchTvdbShow(name, year) {
       }
     }
 
-    if (bestScore < 70) return null;
+    if (bestScore < 90) return null;
 
     return best;
   } catch (err) {
@@ -114,10 +139,22 @@ export async function enrichShowsWithMappings(shows = []) {
         ? String(show.first_air_date).slice(0, 4)
         : null;
 
-      const match = await searchTvdbShow(
-        show?.name || show?.title || show?.show_name || "",
-        year
-      );
+      const tmdbId = show?.tmdb_id ?? show?.id ?? null;
+
+      const tmdbExternalTvdbId = await fetchTmdbTvdbId(tmdbId);
+
+      let matchedTvdbId = tmdbExternalTvdbId;
+      let matchSource = tmdbExternalTvdbId ? "tmdb_external_ids" : null;
+
+      if (!matchedTvdbId) {
+        const match = await searchTvdbShow(
+          show?.name || show?.title || show?.show_name || "",
+          year
+        );
+
+        matchedTvdbId = match?.tvdb_id ?? match?.id ?? null;
+        matchSource = match ? "tvdb_search" : null;
+      }
 
       const posterPath = show?.poster_path || "";
       const posterUrl =
@@ -140,9 +177,11 @@ export async function enrichShowsWithMappings(shows = []) {
         posterUrl: posterUrl,
         image_url: posterUrl,
         image: posterUrl,
-        tvdb_id: match?.tvdb_id ?? match?.id ?? null,
-        mapping_status: match ? "matched" : "no_match",
-        mapping_confidence: match ? 1 : 0,
+        tvdb_id: matchedTvdbId,
+        resolved_tvdb_id: matchedTvdbId,
+        mapping_status: matchedTvdbId ? "matched" : "no_match",
+        mapping_confidence: matchedTvdbId ? 1 : 0,
+        mapping_source: matchSource,
         source: "tmdb",
       });
     } catch (err) {
@@ -170,8 +209,10 @@ export async function enrichShowsWithMappings(shows = []) {
         image_url: posterUrl,
         image: posterUrl,
         tvdb_id: null,
+        resolved_tvdb_id: null,
         mapping_status: "error",
         mapping_confidence: 0,
+        mapping_source: null,
         source: "tmdb",
       });
     }
