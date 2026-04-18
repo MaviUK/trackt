@@ -75,6 +75,16 @@ function getResolvedTvdbId(show) {
   return getTvdbIdFromHref(href);
 }
 
+function getShowDestination(show, alreadySaved) {
+  const tvdbId = getResolvedTvdbId(show);
+
+  if (alreadySaved && tvdbId) {
+    return `/my-shows/${tvdbId}`;
+  }
+
+  return show?.href || getMappedShowHref(show);
+}
+
 export default function ActorPage() {
   const { name } = useParams();
 
@@ -414,12 +424,12 @@ export default function ActorPage() {
             <div className="actor-shows-list">
               {credits.map((show, index) => {
                 const showName = show.name || "Unknown show";
-                const href = show.href || getMappedShowHref(show);
                 const resolvedTvdbId = getResolvedTvdbId(show);
                 const canAdd = Boolean(resolvedTvdbId);
                 const alreadySaved = canAdd
                   ? savedIdsLookup.has(String(resolvedTvdbId))
                   : false;
+                const destinationHref = getShowDestination(show, alreadySaved);
 
                 const showKey =
                   show.tmdb_id ||
@@ -445,7 +455,7 @@ export default function ActorPage() {
                     <div className="actor-show-banner-inner">
                       <div className="actor-show-poster-wrap">
                         <Link
-                          to={href}
+                          to={destinationHref}
                           className="actor-show-poster-link"
                           aria-label={`Open ${showName}`}
                         >
@@ -464,7 +474,7 @@ export default function ActorPage() {
                       </div>
 
                       <div className="actor-show-content">
-                        <Link to={href} className="actor-show-title-link">
+                        <Link to={destinationHref} className="actor-show-title-link">
                           <h3 className="actor-show-title">{showName}</h3>
                         </Link>
 
