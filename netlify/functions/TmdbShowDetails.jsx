@@ -1,222 +1,161 @@
-const TVDB_BASE = "https://api4.thetvdb.com/v4";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { formatDate } from "../lib/date";
+import "./ShowDetails.css";
 
-let cachedToken = null;
-let tokenExpiry = 0;
-
-async function getTvdbToken() {
-  if (cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
-  }
-
-  if (!process.env.TVDB_API_KEY) {
-    throw new Error("Missing TVDB_API_KEY env var");
-  }
-
-  const res = await fetch(`${TVDB_BASE}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      apikey: process.env.TVDB_API_KEY,
-      pin: process.env.TVDB_PIN || undefined,
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok || !data?.data?.token) {
-    console.error("TVDB login failed:", data);
-    throw new Error("TVDB auth failed");
-  }
-
-  cachedToken = data.data.token;
-  tokenExpiry = Date.now() + 60 * 60 * 1000;
-
-  return cachedToken;
+function getEpisodeCount(seasons) {
+  return (seasons || []).reduce(
+    (total, season) => total + (Number(season?.episode_count) || 0),
+    0
+  );
 }
 
-function normalize(str) {
-  return String(str || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
-}
+export default function TmdbShowDetails() {
+  const { tmdbId } = useParams();
+  const [loading, setLoading] = useState(true);
+  const [show, setShow] = useState(null);
+  const [error, setError] = useState("");
 
-function scoreMatch(a, b) {
-  if (!a || !b) return 0;
-  if (a === b) return 100;
-  if (a.includes(b) || b.includes(a)) return 70;
-  return 0;
-}
+  useEffect(() => {
+    let cancelled = false;
 
-function buildPosterUrl(posterPath) {
-  return posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : "";
-}
+    async function loadShow() {
+      setLoading(true);
+      setError("");
 
-async function fetchTmdbTvdbId(tmdbId) {
-  if (!tmdbId) return null;
-
-  try {
-    const apiKey = process.env.TMDB_API_KEY;
-    if (!apiKey) return null;
-
-    const res = await fetch(
-      `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids?api_key=${apiKey}`
-    );
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      console.error("TMDB external_ids failed:", tmdbId, json);
-      return null;
-    }
-
-    return json?.tvdb_id ? Number(json.tvdb_id) : null;
-  } catch (err) {
-    console.error("TMDB external_ids error:", tmdbId, err);
-    return null;
-  }
-}
-
-async function searchTvdbShow(name, year) {
-  try {
-    const token = await getTvdbToken();
-
-    const res = await fetch(
-      `${TVDB_BASE}/search?query=${encodeURIComponent(name)}&type=series`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const json = await res.json();
-    const results = json?.data || [];
-
-    const targetName = normalize(name);
-
-    let best = null;
-    let bestScore = 0;
-
-    for (const item of results) {
-      const itemName = normalize(item?.name);
-      const itemYear = item?.firstAired
-        ? String(item.firstAired).slice(0, 4)
-        : "";
-
-      let score = scoreMatch(targetName, itemName);
-
-      if (year && itemYear === year) {
-        score += 30;
-      }
-
-      if (score > bestScore) {
-        best = item;
-        bestScore = score;
-      }
-    }
-
-    if (bestScore < 90) return null;
-
-    return best;
-  } catch (err) {
-    console.error("TVDB search failed:", err);
-    return null;
-  }
-}
-
-export async function enrichShowsWithMappings(shows = []) {
-  if (!Array.isArray(shows) || shows.length === 0) {
-    return [];
-  }
-
-  const results = [];
-
-  for (const show of shows) {
-    try {
-      const year = show?.first_air_date
-        ? String(show.first_air_date).slice(0, 4)
-        : null;
-
-      const tmdbId = show?.tmdb_id ?? show?.id ?? null;
-
-      const tmdbExternalTvdbId = await fetchTmdbTvdbId(tmdbId);
-
-      let matchedTvdbId = tmdbExternalTvdbId;
-      let matchSource = tmdbExternalTvdbId ? "tmdb_external_ids" : null;
-
-      if (!matchedTvdbId) {
-        const match = await searchTvdbShow(
-          show?.name || show?.title || show?.show_name || "",
-          year
+      try {
+        const response = await fetch(
+          `/.netlify/functions/getTmdbShowDetails?tmdbId=${encodeURIComponent(
+            tmdbId
+          )}`
         );
+        const data = await response.json();
 
-        matchedTvdbId = match?.tvdb_id ?? match?.id ?? null;
-        matchSource = match ? "tvdb_search" : null;
+        if (!response.ok) {
+          throw new Error(data?.message || "Failed to load TMDB show");
+        }
+
+        if (!cancelled) {
+          setShow(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || "Failed to load TMDB show");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      const posterPath = show?.poster_path || "";
-      const posterUrl =
-        show?.poster_url ||
-        show?.posterUrl ||
-        show?.image_url ||
-        show?.image ||
-        buildPosterUrl(posterPath);
-
-      results.push({
-        ...show,
-        id: show?.id ?? null,
-        tmdb_id: show?.tmdb_id ?? show?.id ?? null,
-        name: show?.name || show?.title || show?.show_name || "",
-        first_air_date:
-          show?.first_air_date || show?.firstAired || show?.first_aired || "",
-        overview: show?.overview || "",
-        poster_path: posterPath,
-        poster_url: posterUrl,
-        posterUrl: posterUrl,
-        image_url: posterUrl,
-        image: posterUrl,
-        tvdb_id: matchedTvdbId,
-        resolved_tvdb_id: matchedTvdbId,
-        mapping_status: matchedTvdbId ? "matched" : "no_match",
-        mapping_confidence: matchedTvdbId ? 1 : 0,
-        mapping_source: matchSource,
-        source: "tmdb",
-      });
-    } catch (err) {
-      console.error("Mapping error:", err);
-
-      const posterPath = show?.poster_path || "";
-      const posterUrl =
-        show?.poster_url ||
-        show?.posterUrl ||
-        show?.image_url ||
-        show?.image ||
-        buildPosterUrl(posterPath);
-
-      results.push({
-        ...show,
-        id: show?.id ?? null,
-        tmdb_id: show?.tmdb_id ?? show?.id ?? null,
-        name: show?.name || show?.title || show?.show_name || "",
-        first_air_date:
-          show?.first_air_date || show?.firstAired || show?.first_aired || "",
-        overview: show?.overview || "",
-        poster_path: posterPath,
-        poster_url: posterUrl,
-        posterUrl: posterUrl,
-        image_url: posterUrl,
-        image: posterUrl,
-        tvdb_id: null,
-        resolved_tvdb_id: null,
-        mapping_status: "error",
-        mapping_confidence: 0,
-        mapping_source: null,
-        source: "tmdb",
-      });
     }
+
+    loadShow();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tmdbId]);
+
+  if (loading) {
+    return (
+      <div className="show-details-page">
+        <div className="show-details-shell">
+          <div className="show-details-empty">Loading show...</div>
+        </div>
+      </div>
+    );
   }
 
-  return results;
+  if (error || !show) {
+    return (
+      <div className="show-details-page">
+        <div className="show-details-shell">
+          <div className="show-details-empty">
+            <p>{error || "Show not found."}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const backdrop = show.backdrop_url || show.poster_url || "";
+  const seasons = show.seasons || [];
+  const episodeCount = getEpisodeCount(seasons);
+
+  return (
+    <div className="show-details-page">
+      <div className="show-details-shell">
+        <section
+          className="show-details-hero"
+          style={
+            backdrop
+              ? {
+                  backgroundImage: `linear-gradient(180deg, rgba(7,11,20,0.25) 0%, rgba(7,11,20,0.82) 72%, rgba(7,11,20,0.96) 100%), url("${backdrop}")`,
+                }
+              : undefined
+          }
+        >
+          <div className="show-details-hero-inner">
+            <div className="show-details-main">
+              <h1 className="show-details-title">{show.name}</h1>
+
+              {show.first_air_date ? (
+                <div className="show-details-subtitle">
+                  First aired: {formatDate(show.first_air_date)}
+                </div>
+              ) : null}
+
+              {show.overview ? (
+                <p className="show-details-overview">{show.overview}</p>
+              ) : null}
+
+              <div className="show-details-stats">
+                <div className="show-details-stat">
+                  <span>Seasons</span>
+                  <strong>{show.number_of_seasons || seasons.length || 0}</strong>
+                </div>
+                <div className="show-details-stat">
+                  <span>Episodes</span>
+                  <strong>{show.number_of_episodes || episodeCount || 0}</strong>
+                </div>
+                <div className="show-details-stat">
+                  <span>Rating</span>
+                  <strong>
+                    {show.vote_average ? Number(show.vote_average).toFixed(1) : "—"}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="show-details-note">
+                TMDB fallback page
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="show-details-section">
+          <h2>Seasons</h2>
+
+          {seasons.length === 0 ? (
+            <div className="show-details-empty">No seasons available.</div>
+          ) : (
+            <div className="show-details-seasons">
+              {seasons.map((season) => (
+                <div
+                  key={season.id || season.season_number}
+                  className="show-details-season-card"
+                >
+                  <strong>{season.name || `Season ${season.season_number}`}</strong>
+                  <div>
+                    {season.air_date ? formatDate(season.air_date) : "No air date"}
+                  </div>
+                  <div>{season.episode_count || 0} episodes</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
