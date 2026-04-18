@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
@@ -233,9 +233,12 @@ function emptyState() {
 }
 
 export default function MyShowDetails() {
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const targetEpisodeId = searchParams.get("episode");
+  const { id, tmdbId } = useParams();
+const location = useLocation();
+const [searchParams] = useSearchParams();
+const targetEpisodeId = searchParams.get("episode");
+const isTmdbRoute = location.pathname.includes("/my-shows/tmdb/");
+const routeId = isTmdbRoute ? tmdbId : id;
 
   const [loading, setLoading] = useState(true);
   const [extrasLoading, setExtrasLoading] = useState(false);
@@ -325,39 +328,6 @@ export default function MyShowDetails() {
       }
 
       const tvdbId = Number(id);
-      if (Number.isNaN(tvdbId)) {
-        if (!isCancelled) {
-          setShow(null);
-          setEpisodes([]);
-          setWatchedRows([]);
-          setCommunityWatchedRows([]);
-          setExpandedSeasons({});
-          setMobileBannerUrl(null);
-          setRankPosition(null);
-        }
-        return { found: false, user, showId: null, tvdbId: null };
-      }
-
-      const { data: showData, error: showError } = await supabase
-        .from("shows")
-        .select(`
-          id,
-          tvdb_id,
-          name,
-          overview,
-          status,
-          poster_url,
-          first_aired,
-          network,
-          genres,
-          original_language,
-          relationship_types,
-          settings,
-          rating_average,
-          rating_count
-        `)
-        .eq("tvdb_id", tvdbId)
-        .maybeSingle();
 
       if (showError) throw showError;
       if (!showData) {
@@ -370,7 +340,13 @@ export default function MyShowDetails() {
           setMobileBannerUrl(null);
           setRankPosition(null);
         }
-        return { found: false, user, showId: null, tvdbId };
+                return {
+          found: false,
+          user,
+          showId: null,
+          tvdbId: isTmdbRoute ? null : numericRouteId,
+          tmdbId: isTmdbRoute ? numericRouteId : null,
+        };
       }
 
       const showId = showData.id;
@@ -455,12 +431,14 @@ export default function MyShowDetails() {
       }
 
       if (!isCancelled) {
-        setShow({
+                setShow({
           id: showData.id,
           tvdb_id: showData.tvdb_id,
+          tmdb_id: showData.tmdb_id,
           show_name: showData.name || "Unknown title",
           overview: showData.overview || "",
           poster_url: showData.poster_url || null,
+          backdrop_url: showData.backdrop_url || null,
           first_aired: showData.first_aired || null,
           status: showData.status || null,
           network: showData.network || "",
@@ -491,16 +469,17 @@ export default function MyShowDetails() {
         setActiveTab("seasons");
       }
 
-      return {
+            return {
         found: true,
         user,
         showId,
-        tvdbId,
+        tvdbId: showData.tvdb_id || null,
+        tmdbId: showData.tmdb_id || null,
         episodeIds: normalizedEpisodes.map((ep) => ep.id),
       };
     }
 
-    async function loadSecondaryData(user, showId, episodeIds, tvdbId) {
+        async function loadSecondaryData(user, showId, episodeIds, tvdbId, tmdbId) {
       try {
         const [
           savedShowsResult,
@@ -583,22 +562,28 @@ export default function MyShowDetails() {
                 try {
           setExtrasLoading(true);
 
-          const extrasRes = await fetch(
-            `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
-          );
+                    const extrasUrl =
+            tvdbId != null
+              ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
+              : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbId}`;
+
+          const extrasRes = await fetch(extrasUrl);
           if (!extrasRes.ok) {
             throw new Error(`Failed to load show extras (${extrasRes.status})`);
           }
 
           const extras = await extrasRes.json();
 
-          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
+                    const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
           const fallbackRecommendations = Array.isArray(extras.recommendations)
             ? extras.recommendations
             : [];
-
-          const bannerFromExtras = getBannerFromExtras(extras);
+          const bannerFromExtras =
+            getBannerFromExtras(extras) ||
+            extras.backdrop_url ||
+            show?.backdrop_url ||
+            null;
 
           let mappedTmdbRecommendations = [];
           try {
@@ -699,11 +684,12 @@ export default function MyShowDetails() {
               result.showId &&
               Array.isArray(result.episodeIds)
             ) {
-              await loadSecondaryData(
+                            await loadSecondaryData(
                 result.user,
                 result.showId,
                 result.episodeIds,
-                result.tvdbId
+                result.tvdbId,
+                result.tmdbId
               );
             }
             return;
@@ -768,12 +754,12 @@ export default function MyShowDetails() {
     return () => {
       isCancelled = true;
     };
-  }, [id, targetEpisodeId]);
+    }, [routeId, targetEpisodeId]);
 
   useEffect(() => {
     if (targetEpisodeId) return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [id, targetEpisodeId]);
+    }, [id, tmdbId, isTmdbRoute, routeId, targetEpisodeId]);
 
   useEffect(() => {
     if (!targetEpisodeId || loading) return;
@@ -1341,8 +1327,8 @@ async function handleWatchUpToHere(targetEpisode) {
   }
 
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
-  const baseContext = `sourceShowId=${encodeURIComponent(
-    show.tvdb_id
+   const baseContext = `sourceShowId=${encodeURIComponent(
+    show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
     sourceYear
   )}&sourceRating=${encodeURIComponent(
@@ -1934,7 +1920,15 @@ async function handleWatchUpToHere(targetEpisode) {
             <div className="msd-recommended-row">
               {recommendedShows.map((rec, index) => {
                 const showName = rec.name || rec.title || "Unknown show";
-                const linkTarget = getMappedShowHref(rec);
+                                const recTvdbId =
+                  rec?.resolved_tvdb_id ?? rec?.tvdb_id ?? rec?.tvdbId ?? null;
+                const recTmdbId = rec?.tmdb_id ?? rec?.id ?? null;
+
+                const linkTarget = recTvdbId
+                  ? getMappedShowHref(rec)
+                  : recTmdbId
+                    ? `/show/tmdb/${recTmdbId}`
+                    : getMappedShowHref(rec);
                 const posterSrc =
                   rec.poster_url ||
                   rec.posterUrl ||
