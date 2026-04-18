@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
@@ -234,11 +239,11 @@ function emptyState() {
 
 export default function MyShowDetails() {
   const { id, tmdbId } = useParams();
-const location = useLocation();
-const [searchParams] = useSearchParams();
-const targetEpisodeId = searchParams.get("episode");
-const isTmdbRoute = location.pathname.includes("/my-shows/tmdb/");
-const routeId = isTmdbRoute ? tmdbId : id;
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const targetEpisodeId = searchParams.get("episode");
+  const isTmdbRoute = location.pathname.startsWith("/my-shows/tmdb/");
+  const routeId = isTmdbRoute ? tmdbId : id;
 
   const [loading, setLoading] = useState(true);
   const [extrasLoading, setExtrasLoading] = useState(false);
@@ -270,9 +275,10 @@ const routeId = isTmdbRoute ? tmdbId : id;
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
-  const [rankPosition, setRankPosition] = useState(null);const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
-  {}
-);
+  const [rankPosition, setRankPosition] = useState(null);
+  const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
+    {}
+  );
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -320,16 +326,64 @@ const routeId = isTmdbRoute ? tmdbId : id;
           setMobileBannerUrl(state.mobileBannerUrl);
           setRankPosition(state.rankPosition);
         }
-        return { found: true, user: null, showId: null, tvdbId: null };
+        return { found: true, user: null, showId: null, tvdbId: null, tmdbId: null };
       }
 
       if (!isCancelled) {
         setCurrentUserId(user.id);
       }
 
-      const tvdbId = Number(id);
+      const numericRouteId = Number(routeId);
+
+      if (Number.isNaN(numericRouteId)) {
+        if (!isCancelled) {
+          setShow(null);
+          setEpisodes([]);
+          setWatchedRows([]);
+          setCommunityWatchedRows([]);
+          setExpandedSeasons({});
+          setMobileBannerUrl(null);
+          setRankPosition(null);
+        }
+        return {
+          found: false,
+          user,
+          showId: null,
+          tvdbId: null,
+          tmdbId: null,
+        };
+      }
+
+      let showQuery = supabase
+        .from("shows")
+        .select(`
+          id,
+          tvdb_id,
+          tmdb_id,
+          name,
+          overview,
+          status,
+          poster_url,
+          backdrop_url,
+          first_aired,
+          network,
+          genres,
+          original_language,
+          relationship_types,
+          settings,
+          rating_average,
+          rating_count
+        `)
+        .limit(1);
+
+      showQuery = isTmdbRoute
+        ? showQuery.eq("tmdb_id", numericRouteId)
+        : showQuery.eq("tvdb_id", numericRouteId);
+
+      const { data: showData, error: showError } = await showQuery.maybeSingle();
 
       if (showError) throw showError;
+
       if (!showData) {
         if (!isCancelled) {
           setShow(null);
@@ -340,7 +394,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
           setMobileBannerUrl(null);
           setRankPosition(null);
         }
-                return {
+        return {
           found: false,
           user,
           showId: null,
@@ -369,50 +423,50 @@ const routeId = isTmdbRoute ? tmdbId : id;
       if (userShowError) throw userShowError;
 
       const { data: episodeRows, error: episodeError } = await supabase
-  .from("episodes")
-  .select(`
-    id,
-    tvdb_id,
-    show_id,
-    season_number,
-    episode_number,
-    episode_code,
-    name,
-    overview,
-    aired_date,
-    image_url,
-    tmdb_vote_average,
-    tmdb_vote_count,
-    tmdb_still_path
-  `)
-  .eq("show_id", showId)
-  .order("season_number", { ascending: true })
-  .order("episode_number", { ascending: true });
+        .from("episodes")
+        .select(`
+          id,
+          tvdb_id,
+          show_id,
+          season_number,
+          episode_number,
+          episode_code,
+          name,
+          overview,
+          aired_date,
+          image_url,
+          tmdb_vote_average,
+          tmdb_vote_count,
+          tmdb_still_path
+        `)
+        .eq("show_id", showId)
+        .order("season_number", { ascending: true })
+        .order("episode_number", { ascending: true });
 
       if (episodeError) throw episodeError;
 
       const normalizedEpisodes = (episodeRows || []).map((row) => ({
-  id: row.id,
-  tvdb_episode_id: row.tvdb_id,
-  seasonNumber: row.season_number,
-  number: row.episode_number,
-  aired: row.aired_date,
-  airDate: row.aired_date,
-  name: row.name || "Untitled episode",
-  overview: row.overview || "",
-  image: row.image_url || row.tmdb_still_path || null,
-  episode_code: row.episode_code,
-  tmdbRating:
-    row.tmdb_vote_average != null &&
-    !Number.isNaN(Number(row.tmdb_vote_average))
-      ? Number(row.tmdb_vote_average)
-      : null,
-  tmdbVoteCount:
-    row.tmdb_vote_count != null &&
-    !Number.isNaN(Number(row.tmdb_vote_count))
-      ? Number(row.tmdb_vote_count)
-      : 0,
-}));
+        id: row.id,
+        tvdb_episode_id: row.tvdb_id,
+        seasonNumber: row.season_number,
+        number: row.episode_number,
+        aired: row.aired_date,
+        airDate: row.aired_date,
+        name: row.name || "Untitled episode",
+        overview: row.overview || "",
+        image: row.image_url || row.tmdb_still_path || null,
+        episode_code: row.episode_code,
+        tmdbRating:
+          row.tmdb_vote_average != null &&
+          !Number.isNaN(Number(row.tmdb_vote_average))
+            ? Number(row.tmdb_vote_average)
+            : null,
+        tmdbVoteCount:
+          row.tmdb_vote_count != null &&
+          !Number.isNaN(Number(row.tmdb_vote_count))
+            ? Number(row.tmdb_vote_count)
+            : 0,
+      }));
 
       const seasonMap = {};
       normalizedEpisodes.forEach((ep) => {
@@ -431,7 +485,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
       }
 
       if (!isCancelled) {
-                setShow({
+        setShow({
           id: showData.id,
           tvdb_id: showData.tvdb_id,
           tmdb_id: showData.tmdb_id,
@@ -469,7 +523,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
         setActiveTab("seasons");
       }
 
-            return {
+      return {
         found: true,
         user,
         showId,
@@ -479,7 +533,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
       };
     }
 
-        async function loadSecondaryData(user, showId, episodeIds, tvdbId, tmdbId) {
+    async function loadSecondaryData(user, showId, episodeIds, tvdbId, tmdbIdValue) {
       try {
         const [
           savedShowsResult,
@@ -559,13 +613,13 @@ const routeId = isTmdbRoute ? tmdbId : id;
         setHoverEpisodeRatings({});
         setOpenEpisodeRatingPickerId(null);
 
-                try {
+        try {
           setExtrasLoading(true);
 
-                    const extrasUrl =
+          const extrasUrl =
             tvdbId != null
               ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
-              : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbId}`;
+              : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`;
 
           const extrasRes = await fetch(extrasUrl);
           if (!extrasRes.ok) {
@@ -574,7 +628,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
 
           const extras = await extrasRes.json();
 
-                    const castRows = Array.isArray(extras.cast) ? extras.cast : [];
+          const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
           const fallbackRecommendations = Array.isArray(extras.recommendations)
             ? extras.recommendations
@@ -582,7 +636,6 @@ const routeId = isTmdbRoute ? tmdbId : id;
           const bannerFromExtras =
             getBannerFromExtras(extras) ||
             extras.backdrop_url ||
-            show?.backdrop_url ||
             null;
 
           let mappedTmdbRecommendations = [];
@@ -684,7 +737,7 @@ const routeId = isTmdbRoute ? tmdbId : id;
               result.showId &&
               Array.isArray(result.episodeIds)
             ) {
-                            await loadSecondaryData(
+              await loadSecondaryData(
                 result.user,
                 result.showId,
                 result.episodeIds,
@@ -754,12 +807,12 @@ const routeId = isTmdbRoute ? tmdbId : id;
     return () => {
       isCancelled = true;
     };
-    }, [routeId, targetEpisodeId]);
+  }, [routeId, targetEpisodeId, isTmdbRoute]);
 
   useEffect(() => {
     if (targetEpisodeId) return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    }, [id, tmdbId, isTmdbRoute, routeId, targetEpisodeId]);
+  }, [routeId, targetEpisodeId]);
 
   useEffect(() => {
     if (!targetEpisodeId || loading) return;
@@ -1127,96 +1180,96 @@ const routeId = isTmdbRoute ? tmdbId : id;
     await handleMarkWatched(nextUnwatchedEpisode);
   }
 
-async function handleWatchUpToHere(targetEpisode) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  async function handleWatchUpToHere(targetEpisode) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user || !targetEpisode?.id) return;
+    if (!user || !targetEpisode?.id) return;
 
-  const previousRows = watchedRows;
-  const previousCommunityRows = communityWatchedRows;
+    const previousRows = watchedRows;
+    const previousCommunityRows = communityWatchedRows;
 
-  try {
-    const mainEpisodes = [...episodes]
-      .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
-      .sort((a, b) => {
-        const seasonDiff =
-          Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
-        if (seasonDiff !== 0) return seasonDiff;
+    try {
+      const mainEpisodes = [...episodes]
+        .filter((ep) => Number(ep.seasonNumber ?? 0) > 0)
+        .sort((a, b) => {
+          const seasonDiff =
+            Number(a.seasonNumber ?? 0) - Number(b.seasonNumber ?? 0);
+          if (seasonDiff !== 0) return seasonDiff;
 
-        return Number(a.number ?? 0) - Number(b.number ?? 0);
-      });
+          return Number(a.number ?? 0) - Number(b.number ?? 0);
+        });
 
-    const targetIndex = mainEpisodes.findIndex(
-      (ep) => String(ep.id) === String(targetEpisode.id)
-    );
-
-    if (targetIndex === -1) return;
-
-    const episodesToWatch = mainEpisodes.slice(0, targetIndex + 1);
-    const episodesToUnwatch = mainEpisodes.slice(targetIndex + 1);
-
-    const rowsToUpsert = episodesToWatch.map((ep) => ({
-      user_id: user.id,
-      episode_id: ep.id,
-    }));
-
-    const idsToDelete = episodesToUnwatch.map((ep) => ep.id);
-
-    setWatchedRows((prev) => {
-      const keptNonShowRows = (prev || []).filter(
-        (row) =>
-          !mainEpisodes.some(
-            (ep) => String(ep.id) === String(row?.episode_id ?? "")
-          )
+      const targetIndex = mainEpisodes.findIndex(
+        (ep) => String(ep.id) === String(targetEpisode.id)
       );
 
-      return [...keptNonShowRows, ...rowsToUpsert];
-    });
+      if (targetIndex === -1) return;
 
-    setCommunityWatchedRows((prev) => {
-      const keptRows = (prev || []).filter((row) => {
-        const isThisUser = String(row?.user_id ?? "") === String(user.id);
-        const isShowEpisode = mainEpisodes.some(
-          (ep) => String(ep.id) === String(row?.episode_id ?? "")
-        );
+      const episodesToWatch = mainEpisodes.slice(0, targetIndex + 1);
+      const episodesToUnwatch = mainEpisodes.slice(targetIndex + 1);
 
-        return !(isThisUser && isShowEpisode);
-      });
-
-      const mine = rowsToUpsert.map((row) => ({
-        user_id: row.user_id,
-        episode_id: row.episode_id,
+      const rowsToUpsert = episodesToWatch.map((ep) => ({
+        user_id: user.id,
+        episode_id: ep.id,
       }));
 
-      return [...keptRows, ...mine];
-    });
+      const idsToDelete = episodesToUnwatch.map((ep) => ep.id);
 
-    if (rowsToUpsert.length) {
-      const { error: upsertError } = await supabase
-        .from("watched_episodes")
-        .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
+      setWatchedRows((prev) => {
+        const keptNonShowRows = (prev || []).filter(
+          (row) =>
+            !mainEpisodes.some(
+              (ep) => String(ep.id) === String(row?.episode_id ?? "")
+            )
+        );
 
-      if (upsertError) throw upsertError;
+        return [...keptNonShowRows, ...rowsToUpsert];
+      });
+
+      setCommunityWatchedRows((prev) => {
+        const keptRows = (prev || []).filter((row) => {
+          const isThisUser = String(row?.user_id ?? "") === String(user.id);
+          const isShowEpisode = mainEpisodes.some(
+            (ep) => String(ep.id) === String(row?.episode_id ?? "")
+          );
+
+          return !(isThisUser && isShowEpisode);
+        });
+
+        const mine = rowsToUpsert.map((row) => ({
+          user_id: row.user_id,
+          episode_id: row.episode_id,
+        }));
+
+        return [...keptRows, ...mine];
+      });
+
+      if (rowsToUpsert.length) {
+        const { error: upsertError } = await supabase
+          .from("watched_episodes")
+          .upsert(rowsToUpsert, { onConflict: "user_id,episode_id" });
+
+        if (upsertError) throw upsertError;
+      }
+
+      if (idsToDelete.length) {
+        const { error: deleteError } = await supabase
+          .from("watched_episodes")
+          .delete()
+          .eq("user_id", user.id)
+          .in("episode_id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+    } catch (error) {
+      console.error("Failed watch up to here:", error);
+      setWatchedRows(previousRows);
+      setCommunityWatchedRows(previousCommunityRows);
+      alert("Failed to save watched episodes");
     }
-
-    if (idsToDelete.length) {
-      const { error: deleteError } = await supabase
-        .from("watched_episodes")
-        .delete()
-        .eq("user_id", user.id)
-        .in("episode_id", idsToDelete);
-
-      if (deleteError) throw deleteError;
-    }
-  } catch (error) {
-    console.error("Failed watch up to here:", error);
-    setWatchedRows(previousRows);
-    setCommunityWatchedRows(previousCommunityRows);
-    alert("Failed to save watched episodes");
   }
-}
 
   async function handleSelectBurgrRating(value) {
     const {
@@ -1327,7 +1380,7 @@ async function handleWatchUpToHere(targetEpisode) {
   }
 
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
-   const baseContext = `sourceShowId=${encodeURIComponent(
+  const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
     sourceYear
@@ -1587,189 +1640,226 @@ async function handleWatchUpToHere(targetEpisode) {
                             const isPickerOpen =
                               openEpisodeRatingPickerId === ep.id;
 
-                           return (
-  <article
-    id={`episode-${ep.id}`}
-    key={ep.id}
-    className={`msd-episode-card ${
-      watched ? "msd-episode-watched" : ""
-    }`}
-  >
-    <div
-      className={`msd-episode-hero ${
-        ep.image ? "" : "msd-episode-hero-fallback"
-      }`}
-      style={ep.image ? { backgroundImage: `url(${ep.image})` } : undefined}
-    >
-      <div className="msd-episode-hero-overlay">
-        <div className="msd-episode-hero-text">
-          <h3 className="msd-episode-hero-title">
-            {makeEpisodeCode(ep)} - {ep.name}
-          </h3>
-          <div className="msd-episode-hero-date">
-            Air date: {formatDate(ep.aired)}
-          </div>
-        </div>
-      </div>
-    </div>
+                            return (
+                              <article
+                                id={`episode-${ep.id}`}
+                                key={ep.id}
+                                className={`msd-episode-card ${
+                                  watched ? "msd-episode-watched" : ""
+                                }`}
+                              >
+                                <div
+                                  className={`msd-episode-hero ${
+                                    ep.image ? "" : "msd-episode-hero-fallback"
+                                  }`}
+                                  style={
+                                    ep.image
+                                      ? { backgroundImage: `url(${ep.image})` }
+                                      : undefined
+                                  }
+                                >
+                                  <div className="msd-episode-hero-overlay">
+                                    <div className="msd-episode-hero-text">
+                                      <h3 className="msd-episode-hero-title">
+                                        {makeEpisodeCode(ep)} - {ep.name}
+                                      </h3>
+                                      <div className="msd-episode-hero-date">
+                                        Air date: {formatDate(ep.aired)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
 
-    <div className="msd-episode-mobile-actions">
-      <button
-        type="button"
-        className={`msd-btn ${
-          watched ? "msd-btn-secondary" : "msd-btn-primary"
-        }`}
-        onClick={() => handleMarkWatched(ep)}
-      >
-        {watched ? "Watched" : "Watch"}
-      </button>
+                                <div className="msd-episode-mobile-actions">
+                                  <button
+                                    type="button"
+                                    className={`msd-btn ${
+                                      watched
+                                        ? "msd-btn-secondary"
+                                        : "msd-btn-primary"
+                                    }`}
+                                    onClick={() => handleMarkWatched(ep)}
+                                  >
+                                    {watched ? "Watched" : "Watch"}
+                                  </button>
 
-      <button
-        type="button"
-        className="msd-btn msd-btn-secondary"
-        onClick={() => handleWatchUpToHere(ep)}
-      >
-        Up to Here
-      </button>
+                                  <button
+                                    type="button"
+                                    className="msd-btn msd-btn-secondary"
+                                    onClick={() => handleWatchUpToHere(ep)}
+                                  >
+                                    Up to Here
+                                  </button>
 
-      <button
-        type="button"
-        className="msd-btn msd-btn-secondary"
-        onClick={() => handleOpenEpisodeRatingPicker(ep.id)}
-        disabled={savingThisEpisode}
-      >
-        {savingThisEpisode
-          ? "Saving..."
-          : myEpisodeRating
-          ? `Rate ${myEpisodeRating}/10`
-          : "Rate"}
-      </button>
+                                  <button
+                                    type="button"
+                                    className="msd-btn msd-btn-secondary"
+                                    onClick={() =>
+                                      handleOpenEpisodeRatingPicker(ep.id)
+                                    }
+                                    disabled={savingThisEpisode}
+                                  >
+                                    {savingThisEpisode
+                                      ? "Saving..."
+                                      : myEpisodeRating
+                                      ? `Rate ${myEpisodeRating}/10`
+                                      : "Rate"}
+                                  </button>
 
-      <div className="msd-episode-score-pill">
-  {ep.tmdbRating != null
-    ? `${Math.round(ep.tmdbRating * 10)}%`
-    : "—"}
-</div>
-    </div>
+                                  <div className="msd-episode-score-pill">
+                                    {ep.tmdbRating != null
+                                      ? `${Math.round(ep.tmdbRating * 10)}%`
+                                      : "—"}
+                                  </div>
+                                </div>
 
-    {isPickerOpen ? (
-      <div className="msd-mobile-rating-sheet">
-        <div className="msd-mobile-rating-grid">
-          {Array.from({ length: 10 }, (_, index) => {
-            const value = index + 1;
-            const selected = value === myEpisodeRating;
+                                {isPickerOpen ? (
+                                  <div className="msd-mobile-rating-sheet">
+                                    <div className="msd-mobile-rating-grid">
+                                      {Array.from(
+                                        { length: 10 },
+                                        (_, index) => {
+                                          const value = index + 1;
+                                          const selected =
+                                            value === myEpisodeRating;
 
-            return (
-              <button
-                key={value}
-                type="button"
-                className={`msd-mobile-rating-option ${
-                  selected ? "is-selected" : ""
-                }`}
-                onClick={() => handleSelectEpisodeRating(ep, value)}
-                disabled={savingThisEpisode}
-              >
-                <img
-                  src="/burger-rating.png"
-                  alt=""
-                  className="msd-burger-icon msd-burger-icon-small"
-                />
-                <span>{value}/10</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    ) : null}
+                                          return (
+                                            <button
+                                              key={value}
+                                              type="button"
+                                              className={`msd-mobile-rating-option ${
+                                                selected ? "is-selected" : ""
+                                              }`}
+                                              onClick={() =>
+                                                handleSelectEpisodeRating(
+                                                  ep,
+                                                  value
+                                                )
+                                              }
+                                              disabled={savingThisEpisode}
+                                            >
+                                              <img
+                                                src="/burger-rating.png"
+                                                alt=""
+                                                className="msd-burger-icon msd-burger-icon-small"
+                                              />
+                                              <span>{value}/10</span>
+                                            </button>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : null}
 
-    <button
-      type="button"
-      className="msd-episode-more-btn"
-      onClick={() =>
-        setExpandedEpisodeOverviewIds((prev) => ({
-          ...prev,
-          [ep.id]: !prev[ep.id],
-        }))
-      }
-      aria-label={
-        expandedEpisodeOverviewIds[ep.id]
-          ? "Hide episode overview"
-          : "Show episode overview"
-      }
-    >
-      •••
-    </button>
+                                <button
+                                  type="button"
+                                  className="msd-episode-more-btn"
+                                  onClick={() =>
+                                    setExpandedEpisodeOverviewIds((prev) => ({
+                                      ...prev,
+                                      [ep.id]: !prev[ep.id],
+                                    }))
+                                  }
+                                  aria-label={
+                                    expandedEpisodeOverviewIds[ep.id]
+                                      ? "Hide episode overview"
+                                      : "Show episode overview"
+                                  }
+                                >
+                                  •••
+                                </button>
 
-    {expandedEpisodeOverviewIds[ep.id] && ep.overview ? (
-      <p className="msd-episode-overview msd-episode-overview-mobile-card">
-        {ep.overview}
-      </p>
-    ) : null}
+                                {expandedEpisodeOverviewIds[ep.id] &&
+                                ep.overview ? (
+                                  <p className="msd-episode-overview msd-episode-overview-mobile-card">
+                                    {ep.overview}
+                                  </p>
+                                ) : null}
 
-    <div className="msd-episode-rating-desktop">
-      <div className="msd-episode-rating-box">
-        <div className="msd-episode-rating-header">
-          <span className="msd-stat-label">Your Episode Rating</span>
-          <span className="msd-episode-rating-meta">
-            {savingThisEpisode
-              ? "Saving..."
-              : myEpisodeRating
-              ? `${myEpisodeRating}/10`
-              : "Not rated"}
-          </span>
-        </div>
+                                <div className="msd-episode-rating-desktop">
+                                  <div className="msd-episode-rating-box">
+                                    <div className="msd-episode-rating-header">
+                                      <span className="msd-stat-label">
+                                        Your Episode Rating
+                                      </span>
+                                      <span className="msd-episode-rating-meta">
+                                        {savingThisEpisode
+                                          ? "Saving..."
+                                          : myEpisodeRating
+                                          ? `${myEpisodeRating}/10`
+                                          : "Not rated"}
+                                      </span>
+                                    </div>
 
-        <div className="msd-burgr-picker msd-burgr-picker-compact">
-          {Array.from({ length: 10 }, (_, index) => {
-            const value = index + 1;
-            const filled = value <= activeEpisodeRating;
+                                    <div className="msd-burgr-picker msd-burgr-picker-compact">
+                                      {Array.from(
+                                        { length: 10 },
+                                        (_, index) => {
+                                          const value = index + 1;
+                                          const filled =
+                                            value <= activeEpisodeRating;
 
-            return (
-              <button
-                key={value}
-                type="button"
-                className={`msd-burger-btn ${
-                  filled ? "is-filled" : "is-empty"
-                }`}
-                onMouseEnter={() =>
-                  setHoverEpisodeRatings((prev) => ({
-                    ...prev,
-                    [ep.id]: value,
-                  }))
-                }
-                onMouseLeave={() =>
-                  setHoverEpisodeRatings((prev) => ({
-                    ...prev,
-                    [ep.id]: 0,
-                  }))
-                }
-                onClick={() => handleSelectEpisodeRating(ep, value)}
-                aria-label={`Rate episode ${value} out of 10 burgers`}
-                title={`${value}/10`}
-                disabled={savingThisEpisode}
-              >
-                <img
-                  src="/burger-rating.png"
-                  alt=""
-                  className="msd-burger-icon msd-burger-icon-small"
-                />
-              </button>
-            );
-          })}
-        </div>
+                                          return (
+                                            <button
+                                              key={value}
+                                              type="button"
+                                              className={`msd-burger-btn ${
+                                                filled
+                                                  ? "is-filled"
+                                                  : "is-empty"
+                                              }`}
+                                              onMouseEnter={() =>
+                                                setHoverEpisodeRatings(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [ep.id]: value,
+                                                  })
+                                                )
+                                              }
+                                              onMouseLeave={() =>
+                                                setHoverEpisodeRatings(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [ep.id]: 0,
+                                                  })
+                                                )
+                                              }
+                                              onClick={() =>
+                                                handleSelectEpisodeRating(
+                                                  ep,
+                                                  value
+                                                )
+                                              }
+                                              aria-label={`Rate episode ${value} out of 10 burgers`}
+                                              title={`${value}/10`}
+                                              disabled={savingThisEpisode}
+                                            >
+                                              <img
+                                                src="/burger-rating.png"
+                                                alt=""
+                                                className="msd-burger-icon msd-burger-icon-small"
+                                              />
+                                            </button>
+                                          );
+                                        }
+                                      )}
+                                    </div>
 
-        <div className="msd-episode-rating-footer">
-          <span className="msd-muted">
-            Average:{" "}
-            {averageEpisodeRating ? `${averageEpisodeRating.avg}/10` : "—"}
-            {averageEpisodeRating
-              ? ` (${averageEpisodeRating.count})`
-              : ""}
-          </span>
-        </div>
-      </div>
-    </div>
-  </article>
+                                    <div className="msd-episode-rating-footer">
+                                      <span className="msd-muted">
+                                        Average:{" "}
+                                        {averageEpisodeRating
+                                          ? `${averageEpisodeRating.avg}/10`
+                                          : "—"}
+                                        {averageEpisodeRating
+                                          ? ` (${averageEpisodeRating.count})`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </article>
                             );
                           })}
                         </div>
@@ -1788,21 +1878,24 @@ async function handleWatchUpToHere(targetEpisode) {
                 ) : cast.length > 0 ? (
                   <div className="msd-cast-grid msd-cast-grid-mobile">
                     {cast.map((member, index) => {
-                      const actorName = member.personName || "Unknown actor";
-                      const linkTarget = `/actor/${encodeURIComponent(
-                        actorName
-                      )}`;
+                      const actorName = member.personName || member.name || "Unknown actor";
+                      const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
 
                       return (
                         <Link
-                          key={member.id || `${member.personName}-${index}`}
+                          key={member.id || `${actorName}-${index}`}
                           to={linkTarget}
                           className="msd-cast-card msd-cast-card-mobile"
                           style={{ textDecoration: "none", color: "inherit" }}
                         >
-                          {member.image ? (
+                          {member.image || member.profile_path ? (
                             <img
-                              src={member.image}
+                              src={
+                                member.image ||
+                                (member.profile_path
+                                  ? `https://image.tmdb.org/t/p/w500${member.profile_path}`
+                                  : "")
+                              }
                               alt={actorName}
                               className="msd-cast-image msd-cast-image-mobile"
                             />
@@ -1828,7 +1921,7 @@ async function handleWatchUpToHere(targetEpisode) {
                 ) : crew.length > 0 ? (
                   <div className="msd-cast-grid msd-cast-grid-mobile">
                     {crew.map((member, index) => {
-                      const personName = member.personName || "Unknown crew";
+                      const personName = member.personName || member.name || "Unknown crew";
                       const roleName =
                         member.role ||
                         member.job ||
@@ -1840,9 +1933,14 @@ async function handleWatchUpToHere(targetEpisode) {
                           key={member.id || `${personName}-${roleName}-${index}`}
                           className="msd-cast-card msd-cast-card-mobile"
                         >
-                          {member.image ? (
+                          {member.image || member.profile_path ? (
                             <img
-                              src={member.image}
+                              src={
+                                member.image ||
+                                (member.profile_path
+                                  ? `https://image.tmdb.org/t/p/w500${member.profile_path}`
+                                  : "")
+                              }
                               alt={personName}
                               className="msd-cast-image msd-cast-image-mobile"
                             />
@@ -1912,7 +2010,7 @@ async function handleWatchUpToHere(targetEpisode) {
           </div>
         </section>
 
-               <section className="msd-panel">
+        <section className="msd-panel">
           <h2 className="msd-section-title">Recommended Shows</h2>
           {extrasLoading ? (
             <p className="msd-muted">Loading recommendations...</p>
@@ -1920,7 +2018,7 @@ async function handleWatchUpToHere(targetEpisode) {
             <div className="msd-recommended-row">
               {recommendedShows.map((rec, index) => {
                 const showName = rec.name || rec.title || "Unknown show";
-                                const recTvdbId =
+                const recTvdbId =
                   rec?.resolved_tvdb_id ?? rec?.tvdb_id ?? rec?.tvdbId ?? null;
                 const recTmdbId = rec?.tmdb_id ?? rec?.id ?? null;
 
@@ -1929,6 +2027,7 @@ async function handleWatchUpToHere(targetEpisode) {
                   : recTmdbId
                     ? `/show/tmdb/${recTmdbId}`
                     : getMappedShowHref(rec);
+
                 const posterSrc =
                   rec.poster_url ||
                   rec.posterUrl ||
@@ -1988,14 +2087,14 @@ async function handleWatchUpToHere(targetEpisode) {
           </button>
 
           {nextUnwatchedEpisode ? (
-  <button
-    type="button"
-    className="msd-bottom-action-btn msd-bottom-action-btn-primary"
-    onClick={handleMarkNextEpisodeWatched}
-  >
-    Watch {makeEpisodeCode(nextUnwatchedEpisode)}
-  </button>
-) : null}
+            <button
+              type="button"
+              className="msd-bottom-action-btn msd-bottom-action-btn-primary"
+              onClick={handleMarkNextEpisodeWatched}
+            >
+              Watch {makeEpisodeCode(nextUnwatchedEpisode)}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
