@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { addShowToUserList } from "../lib/userShows";
 import { supabase } from "../lib/supabase";
@@ -33,15 +33,46 @@ function getBackdrop(show) {
   );
 }
 
+function getTvdbIdFromHref(href) {
+  if (!href || typeof href !== "string") return null;
+
+  const patterns = [
+    /\/show\/(\d+)(?:\/)?$/i,
+    /\/shows\/(\d+)(?:\/)?$/i,
+    /\/show\/tvdb\/(\d+)(?:\/)?$/i,
+    /tvdb[_-]?id[=/](\d+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = href.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return null;
+}
+
 function getResolvedTvdbId(show) {
-  return (
+  if (!show) return null;
+
+  const direct =
     show?.resolved_tvdb_id ||
     show?.tvdb_id ||
     show?.mapped_tvdb_id ||
     show?.show_tvdb_id ||
     show?.tvdb ||
-    null
-  );
+    show?.series_tvdb_id ||
+    null;
+
+  if (direct) return String(direct);
+
+  const href =
+    show?.href ||
+    show?.mapped_href ||
+    show?.show_href ||
+    getMappedShowHref(show) ||
+    "";
+
+  return getTvdbIdFromHref(href);
 }
 
 export default function ActorPage() {
@@ -144,17 +175,30 @@ export default function ActorPage() {
                 : ""),
           });
 
+          const href = getMappedShowHref({
+            ...item,
+            ...mapped,
+          });
+
           const fallbackTvdbId =
             item?.resolved_tvdb_id ||
             item?.tvdb_id ||
             item?.mapped_tvdb_id ||
             item?.show_tvdb_id ||
             item?.tvdb ||
+            item?.series_tvdb_id ||
+            getTvdbIdFromHref(href) ||
             null;
 
           return {
+            ...item,
             ...mapped,
-            resolved_tvdb_id: mapped?.resolved_tvdb_id || fallbackTvdbId || null,
+            href,
+            resolved_tvdb_id:
+              mapped?.resolved_tvdb_id ||
+              mapped?.tvdb_id ||
+              fallbackTvdbId ||
+              null,
           };
         });
 
@@ -203,7 +247,7 @@ export default function ActorPage() {
       });
     } catch (err) {
       console.error("Failed adding show", err);
-      alert(err.message || "Failed to add show");
+      alert(err?.message || "Failed to add show");
     } finally {
       setAddingId(null);
     }
@@ -220,6 +264,8 @@ export default function ActorPage() {
     event.stopPropagation();
     setBioOpen((prev) => !prev);
   }
+
+  const savedIdsLookup = useMemo(() => savedIds, [savedIds]);
 
   if (loading) {
     return (
@@ -350,12 +396,11 @@ export default function ActorPage() {
             <div className="actor-shows-list">
               {credits.map((show, index) => {
                 const showName = show.name || "Unknown show";
-                const href = getMappedShowHref(show);
-
+                const href = show.href || getMappedShowHref(show);
                 const resolvedTvdbId = getResolvedTvdbId(show);
                 const canAdd = Boolean(resolvedTvdbId);
                 const alreadySaved = canAdd
-                  ? savedIds.has(String(resolvedTvdbId))
+                  ? savedIdsLookup.has(String(resolvedTvdbId))
                   : false;
 
                 const showKey =
@@ -379,9 +424,13 @@ export default function ActorPage() {
                         : undefined
                     }
                   >
-                    <Link to={href} className="actor-show-banner-link">
-                      <div className="actor-show-banner-inner">
-                        <div className="actor-show-poster-wrap">
+                    <div className="actor-show-banner-inner">
+                      <div className="actor-show-poster-wrap">
+                        <Link
+                          to={href}
+                          className="actor-show-poster-link"
+                          aria-label={`Open ${showName}`}
+                        >
                           {show.poster_url ? (
                             <img
                               src={show.poster_url}
@@ -393,110 +442,92 @@ export default function ActorPage() {
                               No image
                             </div>
                           )}
-                        </div>
+                        </Link>
+                      </div>
 
-                        <div className="actor-show-content">
+                      <div className="actor-show-content">
+                        <Link to={href} className="actor-show-title-link">
                           <h3 className="actor-show-title">{showName}</h3>
+                        </Link>
 
-                          <div className="actor-show-meta">
-                            {show.first_air_date ? (
-                              <div className="actor-show-meta-row">
-                                <span className="actor-show-meta-label">
-                                  First aired
-                                </span>
-                                <span className="actor-show-meta-value">
-                                  {formatDate(show.first_air_date)}
-                                </span>
-                              </div>
-                            ) : null}
-
-                            {show.character ? (
-                              <div className="actor-show-meta-row">
-                                <span className="actor-show-meta-label">
-                                  Character
-                                </span>
-                                <span className="actor-show-meta-value">
-                                  {show.character}
-                                </span>
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div className="actor-show-actions">
-                            <div className="actor-show-dots-center">
-                              {show.overview ? (
-                                <button
-                                  type="button"
-                                  className="actor-dots-plain"
-                                  onClick={(event) =>
-                                    toggleShowDescription(event, showKey)
-                                  }
-                                  aria-label={
-                                    descriptionOpen
-                                      ? "Hide show description"
-                                      : "Show show description"
-                                  }
-                                  aria-expanded={descriptionOpen}
-                                >
-                                  <span />
-                                  <span />
-                                  <span />
-                                </button>
-                              ) : null}
+                        <div className="actor-show-meta">
+                          {show.first_air_date ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                First aired
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {formatDate(show.first_air_date)}
+                              </span>
                             </div>
+                          ) : null}
 
-                            {canAdd ? (
-                              alreadySaved ? (
-                                <div
-                                  className="actor-show-add-btn is-saved"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                  }}
-                                >
-                                  Added
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="actor-show-add-btn"
-                                  disabled={addingId === String(resolvedTvdbId)}
-                                  onClick={(event) => handleAddShow(event, show)}
-                                >
-                                  {addingId === String(resolvedTvdbId)
-                                    ? "Adding..."
-                                    : "Add Show"}
-                                </button>
-                              )
-                            ) : (
-                              <div
-                                className="actor-show-add-btn is-missing"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                }}
-                              >
-                                Missing TVDB ID
-                              </div>
-                            )}
-                          </div>
-
-                          {descriptionOpen && show.overview ? (
-                            <div
-                              className="actor-show-description-panel"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                              }}
-                            >
-                              <p className="actor-show-overview">
-                                {show.overview}
-                              </p>
+                          {show.character ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                Character
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {show.character}
+                              </span>
                             </div>
                           ) : null}
                         </div>
+
+                        <div className="actor-show-actions">
+                          <div className="actor-show-dots-center">
+                            {show.overview ? (
+                              <button
+                                type="button"
+                                className="actor-dots-plain"
+                                onClick={(event) =>
+                                  toggleShowDescription(event, showKey)
+                                }
+                                aria-label={
+                                  descriptionOpen
+                                    ? "Hide show description"
+                                    : "Show show description"
+                                }
+                                aria-expanded={descriptionOpen}
+                              >
+                                <span />
+                                <span />
+                                <span />
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {canAdd ? (
+                            alreadySaved ? (
+                              <div className="actor-show-add-btn is-saved">
+                                Added
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="actor-show-add-btn"
+                                disabled={addingId === String(resolvedTvdbId)}
+                                onClick={(event) => handleAddShow(event, show)}
+                              >
+                                {addingId === String(resolvedTvdbId)
+                                  ? "Adding..."
+                                  : "Add Show"}
+                              </button>
+                            )
+                          ) : (
+                            <div className="actor-show-add-btn is-missing">
+                              Missing TVDB ID
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </Link>
+                    </div>
+
+                    {descriptionOpen && show.overview ? (
+                      <div className="actor-show-description-panel">
+                        <p className="actor-show-overview">{show.overview}</p>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
