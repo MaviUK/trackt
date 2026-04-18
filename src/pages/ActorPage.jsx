@@ -76,10 +76,8 @@ function getResolvedTvdbId(show) {
 }
 
 function getResolvedTmdbId(show) {
-  if (!show) return null;
-
-  const id = show?.tmdb_id || show?.id || show?.series_tmdb_id || null;
-  return id ? String(id) : null;
+  const value = show?.tmdb_id || show?.id || show?.series_tmdb_id || null;
+  return value ? String(value) : null;
 }
 
 function getShowDestination(show, alreadySaved) {
@@ -88,6 +86,10 @@ function getShowDestination(show, alreadySaved) {
 
   if (alreadySaved && tvdbId) {
     return `/my-shows/${tvdbId}`;
+  }
+
+  if (alreadySaved && tmdbId) {
+    return `/show/tmdb/${tmdbId}`;
   }
 
   if (tvdbId) {
@@ -112,8 +114,9 @@ export default function ActorPage() {
   const [actor, setActor] = useState(null);
   const [credits, setCredits] = useState([]);
   const [error, setError] = useState("");
-  const [addingId, setAddingId] = useState(null);
-  const [savedIds, setSavedIds] = useState(new Set());
+  const [addingKey, setAddingKey] = useState(null);
+  const [savedTvdbIds, setSavedTvdbIds] = useState(new Set());
+  const [savedTmdbIds, setSavedTmdbIds] = useState(new Set());
   const [bioOpen, setBioOpen] = useState(false);
   const [openShowDescriptionKey, setOpenShowDescriptionKey] = useState(null);
 
@@ -126,13 +129,21 @@ export default function ActorPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        if (!cancelled) setSavedIds(new Set());
+        if (!cancelled) {
+          setSavedTvdbIds(new Set());
+          setSavedTmdbIds(new Set());
+        }
         return;
       }
 
       const { data, error } = await supabase
         .from("user_shows_new")
-        .select("shows!inner(tvdb_id)")
+        .select(`
+          tmdb_id,
+          shows!inner(
+            tvdb_id
+          )
+        `)
         .eq("user_id", user.id);
 
       if (error) {
@@ -140,15 +151,23 @@ export default function ActorPage() {
         return;
       }
 
-      const ids = new Set(
+      const tvdbIds = new Set(
         (data || [])
           .map((row) => row?.shows?.tvdb_id)
           .filter(Boolean)
           .map(String)
       );
 
+      const tmdbIds = new Set(
+        (data || [])
+          .map((row) => row?.tmdb_id)
+          .filter(Boolean)
+          .map(String)
+      );
+
       if (!cancelled) {
-        setSavedIds(ids);
+        setSavedTvdbIds(tvdbIds);
+        setSavedTmdbIds(tmdbIds);
       }
     }
 
@@ -225,6 +244,12 @@ export default function ActorPage() {
               mapped?.tvdb_id ||
               fallbackTvdbId ||
               null,
+            tmdb_id:
+              item?.tmdb_id ||
+              mapped?.tmdb_id ||
+              item?.id ||
+              mapped?.id ||
+              null,
           };
         });
 
@@ -260,14 +285,18 @@ export default function ActorPage() {
     event.stopPropagation();
 
     const tvdbId = getResolvedTvdbId(show);
-    if (!tvdbId || addingId) return;
+    const tmdbId = getResolvedTmdbId(show);
+    const addKey = tvdbId ? `tvdb:${tvdbId}` : tmdbId ? `tmdb:${tmdbId}` : null;
 
-    setAddingId(String(tvdbId));
+    if (!addKey || addingKey) return;
+
+    setAddingKey(addKey);
 
     try {
       await addShowToUserList({
-        tvdb_id: Number(tvdbId),
-        id: Number(tvdbId),
+        tvdb_id: tvdbId ? Number(tvdbId) : null,
+        id: tvdbId ? Number(tvdbId) : tmdbId ? Number(tmdbId) : null,
+        tmdb_id: tmdbId ? Number(tmdbId) : null,
         name: show?.name || show?.title || "Unknown show",
         overview: show?.overview || null,
         poster_url: show?.poster_url || show?.image_url || null,
@@ -280,20 +309,30 @@ export default function ActorPage() {
         first_air_date: show?.first_air_date || show?.first_aired || null,
         first_aired: show?.first_air_date || show?.first_aired || null,
         character: show?.character || null,
-        tmdb_id: show?.tmdb_id ? Number(show.tmdb_id) : null,
         status: show?.status || null,
+        source: tvdbId ? "tvdb" : "tmdb",
       });
 
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        next.add(String(tvdbId));
-        return next;
-      });
+      if (tvdbId) {
+        setSavedTvdbIds((prev) => {
+          const next = new Set(prev);
+          next.add(String(tvdbId));
+          return next;
+        });
+      }
+
+      if (tmdbId) {
+        setSavedTmdbIds((prev) => {
+          const next = new Set(prev);
+          next.add(String(tmdbId));
+          return next;
+        });
+      }
     } catch (err) {
       console.error("Failed adding show", err);
       alert(err?.message || "Failed to add show");
     } finally {
-      setAddingId(null);
+      setAddingKey(null);
     }
   }
 
@@ -309,7 +348,8 @@ export default function ActorPage() {
     setBioOpen((prev) => !prev);
   }
 
-  const savedIdsLookup = useMemo(() => savedIds, [savedIds]);
+  const savedTvdbLookup = useMemo(() => savedTvdbIds, [savedTvdbIds]);
+  const savedTmdbLookup = useMemo(() => savedTmdbIds, [savedTmdbIds]);
 
   if (loading) {
     return (
@@ -442,18 +482,28 @@ export default function ActorPage() {
                 const showName = show.name || "Unknown show";
                 const resolvedTvdbId = getResolvedTvdbId(show);
                 const resolvedTmdbId = getResolvedTmdbId(show);
+
+                const alreadySaved =
+                  (resolvedTvdbId &&
+                    savedTvdbLookup.has(String(resolvedTvdbId))) ||
+                  (resolvedTmdbId &&
+                    savedTmdbLookup.has(String(resolvedTmdbId)));
+
                 const canAdd = Boolean(resolvedTvdbId || resolvedTmdbId);
-                const alreadySaved = resolvedTvdbId
-                  ? savedIdsLookup.has(String(resolvedTvdbId))
-                  : false;
                 const destinationHref = getShowDestination(show, alreadySaved);
 
                 const showKey =
-                  show.tmdb_id ||
-                  show.id ||
                   resolvedTvdbId ||
                   resolvedTmdbId ||
+                  show.tmdb_id ||
+                  show.id ||
                   `${showName}-${index}`;
+
+                const addKey = resolvedTvdbId
+                  ? `tvdb:${resolvedTvdbId}`
+                  : resolvedTmdbId
+                    ? `tmdb:${resolvedTmdbId}`
+                    : null;
 
                 const descriptionOpen = openShowDescriptionKey === showKey;
                 const backdrop = getBackdrop(show);
@@ -543,32 +593,21 @@ export default function ActorPage() {
                             ) : null}
                           </div>
 
-                          {alreadySaved ? (
-                            <Link
-                              to={destinationHref}
-                              className="actor-show-add-btn is-saved"
-                            >
-                              Added
-                            </Link>
-                          ) : resolvedTvdbId ? (
-                            <button
-                              type="button"
-                              className="actor-show-add-btn"
-                              disabled={addingId === String(resolvedTvdbId)}
-                              onClick={(event) => handleAddShow(event, show)}
-                            >
-                              {addingId === String(resolvedTvdbId)
-                                ? "Adding..."
-                                : "Add Show"}
-                            </button>
-                          ) : resolvedTmdbId ? (
-                            <Link to={destinationHref} className="actor-show-add-btn is-tmdb">
-                              View on TMDB
-                            </Link>
-                          ) : canAdd ? (
-                            <Link to={destinationHref} className="actor-show-add-btn is-tmdb">
-                              Open Show
-                            </Link>
+                          {canAdd ? (
+                            alreadySaved ? (
+                              <div className="actor-show-add-btn is-saved">
+                                Added
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="actor-show-add-btn"
+                                disabled={addingKey === addKey}
+                                onClick={(event) => handleAddShow(event, show)}
+                              >
+                                {addingKey === addKey ? "Adding..." : "Add Show"}
+                              </button>
+                            )
                           ) : (
                             <div className="actor-show-add-btn is-missing">
                               Missing IDs
