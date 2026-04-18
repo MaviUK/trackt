@@ -1,521 +1,593 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { addShowToUserList } from "../lib/userShows";
+import { supabase } from "../lib/supabase";
+import { formatDate } from "../lib/date";
 import {
-  BrowserRouter,
-  Routes,
-  Route,
-  NavLink,
-  useLocation,
-  Navigate,
-} from "react-router-dom";
-import "./index.css";
-import ProfileEdit from "./pages/ProfileEdit";
+  getMappedShowHref,
+  normalizeMappedShow,
+} from "../lib/tmdbMappings";
+import "./ActorPage.css";
 
-import Search from "./pages/Search";
-import Login from "./pages/Login";
-import ShowDetails from "./pages/ShowDetails";
-import MyShows from "./pages/MyShows";
-import MyShowDetails from "./pages/MyShowDetails";
-import Dashboard from "./pages/Dashboard";
-import CalendarPage from "./pages/CalendarPage";
-import ActorPage from "./pages/ActorPage";
-import Rankd from "./pages/Rankd";
-import BurgrsBanner from "./components/BurgrsBanner";
-import { supabase } from "./lib/supabase";
-import TmdbShowDetails from "./pages/TmdbShowDetails";
+function buildFallbackActor(name, credits) {
+  const firstWithImage = credits.find((item) => item?.profile_url);
 
-function HomeIcon() {
+  return {
+    name: decodeURIComponent(name || "").replace(/\+/g, " "),
+    biography: "",
+    birthday: "",
+    place_of_birth: "",
+    profile_url: firstWithImage?.profile_url || "",
+  };
+}
+
+function getBackdrop(show) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M3 10.5 12 3l9 7.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5.5 9.5V20h13V9.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    show.backdrop_url ||
+    show.background_url ||
+    show.banner_url ||
+    show.fanart_url ||
+    show.image_url ||
+    show.poster_url ||
+    null
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle
-        cx="11"
-        cy="11"
-        r="6.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M16 16l5 5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+function getTvdbIdFromHref(href) {
+  if (!href || typeof href !== "string") return null;
+
+  const patterns = [
+    /\/show\/(\d+)(?:\/)?$/i,
+    /\/shows\/(\d+)(?:\/)?$/i,
+    /\/show\/tvdb\/(\d+)(?:\/)?$/i,
+    /tvdb[_-]?id[=/](\d+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = href.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return null;
 }
 
-function ShowsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="14"
-        rx="2.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M7 3v4M17 3v4M3 9h18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+function getResolvedTvdbId(show) {
+  if (!show) return null;
 
-function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="16"
-        rx="2.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M8 3v4M16 3v4M3 9h18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8 13h3M13 13h3M8 17h3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+  const direct =
+    show?.resolved_tvdb_id ||
+    show?.tvdb_id ||
+    show?.mapped_tvdb_id ||
+    show?.show_tvdb_id ||
+    show?.tvdb ||
+    show?.series_tvdb_id ||
+    null;
 
-function RankdIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M8 6h8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6 10h12"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4 14h16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10 18h4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+  if (direct) return String(direct);
 
-function UserProfileLink({ session, profile, className = "top-profile-link" }) {
-  if (!session) return null;
-
-  const displayName =
-    profile?.username ||
-    profile?.full_name ||
-    session.user?.user_metadata?.username ||
-    session.user?.user_metadata?.full_name ||
-    session.user?.email?.split("@")[0] ||
-    "Profile";
-
-  const avatarUrl =
-    profile?.avatar_url ||
-    session.user?.user_metadata?.avatar_url ||
+  const href =
+    show?.href ||
+    show?.mapped_href ||
+    show?.show_href ||
+    getMappedShowHref(show) ||
     "";
 
-  const initial = displayName.charAt(0).toUpperCase();
-
-  return (
-    <NavLink to="/profile/edit" className={className}>
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={displayName}
-          className="top-profile-avatar"
-        />
-      ) : (
-        <div className="top-profile-avatar top-profile-avatar-placeholder">
-          {initial}
-        </div>
-      )}
-      <span className="top-profile-text">
-        <span className="top-profile-name">{displayName}</span>
-      </span>
-    </NavLink>
-  );
+  return getTvdbIdFromHref(href);
 }
 
-function DesktopNav({ session, profile }) {
-  if (!session) return null;
+function getResolvedTmdbId(show) {
+  if (!show) return null;
 
-  return (
-    <div className="nav-wrap desktop-nav">
-      <div className="top-header-bar">
-        <nav className="top-tabs">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            Dashboard
-          </NavLink>
-
-          <NavLink
-            to="/search"
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            Search
-          </NavLink>
-
-          <NavLink
-            to="/my-shows"
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            My Shows
-          </NavLink>
-
-          <NavLink
-            to="/rankd"
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            Rank'd
-          </NavLink>
-
-          <NavLink
-            to="/calendar"
-            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
-          >
-            Calendar
-          </NavLink>
-        </nav>
-
-        <UserProfileLink session={session} profile={profile} />
-      </div>
-    </div>
-  );
+  const id = show?.tmdb_id || show?.id || show?.series_tmdb_id || null;
+  return id ? String(id) : null;
 }
 
-function MobileTopBanner({ session, profile }) {
-  const location = useLocation();
+function getShowDestination(show, alreadySaved) {
+  const tvdbId = getResolvedTvdbId(show);
+  const tmdbId = getResolvedTmdbId(show);
 
-  if (!session || location.pathname === "/login") {
-    return null;
+  if (alreadySaved && tvdbId) {
+    return `/my-shows/${tvdbId}`;
   }
 
-  return (
-    <div className="mobile-top-banner-wrap">
-      <BurgrsBanner />
-      <UserProfileLink
-        session={session}
-        profile={profile}
-        className="top-profile-link mobile-profile-link"
-      />
-    </div>
-  );
-}
-
-function MobileBottomNav({ session }) {
-  const location = useLocation();
-
-  if (!session || location.pathname === "/login") {
-    return null;
+  if (tvdbId) {
+    return `/show/${tvdbId}`;
   }
 
-  return (
-    <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-      <NavLink
-        to="/"
-        end
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <HomeIcon />
-        </span>
-        <span className="mobile-nav-label">Home</span>
-      </NavLink>
-
-      <NavLink
-        to="/search"
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <SearchIcon />
-        </span>
-        <span className="mobile-nav-label">Search</span>
-      </NavLink>
-
-      <NavLink
-        to="/my-shows"
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <ShowsIcon />
-        </span>
-        <span className="mobile-nav-label">Shows</span>
-      </NavLink>
-
-      <NavLink
-        to="/rankd"
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <RankdIcon />
-        </span>
-        <span className="mobile-nav-label">Rank</span>
-      </NavLink>
-
-      <NavLink
-        to="/calendar"
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <CalendarIcon />
-        </span>
-        <span className="mobile-nav-label">Cal</span>
-      </NavLink>
-    </nav>
-  );
-}
-
-function AuthRedirect({ session }) {
-  if (session) {
-    return <Dashboard />;
+  if (tmdbId) {
+    return `/show/tmdb/${tmdbId}`;
   }
 
-  return <Navigate to="/login" replace />;
+  return show?.href || getMappedShowHref(show);
 }
 
-function ProtectedRoute({ session, children }) {
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
-function LoginRoute({ session }) {
-  if (session) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <Login />;
-}
-
-function AppLayout() {
-  const [session, setSession] = useState(undefined);
-  const [profile, setProfile] = useState(null);
+export default function ActorPage() {
+  const { name } = useParams();
 
   useEffect(() => {
-    let mounted = true;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [name]);
 
-    const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (mounted) {
-        setSession(data.session ?? null);
-      }
-    };
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [actor, setActor] = useState(null);
+  const [credits, setCredits] = useState([]);
+  const [error, setError] = useState("");
+  const [addingId, setAddingId] = useState(null);
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [bioOpen, setBioOpen] = useState(false);
+  const [openShowDescriptionKey, setOpenShowDescriptionKey] = useState(null);
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
 
-    async function loadProfile() {
-      if (!session?.user?.id) {
-        setProfile(null);
+    async function loadSavedShows() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (!cancelled) setSavedIds(new Set());
         return;
       }
 
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, username, full_name, avatar_url")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (!active) return;
+        .from("user_shows_new")
+        .select("shows!inner(tvdb_id)")
+        .eq("user_id", user.id);
 
       if (error) {
-        console.error("Error loading header profile:", error);
-        setProfile(null);
+        console.warn("Failed loading saved ids", error);
         return;
       }
 
-      setProfile(data || null);
+      const ids = new Set(
+        (data || [])
+          .map((row) => row?.shows?.tvdb_id)
+          .filter(Boolean)
+          .map(String)
+      );
+
+      if (!cancelled) {
+        setSavedIds(ids);
+      }
     }
 
-    loadProfile();
+    async function loadActor() {
+      setLoading(true);
+      setError("");
+      setBioOpen(false);
+      setOpenShowDescriptionKey(null);
+
+      try {
+        const response = await fetch(
+          `/.netlify/functions/getActorShows?name=${encodeURIComponent(name)}`
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Failed to load actor shows");
+        }
+
+        const rawCredits = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.credits)
+            ? data.credits
+            : [];
+
+        const normalizedCredits = rawCredits.map((item) => {
+          const mapped = normalizeMappedShow({
+            ...item,
+            source: item?.source || "tmdb",
+            name: item?.name || item?.title || item?.show_name || "Unknown show",
+            first_air_date:
+              item?.first_air_date ||
+              item?.firstAired ||
+              item?.first_aired ||
+              "",
+            poster_url:
+              item?.poster_url ||
+              item?.posterUrl ||
+              item?.image_url ||
+              (item?.poster_path
+                ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                : ""),
+            backdrop_url:
+              item?.backdrop_url ||
+              item?.background_url ||
+              item?.banner_url ||
+              item?.fanart_url ||
+              (item?.backdrop_path
+                ? `https://image.tmdb.org/t/p/original${item.backdrop_path}`
+                : ""),
+          });
+
+          const href = getMappedShowHref({
+            ...item,
+            ...mapped,
+          });
+
+          const fallbackTvdbId =
+            item?.resolved_tvdb_id ||
+            item?.tvdb_id ||
+            item?.mapped_tvdb_id ||
+            item?.show_tvdb_id ||
+            item?.tvdb ||
+            item?.series_tvdb_id ||
+            getTvdbIdFromHref(href) ||
+            null;
+
+          return {
+            ...item,
+            ...mapped,
+            href,
+            resolved_tvdb_id:
+              mapped?.resolved_tvdb_id ||
+              mapped?.tvdb_id ||
+              fallbackTvdbId ||
+              null,
+          };
+        });
+
+        const actorPayload =
+          data?.actor || buildFallbackActor(name, normalizedCredits);
+
+        if (!cancelled) {
+          setActor(actorPayload);
+          setCredits(normalizedCredits);
+        }
+
+        await loadSavedShows();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || "Failed to load actor shows");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadActor();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [name]);
 
-  if (session === undefined) {
-    return null;
+  async function handleAddShow(event, show) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const tvdbId = getResolvedTvdbId(show);
+    if (!tvdbId || addingId) return;
+
+    setAddingId(String(tvdbId));
+
+    try {
+      await addShowToUserList({
+        tvdb_id: Number(tvdbId),
+        id: Number(tvdbId),
+        name: show?.name || show?.title || "Unknown show",
+        overview: show?.overview || null,
+        poster_url: show?.poster_url || show?.image_url || null,
+        backdrop_url:
+          show?.backdrop_url ||
+          show?.background_url ||
+          show?.banner_url ||
+          show?.fanart_url ||
+          null,
+        first_air_date: show?.first_air_date || show?.first_aired || null,
+        first_aired: show?.first_air_date || show?.first_aired || null,
+        character: show?.character || null,
+        tmdb_id: show?.tmdb_id ? Number(show.tmdb_id) : null,
+        status: show?.status || null,
+      });
+
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.add(String(tvdbId));
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed adding show", err);
+      alert(err?.message || "Failed to add show");
+    } finally {
+      setAddingId(null);
+    }
+  }
+
+  function toggleShowDescription(event, key) {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpenShowDescriptionKey((prev) => (prev === key ? null : key));
+  }
+
+  function toggleBio(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setBioOpen((prev) => !prev);
+  }
+
+  const savedIdsLookup = useMemo(() => savedIds, [savedIds]);
+
+  if (loading) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">Loading actor...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!actor) {
+    return (
+      <div className="actor-page">
+        <div className="actor-shell">
+          <div className="actor-empty">
+            <p>Actor not found.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <>
-      <DesktopNav session={session} profile={profile} />
-      <MobileTopBanner session={session} profile={profile} />
+    <div className="actor-page">
+      <div className="actor-shell">
+        <section className="actor-hero">
+          {actor.profile_url ? (
+            <img
+              src={actor.profile_url}
+              alt={actor.name}
+              className="actor-poster"
+            />
+          ) : (
+            <div className="actor-poster actor-poster-empty">No image</div>
+          )}
 
-      <Routes>
-        <Route path="/" element={<AuthRedirect session={session} />} />
-        <Route path="/login" element={<LoginRoute session={session} />} />
+          <div className="actor-hero-main">
+            <div className="actor-title-row">
+              <h1 className="actor-title">{actor.name}</h1>
+            </div>
 
-        <Route
-          path="/search"
-          element={
-            <ProtectedRoute session={session}>
-              <Search />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/show/:id"
-          element={
-            <ProtectedRoute session={session}>
-              <ShowDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-shows"
-          element={
-            <ProtectedRoute session={session}>
-              <MyShows />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-shows/:id"
-          element={
-            <ProtectedRoute session={session}>
-              <MyShowDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/actor/:name"
-          element={
-            <ProtectedRoute session={session}>
-              <ActorPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/calendar"
-          element={
-            <ProtectedRoute session={session}>
-              <CalendarPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile/edit"
-          element={
-            <ProtectedRoute session={session}>
-              <ProfileEdit />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/rankd"
-          element={
-            <ProtectedRoute session={session}>
-              <Rankd />
-            </ProtectedRoute>
-          }
-        />
+            <div className="actor-meta">
+              {actor.birthday ? (
+                <div className="actor-meta-pill">
+                  <span className="actor-meta-label">Born</span>
+                  <span className="actor-meta-value">
+                    {formatDate(actor.birthday)}
+                  </span>
+                </div>
+              ) : null}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-        <Route path="/show/tmdb/:tmdbId" element={<TmdbShowDetails />} />
-      </Routes>
+              {actor.place_of_birth ? (
+                <div className="actor-meta-pill">
+                  <span className="actor-meta-label">Place of birth</span>
+                  <span className="actor-meta-value">
+                    {actor.place_of_birth}
+                  </span>
+                </div>
+              ) : null}
 
-      <MobileBottomNav session={session} />
-    </>
+              <div className="actor-meta-pill">
+                <span className="actor-meta-label">Shows</span>
+                <span className="actor-meta-value">{credits.length}</span>
+              </div>
+            </div>
+
+            {actor.biography ? (
+              bioOpen ? (
+                <>
+                  <div className="actor-bio-dots-row">
+                    <button
+                      type="button"
+                      className="actor-dots-plain"
+                      onClick={toggleBio}
+                      aria-label="Hide biography"
+                      aria-expanded={bioOpen}
+                    >
+                      <span />
+                      <span />
+                      <span />
+                    </button>
+                  </div>
+
+                  <div className="actor-bio-panel">
+                    <p className="actor-overview">{actor.biography}</p>
+                  </div>
+                </>
+              ) : (
+                <div className="actor-bio-dots-row">
+                  <button
+                    type="button"
+                    className="actor-dots-plain"
+                    onClick={toggleBio}
+                    aria-label="Show biography"
+                    aria-expanded={bioOpen}
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </button>
+                </div>
+              )
+            ) : null}
+          </div>
+        </section>
+
+        <section className="actor-shows-section">
+          <h2 className="actor-section-title">Shows</h2>
+
+          {credits.length === 0 ? (
+            <div className="actor-empty">
+              <p>No TV shows found for this actor.</p>
+            </div>
+          ) : (
+            <div className="actor-shows-list">
+              {credits.map((show, index) => {
+                const showName = show.name || "Unknown show";
+                const resolvedTvdbId = getResolvedTvdbId(show);
+                const resolvedTmdbId = getResolvedTmdbId(show);
+                const alreadySaved = resolvedTvdbId
+                  ? savedIdsLookup.has(String(resolvedTvdbId))
+                  : false;
+                const destinationHref = getShowDestination(show, alreadySaved);
+
+                const showKey =
+                  show.tmdb_id ||
+                  show.id ||
+                  resolvedTvdbId ||
+                  resolvedTmdbId ||
+                  `${showName}-${index}`;
+
+                const descriptionOpen = openShowDescriptionKey === showKey;
+                const backdrop = getBackdrop(show);
+
+                return (
+                  <article
+                    key={showKey}
+                    className="actor-show-banner-card"
+                    style={
+                      backdrop
+                        ? {
+                            backgroundImage: `linear-gradient(90deg, rgba(10,16,28,0.92) 0%, rgba(10,16,28,0.84) 38%, rgba(10,16,28,0.92) 100%), url("${backdrop}")`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <div className="actor-show-banner-inner">
+                      <div className="actor-show-poster-wrap">
+                        <Link
+                          to={destinationHref}
+                          className="actor-show-poster-link"
+                          aria-label={`Open ${showName}`}
+                        >
+                          {show.poster_url ? (
+                            <img
+                              src={show.poster_url}
+                              alt={showName}
+                              className="actor-show-poster"
+                            />
+                          ) : (
+                            <div className="actor-show-poster actor-show-poster-placeholder">
+                              No image
+                            </div>
+                          )}
+                        </Link>
+                      </div>
+
+                      <div className="actor-show-content">
+                        <Link to={destinationHref} className="actor-show-title-link">
+                          <h3 className="actor-show-title">{showName}</h3>
+                        </Link>
+
+                        <div className="actor-show-meta">
+                          {show.first_air_date ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                First aired
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {formatDate(show.first_air_date)}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {show.character ? (
+                            <div className="actor-show-meta-row">
+                              <span className="actor-show-meta-label">
+                                Character
+                              </span>
+                              <span className="actor-show-meta-value">
+                                {show.character}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="actor-show-actions">
+                          <div className="actor-show-dots-center">
+                            {show.overview ? (
+                              <button
+                                type="button"
+                                className="actor-dots-plain"
+                                onClick={(event) =>
+                                  toggleShowDescription(event, showKey)
+                                }
+                                aria-label={
+                                  descriptionOpen
+                                    ? "Hide show description"
+                                    : "Show show description"
+                                }
+                                aria-expanded={descriptionOpen}
+                              >
+                                <span />
+                                <span />
+                                <span />
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {alreadySaved ? (
+                            <Link
+                              to={destinationHref}
+                              className="actor-show-add-btn is-saved"
+                            >
+                              Added
+                            </Link>
+                          ) : resolvedTvdbId ? (
+                            <button
+                              type="button"
+                              className="actor-show-add-btn"
+                              disabled={addingId === String(resolvedTvdbId)}
+                              onClick={(event) => handleAddShow(event, show)}
+                            >
+                              {addingId === String(resolvedTvdbId)
+                                ? "Adding..."
+                                : "Add Show"}
+                            </button>
+                          ) : resolvedTmdbId ? (
+                            <Link
+                              to={destinationHref}
+                              className="actor-show-add-btn is-tmdb"
+                            >
+                              View on TMDB
+                            </Link>
+                          ) : (
+                            <div className="actor-show-add-btn is-missing">
+                              Missing IDs
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {descriptionOpen && show.overview ? (
+                      <div className="actor-show-description-panel">
+                        <p className="actor-show-overview">{show.overview}</p>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
-
-function App() {
-  return (
-    <BrowserRouter>
-      <AppLayout />
-    </BrowserRouter>
-  );
-}
-
-export default App;
