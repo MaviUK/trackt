@@ -179,3 +179,81 @@
     bottom: 78px;
   }
 }
+
+.tmdb-show-details-hero {
+  min-height: 620px;
+  background-size: cover;
+  background-position: center top;
+}
+
+.tmdb-show-details-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 24px;
+  align-items: end;
+  min-height: 620px;
+  padding: 270px 20px 28px;
+}
+
+.tmdb-show-details-main {
+  min-width: 0;
+}
+
+.tmdb-show-details-poster-wrap {
+  display: flex;
+  justify-content: flex-end;
+  align-items: end;
+}
+
+.tmdb-show-details-overview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 760px;
+}
+
+.show-details-year {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #b8c0d7;
+  margin-bottom: 6px;
+}
+
+.show-details-subtitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #d8deee;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 768px) {
+  .tmdb-show-details-hero {
+    min-height: auto;
+  }
+
+  .tmdb-show-details-hero-inner {
+    grid-template-columns: 1fr 120px;
+    gap: 14px;
+    align-items: end;
+    min-height: auto;
+    padding: 230px 16px 22px;
+  }
+
+  .tmdb-show-details-poster-wrap {
+    align-self: end;
+  }
+
+  .tmdb-show-details-overview {
+    -webkit-line-clamp: 4;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .tmdb-show-details-hero-inner {
+    grid-template-columns: 1fr 106px;
+    gap: 12px;
+    padding: 240px 16px 20px;
+  }
+}
