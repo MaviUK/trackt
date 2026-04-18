@@ -19,7 +19,7 @@ export async function handler(event) {
     const response = await fetch(
       `https://api.themoviedb.org/3/tv/${encodeURIComponent(
         tmdbId
-      )}?api_key=${process.env.TMDB_API_KEY}&language=en-GB`
+      )}?api_key=${process.env.TMDB_API_KEY}&language=en-GB&append_to_response=credits`
     );
 
     const data = await response.json();
@@ -42,6 +42,7 @@ export async function handler(event) {
       body: JSON.stringify({
         id: data.id,
         tmdb_id: data.id,
+        tvdb_id: data.external_ids?.tvdb_id || null,
         name: data.name,
         overview: data.overview || "",
         first_air_date: data.first_air_date || null,
@@ -55,6 +56,10 @@ export async function handler(event) {
           ? `https://image.tmdb.org/t/p/original${data.backdrop_path}`
           : null,
         seasons: Array.isArray(data.seasons) ? data.seasons : [],
+        networks: Array.isArray(data.networks) ? data.networks : [],
+        genres: Array.isArray(data.genres) ? data.genres : [],
+        cast: Array.isArray(data?.credits?.cast) ? data.credits.cast.slice(0, 20) : [],
+        crew: Array.isArray(data?.credits?.crew) ? data.credits.crew.slice(0, 20) : [],
       }),
     };
   } catch (error) {
