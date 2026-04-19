@@ -237,7 +237,9 @@ function buildShowPayload(showDetails) {
         showDetails.vote_average
     ),
     rating_count: normalizeNumber(
-      showDetails.rating_count ?? showDetails.siteRatingCount ?? showDetails.vote_count
+      showDetails.rating_count ??
+        showDetails.siteRatingCount ??
+        showDetails.vote_count
     ),
     last_synced_at: new Date().toISOString(),
   };
@@ -394,7 +396,11 @@ function buildTmdbEpisodesFromSeasons(seasons) {
     const seasonNumber = Number(season?.season_number ?? 0);
     const episodeCount = Number(season?.episode_count ?? 0);
 
-    for (let episodeNumber = 1; episodeNumber <= episodeCount; episodeNumber += 1) {
+    for (
+      let episodeNumber = 1;
+      episodeNumber <= episodeCount;
+      episodeNumber += 1
+    ) {
       rows.push({
         season_number: seasonNumber,
         seasonNumber,
@@ -470,9 +476,21 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
           ...ep,
           name: tmdbEpisode?.name ?? ep.name,
           overview: tmdbEpisode?.overview ?? ep.overview,
-          aired_date: normalizeDate(tmdbEpisode?.air_date) ?? ep.aired_date ?? ep.aired ?? null,
-          aired: normalizeDate(tmdbEpisode?.air_date) ?? ep.aired ?? ep.aired_date ?? null,
-          runtime_minutes: normalizeNumber(tmdbEpisode?.runtime) ?? ep.runtime_minutes ?? ep.runtime ?? null,
+          aired_date:
+            normalizeDate(tmdbEpisode?.air_date) ??
+            ep.aired_date ??
+            ep.aired ??
+            null,
+          aired:
+            normalizeDate(tmdbEpisode?.air_date) ??
+            ep.aired ??
+            ep.aired_date ??
+            null,
+          runtime_minutes:
+            normalizeNumber(tmdbEpisode?.runtime) ??
+            ep.runtime_minutes ??
+            ep.runtime ??
+            null,
           tmdb_vote_average: tmdbEpisode?.vote_average ?? null,
           tmdb_vote_count: tmdbEpisode?.vote_count ?? null,
           tmdb_still_path: tmdbEpisode?.still_path ?? null,
@@ -518,7 +536,7 @@ async function findExistingShow(tvdbId, tmdbId) {
 
 export async function saveShowToDatabase(show) {
   const tvdbId = normalizeNumber(
-    show?.tvdb_id || show?.resolved_tvdb_id || show?.id
+    show?.tvdb_id || show?.resolved_tvdb_id || null
   );
   const tmdbId = normalizeNumber(show?.tmdb_id || show?.id);
 
@@ -544,24 +562,71 @@ export async function saveShowToDatabase(show) {
         ...show,
         ...showDetails,
         tvdb_id: tvdbId,
-        tmdb_id: normalizeNumber(show?.tmdb_id ?? showDetails?.tmdb_id ?? tmdbId),
+        tmdb_id: normalizeNumber(
+          show?.tmdb_id ?? showDetails?.tmdb_id ?? tmdbId
+        ),
       };
     } catch (error) {
       if (!tmdbId) {
         throw error;
       }
-      console.error("TVDB show details failed, falling back to TMDB/show payload:", error);
+      console.error(
+        "TVDB show details failed, falling back to TMDB/show payload:",
+        error
+      );
     }
   }
 
-  if (!mergedShowDetails?.name && tmdbId) {
+  if (tmdbId) {
     try {
       const tmdbShowDetails = await fetchTmdbShowDetails(tmdbId);
       mergedShowDetails = {
         ...tmdbShowDetails,
         ...mergedShowDetails,
         tmdb_id: tmdbId,
-        tvdb_id: mergedShowDetails.tvdb_id ?? normalizeNumber(tmdbShowDetails?.tvdb_id),
+        tvdb_id:
+          mergedShowDetails.tvdb_id ??
+          normalizeNumber(tmdbShowDetails?.tvdb_id),
+        name:
+          mergedShowDetails?.name ||
+          tmdbShowDetails?.name ||
+          "Unknown title",
+        overview:
+          mergedShowDetails?.overview ||
+          tmdbShowDetails?.overview ||
+          null,
+        poster_url:
+          mergedShowDetails?.poster_url ||
+          tmdbShowDetails?.poster_url ||
+          null,
+        backdrop_url:
+          mergedShowDetails?.backdrop_url ||
+          tmdbShowDetails?.backdrop_url ||
+          null,
+        first_air_date:
+          mergedShowDetails?.first_air_date ||
+          tmdbShowDetails?.first_air_date ||
+          null,
+        first_aired:
+          mergedShowDetails?.first_aired ||
+          tmdbShowDetails?.first_air_date ||
+          null,
+        genres:
+          mergedShowDetails?.genres?.length
+            ? mergedShowDetails.genres
+            : tmdbShowDetails?.genres || [],
+        network:
+          mergedShowDetails?.network ||
+          tmdbShowDetails?.networks ||
+          null,
+        rating_average:
+          mergedShowDetails?.rating_average ??
+          tmdbShowDetails?.vote_average ??
+          null,
+        rating_count:
+          mergedShowDetails?.rating_count ??
+          tmdbShowDetails?.vote_count ??
+          null,
       };
     } catch (error) {
       console.error("TMDB show details fallback failed:", error);
