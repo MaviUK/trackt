@@ -81,7 +81,6 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
 
   for (const chunk of chunks) {
     const { error } = await supabase.from(table).upsert(chunk, { onConflict });
-
     if (error) throw error;
   }
 }
@@ -508,32 +507,6 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
   return enriched;
 }
 
-async function findExistingShow(tvdbId, tmdbId) {
-  if (tvdbId) {
-    const { data, error } = await supabase
-      .from("shows")
-      .select("*")
-      .eq("tvdb_id", tvdbId)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (data) return data;
-  }
-
-  if (tmdbId) {
-    const { data, error } = await supabase
-      .from("shows")
-      .select("*")
-      .eq("tmdb_id", tmdbId)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (data) return data;
-  }
-
-  return null;
-}
-
 export async function saveShowToDatabase(show) {
   const tvdbId = normalizeNumber(
     show?.tvdb_id || show?.resolved_tvdb_id || null
@@ -544,26 +517,46 @@ export async function saveShowToDatabase(show) {
     throw new Error("Missing show id");
   }
 
-  const existingShow = await findExistingShow(tvdbId, tmdbId);
-  if (existingShow?.id) {
-    return existingShow;
+  let existingShow = null;
+
+  if (tvdbId) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tvdb_id", tvdbId)
+      .maybeSingle();
+
+    if (error) throw error;
+    existingShow = data || existingShow;
+  }
+
+  if (!existingShow && tmdbId) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tmdb_id", tmdbId)
+      .maybeSingle();
+
+    if (error) throw error;
+    existingShow = data || existingShow;
   }
 
   let mergedShowDetails = {
+    ...existingShow,
     ...show,
-    tvdb_id: tvdbId,
-    tmdb_id: tmdbId,
+    tvdb_id: tvdbId ?? existingShow?.tvdb_id ?? null,
+    tmdb_id: tmdbId ?? existingShow?.tmdb_id ?? null,
   };
 
   if (tvdbId) {
     try {
-      const showDetails = await fetchShowDetails(tvdbId);
+      const tvdbDetails = await fetchShowDetails(tvdbId);
       mergedShowDetails = {
-        ...show,
-        ...showDetails,
+        ...mergedShowDetails,
+        ...tvdbDetails,
         tvdb_id: tvdbId,
         tmdb_id: normalizeNumber(
-          show?.tmdb_id ?? showDetails?.tmdb_id ?? tmdbId
+          mergedShowDetails?.tmdb_id ?? tvdbDetails?.tmdb_id ?? tmdbId
         ),
       };
     } catch (error) {
@@ -577,16 +570,22 @@ export async function saveShowToDatabase(show) {
     }
   }
 
-  if (tmdbId) {
+  if (tmdbId || mergedShowDetails?.tmdb_id) {
+    const resolvedTmdbId = normalizeNumber(
+      tmdbId ?? mergedShowDetails?.tmdb_id
+    );
+
     try {
-      const tmdbShowDetails = await fetchTmdbShowDetails(tmdbId);
+      const tmdbShowDetails = await fetchTmdbShowDetails(resolvedTmdbId);
+
       mergedShowDetails = {
-        ...tmdbShowDetails,
         ...mergedShowDetails,
-        tmdb_id: tmdbId,
+        ...tmdbShowDetails,
         tvdb_id:
-          mergedShowDetails.tvdb_id ??
-          normalizeNumber(tmdbShowDetails?.tvdb_id),
+          normalizeNumber(mergedShowDetails?.tvdb_id) ??
+          normalizeNumber(tmdbShowDetails?.tvdb_id) ??
+          null,
+        tmdb_id: resolvedTmdbId,
         name:
           mergedShowDetails?.name ||
           tmdbShowDetails?.name ||
@@ -648,15 +647,15 @@ export async function saveShowToDatabase(show) {
   try {
     let rawEpisodes = [];
 
-    if (tvdbId) {
-      rawEpisodes = await fetchShowEpisodes(tvdbId);
-    } else if (tmdbId) {
-      const tmdbShowDetails = await fetchTmdbShowDetails(tmdbId);
+    if (savedShow.tvdb_id) {
+      rawEpisodes = await fetchShowEpisodes(savedShow.tvdb_id);
+    } else if (savedShow.tmdb_id) {
+      const tmdbShowDetails = await fetchTmdbShowDetails(savedShow.tmdb_id);
       rawEpisodes = buildTmdbEpisodesFromSeasons(tmdbShowDetails?.seasons ?? []);
     }
 
     const enrichedEpisodes = await enrichEpisodesWithTmdb(
-      savedShow.tmdb_id ?? tmdbId,
+      savedShow.tmdb_id,
       rawEpisodes
     );
 
