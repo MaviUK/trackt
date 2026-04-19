@@ -326,7 +326,14 @@ export default function MyShowDetails() {
           setMobileBannerUrl(state.mobileBannerUrl);
           setRankPosition(state.rankPosition);
         }
-        return { found: true, user: null, showId: null, tvdbId: null, tmdbId: null };
+        return {
+          found: true,
+          user: null,
+          showId: null,
+          tvdbId: null,
+          tmdbId: null,
+          storedBackdropUrl: null,
+        };
       }
 
       if (!isCancelled) {
@@ -351,6 +358,7 @@ export default function MyShowDetails() {
           showId: null,
           tvdbId: null,
           tmdbId: null,
+          storedBackdropUrl: null,
         };
       }
 
@@ -400,6 +408,7 @@ export default function MyShowDetails() {
           showId: null,
           tvdbId: isTmdbRoute ? null : numericRouteId,
           tmdbId: isTmdbRoute ? numericRouteId : null,
+          storedBackdropUrl: null,
         };
       }
 
@@ -518,7 +527,7 @@ export default function MyShowDetails() {
 
         setEpisodes(normalizedEpisodes);
         setExpandedSeasons(seasonMap);
-        setMobileBannerUrl(null);
+        setMobileBannerUrl(showData.backdrop_url || null);
         setExpandedOverview(false);
         setActiveTab("seasons");
       }
@@ -529,11 +538,19 @@ export default function MyShowDetails() {
         showId,
         tvdbId: showData.tvdb_id || null,
         tmdbId: showData.tmdb_id || null,
+        storedBackdropUrl: showData.backdrop_url || null,
         episodeIds: normalizedEpisodes.map((ep) => ep.id),
       };
     }
 
-    async function loadSecondaryData(user, showId, episodeIds, tvdbId, tmdbIdValue) {
+    async function loadSecondaryData(
+      user,
+      showId,
+      episodeIds,
+      tvdbId,
+      tmdbIdValue,
+      storedBackdropUrl
+    ) {
       try {
         const [
           savedShowsResult,
@@ -636,6 +653,7 @@ export default function MyShowDetails() {
           const bannerFromExtras =
             getBannerFromExtras(extras) ||
             extras.backdrop_url ||
+            storedBackdropUrl ||
             null;
 
           let mappedTmdbRecommendations = [];
@@ -694,7 +712,7 @@ export default function MyShowDetails() {
             setCrew([]);
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
-            setMobileBannerUrl(null);
+            setMobileBannerUrl(storedBackdropUrl || null);
           }
         } finally {
           if (!isCancelled) {
@@ -742,7 +760,8 @@ export default function MyShowDetails() {
                 result.showId,
                 result.episodeIds,
                 result.tvdbId,
-                result.tmdbId
+                result.tmdbId,
+                result.storedBackdropUrl
               );
             }
             return;
@@ -1380,6 +1399,12 @@ export default function MyShowDetails() {
   }
 
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
+  const sourceYear = getYear(show?.first_aired);
+  const sourceRating =
+    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
+      ? Number(show.rating_average).toFixed(1)
+      : "";
+  const sourceLanguage = show?.original_language || "";
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
@@ -1387,6 +1412,9 @@ export default function MyShowDetails() {
   )}&sourceRating=${encodeURIComponent(
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
+
+  const isRemoved = show?.watch_status === "not_added";
+  const isArchived = show?.watch_status === "archived";
 
   return (
     <div className="msd-page">
@@ -1878,8 +1906,11 @@ export default function MyShowDetails() {
                 ) : cast.length > 0 ? (
                   <div className="msd-cast-grid msd-cast-grid-mobile">
                     {cast.map((member, index) => {
-                      const actorName = member.personName || member.name || "Unknown actor";
-                      const linkTarget = `/actor/${encodeURIComponent(actorName)}`;
+                      const actorName =
+                        member.personName || member.name || "Unknown actor";
+                      const linkTarget = `/actor/${encodeURIComponent(
+                        actorName
+                      )}`;
 
                       return (
                         <Link
@@ -1921,7 +1952,8 @@ export default function MyShowDetails() {
                 ) : crew.length > 0 ? (
                   <div className="msd-cast-grid msd-cast-grid-mobile">
                     {crew.map((member, index) => {
-                      const personName = member.personName || member.name || "Unknown crew";
+                      const personName =
+                        member.personName || member.name || "Unknown crew";
                       const roleName =
                         member.role ||
                         member.job ||
