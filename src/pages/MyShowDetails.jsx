@@ -961,7 +961,6 @@ export default function MyShowDetails() {
       ? Number(show.rating_average).toFixed(1)
       : "";
   const sourceLanguage = show?.original_language || "";
-
   const isRemoved = show?.watch_status === "not_added";
   const isArchived = show?.watch_status === "archived";
 
@@ -1399,12 +1398,6 @@ export default function MyShowDetails() {
   }
 
   const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
-  const sourceYear = getYear(show?.first_aired);
-  const sourceRating =
-    show?.rating_average != null && !Number.isNaN(Number(show.rating_average))
-      ? Number(show.rating_average).toFixed(1)
-      : "";
-  const sourceLanguage = show?.original_language || "";
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
@@ -1412,9 +1405,6 @@ export default function MyShowDetails() {
   )}&sourceRating=${encodeURIComponent(
     sourceRating
   )}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`;
-
-  const isRemoved = show?.watch_status === "not_added";
-  const isArchived = show?.watch_status === "archived";
 
   return (
     <div className="msd-page">
