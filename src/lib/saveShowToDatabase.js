@@ -636,11 +636,31 @@ export async function saveShowToDatabase(show) {
 
   const conflictColumn = showPayload.tvdb_id ? "tvdb_id" : "tmdb_id";
 
-  const { data: savedShow, error: showError } = await supabase
+  let savedShow;
+let showError;
+
+if (existingShow?.id) {
+  // UPDATE existing show
+  const res = await supabase
     .from("shows")
-    .upsert(showPayload, { onConflict: conflictColumn })
+    .update(showPayload)
+    .eq("id", existingShow.id)
     .select()
     .single();
+
+  savedShow = res.data;
+  showError = res.error;
+} else {
+  // INSERT new show
+  const res = await supabase
+    .from("shows")
+    .insert(showPayload)
+    .select()
+    .single();
+
+  savedShow = res.data;
+  showError = res.error;
+}
 
   if (showError) throw showError;
 
