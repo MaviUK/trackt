@@ -1351,3 +1351,15 @@
   line-height: 1.5;
 }
 }
+
+.msd-inline-loading {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+}

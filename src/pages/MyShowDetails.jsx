@@ -98,30 +98,20 @@ function getBannerFromExtras(extras) {
   );
 }
 
-async function fetchAllWatchedRows() {
-  const pageSize = 1000;
-  let from = 0;
-  let done = false;
+async function fetchWatchedRowsForEpisodeIds(episodeIds) {
+  if (!episodeIds?.length) return [];
+
+  const batches = chunkArray(episodeIds, 100);
   const allRows = [];
 
-  while (!done) {
-    const to = from + pageSize - 1;
-
+  for (const batch of batches) {
     const { data, error } = await supabase
       .from("watched_episodes")
       .select("user_id, episode_id")
-      .range(from, to);
+      .in("episode_id", batch);
 
     if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
+    allRows.push(...(data || []));
   }
 
   return allRows;
@@ -144,36 +134,24 @@ async function fetchBurgrRatings(showId) {
 async function fetchAllEpisodeRatingsForShowEpisodeIds(showEpisodeIds) {
   if (!showEpisodeIds?.length) return [];
 
-  const pageSize = 1000;
-  let from = 0;
-  let done = false;
+  const batches = chunkArray(showEpisodeIds, 100);
   const allRows = [];
 
-  while (!done) {
-    const to = from + pageSize - 1;
-
+  for (const batch of batches) {
     const { data, error } = await supabase
       .from("episode_ratings")
       .select("user_id, episode_id, rating")
-      .range(from, to);
+      .in("episode_id", batch);
 
     if (error) {
       console.warn("episode_ratings load failed:", error);
       return [];
     }
 
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
+    allRows.push(...(data || []));
   }
 
-  const allowedIds = new Set(showEpisodeIds.map(String));
-  return allRows.filter((row) => allowedIds.has(String(row.episode_id)));
+  return allRows;
 }
 
 function buildEpisodeRatingsMap(rows, userId) {
@@ -555,7 +533,7 @@ export default function MyShowDetails() {
         const [
           savedShowsResult,
           burgrRows,
-          allWatchedRows,
+          showWatchedRows,
           episodeRatingRows,
           rankingRowsResult,
         ] = await Promise.all([
@@ -564,7 +542,7 @@ export default function MyShowDetails() {
             .select(`shows!inner(tvdb_id)`)
             .eq("user_id", user.id),
           fetchBurgrRatings(showId),
-          fetchAllWatchedRows(),
+          fetchWatchedRowsForEpisodeIds(episodeIds),
           fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
           supabase
             .from("user_show_rankings")
@@ -609,12 +587,7 @@ export default function MyShowDetails() {
             .map(String)
         );
 
-        const episodeIdSet = new Set((episodeIds || []).map(String));
-        const showWatchedRows = (allWatchedRows || []).filter((row) =>
-          episodeIdSet.has(String(row.episode_id))
-        );
-
-        const myWatchedRows = showWatchedRows.filter(
+        const myWatchedRows = (showWatchedRows || []).filter(
           (row) => String(row.user_id) === String(user.id)
         );
 
@@ -750,12 +723,16 @@ export default function MyShowDetails() {
           const result = await loadCoreShow();
 
           if (result?.found) {
+            if (!isCancelled) {
+              setLoading(false);
+            }
+
             if (
               result.user &&
               result.showId &&
               Array.isArray(result.episodeIds)
             ) {
-              await loadSecondaryData(
+              loadSecondaryData(
                 result.user,
                 result.showId,
                 result.episodeIds,
@@ -1548,6 +1525,12 @@ export default function MyShowDetails() {
             </div>
           </div>
         </section>
+
+        {extrasLoading ? (
+          <div className="msd-inline-loading" role="status">
+            Loading cast, ratings and recommendations...
+          </div>
+        ) : null}
 
         <section className="msd-content-tabs-section">
           <div
