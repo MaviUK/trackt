@@ -618,9 +618,9 @@ export default function MyShowDetails() {
           setExtrasLoading(true);
 
          const extrasUrl =
-  tmdbIdValue != null
-    ? `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`
-    : `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`;
+  tvdbId != null
+    ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
+    : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`;
 
           const extrasRes = await fetch(extrasUrl);
           if (!extrasRes.ok) {
@@ -674,13 +674,7 @@ export default function MyShowDetails() {
             );
           }
 
-          const filteredTmdbRecommendations =
-            mappedTmdbRecommendations.filter((item) => {
-              const recTvdbId =
-                item?.resolved_tvdb_id ?? item?.tvdb_id ?? item?.tvdbId;
-              if (!recTvdbId) return true;
-              return !savedTvdbIds.has(String(recTvdbId));
-            });
+          const filteredTmdbRecommendations = mappedTmdbRecommendations;
 
           if (!isCancelled) {
             setCast(castRows);
