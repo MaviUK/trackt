@@ -688,79 +688,73 @@ const hasWatchedWholeFirstSeason =
     }
   }
 
-  async function handleAddComment(event) {
-    event.preventDefault();
+async function handleAddComment(event) {
+  event.preventDefault();
 
-    const body = commentText.trim();
-    if (!body || currentPair.length !== 2) return;
+  const body = commentText.trim();
+  if (!body || currentPair.length !== 2) return;
 
-    try {
-      setSaving(true);
-      setError("");
+  try {
+    setSaving(true);
+    setError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in to comment.");
+    if (userError) throw userError;
+    if (!user) throw new Error("You must be logged in to comment.");
 
-      const { showAId, showBId } = getOrderedPair(
-        currentPair[0].show_id,
-        currentPair[1].show_id
-      );
+    const { showAId, showBId } = getOrderedPair(
+      currentPair[0].show_id,
+      currentPair[1].show_id
+    );
 
-      const { data, error: commentError } = await supabase.rpc(
-        "rankd_add_matchup_comment",
-        {
-          p_show_a_id: showAId,
-          p_show_b_id: showBId,
-          p_body: body,
-          p_parent_comment_id: replyTo?.id || null,
-        }
-      );
-
-      if (commentError) throw commentError;
-
-      const nextMatchup = data?.matchup;
-      const nextComment = data?.comment;
-
-      if (nextMatchup?.pair_key) {
-        const updatedMatchupMap = new Map(matchupMap);
-        updatedMatchupMap.set(nextMatchup.pair_key, nextMatchup);
-        setMatchupMap(updatedMatchupMap);
-        setMatchupStats(nextMatchup);
+    const { data, error: commentError } = await supabase.rpc(
+      "rankd_add_matchup_comment",
+      {
+        p_show_a_id: showAId,
+        p_show_b_id: showBId,
+        p_body: body,
+        p_parent_comment_id: replyTo?.id || null,
       }
+    );
 
-      if (nextComment) {
-        const { data: hydrated } = await supabase
-          .from("rankd_matchup_comments")
-          .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-          .eq("id", nextComment.id)
-          .maybeSingle();
+    if (commentError) throw commentError;
 
-        const hydratedRows = await hydrateComments(hydrated ? [hydrated] : [nextComment]);
-        setComments((current) => [...current, hydratedRows[0]]);
-      }
+    const nextMatchup = data?.matchup || data?.[0]?.matchup;
 
-      setCommentText("");
-      setReplyTo(null);
-      setShowComments(true);
-      await loadNotifications(user.id);
-    } catch (commentError) {
-      console.error("RANKD COMMENT FAILED:", commentError);
-      setError(commentError.message || "Failed to save your comment.");
-    } finally {
-      setSaving(false);
+    if (nextMatchup?.pair_key) {
+      const updatedMatchupMap = new Map(matchupMap);
+      updatedMatchupMap.set(nextMatchup.pair_key, nextMatchup);
+      setMatchupMap(updatedMatchupMap);
+      setMatchupStats(nextMatchup);
     }
-  }
 
-  function buildTouchStartHandler() {
-    return (event) => {
-      touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
-    };
+    if (nextMatchup?.id) {
+      const { data: freshComments, error: freshCommentsError } = await supabase
+        .from("rankd_matchup_comments")
+        .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
+        .eq("matchup_id", nextMatchup.id)
+        .order("created_at", { ascending: true });
+
+      if (freshCommentsError) throw freshCommentsError;
+
+      setComments(await hydrateComments(freshComments || []));
+    }
+
+    setCommentText("");
+    setReplyTo(null);
+    setShowComments(true);
+    await loadNotifications(user.id);
+  } catch (commentError) {
+    console.error("RANKD COMMENT FAILED:", commentError);
+    setError(commentError.message || "Failed to save your comment.");
+  } finally {
+    setSaving(false);
   }
+}
 
   function buildTouchEndHandler(showId, side) {
     return (event) => {
