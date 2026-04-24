@@ -551,3 +551,33 @@
   .rankd-win-row { grid-template-columns: 1fr 54px; }
   .rankd-win-row > div { grid-column: 1 / -1; order: 3; }
 }
+
+.rankd-poster-button,
+.rankd-poster-button:hover,
+.rankd-poster-button:focus,
+.rankd-poster-button:focus-visible,
+.rankd-poster-button:active {
+  outline: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rankd-poster-button:focus-visible {
+  outline: none;
+}
+
+.rankd-matchup-number {
+  text-align: center;
+  font-weight: 900;
+  font-size: 18px;
+  color: #ffffff;
+  margin: 8px 0 16px;
+}
+
+@media (max-width: 700px) {
+  .rankd-matchup-number {
+    margin-top: 6px;
+    margin-bottom: 14px;
+    font-size: 17px;
+  }
+}
