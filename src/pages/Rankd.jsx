@@ -809,7 +809,9 @@ export default function Rankd() {
     <div className="page rankd-page">
       <div className="page-shell">
        <div className="rankd-matchup-number">
-  Matchup #{leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) + 1}
+  Matchup #{Math.floor(
+    leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
+  ) + 1}
 </div>
 
         {error ? (
