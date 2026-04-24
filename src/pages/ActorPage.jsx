@@ -89,7 +89,7 @@ function getShowDestination(show, alreadySaved) {
   }
 
   if (alreadySaved && tmdbId) {
-    return `/show/tmdb/${tmdbId}`;
+    return `/my-shows/tmdb/${tmdbId}`;
   }
 
   if (tvdbId) {

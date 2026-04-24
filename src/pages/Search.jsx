@@ -304,9 +304,7 @@ export default function Search() {
             const tvdbId = String(show.tvdb_id);
             const isSaved = savedIds.has(tvdbId);
             const isAdding = addingId === tvdbId;
-
-            // ✅ FIXED HERE
-            const detailHref = `/show/${tvdbId}`;
+            const detailHref = isSaved ? `/my-shows/${tvdbId}` : `/show/${tvdbId}`;
 
             const backdrop = getBackdrop(show);
             const poster = getPoster(show);
