@@ -823,12 +823,8 @@ export default function Rankd() {
         ) : null}
 
         <div className="rankd-main-grid">
-          <div className="section-card rankd-battle-shell">
-
-              </div>
-            </div>
-
-           <div className="rankd-battle-layout">
+  <div className="section-card rankd-battle-shell">
+    <div className="rankd-battle-layout">
   <RankCard
     show={currentPair[0]}
     onChoose={() => handleChoice(currentPair[0].show_id)}
