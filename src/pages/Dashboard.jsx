@@ -171,7 +171,7 @@ async function fetchAllWatchedEpisodeRows(userId) {
   return allRows;
 }
 
-async function fetchTrendingShows(existingTmdbIds = []) {
+async function fetchTrendingShows() {
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
@@ -179,13 +179,7 @@ async function fetchTrendingShows(existingTmdbIds = []) {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  const existingSet = new Set(
-    (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
-  );
-
-  return (payload?.shows || []).filter(
-    (show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id))
-  );
+  return (payload?.shows || []).filter((show) => show?.tmdb_id);
 }
 
 async function fetchPremieringSoonShows(existingTmdbIds = []) {
@@ -246,39 +240,41 @@ function DashboardEpisodeItem({
   );
 }
 
-function TrendingShowCard({ show }) {
-  if (!show?.tvdb_id) {
+function getTrendingShowLink(show, savedShows) {
+  const savedShow = savedShows.find(
+    (item) =>
+      String(item.tmdb_id || "") === String(show.tmdb_id || "") ||
+      String(item.tvdb_id || "") === String(show.tvdb_id || "")
+  );
+
+  if (savedShow?.tvdb_id) return `/my-shows/${savedShow.tvdb_id}`;
+  if (savedShow?.tmdb_id) return `/my-shows/tmdb/${savedShow.tmdb_id}`;
+  if (show?.tvdb_id) return `/show/${show.tvdb_id}`;
+
+  return null;
+}
+
+function TrendingShowCard({ show, savedShows }) {
+  const linkTarget = getTrendingShowLink(show, savedShows);
+
+  if (!linkTarget) {
     return (
       <div className="trending-card">
         {show.image ? (
-          <img
-            src={show.image}
-            alt={show.name}
-            className="trending-card-image"
-            loading="lazy"
-          />
+          <img src={show.image} alt={show.name} className="trending-card-image" loading="lazy" />
         ) : (
-          <div className="trending-card-image trending-card-image-placeholder">
-            ?
-          </div>
+          <div className="trending-card-image trending-card-image-placeholder">?</div>
         )}
       </div>
     );
   }
 
   return (
-    <Link to={`/show/${show.tvdb_id}`} className="trending-card">
+    <Link to={linkTarget} className="trending-card">
       {show.image ? (
-        <img
-          src={show.image}
-          alt={show.name}
-          className="trending-card-image"
-          loading="lazy"
-        />
+        <img src={show.image} alt={show.name} className="trending-card-image" loading="lazy" />
       ) : (
-        <div className="trending-card-image trending-card-image-placeholder">
-          ?
-        </div>
+        <div className="trending-card-image trending-card-image-placeholder">?</div>
       )}
     </Link>
   );
@@ -454,8 +450,6 @@ export default function Dashboard() {
           first_aired: row.shows.first_aired || null,
         }));
 
-        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id);
-
         const showIds = normalizedShows
           .map((show) => show.show_id)
           .filter(Boolean);
@@ -586,7 +580,7 @@ export default function Dashboard() {
 
         try {
           [trending, premieringSoon] = await Promise.all([
-            fetchTrendingShows(existingTmdbIds),
+            fetchTrendingShows(),
             fetchPremieringSoonShows(existingTmdbIds),
           ]);
         } catch (error) {
@@ -698,7 +692,11 @@ export default function Dashboard() {
         ) : (
           <div className="trending-row">
             {trendingShows.map((show) => (
-              <TrendingShowCard key={show.tmdb_id || show.id} show={show} />
+              <TrendingShowCard
+  key={show.tmdb_id || show.id}
+  show={show}
+  savedShows={shows}
+/>
             ))}
           </div>
         )}
