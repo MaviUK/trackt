@@ -756,6 +756,12 @@ async function handleAddComment(event) {
   }
 }
 
+  function buildTouchStartHandler() {
+  return (event) => {
+    touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
+  };
+}
+
   function buildTouchEndHandler(showId, side) {
     return (event) => {
       const startX = touchStartX.current;
