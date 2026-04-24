@@ -735,17 +735,20 @@ async function handleAddComment(event) {
       setMatchupStats(nextMatchup);
     }
 
-    if (nextMatchup?.id) {
-      const { data: freshComments, error: freshCommentsError } = await supabase
-        .from("rankd_matchup_comments")
-        .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-        .eq("matchup_id", nextMatchup.id)
-        .order("created_at", { ascending: true });
+    const matchupId = nextMatchup?.id || matchupStats?.id;
 
-      if (freshCommentsError) throw freshCommentsError;
+if (matchupId) {
+  const { data: freshComments, error: freshCommentsError } = await supabase
+    .from("rankd_matchup_comments")
+    .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
+    .eq("matchup_id", matchupId)
+    .order("created_at", { ascending: true });
 
-      setComments(await hydrateComments(freshComments || []));
-    }
+  if (freshCommentsError) throw freshCommentsError;
+
+  const hydrated = await hydrateComments(freshComments || []);
+  setComments(hydrated);
+}
 
     setCommentText("");
     setReplyTo(null);
