@@ -706,12 +706,12 @@ async function handleAddComment(event) {
     if (userError) throw userError;
     if (!user) throw new Error("You must be logged in to comment.");
 
-    const { showAId, showBId } = getOrderedPair(
+    const { showAId, showBId, pairKey } = getOrderedPair(
       currentPair[0].show_id,
       currentPair[1].show_id
     );
 
-    const { data, error: commentError } = await supabase.rpc(
+    const { error: commentError } = await supabase.rpc(
       "rankd_add_matchup_comment",
       {
         p_show_a_id: showAId,
@@ -723,33 +723,29 @@ async function handleAddComment(event) {
 
     if (commentError) throw commentError;
 
-    const nextMatchup =
-  (data && data.matchup) ||
-  (Array.isArray(data) && data[0]?.matchup) ||
-  null;
+    const { data: freshMatchup, error: matchupReloadError } = await supabase
+      .from("rankd_matchups")
+      .select("*")
+      .eq("pair_key", pairKey)
+      .maybeSingle();
 
-    if (nextMatchup?.pair_key) {
-      const updatedMatchupMap = new Map(matchupMap);
-      updatedMatchupMap.set(nextMatchup.pair_key, nextMatchup);
-      setMatchupMap(updatedMatchupMap);
-      setMatchupStats(nextMatchup);
-    }
+    if (matchupReloadError) throw matchupReloadError;
+    if (!freshMatchup?.id) throw new Error("Comment saved, but matchup could not be reloaded.");
 
-    const matchupId = nextMatchup?.id || matchupStats?.id;
+    const updatedMatchupMap = new Map(matchupMap);
+    updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
+    setMatchupMap(updatedMatchupMap);
+    setMatchupStats(freshMatchup);
 
-if (matchupId) {
-  const { data: freshComments, error: freshCommentsError } = await supabase
-    .from("rankd_matchup_comments")
-    .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-    .eq("matchup_id", matchupId)
-    .order("created_at", { ascending: true });
+    const { data: freshComments, error: freshCommentsError } = await supabase
+      .from("rankd_matchup_comments")
+      .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
+      .eq("matchup_id", freshMatchup.id)
+      .order("created_at", { ascending: true });
 
-  if (freshCommentsError) throw freshCommentsError;
+    if (freshCommentsError) throw freshCommentsError;
 
-  const hydrated = await hydrateComments(freshComments || []);
-  setComments(hydrated);
-}
-
+    setComments(await hydrateComments(freshComments || []));
     setCommentText("");
     setReplyTo(null);
     setShowComments(true);
