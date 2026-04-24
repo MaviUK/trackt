@@ -179,7 +179,7 @@ async function fetchTrendingShows() {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  return (payload?.shows || []).filter((show) => show?.tmdb_id);
+  return (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
 }
 
 async function fetchPremieringSoonShows(existingTmdbIds = []) {
@@ -195,15 +195,52 @@ async function fetchPremieringSoonShows(existingTmdbIds = []) {
   );
 
   return (payload?.shows || [])
-    .filter(
-      (show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id))
-    )
+    .filter((show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id)))
     .filter((show) => isDateWithinNextDays(getShowPremiereDate(show), 10))
     .sort((a, b) => {
       const aDate = getShowPremiereDate(a) || "9999-12-31";
       const bDate = getShowPremiereDate(b) || "9999-12-31";
       return aDate.localeCompare(bDate);
     });
+}
+
+function findSavedShowMatch(show, savedShows) {
+  if (!show || !Array.isArray(savedShows)) return null;
+
+  const showTmdbId = show?.tmdb_id ?? show?.tmdbId ?? show?.id ?? null;
+  const showTvdbId = show?.tvdb_id ?? show?.tvdbId ?? show?.resolved_tvdb_id ?? null;
+
+  return (
+    savedShows.find((saved) => {
+      const savedTmdbId = saved?.tmdb_id ?? null;
+      const savedTvdbId = saved?.tvdb_id ?? null;
+
+      if (showTmdbId && savedTmdbId && String(showTmdbId) === String(savedTmdbId)) {
+        return true;
+      }
+
+      if (showTvdbId && savedTvdbId && String(showTvdbId) === String(savedTvdbId)) {
+        return true;
+      }
+
+      return false;
+    }) || null
+  );
+}
+
+function getExternalShowLink(show, savedShows) {
+  const savedShow = findSavedShowMatch(show, savedShows);
+
+  if (savedShow?.tvdb_id) return `/my-shows/${savedShow.tvdb_id}`;
+  if (savedShow?.tmdb_id) return `/my-shows/tmdb/${savedShow.tmdb_id}`;
+
+  const tvdbId = show?.tvdb_id ?? show?.tvdbId ?? show?.resolved_tvdb_id ?? null;
+  const tmdbId = show?.tmdb_id ?? show?.tmdbId ?? show?.id ?? null;
+
+  if (tvdbId) return `/show/${tvdbId}`;
+  if (tmdbId) return `/show/tmdb/${tmdbId}`;
+
+  return null;
 }
 
 function DashboardEpisodeItem({
@@ -240,80 +277,34 @@ function DashboardEpisodeItem({
   );
 }
 
-function getTrendingShowLink(show, savedShows) {
-  const savedShow = savedShows.find(
-    (item) =>
-      String(item.tmdb_id || "") === String(show.tmdb_id || "") ||
-      String(item.tvdb_id || "") === String(show.tvdb_id || "")
+function ExternalShowCard({ show, savedShows }) {
+  const linkTarget = getExternalShowLink(show, savedShows);
+  const showName = show?.name || show?.title || "Unknown show";
+  const imageSrc =
+    show?.image ||
+    show?.poster_url ||
+    show?.posterUrl ||
+    show?.image_url ||
+    (show?.poster_path ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : "");
+
+  const cardContent = imageSrc ? (
+    <img
+      src={imageSrc}
+      alt={showName}
+      className="trending-card-image"
+      loading="lazy"
+    />
+  ) : (
+    <div className="trending-card-image trending-card-image-placeholder">?</div>
   );
 
-  if (savedShow?.tvdb_id) return `/my-shows/${savedShow.tvdb_id}`;
-  if (savedShow?.tmdb_id) return `/my-shows/tmdb/${savedShow.tmdb_id}`;
-  if (show?.tvdb_id) return `/show/${show.tvdb_id}`;
-
-  return null;
-}
-
-function TrendingShowCard({ show, savedShows }) {
-  const linkTarget = getTrendingShowLink(show, savedShows);
-
   if (!linkTarget) {
-    return (
-      <div className="trending-card">
-        {show.image ? (
-          <img src={show.image} alt={show.name} className="trending-card-image" loading="lazy" />
-        ) : (
-          <div className="trending-card-image trending-card-image-placeholder">?</div>
-        )}
-      </div>
-    );
+    return <div className="trending-card">{cardContent}</div>;
   }
 
   return (
     <Link to={linkTarget} className="trending-card">
-      {show.image ? (
-        <img src={show.image} alt={show.name} className="trending-card-image" loading="lazy" />
-      ) : (
-        <div className="trending-card-image trending-card-image-placeholder">?</div>
-      )}
-    </Link>
-  );
-}
-
-function PremieringSoonCard({ show }) {
-  if (!show?.tvdb_id) {
-    return (
-      <div className="trending-card">
-        {show.image ? (
-          <img
-            src={show.image}
-            alt={show.name}
-            className="trending-card-image"
-            loading="lazy"
-          />
-        ) : (
-          <div className="trending-card-image trending-card-image-placeholder">
-            ?
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <Link to={`/show/${show.tvdb_id}`} className="trending-card">
-      {show.image ? (
-        <img
-          src={show.image}
-          alt={show.name}
-          className="trending-card-image"
-          loading="lazy"
-        />
-      ) : (
-        <div className="trending-card-image trending-card-image-placeholder">
-          ?
-        </div>
-      )}
+      {cardContent}
     </Link>
   );
 }
@@ -365,7 +356,7 @@ export default function Dashboard() {
 
           try {
             const [trending, premieringSoon] = await Promise.all([
-              fetchTrendingShows([]),
+              fetchTrendingShows(),
               fetchPremieringSoonShows([]),
             ]);
             setTrendingShows(trending);
@@ -449,6 +440,8 @@ export default function Dashboard() {
           poster_url: row.shows.poster_url || null,
           first_aired: row.shows.first_aired || null,
         }));
+
+        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id);
 
         const showIds = normalizedShows
           .map((show) => show.show_id)
@@ -692,11 +685,11 @@ export default function Dashboard() {
         ) : (
           <div className="trending-row">
             {trendingShows.map((show) => (
-              <TrendingShowCard
-  key={show.tmdb_id || show.id}
-  show={show}
-  savedShows={shows}
-/>
+              <ExternalShowCard
+                key={`trending-${show.tmdb_id || show.tvdb_id || show.id}`}
+                show={show}
+                savedShows={shows}
+              />
             ))}
           </div>
         )}
@@ -712,7 +705,11 @@ export default function Dashboard() {
         ) : (
           <div className="trending-row">
             {premieringSoonShows.map((show) => (
-              <PremieringSoonCard key={show.tmdb_id || show.id} show={show} />
+              <ExternalShowCard
+                key={`premiering-${show.tmdb_id || show.tvdb_id || show.id}`}
+                show={show}
+                savedShows={shows}
+              />
             ))}
           </div>
         )}
