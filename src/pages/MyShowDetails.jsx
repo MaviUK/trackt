@@ -617,10 +617,10 @@ export default function MyShowDetails() {
         try {
           setExtrasLoading(true);
 
-          const extrasUrl =
-            tvdbId != null
-              ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
-              : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`;
+         const extrasUrl =
+  tmdbIdValue != null
+    ? `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`
+    : `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`;
 
           const extrasRes = await fetch(extrasUrl);
           if (!extrasRes.ok) {
