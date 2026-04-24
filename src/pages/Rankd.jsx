@@ -723,7 +723,10 @@ async function handleAddComment(event) {
 
     if (commentError) throw commentError;
 
-    const nextMatchup = data?.matchup || data?.[0]?.matchup;
+    const nextMatchup =
+  (data && data.matchup) ||
+  (Array.isArray(data) && data[0]?.matchup) ||
+  null;
 
     if (nextMatchup?.pair_key) {
       const updatedMatchupMap = new Map(matchupMap);
