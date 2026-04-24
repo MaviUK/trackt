@@ -463,7 +463,7 @@ const hasWatchedWholeFirstSeason =
               rank_comparisons: ranking?.comparisons ?? 0,
             };
           })
-          .filter((show) => show.watchedMainCount > 0)
+          .filter((show) => show.hasWatchedWholeFirstSeason)
           .sort((a, b) => {
             if ((b.rank_rating || DEFAULT_RATING) !== (a.rank_rating || DEFAULT_RATING)) {
               return (b.rank_rating || DEFAULT_RATING) - (a.rank_rating || DEFAULT_RATING);
