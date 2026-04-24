@@ -98,8 +98,8 @@ function getBannerFromExtras(extras) {
   );
 }
 
-async function fetchWatchedRowsForEpisodeIds(episodeIds) {
-  if (!episodeIds?.length) return [];
+async function fetchWatchedRowsForEpisodeIds(episodeIds, userId) {
+  if (!episodeIds?.length || !userId) return [];
 
   const batches = chunkArray(episodeIds, 100);
   const allRows = [];
@@ -108,6 +108,7 @@ async function fetchWatchedRowsForEpisodeIds(episodeIds) {
     const { data, error } = await supabase
       .from("watched_episodes")
       .select("user_id, episode_id")
+      .eq("user_id", userId)
       .in("episode_id", batch);
 
     if (error) throw error;
@@ -542,7 +543,7 @@ export default function MyShowDetails() {
             .select(`shows!inner(tvdb_id)`)
             .eq("user_id", user.id),
           fetchBurgrRatings(showId),
-          fetchWatchedRowsForEpisodeIds(episodeIds),
+          fetchWatchedRowsForEpisodeIds(episodeIds, user.id),
           fetchAllEpisodeRatingsForShowEpisodeIds(episodeIds),
           supabase
             .from("user_show_rankings")
@@ -587,9 +588,7 @@ export default function MyShowDetails() {
             .map(String)
         );
 
-        const myWatchedRows = (showWatchedRows || []).filter(
-          (row) => String(row.user_id) === String(user.id)
-        );
+        const myWatchedRows = showWatchedRows || [];
 
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
 
