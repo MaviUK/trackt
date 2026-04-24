@@ -808,12 +808,9 @@ export default function Rankd() {
   return (
     <div className="page rankd-page">
       <div className="page-shell">
-        <div className="rankd-top-row">
-          <div>
-            <h1>Rank'd</h1>
-            <p>Pick the better show. Rank'd keeps the matchups fair and rotates through every pair.</p>
-          </div>
-        </div>
+       <div className="rankd-matchup-number">
+  Matchup #{leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) + 1}
+</div>
 
         {error ? (
           <div className="section-card rankd-error-card">
