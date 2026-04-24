@@ -1,88 +1,553 @@
+.rankd-page {
+  min-height: 100vh;
+}
+
+.rankd-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.rankd-top-row h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+}
+
+.rankd-top-row p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+}
+
+.rankd-notification-button {
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rankd-notification-button span {
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.78rem;
+}
+
+.rankd-notifications-card {
+  padding: 12px;
+  margin-bottom: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.rankd-notification-row {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  color: inherit;
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.rankd-notification-row.unread {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.09);
+}
+
+.rankd-notification-row span {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rankd-error-card,
+.rankd-empty-card {
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.rankd-error-card {
+  border-color: rgba(239, 68, 68, 0.35);
+  display: grid;
+  gap: 6px;
+}
+
+.rankd-error-card span,
+.rankd-empty-card p,
+.rankd-muted {
+  color: var(--text-muted);
+}
+
+.rankd-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 24px;
+  align-items: start;
+}
+
 .rankd-battle-shell {
-  padding: 14px !important;
-  background: linear-gradient(180deg, #3d0b0f 0%, #2a0910 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 20px;
 }
 
 .rankd-battle-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 14px;
   align-items: center;
+  gap: 18px;
 }
 
 .rankd-battle-vs {
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.9);
-  text-align: center;
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  color: #fff;
+  font-weight: 1000;
+  letter-spacing: 0.06em;
+  box-shadow: 0 16px 38px rgba(139, 92, 246, 0.32);
 }
 
 .rankd-poster-button {
-  display: block;
-  width: 100%;
-  padding: 0;
   border: 0;
   background: transparent;
+  color: inherit;
   cursor: pointer;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-width: 0;
 }
 
 .rankd-poster-frame {
-  background: #1b1d22;
-  border: 2px solid #2c2f36;
-  padding: 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  width: min(100%, 240px);
+  aspect-ratio: 2 / 3;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.86);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.28);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.rankd-poster-button:hover .rankd-poster-frame {
+  transform: translateY(-3px) scale(1.015);
+  border-color: rgba(139, 92, 246, 0.55);
 }
 
 .rankd-poster-image,
 .rankd-poster-placeholder {
   width: 100%;
-  aspect-ratio: 2 / 3;
-  display: block;
-  background: #0b0c0f;
+  height: 100%;
 }
 
 .rankd-poster-image {
   object-fit: cover;
+  display: block;
 }
 
 .rankd-poster-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
   text-align: center;
-  padding: 12px;
-  color: white;
-  font-weight: 700;
+  font-weight: 900;
+  color: var(--text-main);
 }
 
-@media (max-width: 640px) {
+.rankd-card-title {
+  font-size: 1rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.rankd-matchup-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.rankd-matchup-stats div {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 3px;
+}
+
+.rankd-matchup-stats strong {
+  font-size: 1.4rem;
+}
+
+.rankd-matchup-stats span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.rankd-comment-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.rankd-comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(2, 6, 23, 0.58);
+  color: var(--text-main);
+  font: inherit;
+  min-height: 88px;
+}
+
+.rankd-comment-form button[type="submit"] {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  color: white;
+  padding: 11px 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.rankd-comment-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rankd-last-comment,
+.rankd-replying-to {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rankd-last-comment p {
+  margin: 6px 0;
+  color: var(--text-muted);
+}
+
+.rankd-replying-to {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rankd-replying-to strong {
+  color: var(--text-main);
+}
+
+.rankd-replying-to button,
+.rankd-text-button {
+  border: 0;
+  background: transparent;
+  color: #c4b5fd;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rankd-comments-panel {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.rankd-comments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.rankd-comments-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.rankd-comment-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  display: grid;
+  gap: 8px;
+}
+
+.rankd-comment-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.rankd-comment-meta strong {
+  color: var(--text-main);
+}
+
+.rankd-comment-item p {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.rankd-comment-replies {
+  border-left: 2px solid rgba(139, 92, 246, 0.38);
+  padding-left: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.rankd-leaderboard-card {
+  padding: 20px;
+}
+
+.rankd-leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.rankd-leaderboard-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.rankd-leaderboard-header p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+}
+
+.rankd-leaderboard-header > div:last-child,
+.rankd-rating-pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.26);
+  font-weight: 900;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.rankd-leaderboard-list {
+  display: grid;
+  gap: 12px;
+}
+
+.rankd-leaderboard-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+}
+
+.rankd-leaderboard-poster {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #111827;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.rankd-leaderboard-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rankd-leaderboard-title {
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.rankd-leaderboard-meta {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+@media (max-width: 900px) {
+  .rankd-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .rankd-page {
+    padding-top: 88px;
+    padding-bottom: 96px;
+  }
+
+  .rankd-page .page-shell {
+    padding-top: 10px;
+  }
+
+  .rankd-top-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rankd-notification-button {
+    justify-content: center;
+  }
+
   .rankd-battle-shell {
-    padding: 10px !important;
+    padding: 14px;
   }
 
   .rankd-battle-layout {
     gap: 8px;
-    grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
   }
 
   .rankd-battle-vs {
-    font-size: 0.8rem;
-    letter-spacing: 0.08em;
+    width: 44px;
+    height: 44px;
+    font-size: 0.82rem;
   }
 
   .rankd-poster-frame {
-    padding: 6px;
+    border-radius: 16px;
+  }
+
+  .rankd-card-title {
+    font-size: 0.88rem;
+  }
+
+  .rankd-matchup-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .rankd-leaderboard-card {
+    padding: 14px;
+  }
+
+  .rankd-leaderboard-header {
+    align-items: flex-start;
+  }
+
+  .rankd-leaderboard-row {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .rankd-rating-pill {
+    grid-column: 2;
+    width: fit-content;
   }
 }
 
-@media (max-width: 640px) {
-  .rankd-page {
-    padding-top: calc(var(--mobile-top-banner-height) + 36px) !important;
-  }
-
-  .rankd-page .page-shell {
-    padding-top: 0;
-  }
+.rankd-feature-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.rankd-feature-strip div {
+  border: 1px solid rgba(139, 92, 246, 0.28);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(236, 72, 153, 0.08));
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+}
+.rankd-feature-strip strong,
+.rankd-mini-heading { font-weight: 1000; color: var(--text-main); }
+.rankd-feature-strip span { color: var(--text-muted); font-size: 0.9rem; }
+.rankd-mini-heading { padding: 0 2px 4px; }
+.rankd-battle-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.rankd-battle-header h2 { margin: 0; font-size: clamp(1.25rem, 3vw, 1.8rem); }
+.rankd-battle-header p { margin: 6px 0 0; color: var(--text-muted); }
+.rankd-skip-button,
+.rankd-outline-button {
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.08);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rankd-card-record { color: var(--text-muted); font-size: 0.82rem; font-weight: 800; margin-top: -6px; }
+.rankd-matchup-dashboard {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+  border: 1px solid rgba(139, 92, 246, 0.24);
+  background: rgba(139, 92, 246, 0.06);
+  border-radius: 20px;
+  padding: 14px;
+}
+.rankd-matchup-count { display: grid; gap: 4px; align-content: center; }
+.rankd-matchup-count strong { font-size: 2.4rem; line-height: 1; }
+.rankd-matchup-count span { color: var(--text-muted); font-size: 0.86rem; }
+.rankd-win-bars { display: grid; gap: 12px; }
+.rankd-win-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(120px, 1.3fr) 48px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.rankd-win-row > span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rankd-win-row > div { height: 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.rankd-win-row i { display: block; height: 100%; min-width: 4px; border-radius: inherit; background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+.rankd-win-row strong { text-align: right; }
+.rankd-comment-actions { display: flex; justify-content: flex-end; }
+@media (max-width: 760px) {
+  .rankd-feature-strip,
+  .rankd-matchup-dashboard { grid-template-columns: 1fr; }
+  .rankd-battle-header { flex-direction: column; }
+  .rankd-skip-button,
+  .rankd-outline-button { width: 100%; }
+  .rankd-win-row { grid-template-columns: 1fr 54px; }
+  .rankd-win-row > div { grid-column: 1 / -1; order: 3; }
 }
