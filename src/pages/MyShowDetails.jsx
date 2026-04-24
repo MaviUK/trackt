@@ -26,6 +26,14 @@ function makeEpisodeCode(ep) {
   ).padStart(2, "0")}`;
 }
 
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 function createWatchedLookup(rows) {
   return {
     byEpisodeId: new Set(
@@ -228,6 +236,7 @@ export default function MyShowDetails() {
   const [extrasLoading, setExtrasLoading] = useState(false);
   const [savingBurgr, setSavingBurgr] = useState(false);
   const [savingShowAction, setSavingShowAction] = useState(false);
+  const [watchedLoaded, setWatchedLoaded] = useState(false);
 
   const [show, setShow] = useState(null);
   const [episodes, setEpisodes] = useState([]);
@@ -285,6 +294,7 @@ export default function MyShowDetails() {
       if (!user) {
         if (!isCancelled) {
           setCurrentUserId(null);
+          setWatchedLoaded(true);
           const state = emptyState();
           setShow(state.show);
           setEpisodes(state.episodes);
@@ -330,6 +340,7 @@ export default function MyShowDetails() {
           setExpandedSeasons({});
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchedLoaded(true);
         }
         return {
           found: false,
@@ -380,6 +391,7 @@ export default function MyShowDetails() {
           setExpandedSeasons({});
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchedLoaded(true);
         }
         return {
           found: false,
@@ -589,12 +601,12 @@ export default function MyShowDetails() {
         );
 
         const myWatchedRows = showWatchedRows || [];
-
         const mine = (burgrRows || []).find((row) => row.user_id === user.id);
 
         setSavedShowTvdbIds(savedTvdbIds);
-        setWatchedRows(myWatchedRows || []);
+        setWatchedRows(myWatchedRows);
         setCommunityWatchedRows(showWatchedRows || []);
+        setWatchedLoaded(true);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
         setEpisodeRatings(episodeRatingRows || []);
@@ -694,8 +706,6 @@ export default function MyShowDetails() {
       } catch (secondaryError) {
         console.error("Failed loading secondary show data:", secondaryError);
         if (!isCancelled) {
-          setWatchedRows([]);
-          setCommunityWatchedRows([]);
           setBurgrRatings([]);
           setMyBurgrRating("");
           setEpisodeRatings([]);
@@ -705,8 +715,9 @@ export default function MyShowDetails() {
           setPeopleAlsoWatch([]);
           setSavedShowTvdbIds(new Set());
           setExtrasLoading(false);
-          setMobileBannerUrl(null);
+          setMobileBannerUrl(storedBackdropUrl || null);
           setRankPosition(null);
+          setWatchedLoaded(true);
         }
       }
     }
@@ -714,6 +725,9 @@ export default function MyShowDetails() {
     async function loadShowWithRetry() {
       setLoading(true);
       setExtrasLoading(false);
+      setWatchedLoaded(false);
+      setWatchedRows([]);
+      setCommunityWatchedRows([]);
 
       try {
         const maxAttempts = 6;
@@ -739,6 +753,8 @@ export default function MyShowDetails() {
                 result.tmdbId,
                 result.storedBackdropUrl
               );
+            } else if (!isCancelled) {
+              setWatchedLoaded(true);
             }
             return;
           }
@@ -767,6 +783,7 @@ export default function MyShowDetails() {
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchedLoaded(true);
         }
       } catch (error) {
         console.error("Failed loading show:", error);
@@ -789,6 +806,7 @@ export default function MyShowDetails() {
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchedLoaded(true);
         }
       } finally {
         if (!isCancelled) {
@@ -889,11 +907,20 @@ export default function MyShowDetails() {
   useEffect(() => {
     async function syncWatchStatus() {
       if (!currentUserId || !show?.id) return;
+      if (!watchedLoaded) return;
+      if (!episodes.length) return;
       if (show.watch_status === "not_added") return;
       if (show.watch_status === "archived") return;
       if (savingShowAction) return;
 
-      const desiredStatus = stats.watched > 0 ? "watching" : "watchlist";
+      let desiredStatus = "watchlist";
+
+      if (stats.total > 0 && stats.watched >= stats.total) {
+        desiredStatus = "completed";
+      } else if (stats.watched > 0) {
+        desiredStatus = "watching";
+      }
+
       if (show.watch_status === desiredStatus) return;
 
       try {
@@ -927,7 +954,10 @@ export default function MyShowDetails() {
     currentUserId,
     show?.id,
     show?.watch_status,
+    stats.total,
     stats.watched,
+    episodes.length,
+    watchedLoaded,
     savingShowAction,
   ]);
 
@@ -970,7 +1000,13 @@ export default function MyShowDetails() {
 
     try {
       if (isRemoved) {
-        const restoredStatus = stats.watched > 0 ? "watching" : "watchlist";
+        let restoredStatus = "watchlist";
+
+        if (stats.total > 0 && stats.watched >= stats.total) {
+          restoredStatus = "completed";
+        } else if (stats.watched > 0) {
+          restoredStatus = "watching";
+        }
 
         const { error } = await supabase.from("user_shows_new").upsert(
           {
@@ -1032,7 +1068,13 @@ export default function MyShowDetails() {
 
     try {
       if (isArchived) {
-        const restoredStatus = stats.watched > 0 ? "watching" : "watchlist";
+        let restoredStatus = "watchlist";
+
+        if (stats.total > 0 && stats.watched >= stats.total) {
+          restoredStatus = "completed";
+        } else if (stats.watched > 0) {
+          restoredStatus = "watching";
+        }
 
         const { error } = await supabase
           .from("user_shows_new")
@@ -1055,11 +1097,13 @@ export default function MyShowDetails() {
             : prev
         );
       } else {
+        const archivedAt = new Date().toISOString();
+
         const { error } = await supabase
           .from("user_shows_new")
           .update({
             watch_status: "archived",
-            archived_at: new Date().toISOString(),
+            archived_at: archivedAt,
           })
           .eq("user_id", user.id)
           .eq("show_id", show.id);
@@ -1071,7 +1115,7 @@ export default function MyShowDetails() {
             ? {
                 ...prev,
                 watch_status: "archived",
-                archived_at: new Date().toISOString(),
+                archived_at: archivedAt,
               }
             : prev
         );
@@ -1460,7 +1504,9 @@ export default function MyShowDetails() {
             <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Watched</span>
-                <strong className="msd-stat-value">{stats.watched}</strong>
+                <strong className="msd-stat-value">
+                  {watchedLoaded ? stats.watched : "..."}
+                </strong>
               </div>
 
               <div className="msd-stat-box">
@@ -1470,7 +1516,9 @@ export default function MyShowDetails() {
 
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Progress</span>
-                <strong className="msd-stat-value">{stats.pct}%</strong>
+                <strong className="msd-stat-value">
+                  {watchedLoaded ? `${stats.pct}%` : "..."}
+                </strong>
               </div>
 
               <div className="msd-stat-box">
@@ -1608,7 +1656,9 @@ export default function MyShowDetails() {
                         <div>
                           <div className="msd-season-title">{season.label}</div>
                           <div className="msd-season-subtitle">
-                            {season.watchedCount}/{season.totalCount} watched
+                            {watchedLoaded
+                              ? `${season.watchedCount}/${season.totalCount} watched`
+                              : `Loading/${season.totalCount} watched`}
                           </div>
                         </div>
                         <div className="msd-season-toggle-right">
@@ -1679,14 +1729,20 @@ export default function MyShowDetails() {
                                         : "msd-btn-primary"
                                     }`}
                                     onClick={() => handleMarkWatched(ep)}
+                                    disabled={!watchedLoaded}
                                   >
-                                    {watched ? "Watched" : "Watch"}
+                                    {!watchedLoaded
+                                      ? "Loading..."
+                                      : watched
+                                      ? "Watched"
+                                      : "Watch"}
                                   </button>
 
                                   <button
                                     type="button"
                                     className="msd-btn msd-btn-secondary"
                                     onClick={() => handleWatchUpToHere(ep)}
+                                    disabled={!watchedLoaded}
                                   >
                                     Up to Here
                                   </button>
@@ -2095,6 +2151,7 @@ export default function MyShowDetails() {
               type="button"
               className="msd-bottom-action-btn msd-bottom-action-btn-primary"
               onClick={handleMarkNextEpisodeWatched}
+              disabled={!watchedLoaded}
             >
               Watch {makeEpisodeCode(nextUnwatchedEpisode)}
             </button>
