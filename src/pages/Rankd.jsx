@@ -370,7 +370,6 @@ export default function Rankd() {
 
         const normalizedShows = (userShows || [])
           .filter((row) => String(row.watch_status || "").toLowerCase() !== "watchlist")
-          .filter((row) => String(row.watch_status || "").toLowerCase() !== "archived")
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows?.tvdb_id,
@@ -429,13 +428,27 @@ export default function Rankd() {
 
         const withProgress = normalizedShows
           .map((show) => {
-            const mainEpisodes = (episodesByShowId[String(show.show_id)] || []).filter(
-              (ep) => Number(ep.season_number ?? 0) !== 0
-            );
+            const allShowEpisodes = episodesByShowId[String(show.show_id)] || [];
 
-            const watchedMainCount = mainEpisodes.filter((ep) =>
-              watchedEpisodeIds.has(String(ep.id))
-            ).length;
+const mainEpisodes = allShowEpisodes.filter(
+  (ep) => Number(ep.season_number ?? 0) !== 0
+);
+
+const seasonOneEpisodes = allShowEpisodes.filter(
+  (ep) => Number(ep.season_number ?? 0) === 1
+);
+
+const watchedMainCount = mainEpisodes.filter((ep) =>
+  watchedEpisodeIds.has(String(ep.id))
+).length;
+
+const watchedSeasonOneCount = seasonOneEpisodes.filter((ep) =>
+  watchedEpisodeIds.has(String(ep.id))
+).length;
+
+const hasWatchedWholeFirstSeason =
+  seasonOneEpisodes.length > 0 &&
+  watchedSeasonOneCount === seasonOneEpisodes.length;
 
             const ranking = rankingMap.get(String(show.show_id));
 
@@ -443,6 +456,7 @@ export default function Rankd() {
               ...show,
               totalMainEpisodes: mainEpisodes.length,
               watchedMainCount,
+              hasWatchedWholeFirstSeason,
               rank_rating: ranking?.rating ?? DEFAULT_RATING,
               rank_wins: ranking?.wins ?? 0,
               rank_losses: ranking?.losses ?? 0,
