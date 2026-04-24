@@ -76,3 +76,13 @@
     padding: 6px;
   }
 }
+
+@media (max-width: 640px) {
+  .rankd-page {
+    padding-top: calc(var(--mobile-top-banner-height) + 36px) !important;
+  }
+
+  .rankd-page .page-shell {
+    padding-top: 0;
+  }
+}

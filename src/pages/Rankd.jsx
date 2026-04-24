@@ -445,7 +445,7 @@ export default function Rankd() {
 
   if (loading) {
     return (
-      <div className="page">
+      <div className="page rankd-page">
         <div className="page-shell">
           <div className="page-header">
             <h1>Rank'd</h1>
@@ -458,7 +458,7 @@ export default function Rankd() {
 
   if (eligibleShows.length < 2) {
     return (
-      <div className="page">
+      <div className="page rankd-page">
         <div className="page-shell">
           <div className="page-header">
             <h1>Rank'd</h1>
@@ -490,7 +490,7 @@ export default function Rankd() {
   }
 
   return (
-    <div className="page">
+    <div className="page rankd-page">
       <div className="page-shell">
       
 
