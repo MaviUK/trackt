@@ -824,107 +824,51 @@ export default function Rankd() {
 
         <div className="rankd-main-grid">
           <div className="section-card rankd-battle-shell">
-            <div className="rankd-feature-strip rankd-feature-strip-inline">
-              <div>
-                <strong>Fair rotation</strong>
-                <span>Least-used show pairs are picked first</span>
-              </div>
-              <div>
-                <strong>Global stats</strong>
-                <span>Every user vote updates this matchup</span>
-              </div>
-              <div>
-                <strong>Comments</strong>
-                <span>Discuss this exact pairing</span>
+
               </div>
             </div>
 
-            <div className="rankd-matchup-dashboard rankd-matchup-dashboard-top">
-              <div className="rankd-win-bars">
-                <div className="rankd-win-row">
-                  <span>{currentPair[0].show_name}</span>
-                  <div>
-                    <i style={{ width: `${leftWinPercent}%` }} />
-                  </div>
-                  <strong>
-                    {leftWinPercent}% / {leftWins} wins
-                  </strong>
-                </div>
+           <div className="rankd-battle-layout">
+  <RankCard
+    show={currentPair[0]}
+    onChoose={() => handleChoice(currentPair[0].show_id)}
+    onTouchStart={buildTouchStartHandler()}
+    onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+  />
 
-                <div className="rankd-win-row">
-                  <span>{currentPair[1].show_name}</span>
-                  <div>
-                    <i style={{ width: `${rightWinPercent}%` }} />
-                  </div>
-                  <strong>
-                    {rightWinPercent}% / {rightWins} wins
-                  </strong>
-                </div>
-              </div>
-            </div>
+  <div className="rankd-battle-vs">VS</div>
 
-            {lastComment ? (
-              <div className="rankd-last-comment rankd-last-comment-top">
-                <strong>Last comment</strong>
-                <p>{lastComment.body}</p>
-                <button
-                  type="button"
-                  className="rankd-text-button"
-                  onClick={() => setShowComments(true)}
-                >
-                  View all comments
-                </button>
-              </div>
-            ) : (
-              <div className="rankd-last-comment rankd-last-comment-top">
-                <strong>Comments</strong>
-                <p>No comments yet. Add the first comment for this matchup.</p>
-              </div>
-            )}
+  <RankCard
+    show={currentPair[1]}
+    onChoose={() => handleChoice(currentPair[1].show_id)}
+    onTouchStart={buildTouchStartHandler()}
+    onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+  />
+</div>
 
-            <div className="rankd-battle-header">
-              <div>
-                <h2>
-                  {currentPair[0].show_name} vs {currentPair[1].show_name}
-                </h2>
-                <p>Click the show you prefer.</p>
-              </div>
+<div className="rankd-matchup-dashboard">
+  <div className="rankd-win-bars">
+    <div className="rankd-win-row">
+      <span>{currentPair[0].show_name}</span>
+      <div>
+        <i style={{ width: `${leftWinPercent}%` }} />
+      </div>
+      <strong>
+        {leftWinPercent}% / {leftWins} wins
+      </strong>
+    </div>
 
-              <button
-                type="button"
-                className="rankd-skip-button"
-                disabled={saving}
-                onClick={() => {
-                  const nextPair = getFairPair(eligibleShows, matchupMap, currentPairKey);
-                  setCurrentPair(nextPair);
-                  setLastPairKey(
-                    nextPair.length === 2
-                      ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-                      : ""
-                  );
-                }}
-              >
-                Skip
-              </button>
-            </div>
-
-            <div className="rankd-battle-layout">
-              <RankCard
-                show={currentPair[0]}
-                onChoose={() => handleChoice(currentPair[0].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-              />
-
-              <div className="rankd-battle-vs">VS</div>
-
-              <RankCard
-                show={currentPair[1]}
-                onChoose={() => handleChoice(currentPair[1].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
-              />
-            </div>
+    <div className="rankd-win-row">
+      <span>{currentPair[1].show_name}</span>
+      <div>
+        <i style={{ width: `${rightWinPercent}%` }} />
+      </div>
+      <strong>
+        {rightWinPercent}% / {rightWins} wins
+      </strong>
+    </div>
+  </div>
+</div>
 
             <form className="rankd-comment-form" onSubmit={handleAddComment}>
               {replyTo ? (
