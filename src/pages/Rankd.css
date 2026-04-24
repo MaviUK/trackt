@@ -593,3 +593,7 @@
   box-shadow: none;
   background: transparent;
 }
+
+.rankd-poster-button:active {
+  transform: none !important;
+}
