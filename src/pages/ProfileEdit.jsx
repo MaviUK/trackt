@@ -91,6 +91,64 @@ async function buildCroppedAvatarDataUrl(imageSrc, zoom, offsetX, offsetY) {
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
+async function fetchCommentHistory(userId) {
+  const { data: comments, error } = await supabase
+    .from("rankd_matchup_comments")
+    .select("id, matchup_id, body, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) throw error;
+
+  const rows = comments || [];
+  const matchupIds = rows.map((row) => row.matchup_id).filter(Boolean);
+
+  if (!matchupIds.length) return [];
+
+  const { data: matchups, error: matchupError } = await supabase
+    .from("rankd_matchups")
+    .select("id, pair_key, show_a_id, show_b_id")
+    .in("id", matchupIds);
+
+  if (matchupError) throw matchupError;
+
+  const showIds = Array.from(
+    new Set(
+      (matchups || [])
+        .flatMap((matchup) => [matchup.show_a_id, matchup.show_b_id])
+        .filter(Boolean)
+    )
+  );
+
+  const { data: shows, error: showsError } = await supabase
+    .from("shows")
+    .select("id, name")
+    .in("id", showIds);
+
+  if (showsError) throw showsError;
+
+  const showMap = new Map(
+    (shows || []).map((show) => [String(show.id), show.name])
+  );
+
+  const matchupMap = new Map(
+    (matchups || []).map((matchup) => [
+      String(matchup.id),
+      {
+        ...matchup,
+        showAName: showMap.get(String(matchup.show_a_id)) || "Show A",
+        showBName: showMap.get(String(matchup.show_b_id)) || "Show B",
+      },
+    ])
+  );
+
+  return rows.map((comment) => ({
+    ...comment,
+    matchup: matchupMap.get(String(comment.matchup_id)) || null,
+  }));
+}
+
 export default function ProfileEdit() {
   const navigate = useNavigate();
   const previewRef = useRef(null);
@@ -102,6 +160,8 @@ export default function ProfileEdit() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [commentHistory, setCommentHistory] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -212,6 +272,17 @@ export default function ProfileEdit() {
             youtube_url: data.youtube_url || "",
             website_url: data.website_url || "",
           });
+        }
+
+        setCommentsLoading(true);
+        try {
+          const historyRows = await fetchCommentHistory(user.id);
+          setCommentHistory(historyRows);
+        } catch (commentsError) {
+          console.error("Failed loading comment history:", commentsError);
+          setCommentHistory([]);
+        } finally {
+          setCommentsLoading(false);
         }
       } catch (err) {
         console.error("Failed to load profile:", err);
@@ -461,6 +532,20 @@ export default function ProfileEdit() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleLogout() {
+    setError("");
+    setMessage("");
+
+    const { error: logoutError } = await supabase.auth.signOut();
+
+    if (logoutError) {
+      setError(logoutError.message || "Failed to log out.");
+      return;
+    }
+
+    navigate("/login", { replace: true });
   }
 
   if (loading) {
@@ -794,9 +879,88 @@ export default function ProfileEdit() {
             <Link to="/dashboard" style={secondaryLinkStyle}>
               Cancel
             </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={saving}
+              style={dangerButtonStyle}
+            >
+              Logout
+            </button>
           </div>
         </form>
       </div>
+
+      <section
+        className="profile-comment-history-card"
+        style={{
+          maxWidth: 860,
+          marginTop: 24,
+          padding: isMobile ? 16 : 24,
+          borderRadius: 20,
+          border: "1px solid rgba(148,163,184,0.15)",
+          background: "#0f172a",
+        }}
+      >
+        <div style={{ marginBottom: 14 }}>
+          <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
+            Comment History
+          </h2>
+          <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
+            Your latest Rank'd comments. Click one to open that matchup.
+          </p>
+        </div>
+
+        {commentsLoading ? (
+          <p style={{ color: "#94a3b8", margin: 0 }}>Loading comments...</p>
+        ) : commentHistory.length ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            {commentHistory.map((comment) => {
+              const matchup = comment.matchup;
+              const targetUrl = matchup?.pair_key
+                ? `/rankd?matchup=${encodeURIComponent(
+                    matchup.pair_key
+                  )}&comment=${encodeURIComponent(comment.id)}`
+                : "/rankd";
+
+              return (
+                <Link
+                  key={comment.id}
+                  to={targetUrl}
+                  style={{
+                    display: "block",
+                    padding: 14,
+                    borderRadius: 14,
+                    border: "1px solid #26324a",
+                    background: "#182235",
+                    color: "#f8fafc",
+                    textDecoration: "none",
+                  }}
+                >
+                  <strong style={{ color: "#c4b5fd" }}>
+                    {matchup
+                      ? `${matchup.showAName} vs ${matchup.showBName}`
+                      : "Rank'd matchup"}
+                  </strong>
+
+                  <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
+                    {comment.body}
+                  </p>
+
+                  <small style={{ color: "#94a3b8" }}>
+                    {new Date(comment.created_at).toLocaleString()}
+                  </small>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{ color: "#94a3b8", margin: 0 }}>
+            You have not posted any Rank'd comments yet.
+          </p>
+        )}
+      </section>
     </div>
   );
 }
@@ -841,4 +1005,15 @@ const secondaryLinkStyle = {
   color: "#f8fafc",
   fontWeight: 700,
   textDecoration: "none",
+};
+
+
+const dangerButtonStyle = {
+  padding: "12px 18px",
+  borderRadius: 14,
+  border: "1px solid #7f1d1d",
+  background: "#991b1b",
+  color: "#fff",
+  fontWeight: 700,
+  cursor: "pointer",
 };

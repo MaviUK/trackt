@@ -228,7 +228,7 @@ function CommentItem({ comment, currentUserId, onReply }) {
   const author = comment.profile?.username || comment.profile?.full_name || "Rank'd user";
 
   return (
-    <div className="rankd-comment-item">
+    <div className="rankd-comment-item" id={`comment-${comment.id}`}>
       <div className="rankd-comment-meta">
         <strong>{author}</strong>
         <span>{new Date(comment.created_at).toLocaleString()}</span>
@@ -282,6 +282,22 @@ export default function Rankd() {
       : "";
 
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
+
+  function scrollToComment(commentId) {
+    if (!commentId) return;
+
+    setTimeout(() => {
+      const el = document.getElementById(`comment-${commentId}`);
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("rankd-comment-highlight");
+
+      setTimeout(() => {
+        el.classList.remove("rankd-comment-highlight");
+      }, 2500);
+    }, 500);
+  }
 
   async function loadCurrentMatchup(pair) {
     if (!pair?.length || pair.length !== 2) {
@@ -527,6 +543,35 @@ const hasWatchedWholeFirstSeason =
       setSearchParams({});
     }
   }, [searchParams, notifications, eligibleShows, userId, setSearchParams]);
+
+  useEffect(() => {
+    const pairKey = searchParams.get("matchup");
+    const commentId = searchParams.get("comment");
+
+    if (!pairKey || !eligibleShows.length) return;
+
+    const showIds = pairKey.split(":");
+    const pair = showIds
+      .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
+      .filter(Boolean);
+
+    if (pair.length !== 2) return;
+
+    const currentKey = currentPair.length === 2
+      ? makePairKey(currentPair[0].show_id, currentPair[1].show_id)
+      : "";
+
+    if (currentKey !== pairKey) {
+      setCurrentPair(pair);
+      setLastPairKey(pairKey);
+    }
+
+    setShowComments(true);
+
+    if (commentId) {
+      scrollToComment(commentId);
+    }
+  }, [searchParams, eligibleShows, currentPair]);
 
   const leaderboard = useMemo(() => {
     return [...eligibleShows].sort((a, b) => {

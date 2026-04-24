@@ -456,3 +456,9 @@
     grid-template-columns: 48px 1fr;
   }
 }
+
+
+.rankd-comment-highlight {
+  outline: 2px solid #facc15;
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.18);
+}
