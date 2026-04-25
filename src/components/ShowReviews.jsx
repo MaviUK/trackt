@@ -5,6 +5,7 @@ function formatDateTime(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
+
   return date.toLocaleString(undefined, {
     day: "numeric",
     month: "short",
@@ -33,6 +34,7 @@ function buildReviewTree(rows) {
 
   byId.forEach((row) => {
     const parentId = row.parent_id ? String(row.parent_id) : "";
+
     if (parentId && byId.has(parentId)) {
       byId.get(parentId).replies.push(row);
     } else {
@@ -43,7 +45,13 @@ function buildReviewTree(rows) {
   return roots;
 }
 
-function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }) {
+function ReviewItem({
+  review,
+  currentUserId,
+  onReply,
+  savingReplyId,
+  depth = 0,
+}) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
 
@@ -52,17 +60,17 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
   const avatarUrl = profile.avatar_url || "";
   const isSaving = savingReplyId === review.id;
 
-  // 🚀 KEY LOGIC
   const canReply =
-    currentUserId &&
-    String(review.user_id) !== String(currentUserId);
+    currentUserId && String(review.user_id) !== String(currentUserId);
 
   async function submitReply(event) {
     event.preventDefault();
+
     const trimmed = replyBody.trim();
     if (!trimmed || !canReply) return;
 
     const ok = await onReply(review.id, trimmed);
+
     if (ok) {
       setReplyBody("");
       setReplyOpen(false);
@@ -72,35 +80,37 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
   return (
     <article className={`msd-review-item ${depth > 0 ? "is-reply" : ""}`}>
       <div className="msd-review-body-wrap">
-  <div className="msd-review-head">
-    {avatarUrl ? (
-      <img src={avatarUrl} alt="" className="msd-review-avatar-inline" />
-    ) : (
-      <div className="msd-review-avatar-inline msd-review-avatar-fallback">
-        {displayName.slice(0, 1).toUpperCase()}
-      </div>
-    )}
-
-    <strong className="msd-review-username">{displayName}</strong>
-    <span className="msd-review-date">
-      {formatDateTime(review.created_at)}
-    </span>
-  </div>
         <div className="msd-review-card">
+          <div className="msd-review-head">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="msd-review-avatar" />
+            ) : (
+              <div className="msd-review-avatar msd-review-avatar-fallback">
+                {displayName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+
+            <strong className="msd-review-username">{displayName}</strong>
+
+            <span className="msd-review-date">
+              {formatDateTime(review.created_at)}
+            </span>
+          </div>
+
           <p className="msd-review-text">{review.body}</p>
         </div>
 
-       <div className="msd-review-actions">
-  {canReply ? (
-    <button
-      type="button"
-      className="msd-review-action"
-      onClick={() => setReplyOpen((prev) => !prev)}
-    >
-      Reply
-    </button>
-  ) : null}
-</div>
+        <div className="msd-review-actions">
+          {canReply ? (
+            <button
+              type="button"
+              className="msd-review-action"
+              onClick={() => setReplyOpen((prev) => !prev)}
+            >
+              Reply
+            </button>
+          ) : null}
+        </div>
 
         {replyOpen && canReply ? (
           <form className="msd-review-reply-form" onSubmit={submitReply}>
@@ -111,6 +121,7 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
               rows={3}
               maxLength={1000}
             />
+
             <div className="msd-review-form-actions">
               <button
                 type="button"
@@ -122,6 +133,7 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
               >
                 Cancel
               </button>
+
               <button
                 type="submit"
                 className="msd-btn msd-btn-primary"
@@ -162,6 +174,7 @@ export default function ShowReviews({ showId, currentUserId }) {
 
   async function loadReviews() {
     if (!showId) return;
+
     setLoading(true);
     setError("");
 
@@ -216,6 +229,7 @@ export default function ShowReviews({ showId, currentUserId }) {
 
   async function handleSubmitReview(event) {
     event.preventDefault();
+
     const trimmed = body.trim();
     if (!currentUserId || !showId || !trimmed || saving) return;
 
@@ -223,19 +237,21 @@ export default function ShowReviews({ showId, currentUserId }) {
     setError("");
 
     try {
-      const { error } = await supabase.from("show_reviews").insert({
-        show_id: showId,
-        user_id: currentUserId,
-        parent_id: null,
-        body: trimmed,
-      });
+      const { error: insertError } = await supabase
+        .from("show_reviews")
+        .insert({
+          show_id: showId,
+          user_id: currentUserId,
+          parent_id: null,
+          body: trimmed,
+        });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       setBody("");
       await loadReviews();
     } catch (err) {
-      console.error(err);
+      console.error("Failed posting review:", err);
       setError(err.message || "Failed posting review");
     } finally {
       setSaving(false);
@@ -247,21 +263,33 @@ export default function ShowReviews({ showId, currentUserId }) {
     if (!currentUserId || !showId || !parentId || !trimmed) return false;
 
     setSavingReplyId(parentId);
+    setError("");
 
     try {
-      const { error } = await supabase.from("show_reviews").insert({
-        show_id: showId,
-        user_id: currentUserId,
-        parent_id: parentId,
-        body: trimmed,
-      });
+      const parentReview = reviews.find(
+        (item) => String(item.id) === String(parentId)
+      );
 
-      if (error) throw error;
+      if (parentReview?.user_id && String(parentReview.user_id) === String(currentUserId)) {
+        setError("You cannot reply to your own post.");
+        return false;
+      }
+
+      const { error: insertError } = await supabase
+        .from("show_reviews")
+        .insert({
+          show_id: showId,
+          user_id: currentUserId,
+          parent_id: parentId,
+          body: trimmed,
+        });
+
+      if (insertError) throw insertError;
 
       await loadReviews();
       return true;
     } catch (err) {
-      console.error(err);
+      console.error("Failed posting reply:", err);
       setError(err.message || "Failed posting reply");
       return false;
     } finally {
@@ -273,33 +301,50 @@ export default function ShowReviews({ showId, currentUserId }) {
     <section className="msd-reviews-section">
       <h2 className="msd-section-title">Reviews</h2>
 
-      {currentUserId && (
+      {currentUserId ? (
         <form className="msd-review-form" onSubmit={handleSubmitReview}>
           <textarea
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(event) => setBody(event.target.value)}
             placeholder="Write your review..."
+            rows={5}
+            maxLength={2000}
           />
-          <button disabled={saving || !body.trim()}>
-            {saving ? "Posting..." : "Post review"}
-          </button>
+
+          <div className="msd-review-form-actions">
+            <span>{body.trim().length}/2000</span>
+
+            <button
+              type="submit"
+              className="msd-btn msd-btn-primary"
+              disabled={saving || !body.trim()}
+            >
+              {saving ? "Posting..." : "Post review"}
+            </button>
+          </div>
         </form>
+      ) : (
+        <div className="msd-review-login-note">Log in to write a review.</div>
       )}
 
-      {error && <p>{error}</p>}
+      {error ? <div className="msd-review-error">{error}</div> : null}
 
       {loading ? (
-        <p>Loading...</p>
+        <p className="msd-muted">Loading reviews...</p>
+      ) : reviewTree.length > 0 ? (
+        <div className="msd-review-list">
+          {reviewTree.map((review) => (
+            <ReviewItem
+              key={review.id}
+              review={review}
+              currentUserId={currentUserId}
+              onReply={handleSubmitReply}
+              savingReplyId={savingReplyId}
+            />
+          ))}
+        </div>
       ) : (
-        reviewTree.map((review) => (
-          <ReviewItem
-            key={review.id}
-            review={review}
-            currentUserId={currentUserId}
-            onReply={handleSubmitReply}
-            savingReplyId={savingReplyId}
-          />
-        ))
+        <p className="msd-muted">No reviews yet. Be the first to write one.</p>
       )}
     </section>
   );
