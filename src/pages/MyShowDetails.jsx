@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import ShowReviews from "../components/ShowReviews";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
 import {
@@ -1749,6 +1750,16 @@ export default function MyShowDetails() {
             >
               Genre
             </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "reviews" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("reviews")}
+            >
+              Reviews
+            </button>
           </div>
 
           <div className="msd-tab-panel">
@@ -2181,6 +2192,10 @@ export default function MyShowDetails() {
                   )}
                 </div>
               </>
+            )}
+
+            {activeTab === "reviews" && (
+              <ShowReviews showId={show.id} currentUserId={currentUserId} />
             )}
           </div>
         </section>
