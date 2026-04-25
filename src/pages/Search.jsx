@@ -246,6 +246,11 @@ export default function Search() {
       await withTimeout(
         addShowToUserList({
           tvdb_id: Number(show.tvdb_id),
+          tmdb_id:
+            show.tmdb_id ||
+            show.resolved_tmdb_id ||
+            show.mapped_tmdb_id ||
+            null,
           name: show.name || show.show_name || "Unknown Show",
           poster_url: show.image_url || show.poster_url || null,
           overview: show.overview || null,
