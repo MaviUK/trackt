@@ -8,6 +8,15 @@ function normalizeDate(value) {
 }
 
 function normalizeNumber(value) {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const num = Number(trimmed);
+    return Number.isFinite(num) ? num : null;
+  }
+
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
@@ -83,34 +92,6 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
     const { error } = await supabase.from(table).upsert(chunk, { onConflict });
     if (error) throw error;
   }
-}
-
-async function findExistingShowByIds({ tvdbId, tmdbId }) {
-  const filters = [];
-  if (tvdbId) filters.push(`tvdb_id.eq.`);
-  if (tmdbId) filters.push(`tmdb_id.eq.`);
-  if (!filters.length) return null;
-
-  const { data, error } = await supabase
-    .from("shows")
-    .select("*")
-    .or(filters.join(","))
-    .limit(5);
-
-  if (error) throw error;
-  if (!data?.length) return null;
-
-  if (tmdbId) {
-    const tmdbMatch = data.find((row) => Number(row.tmdb_id) === Number(tmdbId));
-    if (tmdbMatch) return tmdbMatch;
-  }
-
-  if (tvdbId) {
-    const tvdbMatch = data.find((row) => Number(row.tvdb_id) === Number(tvdbId));
-    if (tvdbMatch) return tvdbMatch;
-  }
-
-  return data[0] || null;
 }
 
 function dedupeByKey(rows, getKey) {
@@ -536,44 +517,39 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
 }
 
 export async function saveShowToDatabase(show) {
-  const tvdbId = normalizeNumber(
-    show?.tvdb_id || show?.resolved_tvdb_id || null
-  );
-  const tmdbId = normalizeNumber(show?.tmdb_id || show?.id);
+  const tvdbId = normalizeNumber(show?.tvdb_id ?? show?.resolved_tvdb_id ?? show?.mapped_tvdb_id ?? null);
+  const tmdbId = normalizeNumber(show?.tmdb_id ?? show?.resolved_tmdb_id ?? show?.mapped_tmdb_id ?? show?.show_tmdb_id ?? show?.id ?? null);
 
   if (!tvdbId && !tmdbId) {
     throw new Error("Missing show id");
   }
 
-  let existingShow = null;
+  async function findExistingShowByIds(nextTvdbId, nextTmdbId) {
+    const safeTvdbId = normalizeNumber(nextTvdbId);
+    const safeTmdbId = normalizeNumber(nextTmdbId);
 
-  if (tvdbId) {
-    const { data, error } = await supabase
-      .from("shows")
-      .select("*")
-      .eq("tvdb_id", tvdbId)
-      .maybeSingle();
+    if (safeTvdbId) {
+      const { data, error } = await supabase.from("shows").select("*").eq("tvdb_id", safeTvdbId).maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+    }
 
-    if (error) throw error;
-    existingShow = data || existingShow;
+    if (safeTmdbId) {
+      const { data, error } = await supabase.from("shows").select("*").eq("tmdb_id", safeTmdbId).maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+    }
+
+    return null;
   }
 
-  if (!existingShow && tmdbId) {
-    const { data, error } = await supabase
-      .from("shows")
-      .select("*")
-      .eq("tmdb_id", tmdbId)
-      .maybeSingle();
-
-    if (error) throw error;
-    existingShow = data || existingShow;
-  }
+  let existingShow = await findExistingShowByIds(tvdbId, tmdbId);
 
   let mergedShowDetails = {
     ...existingShow,
     ...show,
-    tvdb_id: tvdbId ?? existingShow?.tvdb_id ?? null,
-    tmdb_id: tmdbId ?? existingShow?.tmdb_id ?? null,
+    tvdb_id: tvdbId ?? normalizeNumber(existingShow?.tvdb_id) ?? null,
+    tmdb_id: tmdbId ?? normalizeNumber(existingShow?.tmdb_id) ?? null,
   };
 
   if (tvdbId) {
@@ -583,141 +559,60 @@ export async function saveShowToDatabase(show) {
         ...mergedShowDetails,
         ...tvdbDetails,
         tvdb_id: tvdbId,
-        tmdb_id: normalizeNumber(
-          mergedShowDetails?.tmdb_id ?? tvdbDetails?.tmdb_id ?? tmdbId
-        ),
+        tmdb_id: normalizeNumber(mergedShowDetails?.tmdb_id ?? tvdbDetails?.tmdb_id ?? tmdbId),
       };
     } catch (error) {
-      if (!tmdbId) {
-        throw error;
-      }
-      console.error(
-        "TVDB show details failed, falling back to TMDB/show payload:",
-        error
-      );
+      if (!tmdbId) throw error;
+      console.error("TVDB show details failed, falling back to TMDB/show payload:", error);
     }
   }
 
-  if (tmdbId || mergedShowDetails?.tmdb_id) {
-    const resolvedTmdbId = normalizeNumber(
-      tmdbId ?? mergedShowDetails?.tmdb_id
-    );
+  const resolvedTmdbId = normalizeNumber(mergedShowDetails?.tmdb_id ?? tmdbId);
 
+  if (resolvedTmdbId) {
     try {
       const tmdbShowDetails = await fetchTmdbShowDetails(resolvedTmdbId);
-
       mergedShowDetails = {
         ...mergedShowDetails,
         ...tmdbShowDetails,
-        tvdb_id:
-          normalizeNumber(mergedShowDetails?.tvdb_id) ??
-          normalizeNumber(tmdbShowDetails?.tvdb_id) ??
-          null,
+        tvdb_id: normalizeNumber(mergedShowDetails?.tvdb_id) ?? normalizeNumber(tmdbShowDetails?.tvdb_id) ?? null,
         tmdb_id: resolvedTmdbId,
-        name:
-          mergedShowDetails?.name ||
-          tmdbShowDetails?.name ||
-          "Unknown title",
-        overview:
-          mergedShowDetails?.overview ||
-          tmdbShowDetails?.overview ||
-          null,
-        poster_url:
-          mergedShowDetails?.poster_url ||
-          tmdbShowDetails?.poster_url ||
-          null,
-        backdrop_url:
-          mergedShowDetails?.backdrop_url ||
-          tmdbShowDetails?.backdrop_url ||
-          null,
-        first_air_date:
-          mergedShowDetails?.first_air_date ||
-          tmdbShowDetails?.first_air_date ||
-          null,
-        first_aired:
-          mergedShowDetails?.first_aired ||
-          tmdbShowDetails?.first_air_date ||
-          null,
-        genres:
-          mergedShowDetails?.genres?.length
-            ? mergedShowDetails.genres
-            : tmdbShowDetails?.genres || [],
-        network:
-          mergedShowDetails?.network ||
-          tmdbShowDetails?.networks ||
-          null,
-        rating_average:
-          mergedShowDetails?.rating_average ??
-          tmdbShowDetails?.vote_average ??
-          null,
-        rating_count:
-          mergedShowDetails?.rating_count ??
-          tmdbShowDetails?.vote_count ??
-          null,
+        name: mergedShowDetails?.name || tmdbShowDetails?.name || "Unknown title",
+        overview: mergedShowDetails?.overview || tmdbShowDetails?.overview || null,
+        poster_url: mergedShowDetails?.poster_url || tmdbShowDetails?.poster_url || null,
+        backdrop_url: mergedShowDetails?.backdrop_url || tmdbShowDetails?.backdrop_url || null,
+        first_air_date: mergedShowDetails?.first_air_date || tmdbShowDetails?.first_air_date || null,
+        first_aired: mergedShowDetails?.first_aired || tmdbShowDetails?.first_air_date || null,
+        genres: mergedShowDetails?.genres?.length ? mergedShowDetails.genres : tmdbShowDetails?.genres || [],
+        network: mergedShowDetails?.network || tmdbShowDetails?.networks || null,
+        rating_average: mergedShowDetails?.rating_average ?? tmdbShowDetails?.vote_average ?? null,
+        rating_count: mergedShowDetails?.rating_count ?? tmdbShowDetails?.vote_count ?? null,
       };
     } catch (error) {
       console.error("TMDB show details fallback failed:", error);
     }
   }
 
-  let showPayload = buildShowPayload(mergedShowDetails);
+  const showPayload = buildShowPayload(mergedShowDetails);
 
-  const lateExistingShow = await findExistingShowByIds({
-    tvdbId: showPayload.tvdb_id,
-    tmdbId: showPayload.tmdb_id,
-  });
-
-  if (lateExistingShow?.id) {
-    existingShow = lateExistingShow;
-    showPayload = buildShowPayload({
-      ...lateExistingShow,
-      ...mergedShowDetails,
-      tvdb_id: showPayload.tvdb_id ?? lateExistingShow.tvdb_id ?? null,
-      tmdb_id: showPayload.tmdb_id ?? lateExistingShow.tmdb_id ?? null,
-    });
-  }
+  existingShow = existingShow || (await findExistingShowByIds(showPayload.tvdb_id, showPayload.tmdb_id));
 
   let savedShow;
   let showError;
 
   if (existingShow?.id) {
-    const res = await supabase
-      .from("shows")
-      .update(showPayload)
-      .eq("id", existingShow.id)
-      .select()
-      .single();
-
+    const res = await supabase.from("shows").update(showPayload).eq("id", existingShow.id).select().single();
     savedShow = res.data;
     showError = res.error;
   } else {
-    const res = await supabase
-      .from("shows")
-      .insert(showPayload)
-      .select()
-      .single();
-
+    const res = await supabase.from("shows").insert(showPayload).select().single();
     savedShow = res.data;
     showError = res.error;
 
-    if (showError?.code === "23505") {
-      const duplicateShow = await findExistingShowByIds({
-        tvdbId: showPayload.tvdb_id,
-        tmdbId: showPayload.tmdb_id,
-      });
-
-      if (duplicateShow?.id) {
-        const retry = await supabase
-          .from("shows")
-          .update({
-            ...showPayload,
-            tvdb_id: showPayload.tvdb_id ?? duplicateShow.tvdb_id ?? null,
-            tmdb_id: showPayload.tmdb_id ?? duplicateShow.tmdb_id ?? null,
-          })
-          .eq("id", duplicateShow.id)
-          .select()
-          .single();
-
+    if (showError && (showError.code === "23505" || /duplicate key value|unique constraint/i.test(showError.message || ""))) {
+      existingShow = await findExistingShowByIds(showPayload.tvdb_id, showPayload.tmdb_id);
+      if (existingShow?.id) {
+        const retry = await supabase.from("shows").update(showPayload).eq("id", existingShow.id).select().single();
         savedShow = retry.data;
         showError = retry.error;
       }
@@ -736,19 +631,10 @@ export async function saveShowToDatabase(show) {
       rawEpisodes = buildTmdbEpisodesFromSeasons(tmdbShowDetails?.seasons ?? []);
     }
 
-    const enrichedEpisodes = await enrichEpisodesWithTmdb(
-      savedShow.tmdb_id,
-      rawEpisodes
-    );
-
+    const enrichedEpisodes = await enrichEpisodesWithTmdb(savedShow.tmdb_id, rawEpisodes);
     const seasonRows = buildSeasonRows(savedShow.id, enrichedEpisodes);
 
-    await upsertInBatches(
-      "seasons",
-      seasonRows,
-      "show_id,season_type,season_number",
-      100
-    );
+    await upsertInBatches("seasons", seasonRows, "show_id,season_type,season_number", 100);
 
     const { data: savedSeasons, error: savedSeasonsError } = await supabase
       .from("seasons")
@@ -758,22 +644,10 @@ export async function saveShowToDatabase(show) {
 
     if (savedSeasonsError) throw savedSeasonsError;
 
-    const seasonIdByNumber = new Map(
-      (savedSeasons || []).map((season) => [season.season_number, season.id])
-    );
+    const seasonIdByNumber = new Map((savedSeasons || []).map((season) => [season.season_number, season.id]));
+    const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, enrichedEpisodes);
 
-    const episodeRows = buildEpisodeRows(
-      savedShow.id,
-      seasonIdByNumber,
-      enrichedEpisodes
-    );
-
-    await upsertInBatches(
-      "episodes",
-      episodeRows,
-      "show_id,season_type,season_number,episode_number",
-      200
-    );
+    await upsertInBatches("episodes", episodeRows, "show_id,season_type,season_number,episode_number", 200);
   } catch (error) {
     console.error("Episode sync failed, but show was saved:", error);
   }
