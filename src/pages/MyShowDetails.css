@@ -1565,3 +1565,36 @@
     height: 24px;
   }
 }
+
+/* Stat boxes: left aligned with better inner spacing */
+.msd-stats-row-five .msd-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  padding-left: 16px;
+}
+
+.msd-stats-row-five .msd-stat-label,
+.msd-stats-row-five .msd-stat-value {
+  text-align: left;
+}
+
+.msd-watch-stat-logo {
+  margin-left: 0;
+}
+
+@media (max-width: 768px) {
+  .msd-stats-row-five .msd-stat-box {
+    padding-left: 8px;
+    padding-right: 4px;
+  }
+}
+
+@media (max-width: 390px) {
+  .msd-stats-row-five .msd-stat-box {
+    padding-left: 7px;
+    padding-right: 3px;
+  }
+}
