@@ -1,29 +1,35 @@
 import { supabase } from "./supabase";
 import { saveShowToDatabase } from "./saveShowToDatabase";
 
-function getResolvedTvdbId(show) {
-  const value =
-    show?.tvdb_id ||
-    show?.resolved_tvdb_id ||
-    show?.mapped_tvdb_id ||
-    show?.show_tvdb_id ||
-    show?.tvdb ||
-    null;
+function toPositiveNumber(value) {
+  if (value === null || value === undefined) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  const num = Number(str);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
 
-  return value ? Number(value) : null;
+function getResolvedTvdbId(show) {
+  return toPositiveNumber(
+    show?.tvdb_id ??
+      show?.resolved_tvdb_id ??
+      show?.mapped_tvdb_id ??
+      show?.show_tvdb_id ??
+      show?.tvdb ??
+      null
+  );
 }
 
 function getResolvedTmdbId(show) {
-  const value =
-    show?.tmdb_id ||
-    show?.resolved_tmdb_id ||
-    show?.mapped_tmdb_id ||
-    show?.series_tmdb_id ||
-    show?.show_tmdb_id ||
-    show?.tmdb ||
-    null;
-
-  return value ? Number(value) : null;
+  return toPositiveNumber(
+    show?.tmdb_id ??
+      show?.resolved_tmdb_id ??
+      show?.mapped_tmdb_id ??
+      show?.series_tmdb_id ??
+      show?.show_tmdb_id ??
+      show?.tmdb ??
+      null
+  );
 }
 
 export async function addShowToUserList(show) {
