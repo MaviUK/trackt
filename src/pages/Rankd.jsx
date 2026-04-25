@@ -272,6 +272,7 @@ export default function Rankd() {
   const [commentText, setCommentText] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [showComments, setShowComments] = useState(false);
+  const [pendingCommentId, setPendingCommentId] = useState(null);
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
   const touchStartX = useRef(null);
@@ -307,7 +308,27 @@ export default function Rankd() {
     }
 
     const pairKey = makePairKey(pair[0].show_id, pair[1].show_id);
-    const stats = matchupMap.get(pairKey);
+    let stats = matchupMap.get(pairKey);
+
+    if (!stats?.id) {
+      const { data: fetchedMatchup, error: fetchMatchupError } = await supabase
+        .from("rankd_matchups")
+        .select("*")
+        .eq("pair_key", pairKey)
+        .maybeSingle();
+
+      if (fetchMatchupError) throw fetchMatchupError;
+
+      if (fetchedMatchup?.id) {
+        stats = fetchedMatchup;
+
+        setMatchupMap((prev) => {
+          const next = new Map(prev);
+          next.set(fetchedMatchup.pair_key, fetchedMatchup);
+          return next;
+        });
+      }
+    }
 
     setMatchupStats(stats || null);
 
@@ -446,25 +467,25 @@ export default function Rankd() {
           .map((show) => {
             const allShowEpisodes = episodesByShowId[String(show.show_id)] || [];
 
-const mainEpisodes = allShowEpisodes.filter(
-  (ep) => Number(ep.season_number ?? 0) !== 0
-);
+            const mainEpisodes = allShowEpisodes.filter(
+              (ep) => Number(ep.season_number ?? 0) !== 0
+            );
 
-const seasonOneEpisodes = allShowEpisodes.filter(
-  (ep) => Number(ep.season_number ?? 0) === 1
-);
+            const seasonOneEpisodes = allShowEpisodes.filter(
+              (ep) => Number(ep.season_number ?? 0) === 1
+            );
 
-const watchedMainCount = mainEpisodes.filter((ep) =>
-  watchedEpisodeIds.has(String(ep.id))
-).length;
+            const watchedMainCount = mainEpisodes.filter((ep) =>
+              watchedEpisodeIds.has(String(ep.id))
+            ).length;
 
-const watchedSeasonOneCount = seasonOneEpisodes.filter((ep) =>
-  watchedEpisodeIds.has(String(ep.id))
-).length;
+            const watchedSeasonOneCount = seasonOneEpisodes.filter((ep) =>
+              watchedEpisodeIds.has(String(ep.id))
+            ).length;
 
-const hasWatchedWholeFirstSeason =
-  seasonOneEpisodes.length > 0 &&
-  watchedSeasonOneCount === seasonOneEpisodes.length;
+            const hasWatchedWholeFirstSeason =
+              seasonOneEpisodes.length > 0 &&
+              watchedSeasonOneCount === seasonOneEpisodes.length;
 
             const ranking = rankingMap.get(String(show.show_id));
 
@@ -518,21 +539,59 @@ const hasWatchedWholeFirstSeason =
   }, [currentPairKey, matchupMap]);
 
   useEffect(() => {
-    const notificationId = searchParams.get("notification");
-    if (!notificationId || !notifications.length) return;
+    async function openNotificationMatchup() {
+      const notificationId = searchParams.get("notification");
+      if (!notificationId || !notifications.length) return;
 
-    const notification = notifications.find((item) => String(item.id) === String(notificationId));
-    if (!notification?.rankd_matchups?.pair_key) return;
+      const notification = notifications.find((item) => String(item.id) === String(notificationId));
+      if (!notification?.rankd_matchups?.pair_key) return;
 
-    const showIds = notification.rankd_matchups.pair_key.split(":");
-    const pair = showIds
-      .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
-      .filter(Boolean);
+      const pairKey = notification.rankd_matchups.pair_key;
+      const showIds = pairKey.split(":");
 
-    if (pair.length === 2) {
+      let pair = showIds
+        .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
+        .filter(Boolean);
+
+      if (pair.length !== 2) {
+        const { data: missingShows, error: missingShowsError } = await supabase
+          .from("shows")
+          .select("id, tvdb_id, name, poster_url")
+          .in("id", showIds);
+
+        if (missingShowsError) {
+          console.error("RANKD NOTIFICATION SHOW LOAD FAILED:", missingShowsError);
+          return;
+        }
+
+        pair = showIds
+          .map((id) => {
+            const existing = eligibleShows.find((show) => String(show.show_id) === String(id));
+            if (existing) return existing;
+
+            const fetched = (missingShows || []).find((show) => String(show.id) === String(id));
+            if (!fetched) return null;
+
+            return {
+              show_id: fetched.id,
+              tvdb_id: fetched.tvdb_id,
+              show_name: fetched.name || "Unknown title",
+              poster_url: fetched.poster_url || null,
+              rank_rating: DEFAULT_RATING,
+              rank_wins: 0,
+              rank_losses: 0,
+              rank_comparisons: 0,
+            };
+          })
+          .filter(Boolean);
+      }
+
+      if (pair.length !== 2) return;
+
       setCurrentPair(pair);
-      setLastPairKey(notification.rankd_matchups.pair_key);
+      setLastPairKey(pairKey);
       setShowComments(true);
+      setPendingCommentId(notification.comment_id || null);
 
       supabase
         .from("rankd_notifications")
@@ -540,38 +599,77 @@ const hasWatchedWholeFirstSeason =
         .eq("id", notification.id)
         .then(() => loadNotifications(userId));
 
-      setSearchParams({});
+      setSearchParams({}, { replace: true });
     }
+
+    openNotificationMatchup();
   }, [searchParams, notifications, eligibleShows, userId, setSearchParams]);
 
   useEffect(() => {
-    const pairKey = searchParams.get("matchup");
-    const commentId = searchParams.get("comment");
+    async function openLinkedMatchup() {
+      const pairKey = searchParams.get("matchup");
+      const commentId = searchParams.get("comment");
 
-    if (!pairKey || !eligibleShows.length) return;
+      if (!pairKey || !eligibleShows.length) return;
 
-    const showIds = pairKey.split(":");
-    const pair = showIds
-      .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
-      .filter(Boolean);
+      const showIds = pairKey.split(":");
 
-    if (pair.length !== 2) return;
+      let pair = showIds
+        .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
+        .filter(Boolean);
 
-    const currentKey = currentPair.length === 2
-      ? makePairKey(currentPair[0].show_id, currentPair[1].show_id)
-      : "";
+      if (pair.length !== 2) {
+        const { data: missingShows, error: missingShowsError } = await supabase
+          .from("shows")
+          .select("id, tvdb_id, name, poster_url")
+          .in("id", showIds);
 
-    if (currentKey !== pairKey) {
+        if (missingShowsError) {
+          console.error("RANKD LINKED SHOW LOAD FAILED:", missingShowsError);
+          return;
+        }
+
+        pair = showIds
+          .map((id) => {
+            const existing = eligibleShows.find((show) => String(show.show_id) === String(id));
+            if (existing) return existing;
+
+            const fetched = (missingShows || []).find((show) => String(show.id) === String(id));
+            if (!fetched) return null;
+
+            return {
+              show_id: fetched.id,
+              tvdb_id: fetched.tvdb_id,
+              show_name: fetched.name || "Unknown title",
+              poster_url: fetched.poster_url || null,
+              rank_rating: DEFAULT_RATING,
+              rank_wins: 0,
+              rank_losses: 0,
+              rank_comparisons: 0,
+            };
+          })
+          .filter(Boolean);
+      }
+
+      if (pair.length !== 2) return;
+
       setCurrentPair(pair);
       setLastPairKey(pairKey);
+      setShowComments(true);
+      setPendingCommentId(commentId || null);
+
+      setSearchParams({}, { replace: true });
     }
 
-    setShowComments(true);
+    openLinkedMatchup();
+  }, [searchParams, eligibleShows, setSearchParams]);
 
-    if (commentId) {
-      scrollToComment(commentId);
-    }
-  }, [searchParams, eligibleShows, currentPair]);
+  useEffect(() => {
+    if (!pendingCommentId || !comments.length) return;
+
+    scrollToComment(pendingCommentId);
+    setPendingCommentId(null);
+  }, [pendingCommentId, comments]);
 
   const leaderboard = useMemo(() => {
     return [...eligibleShows].sort((a, b) => {
@@ -714,7 +812,7 @@ const hasWatchedWholeFirstSeason =
 
       setEligibleShows(updatedShows);
 
-      const nextPair = getFairPair(updatedShows, updatedMatchupMap, lastPairKey);
+      const nextPair = getFairPair(updatedShows, updatedMatchupMap, currentPairKey);
       setCurrentPair(nextPair);
       setLastPairKey(
         nextPair.length === 2
@@ -733,81 +831,81 @@ const hasWatchedWholeFirstSeason =
     }
   }
 
-async function handleAddComment(event) {
-  event.preventDefault();
+  async function handleAddComment(event) {
+    event.preventDefault();
 
-  const body = commentText.trim();
-  if (!body || currentPair.length !== 2) return;
+    const body = commentText.trim();
+    if (!body || currentPair.length !== 2) return;
 
-  try {
-    setSaving(true);
-    setError("");
+    try {
+      setSaving(true);
+      setError("");
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError) throw userError;
-    if (!user) throw new Error("You must be logged in to comment.");
+      if (userError) throw userError;
+      if (!user) throw new Error("You must be logged in to comment.");
 
-    const { showAId, showBId, pairKey } = getOrderedPair(
-      currentPair[0].show_id,
-      currentPair[1].show_id
-    );
+      const { showAId, showBId, pairKey } = getOrderedPair(
+        currentPair[0].show_id,
+        currentPair[1].show_id
+      );
 
-    const { error: commentError } = await supabase.rpc(
-      "rankd_add_matchup_comment",
-      {
-        p_show_a_id: showAId,
-        p_show_b_id: showBId,
-        p_body: body,
-        p_parent_comment_id: replyTo?.id || null,
-      }
-    );
+      const { error: commentError } = await supabase.rpc(
+        "rankd_add_matchup_comment",
+        {
+          p_show_a_id: showAId,
+          p_show_b_id: showBId,
+          p_body: body,
+          p_parent_comment_id: replyTo?.id || null,
+        }
+      );
 
-    if (commentError) throw commentError;
+      if (commentError) throw commentError;
 
-    const { data: freshMatchup, error: matchupReloadError } = await supabase
-      .from("rankd_matchups")
-      .select("*")
-      .eq("pair_key", pairKey)
-      .maybeSingle();
+      const { data: freshMatchup, error: matchupReloadError } = await supabase
+        .from("rankd_matchups")
+        .select("*")
+        .eq("pair_key", pairKey)
+        .maybeSingle();
 
-    if (matchupReloadError) throw matchupReloadError;
-    if (!freshMatchup?.id) throw new Error("Comment saved, but matchup could not be reloaded.");
+      if (matchupReloadError) throw matchupReloadError;
+      if (!freshMatchup?.id) throw new Error("Comment saved, but matchup could not be reloaded.");
 
-    const updatedMatchupMap = new Map(matchupMap);
-    updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
-    setMatchupMap(updatedMatchupMap);
-    setMatchupStats(freshMatchup);
+      const updatedMatchupMap = new Map(matchupMap);
+      updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
+      setMatchupMap(updatedMatchupMap);
+      setMatchupStats(freshMatchup);
 
-    const { data: freshComments, error: freshCommentsError } = await supabase
-      .from("rankd_matchup_comments")
-      .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-      .eq("matchup_id", freshMatchup.id)
-      .order("created_at", { ascending: true });
+      const { data: freshComments, error: freshCommentsError } = await supabase
+        .from("rankd_matchup_comments")
+        .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
+        .eq("matchup_id", freshMatchup.id)
+        .order("created_at", { ascending: true });
 
-    if (freshCommentsError) throw freshCommentsError;
+      if (freshCommentsError) throw freshCommentsError;
 
-    setComments(await hydrateComments(freshComments || []));
-    setCommentText("");
-    setReplyTo(null);
-    setShowComments(true);
-    await loadNotifications(user.id);
-  } catch (commentError) {
-    console.error("RANKD COMMENT FAILED:", commentError);
-    setError(commentError.message || "Failed to save your comment.");
-  } finally {
-    setSaving(false);
+      setComments(await hydrateComments(freshComments || []));
+      setCommentText("");
+      setReplyTo(null);
+      setShowComments(true);
+      await loadNotifications(user.id);
+    } catch (commentError) {
+      console.error("RANKD COMMENT FAILED:", commentError);
+      setError(commentError.message || "Failed to save your comment.");
+    } finally {
+      setSaving(false);
+    }
   }
-}
 
   function buildTouchStartHandler() {
-  return (event) => {
-    touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
-  };
-}
+    return (event) => {
+      touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
+    };
+  }
 
   function buildTouchEndHandler(showId, side) {
     return (event) => {
@@ -857,10 +955,6 @@ async function handleAddComment(event) {
     );
   }
 
-  const lastComment = [...comments].sort(
-    (a, b) => new Date(b.created_at) - new Date(a.created_at)
-  )[0];
-
   const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
   const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
   const leftWins = getWinCount(matchupStats, currentPair[0].show_id);
@@ -869,11 +963,12 @@ async function handleAddComment(event) {
   return (
     <div className="page rankd-page">
       <div className="page-shell">
-       <div className="rankd-matchup-number">
-  Matchup #{Math.floor(
-    leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
-  ) + 1}
-</div>
+        <div className="rankd-matchup-number">
+          Matchup #
+          {Math.floor(
+            leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
+          ) + 1}
+        </div>
 
         {error ? (
           <div className="section-card rankd-error-card">
@@ -883,48 +978,48 @@ async function handleAddComment(event) {
         ) : null}
 
         <div className="rankd-main-grid">
-  <div className="section-card rankd-battle-shell">
-    <div className="rankd-battle-layout">
-  <RankCard
-    show={currentPair[0]}
-    onChoose={() => handleChoice(currentPair[0].show_id)}
-    onTouchStart={buildTouchStartHandler()}
-    onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-  />
+          <div className="section-card rankd-battle-shell">
+            <div className="rankd-battle-layout">
+              <RankCard
+                show={currentPair[0]}
+                onChoose={() => handleChoice(currentPair[0].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+              />
 
-  <div className="rankd-battle-vs">VS</div>
+              <div className="rankd-battle-vs">VS</div>
 
-  <RankCard
-    show={currentPair[1]}
-    onChoose={() => handleChoice(currentPair[1].show_id)}
-    onTouchStart={buildTouchStartHandler()}
-    onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
-  />
-</div>
+              <RankCard
+                show={currentPair[1]}
+                onChoose={() => handleChoice(currentPair[1].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+              />
+            </div>
 
-<div className="rankd-matchup-dashboard">
-  <div className="rankd-win-bars">
-    <div className="rankd-win-row">
-      <span>{currentPair[0].show_name}</span>
-      <div>
-        <i style={{ width: `${leftWinPercent}%` }} />
-      </div>
-      <strong>
-        {leftWinPercent}% / {leftWins} wins
-      </strong>
-    </div>
+            <div className="rankd-matchup-dashboard">
+              <div className="rankd-win-bars">
+                <div className="rankd-win-row">
+                  <span>{currentPair[0].show_name}</span>
+                  <div>
+                    <i style={{ width: `${leftWinPercent}%` }} />
+                  </div>
+                  <strong>
+                    {leftWinPercent}% / {leftWins} wins
+                  </strong>
+                </div>
 
-    <div className="rankd-win-row">
-      <span>{currentPair[1].show_name}</span>
-      <div>
-        <i style={{ width: `${rightWinPercent}%` }} />
-      </div>
-      <strong>
-        {rightWinPercent}% / {rightWins} wins
-      </strong>
-    </div>
-  </div>
-</div>
+                <div className="rankd-win-row">
+                  <span>{currentPair[1].show_name}</span>
+                  <div>
+                    <i style={{ width: `${rightWinPercent}%` }} />
+                  </div>
+                  <strong>
+                    {rightWinPercent}% / {rightWins} wins
+                  </strong>
+                </div>
+              </div>
+            </div>
 
             <form className="rankd-comment-form" onSubmit={handleAddComment}>
               {replyTo ? (
