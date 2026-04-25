@@ -221,6 +221,7 @@ function emptyState() {
     openEpisodeRatingPickerId: null,
     mobileBannerUrl: null,
     rankPosition: null,
+watchProviders: null,
   };
 }
 
@@ -264,9 +265,10 @@ export default function MyShowDetails() {
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
   const [rankPosition, setRankPosition] = useState(null);
-  const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
-    {}
-  );
+const [watchProviders, setWatchProviders] = useState(null);
+const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
+  {}
+);
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -340,6 +342,7 @@ export default function MyShowDetails() {
           setExpandedSeasons({});
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchProviders(null);
           setWatchedLoaded(true);
         }
         return {
@@ -521,6 +524,7 @@ export default function MyShowDetails() {
         setMobileBannerUrl(showData.backdrop_url || null);
         setExpandedOverview(false);
         setActiveTab("seasons");
+        setWatchProviders(null);
       }
 
       return {
@@ -629,6 +633,22 @@ export default function MyShowDetails() {
 
           const extras = await extrasRes.json();
 
+          let providers = null;
+
+if (tmdbIdValue) {
+  try {
+    const providersRes = await fetch(
+      `/.netlify/functions/getTmdbWatchProviders?tmdbId=${tmdbIdValue}&country=GB`
+    );
+
+    if (providersRes.ok) {
+      providers = await providersRes.json();
+    }
+  } catch (providerError) {
+    console.error("Failed loading watch providers:", providerError);
+  }
+}
+
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
           const fallbackRecommendations = Array.isArray(extras.recommendations)
@@ -678,10 +698,11 @@ export default function MyShowDetails() {
 
           if (!isCancelled) {
             setCast(castRows);
-            setCrew(crewRows);
-            setPeopleAlsoWatch([]);
-            setRecommendedShows(filteredTmdbRecommendations);
-            setMobileBannerUrl(bannerFromExtras || null);
+setCrew(crewRows);
+setPeopleAlsoWatch([]);
+setRecommendedShows(filteredTmdbRecommendations);
+setMobileBannerUrl(bannerFromExtras || null);
+setWatchProviders(providers);
           }
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
@@ -691,6 +712,7 @@ export default function MyShowDetails() {
             setRecommendedShows([]);
             setPeopleAlsoWatch([]);
             setMobileBannerUrl(storedBackdropUrl || null);
+            setWatchProviders(null);
           }
         } finally {
           if (!isCancelled) {
@@ -1628,6 +1650,16 @@ export default function MyShowDetails() {
             >
               Genre
             </button>
+
+            <button
+  type="button"
+  className={`msd-content-tab ${
+    activeTab === "watch" ? "is-active" : ""
+  }`}
+  onClick={() => setActiveTab("watch")}
+>
+  Watch
+</button>
           </div>
 
           <div className="msd-tab-panel">
@@ -2061,6 +2093,64 @@ export default function MyShowDetails() {
                 </div>
               </>
             )}
+
+                        {activeTab === "watch" && (
+              <>
+                <h2 className="msd-section-title">Where to Watch</h2>
+
+                {!watchProviders ? (
+                  <p className="msd-muted">
+                    No streaming information available yet.
+                  </p>
+                ) : (
+                  <div className="msd-watch-panel">
+                    {watchProviders.link ? (
+                      <a
+                        href={watchProviders.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="msd-watch-link"
+                      >
+                        View all options on JustWatch
+                      </a>
+                    ) : null}
+
+                    {[
+                      ["Stream", watchProviders.flatrate],
+                      ["Buy", watchProviders.buy],
+                      ["Rent", watchProviders.rent],
+                    ].map(([label, providers]) =>
+                      Array.isArray(providers) && providers.length > 0 ? (
+                        <div key={label} className="msd-watch-section">
+                          <h3 className="msd-watch-title">{label}</h3>
+
+                          <div className="msd-watch-grid">
+                            {providers.map((provider) => (
+                              <div
+                                key={provider.provider_id}
+                                className="msd-watch-card"
+                                title={provider.provider_name}
+                              >
+                                {provider.logo_path ? (
+                                  <img
+                                    src={`https://image.tmdb.org/t/p/w185${provider.logo_path}`}
+                                    alt={provider.provider_name}
+                                    className="msd-watch-logo"
+                                  />
+                                ) : null}
+
+                                <span>{provider.provider_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            
           </div>
         </section>
 
