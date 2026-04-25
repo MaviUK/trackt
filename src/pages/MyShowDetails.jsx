@@ -221,7 +221,7 @@ function emptyState() {
     openEpisodeRatingPickerId: null,
     mobileBannerUrl: null,
     rankPosition: null,
-watchProviders: null,
+    watchProviders: null,
   };
 }
 
@@ -265,10 +265,11 @@ export default function MyShowDetails() {
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
   const [rankPosition, setRankPosition] = useState(null);
-const [watchProviders, setWatchProviders] = useState(null);
-const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
-  {}
-);
+  const [watchProviders, setWatchProviders] = useState(null);
+  const [watchOptionsOpen, setWatchOptionsOpen] = useState(false);
+  const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
+    {}
+  );
 
   const watchedLookup = useMemo(
     () => createWatchedLookup(watchedRows),
@@ -284,6 +285,27 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
     () => buildEpisodeAverageRatingsMap(episodeRatings),
     [episodeRatings]
   );
+
+  const allWatchProviders = useMemo(() => {
+    if (!watchProviders) return [];
+
+    const seen = new Set();
+
+    return [
+      ...(Array.isArray(watchProviders.flatrate)
+        ? watchProviders.flatrate
+        : []),
+      ...(Array.isArray(watchProviders.buy) ? watchProviders.buy : []),
+      ...(Array.isArray(watchProviders.rent) ? watchProviders.rent : []),
+    ].filter((provider) => {
+      const id = String(provider?.provider_id || provider?.provider_name || "");
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [watchProviders]);
+
+  const featuredWatchProvider = allWatchProviders[0] || null;
 
   useEffect(() => {
     let isCancelled = false;
@@ -316,6 +338,8 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
           setOpenEpisodeRatingPickerId(state.openEpisodeRatingPickerId);
           setMobileBannerUrl(state.mobileBannerUrl);
           setRankPosition(state.rankPosition);
+          setWatchProviders(state.watchProviders);
+          setWatchOptionsOpen(false);
         }
         return {
           found: true,
@@ -343,6 +367,7 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
           setMobileBannerUrl(null);
           setRankPosition(null);
           setWatchProviders(null);
+          setWatchOptionsOpen(false);
           setWatchedLoaded(true);
         }
         return {
@@ -394,6 +419,8 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
           setExpandedSeasons({});
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchProviders(null);
+          setWatchOptionsOpen(false);
           setWatchedLoaded(true);
         }
         return {
@@ -525,6 +552,7 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
         setExpandedOverview(false);
         setActiveTab("seasons");
         setWatchProviders(null);
+        setWatchOptionsOpen(false);
       }
 
       return {
@@ -621,10 +649,10 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
         try {
           setExtrasLoading(true);
 
-         const extrasUrl =
-  tvdbId != null
-    ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
-    : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`;
+          const extrasUrl =
+            tvdbId != null
+              ? `/.netlify/functions/getShowExtras?tvdbId=${tvdbId}`
+              : `/.netlify/functions/getTmdbShowDetails?tmdbId=${tmdbIdValue}`;
 
           const extrasRes = await fetch(extrasUrl);
           if (!extrasRes.ok) {
@@ -635,19 +663,19 @@ const [expandedEpisodeOverviewIds, setExpandedEpisodeOverviewIds] = useState(
 
           let providers = null;
 
-if (tmdbIdValue) {
-  try {
-    const providersRes = await fetch(
-      `/.netlify/functions/getTmdbWatchProviders?tmdbId=${tmdbIdValue}&country=GB`
-    );
+          if (tmdbIdValue) {
+            try {
+              const providersRes = await fetch(
+                `/.netlify/functions/getTmdbWatchProviders?tmdbId=${tmdbIdValue}&country=GB`
+              );
 
-    if (providersRes.ok) {
-      providers = await providersRes.json();
-    }
-  } catch (providerError) {
-    console.error("Failed loading watch providers:", providerError);
-  }
-}
+              if (providersRes.ok) {
+                providers = await providersRes.json();
+              }
+            } catch (providerError) {
+              console.error("Failed loading watch providers:", providerError);
+            }
+          }
 
           const castRows = Array.isArray(extras.cast) ? extras.cast : [];
           const crewRows = Array.isArray(extras.crew) ? extras.crew : [];
@@ -698,11 +726,11 @@ if (tmdbIdValue) {
 
           if (!isCancelled) {
             setCast(castRows);
-setCrew(crewRows);
-setPeopleAlsoWatch([]);
-setRecommendedShows(filteredTmdbRecommendations);
-setMobileBannerUrl(bannerFromExtras || null);
-setWatchProviders(providers);
+            setCrew(crewRows);
+            setPeopleAlsoWatch([]);
+            setRecommendedShows(filteredTmdbRecommendations);
+            setMobileBannerUrl(bannerFromExtras || null);
+            setWatchProviders(providers);
           }
         } catch (extrasError) {
           console.error("Failed loading TVDB extras:", extrasError);
@@ -713,6 +741,7 @@ setWatchProviders(providers);
             setPeopleAlsoWatch([]);
             setMobileBannerUrl(storedBackdropUrl || null);
             setWatchProviders(null);
+            setWatchOptionsOpen(false);
           }
         } finally {
           if (!isCancelled) {
@@ -733,6 +762,8 @@ setWatchProviders(providers);
           setExtrasLoading(false);
           setMobileBannerUrl(storedBackdropUrl || null);
           setRankPosition(null);
+          setWatchProviders(null);
+          setWatchOptionsOpen(false);
           setWatchedLoaded(true);
         }
       }
@@ -799,6 +830,8 @@ setWatchProviders(providers);
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchProviders(null);
+          setWatchOptionsOpen(false);
           setWatchedLoaded(true);
         }
       } catch (error) {
@@ -822,6 +855,8 @@ setWatchProviders(providers);
           setOpenEpisodeRatingPickerId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
+          setWatchProviders(null);
+          setWatchOptionsOpen(false);
           setWatchedLoaded(true);
         }
       } finally {
@@ -1517,7 +1552,7 @@ setWatchProviders(providers);
               </div>
             ) : null}
 
-            <div className="msd-stats-row msd-stats-row-top msd-stats-row-four">
+            <div className="msd-stats-row msd-stats-row-top msd-stats-row-five">
               <div className="msd-stat-box">
                 <span className="msd-stat-label">Watched</span>
                 <strong className="msd-stat-value">
@@ -1543,7 +1578,71 @@ setWatchProviders(providers);
                   {rankPosition ? `#${rankPosition}` : "—"}
                 </strong>
               </div>
+
+              <button
+                type="button"
+                className={`msd-stat-box msd-watch-stat-box ${
+                  watchOptionsOpen ? "is-open" : ""
+                }`}
+                onClick={() => setWatchOptionsOpen((prev) => !prev)}
+              >
+                <span className="msd-stat-label">Watch</span>
+
+                {featuredWatchProvider?.logo_path ? (
+                  <img
+                    src={`https://image.tmdb.org/t/p/w185${featuredWatchProvider.logo_path}`}
+                    alt={featuredWatchProvider.provider_name}
+                    className="msd-watch-stat-logo"
+                  />
+                ) : (
+                  <strong className="msd-stat-value">—</strong>
+                )}
+              </button>
             </div>
+
+            {watchOptionsOpen ? (
+              <div className="msd-watch-dropdown">
+                {!watchProviders || allWatchProviders.length === 0 ? (
+                  <p className="msd-muted">
+                    No streaming information available yet.
+                  </p>
+                ) : (
+                  <div className="msd-watch-panel">
+                    {[
+                      ["Stream", watchProviders.flatrate],
+                      ["Buy", watchProviders.buy],
+                      ["Rent", watchProviders.rent],
+                    ].map(([label, providers]) =>
+                      Array.isArray(providers) && providers.length > 0 ? (
+                        <div key={label} className="msd-watch-section">
+                          <h3 className="msd-watch-title">{label}</h3>
+
+                          <div className="msd-watch-grid">
+                            {providers.map((provider) => (
+                              <div
+                                key={provider.provider_id}
+                                className="msd-watch-card"
+                                title={provider.provider_name}
+                              >
+                                {provider.logo_path ? (
+                                  <img
+                                    src={`https://image.tmdb.org/t/p/w185${provider.logo_path}`}
+                                    alt={provider.provider_name}
+                                    className="msd-watch-logo"
+                                  />
+                                ) : null}
+
+                                <span>{provider.provider_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className="msd-stat-box msd-stat-box-full">
               <span className="msd-stat-label">Your Burgr Rating</span>
@@ -1650,16 +1749,6 @@ setWatchProviders(providers);
             >
               Genre
             </button>
-
-            <button
-  type="button"
-  className={`msd-content-tab ${
-    activeTab === "watch" ? "is-active" : ""
-  }`}
-  onClick={() => setActiveTab("watch")}
->
-  Watch
-</button>
           </div>
 
           <div className="msd-tab-panel">
@@ -2093,53 +2182,6 @@ setWatchProviders(providers);
                 </div>
               </>
             )}
-
-                        {activeTab === "watch" && (
-              <>
-
-                {!watchProviders ? (
-                  <p className="msd-muted">
-                    No streaming information available yet.
-                  </p>
-                ) : (
-                  <div className="msd-watch-panel">
-
-                    {[
-                      ["Stream", watchProviders.flatrate],
-                      ["Buy", watchProviders.buy],
-                      ["Rent", watchProviders.rent],
-                    ].map(([label, providers]) =>
-                      Array.isArray(providers) && providers.length > 0 ? (
-                        <div key={label} className="msd-watch-section">
-                          <h3 className="msd-watch-title">{label}</h3>
-
-                          <div className="msd-watch-grid">
-                            {providers.map((provider) => (
-                              <div
-                                key={provider.provider_id}
-                                className="msd-watch-card"
-                                title={provider.provider_name}
-                              >
-                                {provider.logo_path ? (
-                                  <img
-                                    src={`https://image.tmdb.org/t/p/w185${provider.logo_path}`}
-                                    alt={provider.provider_name}
-                                    className="msd-watch-logo"
-                                  />
-                                ) : null}
-
-                                <span>{provider.provider_name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-            
           </div>
         </section>
 
@@ -2158,8 +2200,8 @@ setWatchProviders(providers);
                 const linkTarget = recTvdbId
                   ? getMappedShowHref(rec)
                   : recTmdbId
-                    ? `/show/tmdb/${recTmdbId}`
-                    : getMappedShowHref(rec);
+                  ? `/show/tmdb/${recTmdbId}`
+                  : getMappedShowHref(rec);
 
                 const posterSrc =
                   rec.poster_url ||
