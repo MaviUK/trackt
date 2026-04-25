@@ -3,6 +3,52 @@ function normalizeNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function extractRemoteId(series, wantedSource) {
+  const wanted = String(wantedSource || "").trim().toLowerCase();
+  const pools = [
+    series?.remoteIds,
+    series?.remote_ids,
+    series?.externalIds,
+    series?.external_ids,
+    series?.ids,
+  ].filter(Array.isArray);
+
+  for (const pool of pools) {
+    for (const item of pool) {
+      if (!item || typeof item !== "object") continue;
+
+      const source = String(
+        item.sourceName ||
+          item.source_name ||
+          item.sourceType ||
+          item.source_type ||
+          item.type ||
+          item.name ||
+          item.provider ||
+          ""
+      ).trim().toLowerCase();
+
+      if (source && !source.includes(wanted)) continue;
+
+      const value =
+        item.id ??
+        item.remoteId ??
+        item.remote_id ??
+        item.value ??
+        item.externalId ??
+        item.external_id ??
+        null;
+
+      const num = Number(value);
+      if (Number.isFinite(num) && num > 0) return num;
+    }
+  }
+
+  const direct = series?.tmdb_id ?? series?.tmdbId ?? series?.themoviedb_id ?? null;
+  const directNum = Number(direct);
+  return Number.isFinite(directNum) && directNum > 0 ? directNum : null;
+}
+
 function normalizeGenres(value) {
   if (!Array.isArray(value)) return [];
 
@@ -247,6 +293,7 @@ function normalizeSearchResult(item) {
 
   return {
     tvdb_id: Number(normalizedItem?.tvdb_id || normalizedItem?.id) || null,
+    tmdb_id: extractRemoteId(normalizedItem, "tmdb"),
     name:
       normalizedItem?.english_name ||
       extractEnglishTranslationValue(normalizedItem?.translations, "name") ||
@@ -370,6 +417,7 @@ function normalizeSeriesDetails(series) {
 
   return {
     tvdb_id: Number(series?.id) || null,
+    tmdb_id: extractRemoteId(series, "tmdb"),
     name:
       extractEnglishTranslationValue(series?.translations, "name") ||
       series?.name ||

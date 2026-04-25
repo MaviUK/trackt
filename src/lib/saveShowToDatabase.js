@@ -8,11 +8,23 @@ function normalizeDate(value) {
 }
 
 function normalizeNumber(value) {
-  if (value === null || value === undefined) return null;
-  const str = String(value).trim();
-  if (!str) return null;
-  const num = Number(str);
+  if (value === "" || value == null) return null;
+  const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function getResolvedTmdbId(show) {
+  return (
+    normalizeNumber(show?.tmdb_id) ??
+    normalizeNumber(show?.resolved_tmdb_id) ??
+    normalizeNumber(show?.mapped_tmdb_id) ??
+    normalizeNumber(show?.series_tmdb_id) ??
+    normalizeNumber(show?.show_tmdb_id) ??
+    normalizeNumber(show?.tmdb) ??
+    normalizeNumber(show?.external_ids?.tmdb_id) ??
+    (show?.source === "tmdb" ? normalizeNumber(show?.id) : null) ??
+    null
+  );
 }
 
 function normalizeNetwork(networkValue) {
@@ -512,11 +524,9 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
 
 export async function saveShowToDatabase(show) {
   const tvdbId = normalizeNumber(
-    show?.tvdb_id ?? show?.resolved_tvdb_id ?? show?.mapped_tvdb_id ?? null
+    show?.tvdb_id || show?.resolved_tvdb_id || null
   );
-  const tmdbId = normalizeNumber(
-    show?.tmdb_id ?? show?.resolved_tmdb_id ?? show?.mapped_tmdb_id ?? null
-  );
+  const tmdbId = getResolvedTmdbId(show);
 
   if (!tvdbId && !tmdbId) {
     throw new Error("Missing show id");
@@ -560,13 +570,10 @@ export async function saveShowToDatabase(show) {
         ...mergedShowDetails,
         ...tvdbDetails,
         tvdb_id: tvdbId,
-        tmdb_id: normalizeNumber(
-          tvdbDetails?.tmdb_id ??
-            tvdbDetails?.external_ids?.tmdb_id ??
-            tvdbDetails?.external_ids?.tmdb ??
-            mergedShowDetails?.tmdb_id ??
-            tmdbId
-        ),
+        tmdb_id:
+          getResolvedTmdbId(tvdbDetails) ??
+          getResolvedTmdbId(mergedShowDetails) ??
+          tmdbId,
       };
     } catch (error) {
       if (!tmdbId) {
@@ -643,82 +650,88 @@ export async function saveShowToDatabase(show) {
 
   const showPayload = buildShowPayload(mergedShowDetails);
 
-  // Search results often start with TVDB data only. After fetching TVDB details
-  // we may discover the real TMDB ID, so re-check before inserting.
-  if (!existingShow?.id) {
-    let matchQuery = supabase.from("shows").select("*");
+  if (!existingShow && showPayload.tvdb_id) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tvdb_id", showPayload.tvdb_id)
+      .maybeSingle();
 
-    if (showPayload.tvdb_id && showPayload.tmdb_id) {
-      matchQuery = matchQuery.or(
-        `tvdb_id.eq.${showPayload.tvdb_id},tmdb_id.eq.${showPayload.tmdb_id}`
-      );
-    } else if (showPayload.tvdb_id) {
-      matchQuery = matchQuery.eq("tvdb_id", showPayload.tvdb_id);
-    } else if (showPayload.tmdb_id) {
-      matchQuery = matchQuery.eq("tmdb_id", showPayload.tmdb_id);
-    }
+    if (error) throw error;
+    existingShow = data || existingShow;
+  }
 
-    const { data: matches, error: matchError } = await matchQuery.limit(1);
-    if (matchError) throw matchError;
-    existingShow = matches?.[0] || null;
+  if (!existingShow && showPayload.tmdb_id) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tmdb_id", showPayload.tmdb_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    existingShow = data || existingShow;
   }
 
   let savedShow;
   let showError;
 
-  if (existingShow?.id) {
-    const res = await supabase
-      .from("shows")
-      .update(showPayload)
-      .eq("id", existingShow.id)
-      .select()
-      .single();
+if (existingShow?.id) {
+  // UPDATE existing show
+  const res = await supabase
+    .from("shows")
+    .update(showPayload)
+    .eq("id", existingShow.id)
+    .select()
+    .single();
 
-    savedShow = res.data;
-    showError = res.error;
-  } else {
-    const res = await supabase
-      .from("shows")
-      .insert(showPayload)
-      .select()
-      .single();
+  savedShow = res.data;
+  showError = res.error;
+} else {
+  // INSERT new show
+  const res = await supabase
+    .from("shows")
+    .insert(showPayload)
+    .select()
+    .single();
 
-    savedShow = res.data;
-    showError = res.error;
+  savedShow = res.data;
+  showError = res.error;
+}
 
-    if (showError?.code === "23505") {
-      let fallbackQuery = supabase.from("shows").select("*");
+  if (showError) {
+    const duplicateKey =
+      showError.code === "23505" ||
+      String(showError.message || "").includes("duplicate key value");
 
-      if (showPayload.tvdb_id && showPayload.tmdb_id) {
-        fallbackQuery = fallbackQuery.or(
-          `tvdb_id.eq.${showPayload.tvdb_id},tmdb_id.eq.${showPayload.tmdb_id}`
-        );
-      } else if (showPayload.tvdb_id) {
-        fallbackQuery = fallbackQuery.eq("tvdb_id", showPayload.tvdb_id);
-      } else if (showPayload.tmdb_id) {
-        fallbackQuery = fallbackQuery.eq("tmdb_id", showPayload.tmdb_id);
-      }
+    if (duplicateKey && (showPayload.tmdb_id || showPayload.tvdb_id)) {
+      const column = showPayload.tmdb_id ? "tmdb_id" : "tvdb_id";
+      const value = showPayload.tmdb_id || showPayload.tvdb_id;
 
-      const { data: fallbackMatches, error: fallbackError } =
-        await fallbackQuery.limit(1);
-      if (fallbackError) throw fallbackError;
-
-      const fallbackShow = fallbackMatches?.[0] || null;
-      if (!fallbackShow?.id) throw showError;
-
-      const updateRes = await supabase
+      const { data: duplicateShow, error: duplicateLookupError } = await supabase
         .from("shows")
-        .update(showPayload)
-        .eq("id", fallbackShow.id)
-        .select()
-        .single();
+        .select("*")
+        .eq(column, value)
+        .maybeSingle();
 
-      savedShow = updateRes.data;
-      showError = updateRes.error;
+      if (duplicateLookupError) throw duplicateLookupError;
+
+      if (duplicateShow?.id) {
+        const { data: updatedDuplicate, error: updateDuplicateError } = await supabase
+          .from("shows")
+          .update(showPayload)
+          .eq("id", duplicateShow.id)
+          .select()
+          .single();
+
+        if (updateDuplicateError) throw updateDuplicateError;
+        savedShow = updatedDuplicate;
+      } else {
+        throw showError;
+      }
+    } else {
+      throw showError;
     }
   }
-
-  if (showError) throw showError;
 
   try {
     let rawEpisodes = [];

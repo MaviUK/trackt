@@ -19,7 +19,7 @@ export async function handler(event) {
     const response = await fetch(
       `https://api.themoviedb.org/3/tv/${encodeURIComponent(
         tmdbId
-      )}?api_key=${process.env.TMDB_API_KEY}&language=en-GB&append_to_response=credits`
+      )}?api_key=${process.env.TMDB_API_KEY}&language=en-GB&append_to_response=credits,external_ids`
     );
 
     const data = await response.json();
