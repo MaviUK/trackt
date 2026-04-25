@@ -71,22 +71,22 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
 
   return (
     <article className={`msd-review-item ${depth > 0 ? "is-reply" : ""}`}>
-      <div className="msd-review-avatar-wrap">
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="msd-review-avatar" />
-        ) : (
-          <div className="msd-review-avatar msd-review-avatar-fallback">
-            {displayName.slice(0, 1).toUpperCase()}
-          </div>
-        )}
-      </div>
-
       <div className="msd-review-body-wrap">
+  <div className="msd-review-head">
+    {avatarUrl ? (
+      <img src={avatarUrl} alt="" className="msd-review-avatar-inline" />
+    ) : (
+      <div className="msd-review-avatar-inline msd-review-avatar-fallback">
+        {displayName.slice(0, 1).toUpperCase()}
+      </div>
+    )}
+
+    <strong className="msd-review-username">{displayName}</strong>
+    <span className="msd-review-date">
+      {formatDateTime(review.created_at)}
+    </span>
+  </div>
         <div className="msd-review-card">
-          <div className="msd-review-head">
-            <strong>{displayName}</strong>
-            <span>{formatDateTime(review.created_at)}</span>
-          </div>
           <p className="msd-review-text">{review.body}</p>
         </div>
 
