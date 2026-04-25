@@ -1786,3 +1786,35 @@
     padding-left: 10px;
   }
 }
+
+.msd-review-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.msd-review-avatar-wrap {
+  flex: 0 0 auto;
+}
+
+.msd-review-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.msd-review-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.msd-review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
