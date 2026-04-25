@@ -2096,7 +2096,6 @@ setWatchProviders(providers);
 
                         {activeTab === "watch" && (
               <>
-                <h2 className="msd-section-title">Where to Watch</h2>
 
                 {!watchProviders ? (
                   <p className="msd-muted">
@@ -2104,16 +2103,6 @@ setWatchProviders(providers);
                   </p>
                 ) : (
                   <div className="msd-watch-panel">
-                    {watchProviders.link ? (
-                      <a
-                        href={watchProviders.link}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="msd-watch-link"
-                      >
-                        View all options on JustWatch
-                      </a>
-                    ) : null}
 
                     {[
                       ["Stream", watchProviders.flatrate],
