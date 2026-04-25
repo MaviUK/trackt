@@ -1363,3 +1363,50 @@
   font-weight: 700;
   text-align: center;
 }
+
+.msd-watch-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.msd-watch-link {
+  color: #facc15;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.msd-watch-section {
+  display: grid;
+  gap: 12px;
+}
+
+.msd-watch-title {
+  margin: 0;
+  font-size: 18px;
+  color: #f8fafc;
+}
+
+.msd-watch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.msd-watch-card {
+  width: 92px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.msd-watch-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #fff;
+}
