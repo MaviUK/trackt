@@ -85,6 +85,34 @@ async function upsertInBatches(table, rows, onConflict, batchSize = 200) {
   }
 }
 
+async function findExistingShowByIds({ tvdbId, tmdbId }) {
+  const filters = [];
+  if (tvdbId) filters.push(`tvdb_id.eq.`);
+  if (tmdbId) filters.push(`tmdb_id.eq.`);
+  if (!filters.length) return null;
+
+  const { data, error } = await supabase
+    .from("shows")
+    .select("*")
+    .or(filters.join(","))
+    .limit(5);
+
+  if (error) throw error;
+  if (!data?.length) return null;
+
+  if (tmdbId) {
+    const tmdbMatch = data.find((row) => Number(row.tmdb_id) === Number(tmdbId));
+    if (tmdbMatch) return tmdbMatch;
+  }
+
+  if (tvdbId) {
+    const tvdbMatch = data.find((row) => Number(row.tvdb_id) === Number(tvdbId));
+    if (tvdbMatch) return tvdbMatch;
+  }
+
+  return data[0] || null;
+}
+
 function dedupeByKey(rows, getKey) {
   const map = new Map();
 
@@ -632,48 +660,30 @@ export async function saveShowToDatabase(show) {
     }
   }
 
-  const showPayload = buildShowPayload(mergedShowDetails);
+  let showPayload = buildShowPayload(mergedShowDetails);
 
-  // Search results often start as TVDB-only. The TMDB id is discovered during
-  // the enrichment above, so we must re-check with the final IDs before insert.
-  // Without this, Supabase can throw: shows_tmdb_id_unique.
-  if (!existingShow?.id) {
-    if (showPayload.tvdb_id) {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("*")
-        .eq("tvdb_id", showPayload.tvdb_id)
-        .maybeSingle();
+  const lateExistingShow = await findExistingShowByIds({
+    tvdbId: showPayload.tvdb_id,
+    tmdbId: showPayload.tmdb_id,
+  });
 
-      if (error) throw error;
-      existingShow = data || existingShow;
-    }
-
-    if (!existingShow?.id && showPayload.tmdb_id) {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("*")
-        .eq("tmdb_id", showPayload.tmdb_id)
-        .maybeSingle();
-
-      if (error) throw error;
-      existingShow = data || existingShow;
-    }
+  if (lateExistingShow?.id) {
+    existingShow = lateExistingShow;
+    showPayload = buildShowPayload({
+      ...lateExistingShow,
+      ...mergedShowDetails,
+      tvdb_id: showPayload.tvdb_id ?? lateExistingShow.tvdb_id ?? null,
+      tmdb_id: showPayload.tmdb_id ?? lateExistingShow.tmdb_id ?? null,
+    });
   }
 
   let savedShow;
   let showError;
 
   if (existingShow?.id) {
-    const mergedPayload = {
-      ...showPayload,
-      tvdb_id: showPayload.tvdb_id ?? existingShow.tvdb_id ?? null,
-      tmdb_id: showPayload.tmdb_id ?? existingShow.tmdb_id ?? null,
-    };
-
     const res = await supabase
       .from("shows")
-      .update(mergedPayload)
+      .update(showPayload)
       .eq("id", existingShow.id)
       .select()
       .single();
@@ -689,6 +699,29 @@ export async function saveShowToDatabase(show) {
 
     savedShow = res.data;
     showError = res.error;
+
+    if (showError?.code === "23505") {
+      const duplicateShow = await findExistingShowByIds({
+        tvdbId: showPayload.tvdb_id,
+        tmdbId: showPayload.tmdb_id,
+      });
+
+      if (duplicateShow?.id) {
+        const retry = await supabase
+          .from("shows")
+          .update({
+            ...showPayload,
+            tvdb_id: showPayload.tvdb_id ?? duplicateShow.tvdb_id ?? null,
+            tmdb_id: showPayload.tmdb_id ?? duplicateShow.tmdb_id ?? null,
+          })
+          .eq("id", duplicateShow.id)
+          .select()
+          .single();
+
+        savedShow = retry.data;
+        showError = retry.error;
+      }
+    }
   }
 
   if (showError) throw showError;
