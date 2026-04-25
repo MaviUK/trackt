@@ -90,19 +90,17 @@ function ReviewItem({ review, currentUserId, onReply, savingReplyId, depth = 0 }
           <p className="msd-review-text">{review.body}</p>
         </div>
 
-        <div className="msd-review-actions">
-          {canReply ? (
-            <button
-              type="button"
-              className="msd-review-action"
-              onClick={() => setReplyOpen((prev) => !prev)}
-            >
-              Reply
-            </button>
-          ) : (
-            <span className="msd-muted">Your post</span>
-          )}
-        </div>
+       <div className="msd-review-actions">
+  {canReply ? (
+    <button
+      type="button"
+      className="msd-review-action"
+      onClick={() => setReplyOpen((prev) => !prev)}
+    >
+      Reply
+    </button>
+  ) : null}
+</div>
 
         {replyOpen && canReply ? (
           <form className="msd-review-reply-form" onSubmit={submitReply}>
