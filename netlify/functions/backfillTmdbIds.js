@@ -13,23 +13,46 @@ function cleanShowName(name) {
     .trim();
 }
 
+function getYear(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getFullYear();
+}
+
+async function tmdbFetch(url) {
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
+      accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`TMDB request failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export async function handler(event) {
-  if (event.httpMethod !== "POST") {
+  if (!["GET", "POST"].includes(event.httpMethod)) {
     return {
       statusCode: 405,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "Method not allowed" }),
     };
   }
 
   try {
+    const limit = Number(event.queryStringParameters?.limit || 50);
+
     const { data: shows, error } = await supabase
       .from("shows")
-      .select("id, name, tvdb_id")
+      .select("id, name, tvdb_id, tmdb_id, first_aired")
       .is("tmdb_id", null)
-      .limit(50);
+      .not("tvdb_id", "is", null)
+      .limit(limit);
 
     if (error) throw error;
 
@@ -38,65 +61,62 @@ export async function handler(event) {
     for (const show of shows || []) {
       try {
         const searchName = cleanShowName(show.name);
+        const year = getYear(show.first_aired);
 
-        const searchRes = await fetch(
+        const searchUrl =
           `https://api.themoviedb.org/3/search/tv?query=${encodeURIComponent(
             searchName
-          )}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
-              accept: "application/json",
-            },
-          }
-        );
+          )}` + (year ? `&first_air_date_year=${year}` : "");
 
-        const searchJson = await searchRes.json();
+        const searchJson = await tmdbFetch(searchUrl);
+
         let matchedTmdbId = null;
+        let matchedName = null;
 
         for (const result of searchJson.results || []) {
-          const extRes = await fetch(
-            `https://api.themoviedb.org/3/tv/${result.id}/external_ids`,
-            {
-              headers: {
-                Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
-                accept: "application/json",
-              },
-            }
+          const ext = await tmdbFetch(
+            `https://api.themoviedb.org/3/tv/${result.id}/external_ids`
           );
-
-          const ext = await extRes.json();
 
           if (String(ext.tvdb_id) === String(show.tvdb_id)) {
             matchedTmdbId = result.id;
+            matchedName = result.name || result.original_name || null;
             break;
           }
         }
 
-        if (matchedTmdbId) {
-          const { error: updateError } = await supabase
-            .from("shows")
-            .update({ tmdb_id: matchedTmdbId })
-            .eq("id", show.id);
-
-          if (updateError) throw updateError;
-
+        if (!matchedTmdbId) {
           results.push({
+            id: show.id,
             name: show.name,
+            tvdb_id: show.tvdb_id,
             search_name: searchName,
-            tmdb_id: matchedTmdbId,
-            status: "updated",
-          });
-        } else {
-          results.push({
-            name: show.name,
-            search_name: searchName,
+            year,
             status: "not_found",
           });
+          continue;
         }
+
+        const { error: updateError } = await supabase
+          .from("shows")
+          .update({ tmdb_id: matchedTmdbId })
+          .eq("id", show.id);
+
+        if (updateError) throw updateError;
+
+        results.push({
+          id: show.id,
+          name: show.name,
+          matched_name: matchedName,
+          tvdb_id: show.tvdb_id,
+          tmdb_id: matchedTmdbId,
+          status: "updated",
+        });
       } catch (err) {
         results.push({
+          id: show.id,
           name: show.name,
+          tvdb_id: show.tvdb_id,
           status: "error",
           error: err.message,
         });
@@ -111,6 +131,7 @@ export async function handler(event) {
       },
       body: JSON.stringify({
         processed: results.length,
+        remaining_batch_limit: limit,
         results,
       }),
     };
