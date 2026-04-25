@@ -16,8 +16,11 @@ function getResolvedTvdbId(show) {
 function getResolvedTmdbId(show) {
   const value =
     show?.tmdb_id ||
+    show?.resolved_tmdb_id ||
+    show?.mapped_tmdb_id ||
     show?.series_tmdb_id ||
-    show?.id ||
+    show?.show_tmdb_id ||
+    show?.tmdb ||
     null;
 
   return value ? Number(value) : null;
@@ -29,9 +32,7 @@ export async function addShowToUserList(show) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError) {
-    throw userError;
-  }
+  if (userError) throw userError;
 
   if (!user) {
     throw new Error("You must be logged in to add a show.");
@@ -41,20 +42,31 @@ export async function addShowToUserList(show) {
     throw new Error("Missing show details.");
   }
 
+  const tvdbId = getResolvedTvdbId(show);
+  const tmdbId = getResolvedTmdbId(show);
+
   const normalizedShow = {
     ...show,
-    tvdb_id: getResolvedTvdbId(show),
-    tmdb_id: getResolvedTmdbId(show),
+    tvdb_id: tvdbId,
+    tmdb_id: tmdbId,
     first_air_date: show?.first_air_date || show?.first_aired || null,
     first_aired: show?.first_air_date || show?.first_aired || null,
-    poster_url: show?.poster_url || show?.image_url || null,
+    poster_url:
+      show?.poster_url ||
+      show?.posterUrl ||
+      show?.image_url ||
+      show?.image ||
+      null,
     backdrop_url:
       show?.backdrop_url ||
+      show?.backdropUrl ||
       show?.background_url ||
+      show?.backgroundUrl ||
       show?.banner_url ||
+      show?.bannerUrl ||
       show?.fanart_url ||
       null,
-    name: show?.name || show?.title || "Unknown show",
+    name: show?.name || show?.title || show?.show_name || "Unknown show",
     overview: show?.overview || null,
     status: show?.status || null,
   };
@@ -75,17 +87,11 @@ export async function addShowToUserList(show) {
     watch_status: "watchlist",
   };
 
-  if (normalizedShow.tmdb_id) {
-    upsertPayload.tmdb_id = normalizedShow.tmdb_id;
-  }
-
   const { error } = await supabase.from("user_shows_new").upsert(upsertPayload, {
     onConflict: "user_id,show_id",
   });
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return savedShow;
 }
