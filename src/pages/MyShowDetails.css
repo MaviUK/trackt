@@ -1410,3 +1410,158 @@
   object-fit: cover;
   background: #fff;
 }
+
+/* ===== Watch provider stat box update ===== */
+
+.msd-stats-row-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+
+.msd-watch-stat-box {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+}
+
+.msd-watch-stat-box.is-open {
+  border-color: rgba(139, 92, 246, 0.75);
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.35);
+}
+
+.msd-watch-stat-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  object-fit: cover;
+  background: #fff;
+  display: block;
+  margin-top: 4px;
+}
+
+.msd-watch-dropdown {
+  margin-top: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.msd-watch-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.msd-watch-section {
+  display: grid;
+  gap: 10px;
+}
+
+.msd-watch-title {
+  margin: 0;
+  font-size: 15px;
+  color: #f8fafc;
+  font-weight: 800;
+}
+
+.msd-watch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.msd-watch-card {
+  width: 70px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  color: #e5e7eb;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.msd-watch-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .msd-stats-row-five {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .msd-stats-row-five {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px;
+  }
+
+  .msd-stats-row-five .msd-stat-box {
+    padding: 8px 4px;
+    min-width: 0;
+    border-radius: 12px;
+  }
+
+  .msd-stats-row-five .msd-stat-label {
+    font-size: 0.62rem;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
+
+  .msd-stats-row-five .msd-stat-value {
+    font-size: 0.92rem;
+  }
+
+  .msd-watch-stat-logo {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .msd-watch-dropdown {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .msd-watch-card {
+    width: 60px;
+    font-size: 10px;
+  }
+
+  .msd-watch-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 390px) {
+  .msd-stats-row-five {
+    gap: 5px;
+  }
+
+  .msd-stats-row-five .msd-stat-box {
+    padding: 7px 3px;
+  }
+
+  .msd-stats-row-five .msd-stat-label {
+    font-size: 0.56rem;
+  }
+
+  .msd-stats-row-five .msd-stat-value {
+    font-size: 0.82rem;
+  }
+
+  .msd-watch-stat-logo {
+    width: 24px;
+    height: 24px;
+  }
+}
