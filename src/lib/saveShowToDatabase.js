@@ -517,33 +517,29 @@ export async function saveShowToDatabase(show) {
     throw new Error("Missing show id");
   }
 
-  async function findExistingShow({ tvdbId: lookupTvdbId, tmdbId: lookupTmdbId }) {
-    if (lookupTvdbId) {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("*")
-        .eq("tvdb_id", lookupTvdbId)
-        .maybeSingle();
+  let existingShow = null;
 
-      if (error) throw error;
-      if (data) return data;
-    }
+  if (tvdbId) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tvdb_id", tvdbId)
+      .maybeSingle();
 
-    if (lookupTmdbId) {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("*")
-        .eq("tmdb_id", lookupTmdbId)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) return data;
-    }
-
-    return null;
+    if (error) throw error;
+    existingShow = data || existingShow;
   }
 
-  let existingShow = await findExistingShow({ tvdbId, tmdbId });
+  if (!existingShow && tmdbId) {
+    const { data, error } = await supabase
+      .from("shows")
+      .select("*")
+      .eq("tmdb_id", tmdbId)
+      .maybeSingle();
+
+    if (error) throw error;
+    existingShow = data || existingShow;
+  }
 
   let mergedShowDetails = {
     ...existingShow,
@@ -564,16 +560,24 @@ export async function saveShowToDatabase(show) {
         ),
       };
     } catch (error) {
-      if (!tmdbId) throw error;
-      console.error("TVDB show details failed, falling back to TMDB/show payload:", error);
+      if (!tmdbId) {
+        throw error;
+      }
+      console.error(
+        "TVDB show details failed, falling back to TMDB/show payload:",
+        error
+      );
     }
   }
 
   if (tmdbId || mergedShowDetails?.tmdb_id) {
-    const resolvedTmdbId = normalizeNumber(tmdbId ?? mergedShowDetails?.tmdb_id);
+    const resolvedTmdbId = normalizeNumber(
+      tmdbId ?? mergedShowDetails?.tmdb_id
+    );
 
     try {
       const tmdbShowDetails = await fetchTmdbShowDetails(resolvedTmdbId);
+
       mergedShowDetails = {
         ...mergedShowDetails,
         ...tmdbShowDetails,
@@ -582,22 +586,46 @@ export async function saveShowToDatabase(show) {
           normalizeNumber(tmdbShowDetails?.tvdb_id) ??
           null,
         tmdb_id: resolvedTmdbId,
-        name: mergedShowDetails?.name || tmdbShowDetails?.name || "Unknown title",
-        overview: mergedShowDetails?.overview || tmdbShowDetails?.overview || null,
-        poster_url: mergedShowDetails?.poster_url || tmdbShowDetails?.poster_url || null,
-        backdrop_url: mergedShowDetails?.backdrop_url || tmdbShowDetails?.backdrop_url || null,
+        name:
+          mergedShowDetails?.name ||
+          tmdbShowDetails?.name ||
+          "Unknown title",
+        overview:
+          mergedShowDetails?.overview ||
+          tmdbShowDetails?.overview ||
+          null,
+        poster_url:
+          mergedShowDetails?.poster_url ||
+          tmdbShowDetails?.poster_url ||
+          null,
+        backdrop_url:
+          mergedShowDetails?.backdrop_url ||
+          tmdbShowDetails?.backdrop_url ||
+          null,
         first_air_date:
-          mergedShowDetails?.first_air_date || tmdbShowDetails?.first_air_date || null,
+          mergedShowDetails?.first_air_date ||
+          tmdbShowDetails?.first_air_date ||
+          null,
         first_aired:
-          mergedShowDetails?.first_aired || tmdbShowDetails?.first_air_date || null,
-        genres: mergedShowDetails?.genres?.length
-          ? mergedShowDetails.genres
-          : tmdbShowDetails?.genres || [],
-        network: mergedShowDetails?.network || tmdbShowDetails?.networks || null,
+          mergedShowDetails?.first_aired ||
+          tmdbShowDetails?.first_air_date ||
+          null,
+        genres:
+          mergedShowDetails?.genres?.length
+            ? mergedShowDetails.genres
+            : tmdbShowDetails?.genres || [],
+        network:
+          mergedShowDetails?.network ||
+          tmdbShowDetails?.networks ||
+          null,
         rating_average:
-          mergedShowDetails?.rating_average ?? tmdbShowDetails?.vote_average ?? null,
+          mergedShowDetails?.rating_average ??
+          tmdbShowDetails?.vote_average ??
+          null,
         rating_count:
-          mergedShowDetails?.rating_count ?? tmdbShowDetails?.vote_count ?? null,
+          mergedShowDetails?.rating_count ??
+          tmdbShowDetails?.vote_count ??
+          null,
       };
     } catch (error) {
       console.error("TMDB show details fallback failed:", error);
@@ -606,25 +634,46 @@ export async function saveShowToDatabase(show) {
 
   const showPayload = buildShowPayload(mergedShowDetails);
 
-  // TVDB searches can discover the TMDB ID only after fetching TVDB details.
-  // Re-check now so we update/reuse the existing TMDB row instead of inserting
-  // a duplicate and hitting shows_tmdb_id_unique.
-  const enrichedExistingShow = await findExistingShow({
-    tvdbId: showPayload.tvdb_id,
-    tmdbId: showPayload.tmdb_id,
-  });
+  // Search results often start as TVDB-only. The TMDB id is discovered during
+  // the enrichment above, so we must re-check with the final IDs before insert.
+  // Without this, Supabase can throw: shows_tmdb_id_unique.
+  if (!existingShow?.id) {
+    if (showPayload.tvdb_id) {
+      const { data, error } = await supabase
+        .from("shows")
+        .select("*")
+        .eq("tvdb_id", showPayload.tvdb_id)
+        .maybeSingle();
 
-  if (enrichedExistingShow?.id) {
-    existingShow = enrichedExistingShow;
+      if (error) throw error;
+      existingShow = data || existingShow;
+    }
+
+    if (!existingShow?.id && showPayload.tmdb_id) {
+      const { data, error } = await supabase
+        .from("shows")
+        .select("*")
+        .eq("tmdb_id", showPayload.tmdb_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      existingShow = data || existingShow;
+    }
   }
 
   let savedShow;
   let showError;
 
   if (existingShow?.id) {
+    const mergedPayload = {
+      ...showPayload,
+      tvdb_id: showPayload.tvdb_id ?? existingShow.tvdb_id ?? null,
+      tmdb_id: showPayload.tmdb_id ?? existingShow.tmdb_id ?? null,
+    };
+
     const res = await supabase
       .from("shows")
-      .update(showPayload)
+      .update(mergedPayload)
       .eq("id", existingShow.id)
       .select()
       .single();
@@ -654,10 +703,19 @@ export async function saveShowToDatabase(show) {
       rawEpisodes = buildTmdbEpisodesFromSeasons(tmdbShowDetails?.seasons ?? []);
     }
 
-    const enrichedEpisodes = await enrichEpisodesWithTmdb(savedShow.tmdb_id, rawEpisodes);
+    const enrichedEpisodes = await enrichEpisodesWithTmdb(
+      savedShow.tmdb_id,
+      rawEpisodes
+    );
+
     const seasonRows = buildSeasonRows(savedShow.id, enrichedEpisodes);
 
-    await upsertInBatches("seasons", seasonRows, "show_id,season_type,season_number", 100);
+    await upsertInBatches(
+      "seasons",
+      seasonRows,
+      "show_id,season_type,season_number",
+      100
+    );
 
     const { data: savedSeasons, error: savedSeasonsError } = await supabase
       .from("seasons")
@@ -671,7 +729,11 @@ export async function saveShowToDatabase(show) {
       (savedSeasons || []).map((season) => [season.season_number, season.id])
     );
 
-    const episodeRows = buildEpisodeRows(savedShow.id, seasonIdByNumber, enrichedEpisodes);
+    const episodeRows = buildEpisodeRows(
+      savedShow.id,
+      seasonIdByNumber,
+      enrichedEpisodes
+    );
 
     await upsertInBatches(
       "episodes",
