@@ -1777,15 +1777,15 @@
   text-align: left;
 }
 
-.msd-review-avatar-wrap {
-  display: none;
+.msd-review-body-wrap {
+  width: 100%;
 }
 
 .msd-review-head {
   display: flex;
   align-items: center;
-  gap: 8px;
   justify-content: flex-start;
+  gap: 8px;
   text-align: left;
   margin-bottom: 10px;
 }
@@ -1806,7 +1806,7 @@
   font-weight: 800;
 }
 
-.msd-review-name {
+.msd-review-username {
   font-size: 15px;
   font-weight: 800;
   line-height: 1;
