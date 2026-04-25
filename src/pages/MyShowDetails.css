@@ -1821,3 +1821,52 @@
 .msd-review-text {
   text-align: left;
 }
+
+/* Reviews final override */
+.msd-review-item {
+  display: block !important;
+  text-align: left !important;
+}
+
+.msd-review-body-wrap {
+  width: 100% !important;
+}
+
+.msd-review-card {
+  text-align: left !important;
+}
+
+.msd-review-head {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  text-align: left !important;
+  margin-bottom: 10px !important;
+}
+
+.msd-review-avatar {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 999px !important;
+  object-fit: cover !important;
+  flex: 0 0 22px !important;
+}
+
+.msd-review-username {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.msd-review-date {
+  font-size: 13px !important;
+  opacity: 0.65 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.msd-review-text {
+  text-align: left !important;
+}
