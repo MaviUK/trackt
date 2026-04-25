@@ -1,3 +1,26 @@
+async function fetchTmdbIdFromTvdbId(tvdbId) {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey || !tvdbId) return null;
+
+  try {
+    const url = `https://api.themoviedb.org/3/find/${encodeURIComponent(tvdbId)}?api_key=${encodeURIComponent(apiKey)}&external_source=tvdb_id`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!res.ok) {
+      console.error("TMDB find by TVDB id failed:", tvdbId, json);
+      return null;
+    }
+
+    const firstTvResult = Array.isArray(json?.tv_results) ? json.tv_results[0] : null;
+    const tmdbId = Number(firstTvResult?.id);
+    return Number.isFinite(tmdbId) && tmdbId > 0 ? tmdbId : null;
+  } catch (error) {
+    console.error("TMDB find by TVDB id crashed:", tvdbId, error);
+    return null;
+  }
+}
+
 function extractEnglishTranslationValue(translations, key) {
   if (!translations) return null;
 
@@ -183,52 +206,6 @@ function collectTaxonomyValues(series, targetLabels) {
   return uniqueText(buckets);
 }
 
-function extractRemoteId(series, wantedSource) {
-  const wanted = String(wantedSource || "").trim().toLowerCase();
-  const pools = [
-    series?.remoteIds,
-    series?.remote_ids,
-    series?.externalIds,
-    series?.external_ids,
-    series?.ids,
-  ].filter(Array.isArray);
-
-  for (const pool of pools) {
-    for (const item of pool) {
-      if (!item || typeof item !== "object") continue;
-
-      const source = String(
-        item.sourceName ||
-          item.source_name ||
-          item.sourceType ||
-          item.source_type ||
-          item.type ||
-          item.name ||
-          item.provider ||
-          ""
-      ).trim().toLowerCase();
-
-      if (source && !source.includes(wanted)) continue;
-
-      const value =
-        item.id ??
-        item.remoteId ??
-        item.remote_id ??
-        item.value ??
-        item.externalId ??
-        item.external_id ??
-        null;
-
-      const num = Number(value);
-      if (Number.isFinite(num) && num > 0) return num;
-    }
-  }
-
-  const direct = series?.tmdb_id ?? series?.tmdbId ?? series?.themoviedb_id ?? null;
-  const directNum = Number(direct);
-  return Number.isFinite(directNum) && directNum > 0 ? directNum : null;
-}
-
 export async function handler(event) {
   try {
     const tvdbId = event.queryStringParameters?.tvdb_id;
@@ -332,7 +309,7 @@ export async function handler(event) {
       "location",
     ]);
 
-    const tmdbId = extractRemoteId(series, "tmdb");
+    const tmdbId = await fetchTmdbIdFromTvdbId(series?.id ?? tvdbId);
 
     const payload = {
       tvdb_id: series?.id ?? null,

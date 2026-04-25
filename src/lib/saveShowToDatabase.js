@@ -8,23 +8,11 @@ function normalizeDate(value) {
 }
 
 function normalizeNumber(value) {
-  if (value === "" || value == null) return null;
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;
-}
-
-function getResolvedTmdbId(show) {
-  return (
-    normalizeNumber(show?.tmdb_id) ??
-    normalizeNumber(show?.resolved_tmdb_id) ??
-    normalizeNumber(show?.mapped_tmdb_id) ??
-    normalizeNumber(show?.series_tmdb_id) ??
-    normalizeNumber(show?.show_tmdb_id) ??
-    normalizeNumber(show?.tmdb) ??
-    normalizeNumber(show?.external_ids?.tmdb_id) ??
-    (show?.source === "tmdb" ? normalizeNumber(show?.id) : null) ??
-    null
-  );
 }
 
 function normalizeNetwork(networkValue) {
@@ -524,9 +512,15 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
 
 export async function saveShowToDatabase(show) {
   const tvdbId = normalizeNumber(
-    show?.tvdb_id || show?.resolved_tvdb_id || null
+    show?.tvdb_id ?? show?.resolved_tvdb_id ?? null
   );
-  const tmdbId = getResolvedTmdbId(show);
+  const tmdbId = normalizeNumber(
+    show?.tmdb_id ??
+      show?.resolved_tmdb_id ??
+      show?.mapped_tmdb_id ??
+      show?.show_tmdb_id ??
+      (show?.source === "tmdb" ? show?.id : null)
+  );
 
   if (!tvdbId && !tmdbId) {
     throw new Error("Missing show id");
@@ -570,10 +564,12 @@ export async function saveShowToDatabase(show) {
         ...mergedShowDetails,
         ...tvdbDetails,
         tvdb_id: tvdbId,
-        tmdb_id:
-          getResolvedTmdbId(tvdbDetails) ??
-          getResolvedTmdbId(mergedShowDetails) ??
-          tmdbId,
+        tmdb_id: normalizeNumber(
+          tmdbId ??
+            tvdbDetails?.tmdb_id ??
+            tvdbDetails?.external_ids?.tmdb_id ??
+            mergedShowDetails?.tmdb_id
+        ),
       };
     } catch (error) {
       if (!tmdbId) {
@@ -672,8 +668,11 @@ export async function saveShowToDatabase(show) {
     existingShow = data || existingShow;
   }
 
+  const conflictColumn = showPayload.tvdb_id ? "tvdb_id" : "tmdb_id";
+
+
   let savedShow;
-  let showError;
+let showError;
 
 if (existingShow?.id) {
   // UPDATE existing show
@@ -698,40 +697,7 @@ if (existingShow?.id) {
   showError = res.error;
 }
 
-  if (showError) {
-    const duplicateKey =
-      showError.code === "23505" ||
-      String(showError.message || "").includes("duplicate key value");
-
-    if (duplicateKey && (showPayload.tmdb_id || showPayload.tvdb_id)) {
-      const column = showPayload.tmdb_id ? "tmdb_id" : "tvdb_id";
-      const value = showPayload.tmdb_id || showPayload.tvdb_id;
-
-      const { data: duplicateShow, error: duplicateLookupError } = await supabase
-        .from("shows")
-        .select("*")
-        .eq(column, value)
-        .maybeSingle();
-
-      if (duplicateLookupError) throw duplicateLookupError;
-
-      if (duplicateShow?.id) {
-        const { data: updatedDuplicate, error: updateDuplicateError } = await supabase
-          .from("shows")
-          .update(showPayload)
-          .eq("id", duplicateShow.id)
-          .select()
-          .single();
-
-        if (updateDuplicateError) throw updateDuplicateError;
-        savedShow = updatedDuplicate;
-      } else {
-        throw showError;
-      }
-    } else {
-      throw showError;
-    }
-  }
+  if (showError) throw showError;
 
   try {
     let rawEpisodes = [];

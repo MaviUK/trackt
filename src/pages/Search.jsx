@@ -126,7 +126,7 @@ export default function Search() {
 
     const { data, error } = await supabase
       .from("user_shows_new")
-      .select("show_id, shows!inner(tvdb_id, tmdb_id)")
+      .select("show_id, shows!inner(tvdb_id)")
       .eq("user_id", user.id);
 
     if (error) {
@@ -135,24 +135,12 @@ export default function Search() {
       return;
     }
 
-    const matchedIds = new Set();
-
-    for (const row of data || []) {
-      const rowTvdbId = Number(row.shows?.tvdb_id);
-      const rowTmdbId = Number(row.shows?.tmdb_id);
-
-      const matchingResult = results.find((show) => {
-        const resultTvdbId = Number(show.tvdb_id);
-        const resultTmdbId = Number(show.tmdb_id);
-
-        return (
-          (resultTvdbId && rowTvdbId && resultTvdbId === rowTvdbId) ||
-          (resultTmdbId && rowTmdbId && resultTmdbId === rowTmdbId)
-        );
-      });
-
-      if (matchingResult?.tvdb_id) matchedIds.add(String(matchingResult.tvdb_id));
-    }
+    const matchedIds = new Set(
+      (data || [])
+        .map((row) => row.shows?.tvdb_id)
+        .filter((id) => tvdbIds.includes(Number(id)))
+        .map(String)
+    );
 
     setSavedIds(matchedIds);
   }
@@ -257,9 +245,10 @@ export default function Search() {
     try {
       await withTimeout(
         addShowToUserList({
-          tvdb_id: Number(show.tvdb_id) || null,
-          tmdb_id: Number(show.tmdb_id) || null,
+          ...show,
           source: show.source || "tvdb",
+          tvdb_id: Number(show.tvdb_id),
+          tmdb_id: show.tmdb_id ? Number(show.tmdb_id) : null,
           name: show.name || show.show_name || "Unknown Show",
           poster_url: show.image_url || show.poster_url || null,
           overview: show.overview || null,

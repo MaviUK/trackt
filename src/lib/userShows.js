@@ -2,32 +2,33 @@ import { supabase } from "./supabase";
 import { saveShowToDatabase } from "./saveShowToDatabase";
 
 function normalizePositiveNumber(value) {
-  if (value === "" || value == null) return null;
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;
 }
 
 function getResolvedTvdbId(show) {
-  return (
-    normalizePositiveNumber(show?.tvdb_id) ??
-    normalizePositiveNumber(show?.resolved_tvdb_id) ??
-    normalizePositiveNumber(show?.mapped_tvdb_id) ??
-    normalizePositiveNumber(show?.show_tvdb_id) ??
-    normalizePositiveNumber(show?.tvdb) ??
-    null
+  return normalizePositiveNumber(
+    show?.tvdb_id ??
+      show?.resolved_tvdb_id ??
+      show?.mapped_tvdb_id ??
+      show?.show_tvdb_id ??
+      show?.tvdb ??
+      null
   );
 }
 
 function getResolvedTmdbId(show) {
-  return (
-    normalizePositiveNumber(show?.tmdb_id) ??
-    normalizePositiveNumber(show?.resolved_tmdb_id) ??
-    normalizePositiveNumber(show?.mapped_tmdb_id) ??
-    normalizePositiveNumber(show?.series_tmdb_id) ??
-    normalizePositiveNumber(show?.show_tmdb_id) ??
-    normalizePositiveNumber(show?.tmdb) ??
-    (show?.source === "tmdb" ? normalizePositiveNumber(show?.id) : null) ??
-    null
+  return normalizePositiveNumber(
+    show?.tmdb_id ??
+      show?.resolved_tmdb_id ??
+      show?.mapped_tmdb_id ??
+      show?.series_tmdb_id ??
+      show?.show_tmdb_id ??
+      show?.tmdb ??
+      (show?.source === "tmdb" ? show?.id : null)
   );
 }
 
