@@ -94,7 +94,7 @@ async function buildCroppedAvatarDataUrl(imageSrc, zoom, offsetX, offsetY) {
 async function fetchCommentHistory(userId) {
   const { data: comments, error } = await supabase
     .from("rankd_matchup_comments")
-    .select("id, matchup_id, body, created_at")
+    .select("id, matchup_id, parent_comment_id, body, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(30);
@@ -104,49 +104,60 @@ async function fetchCommentHistory(userId) {
   const rows = comments || [];
   const matchupIds = rows.map((row) => row.matchup_id).filter(Boolean);
 
-  if (!matchupIds.length) return [];
+  if (!matchupIds.length) {
+    return rows.map((comment) => ({ ...comment, matchup: null }));
+  }
 
-  const { data: matchups, error: matchupError } = await supabase
-    .from("rankd_matchups")
-    .select("id, pair_key, show_a_id, show_b_id")
-    .in("id", matchupIds);
+  try {
+    const { data: matchups, error: matchupError } = await supabase
+      .from("rankd_matchups")
+      .select("id, pair_key, show_a_id, show_b_id")
+      .in("id", matchupIds);
 
-  if (matchupError) throw matchupError;
+    if (matchupError) throw matchupError;
 
-  const showIds = Array.from(
-    new Set(
-      (matchups || [])
-        .flatMap((matchup) => [matchup.show_a_id, matchup.show_b_id])
-        .filter(Boolean)
-    )
-  );
+    const showIds = Array.from(
+      new Set(
+        (matchups || [])
+          .flatMap((matchup) => [matchup.show_a_id, matchup.show_b_id])
+          .filter(Boolean)
+      )
+    );
 
-  const { data: shows, error: showsError } = await supabase
-    .from("shows")
-    .select("id, name")
-    .in("id", showIds);
+    let showMap = new Map();
 
-  if (showsError) throw showsError;
+    if (showIds.length) {
+      const { data: shows, error: showsError } = await supabase
+        .from("shows")
+        .select("id, name")
+        .in("id", showIds);
 
-  const showMap = new Map(
-    (shows || []).map((show) => [String(show.id), show.name])
-  );
+      if (showsError) throw showsError;
 
-  const matchupMap = new Map(
-    (matchups || []).map((matchup) => [
-      String(matchup.id),
-      {
-        ...matchup,
-        showAName: showMap.get(String(matchup.show_a_id)) || "Show A",
-        showBName: showMap.get(String(matchup.show_b_id)) || "Show B",
-      },
-    ])
-  );
+      showMap = new Map(
+        (shows || []).map((show) => [String(show.id), show.name])
+      );
+    }
 
-  return rows.map((comment) => ({
-    ...comment,
-    matchup: matchupMap.get(String(comment.matchup_id)) || null,
-  }));
+    const matchupMap = new Map(
+      (matchups || []).map((matchup) => [
+        String(matchup.id),
+        {
+          ...matchup,
+          showAName: showMap.get(String(matchup.show_a_id)) || "Show A",
+          showBName: showMap.get(String(matchup.show_b_id)) || "Show B",
+        },
+      ])
+    );
+
+    return rows.map((comment) => ({
+      ...comment,
+      matchup: matchupMap.get(String(comment.matchup_id)) || null,
+    }));
+  } catch (err) {
+    console.error("Failed hydrating Rank'd comment history:", err);
+    return rows.map((comment) => ({ ...comment, matchup: null }));
+  }
 }
 
 async function fetchReviewHistory(userId) {
@@ -164,23 +175,30 @@ async function fetchReviewHistory(userId) {
     new Set(rows.map((row) => row.show_id).filter(Boolean))
   );
 
-  if (!showIds.length) return [];
+  if (!showIds.length) {
+    return rows.map((review) => ({ ...review, show: null }));
+  }
 
-  const { data: shows, error: showsError } = await supabase
-    .from("shows")
-    .select("id, name, first_aired, year")
-    .in("id", showIds);
+  try {
+    const { data: shows, error: showsError } = await supabase
+      .from("shows")
+      .select("id, tvdb_id, tmdb_id, name, first_aired")
+      .in("id", showIds);
 
-  if (showsError) throw showsError;
+    if (showsError) throw showsError;
 
-  const showMap = new Map(
-    (shows || []).map((show) => [String(show.id), show])
-  );
+    const showMap = new Map(
+      (shows || []).map((show) => [String(show.id), show])
+    );
 
-  return rows.map((review) => ({
-    ...review,
-    show: showMap.get(String(review.show_id)) || null,
-  }));
+    return rows.map((review) => ({
+      ...review,
+      show: showMap.get(String(review.show_id)) || null,
+    }));
+  } catch (err) {
+    console.error("Failed hydrating review history:", err);
+    return rows.map((review) => ({ ...review, show: null }));
+  }
 }
 
 export default function ProfileEdit() {
@@ -312,21 +330,24 @@ export default function ProfileEdit() {
 
         setHistoryLoading(true);
         try {
-          const [commentRows, reviewRows] = await Promise.all([
-            fetchCommentHistory(user.id),
-            fetchReviewHistory(user.id),
-          ]);
-
+          const commentRows = await fetchCommentHistory(user.id);
           setCommentHistory(commentRows);
+        } catch (historyError) {
+          console.error("Failed loading Rank'd comment history:", historyError);
+          setCommentHistory([]);
+        }
+
+        try {
+          const reviewRows = await fetchReviewHistory(user.id);
           setReviewHistory(reviewRows);
         } catch (historyError) {
-          console.error("Failed loading profile history:", historyError);
-          setCommentHistory([]);
+          console.error("Failed loading review history:", historyError);
           setReviewHistory([]);
         } finally {
           setHistoryLoading(false);
         }
       } catch (err) {
+
         console.error("Failed to load profile:", err);
         setError(err.message || "Failed to load profile.");
       } finally {
@@ -1020,12 +1041,17 @@ export default function ProfileEdit() {
           <div style={{ display: "grid", gap: 10 }}>
             {reviewHistory.map((review) => {
               const show = review.show;
-              const year = show?.year || show?.first_aired?.slice?.(0, 4) || "";
+              const year = show?.first_aired?.slice?.(0, 4) || "";
+              const reviewUrl = show?.tvdb_id
+                ? `/my-shows/${show.tvdb_id}`
+                : show?.tmdb_id
+                  ? `/my-shows/tmdb/${show.tmdb_id}`
+                  : "/my-shows";
 
               return (
                 <Link
                   key={review.id}
-                  to={review.show_id ? `/my-shows/${review.show_id}` : "/my-shows"}
+                  to={reviewUrl}
                   style={historyItemStyle}
                 >
                   <strong style={{ color: "#c4b5fd" }}>
