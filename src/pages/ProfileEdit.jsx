@@ -149,6 +149,40 @@ async function fetchCommentHistory(userId) {
   }));
 }
 
+async function fetchReviewHistory(userId) {
+  const { data: reviews, error } = await supabase
+    .from("show_reviews")
+    .select("id, show_id, parent_id, body, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) throw error;
+
+  const rows = reviews || [];
+  const showIds = Array.from(
+    new Set(rows.map((row) => row.show_id).filter(Boolean))
+  );
+
+  if (!showIds.length) return [];
+
+  const { data: shows, error: showsError } = await supabase
+    .from("shows")
+    .select("id, name, first_aired, year")
+    .in("id", showIds);
+
+  if (showsError) throw showsError;
+
+  const showMap = new Map(
+    (shows || []).map((show) => [String(show.id), show])
+  );
+
+  return rows.map((review) => ({
+    ...review,
+    show: showMap.get(String(review.show_id)) || null,
+  }));
+}
+
 export default function ProfileEdit() {
   const navigate = useNavigate();
   const previewRef = useRef(null);
@@ -160,8 +194,10 @@ export default function ProfileEdit() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [activeHistoryTab, setActiveHistoryTab] = useState("comments");
   const [commentHistory, setCommentHistory] = useState([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [reviewHistory, setReviewHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -274,15 +310,21 @@ export default function ProfileEdit() {
           });
         }
 
-        setCommentsLoading(true);
+        setHistoryLoading(true);
         try {
-          const historyRows = await fetchCommentHistory(user.id);
-          setCommentHistory(historyRows);
-        } catch (commentsError) {
-          console.error("Failed loading comment history:", commentsError);
+          const [commentRows, reviewRows] = await Promise.all([
+            fetchCommentHistory(user.id),
+            fetchReviewHistory(user.id),
+          ]);
+
+          setCommentHistory(commentRows);
+          setReviewHistory(reviewRows);
+        } catch (historyError) {
+          console.error("Failed loading profile history:", historyError);
           setCommentHistory([]);
+          setReviewHistory([]);
         } finally {
-          setCommentsLoading(false);
+          setHistoryLoading(false);
         }
       } catch (err) {
         console.error("Failed to load profile:", err);
@@ -905,51 +947,101 @@ export default function ProfileEdit() {
       >
         <div style={{ marginBottom: 14 }}>
           <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
-            Comment History
+            Profile History
           </h2>
           <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
-            Your latest Rank'd comments. Click one to open that matchup.
+            View your Rank'd comments and show reviews in separate tabs.
           </p>
         </div>
 
-        {commentsLoading ? (
-          <p style={{ color: "#94a3b8", margin: 0 }}>Loading comments...</p>
-        ) : commentHistory.length ? (
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveHistoryTab("comments")}
+            style={historyTabStyle(activeHistoryTab === "comments")}
+          >
+            Comments ({commentHistory.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveHistoryTab("reviews")}
+            style={historyTabStyle(activeHistoryTab === "reviews")}
+          >
+            Reviews ({reviewHistory.length})
+          </button>
+        </div>
+
+        {historyLoading ? (
+          <p style={{ color: "#94a3b8", margin: 0 }}>Loading history...</p>
+        ) : activeHistoryTab === "comments" ? (
+          commentHistory.length ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              {commentHistory.map((comment) => {
+                const matchup = comment.matchup;
+                const targetUrl = matchup?.pair_key
+                  ? `/rankd?matchup=${encodeURIComponent(
+                      matchup.pair_key
+                    )}&comment=${encodeURIComponent(comment.id)}`
+                  : "/rankd";
+
+                return (
+                  <Link key={comment.id} to={targetUrl} style={historyItemStyle}>
+                    <strong style={{ color: "#c4b5fd" }}>
+                      {matchup
+                        ? `${matchup.showAName} vs ${matchup.showBName}`
+                        : "Rank'd matchup"}
+                    </strong>
+
+                    <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
+                      {comment.body}
+                    </p>
+
+                    <small style={{ color: "#94a3b8" }}>
+                      {new Date(comment.created_at).toLocaleString()}
+                    </small>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ color: "#94a3b8", margin: 0 }}>
+              You have not posted any Rank'd comments yet.
+            </p>
+          )
+        ) : reviewHistory.length ? (
           <div style={{ display: "grid", gap: 10 }}>
-            {commentHistory.map((comment) => {
-              const matchup = comment.matchup;
-              const targetUrl = matchup?.pair_key
-                ? `/rankd?matchup=${encodeURIComponent(
-                    matchup.pair_key
-                  )}&comment=${encodeURIComponent(comment.id)}`
-                : "/rankd";
+            {reviewHistory.map((review) => {
+              const show = review.show;
+              const year = show?.year || show?.first_aired?.slice?.(0, 4) || "";
 
               return (
                 <Link
-                  key={comment.id}
-                  to={targetUrl}
-                  style={{
-                    display: "block",
-                    padding: 14,
-                    borderRadius: 14,
-                    border: "1px solid #26324a",
-                    background: "#182235",
-                    color: "#f8fafc",
-                    textDecoration: "none",
-                  }}
+                  key={review.id}
+                  to={review.show_id ? `/my-shows/${review.show_id}` : "/my-shows"}
+                  style={historyItemStyle}
                 >
                   <strong style={{ color: "#c4b5fd" }}>
-                    {matchup
-                      ? `${matchup.showAName} vs ${matchup.showBName}`
-                      : "Rank'd matchup"}
+                    {show?.name || "Show review"}{year ? ` (${year})` : ""}
                   </strong>
 
+                  {review.parent_id ? (
+                    <div style={historyBadgeStyle}>Reply</div>
+                  ) : null}
+
                   <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
-                    {comment.body}
+                    {review.body}
                   </p>
 
                   <small style={{ color: "#94a3b8" }}>
-                    {new Date(comment.created_at).toLocaleString()}
+                    {new Date(review.created_at).toLocaleString()}
                   </small>
                 </Link>
               );
@@ -957,7 +1049,7 @@ export default function ProfileEdit() {
           </div>
         ) : (
           <p style={{ color: "#94a3b8", margin: 0 }}>
-            You have not posted any Rank'd comments yet.
+            You have not posted any show reviews yet.
           </p>
         )}
       </section>
@@ -1007,6 +1099,40 @@ const secondaryLinkStyle = {
   textDecoration: "none",
 };
 
+
+const historyItemStyle = {
+  display: "block",
+  padding: 14,
+  borderRadius: 14,
+  border: "1px solid #26324a",
+  background: "#182235",
+  color: "#f8fafc",
+  textDecoration: "none",
+};
+
+const historyBadgeStyle = {
+  display: "inline-flex",
+  width: "fit-content",
+  marginTop: 8,
+  padding: "4px 8px",
+  borderRadius: 999,
+  background: "rgba(99,102,241,0.15)",
+  color: "#c4b5fd",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+function historyTabStyle(isActive) {
+  return {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: isActive ? "1px solid #818cf8" : "1px solid #334155",
+    background: isActive ? "#4f46e5" : "#182235",
+    color: "#f8fafc",
+    fontWeight: 800,
+    cursor: "pointer",
+  };
+}
 
 const dangerButtonStyle = {
   padding: "12px 18px",
