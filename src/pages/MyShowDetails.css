@@ -2160,9 +2160,11 @@
 
 @media (max-width: 900px) {
   .msd-chatboard-screen {
-    top: var(--mobile-top-banner-height);
-    bottom: calc(var(--mobile-nav-height) + 62px + env(safe-area-inset-bottom, 0px));
-    z-index: 240;
+    top: 0;
+    bottom: 0;
+    z-index: 9999;
+    padding-top: calc(var(--mobile-top-banner-height) + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(var(--mobile-nav-height) + 62px + env(safe-area-inset-bottom, 0px));
   }
 
   .msd-chatboard-screen-head {
@@ -2186,6 +2188,6 @@
 
 @media (max-width: 420px) {
   .msd-chatboard-screen {
-    bottom: calc(64px + 60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(64px + 60px + env(safe-area-inset-bottom, 0px));
   }
 }
