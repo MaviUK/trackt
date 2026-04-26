@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useLocation,
@@ -269,6 +269,7 @@ export default function MyShowDetails() {
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
+  const contentTabsSectionRef = useRef(null);
   const [rankPosition, setRankPosition] = useState(null);
   const [watchProviders, setWatchProviders] = useState(null);
   const [watchOptionsOpen, setWatchOptionsOpen] = useState(false);
@@ -1467,6 +1468,17 @@ export default function MyShowDetails() {
     setOpenEpisodeRatingPickerId((prev) => (prev === epId ? null : epId));
   }
 
+
+  function openContentTab(tabName) {
+    setActiveTab(tabName);
+    window.setTimeout(() => {
+      contentTabsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  }
+
   if (loading) {
     return (
       <div className="msd-page">
@@ -1706,7 +1718,7 @@ export default function MyShowDetails() {
           </div>
         ) : null}
 
-        <section className="msd-content-tabs-section">
+        <section className="msd-content-tabs-section" ref={contentTabsSectionRef}>
           <div
             className="msd-content-tabs"
             role="tablist"
@@ -1717,7 +1729,7 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "seasons" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("seasons")}
+              onClick={() => openContentTab("seasons")}
             >
               Seasons
             </button>
@@ -1727,7 +1739,7 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "cast" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("cast")}
+              onClick={() => openContentTab("cast")}
             >
               Cast
             </button>
@@ -1737,7 +1749,7 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "crew" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("crew")}
+              onClick={() => openContentTab("crew")}
             >
               Crew
             </button>
@@ -1747,7 +1759,7 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "studio" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("studio")}
+              onClick={() => openContentTab("studio")}
             >
               Studio
             </button>
@@ -1757,7 +1769,7 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "genre" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("genre")}
+              onClick={() => openContentTab("genre")}
             >
               Genre
             </button>
@@ -1767,9 +1779,19 @@ export default function MyShowDetails() {
               className={`msd-content-tab ${
                 activeTab === "reviews" ? "is-active" : ""
               }`}
-              onClick={() => setActiveTab("reviews")}
+              onClick={() => openContentTab("reviews")}
             >
               Reviews
+            </button>
+
+            <button
+              type="button"
+              className={`msd-content-tab ${
+                activeTab === "chatboard" ? "is-active" : ""
+              }`}
+              onClick={() => openContentTab("chatboard")}
+            >
+              Chatboard
             </button>
           </div>
 
@@ -2326,10 +2348,7 @@ export default function MyShowDetails() {
           <button
             type="button"
             className="msd-bottom-action-btn"
-            onClick={() => {
-              setActiveTab("chatboard");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+onClick={() => openContentTab("chatboard")}
           >
             Chatboard
           </button>
