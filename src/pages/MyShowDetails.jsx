@@ -1853,7 +1853,7 @@ export default function MyShowDetails() {
                                   <div className="msd-episode-tmdb-rating">
                                     {ep.tmdbRating != null
                                       ? `${Math.round(ep.tmdbRating * 10)}%`
-                                      : "No TMDB rating"}
+                                      : "-"}
                                   </div>
 
                                   <div className="msd-episode-hero-overlay">
