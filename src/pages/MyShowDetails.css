@@ -354,6 +354,40 @@
   justify-content: flex-start;
 }
 
+
+.msd-rating-slider-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msd-rating-slider {
+  width: 100%;
+  accent-color: #a855f7;
+  cursor: pointer;
+}
+
+.msd-rating-slider:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.msd-rating-slider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.msd-rating-slider-row strong {
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
 .msd-burgr-current {
   color: #cbd5e1;
   font-size: 0.92rem;

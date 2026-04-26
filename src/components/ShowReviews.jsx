@@ -26,7 +26,7 @@ function getDisplayName(profile, fallbackUserId) {
 function formatReviewRating(value) {
   const rating = Number(value);
   if (Number.isNaN(rating)) return "";
-  return Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+  return `${Math.round(rating)}%`;
 }
 
 function buildReviewTree(rows) {
@@ -101,7 +101,7 @@ function ReviewItem({
               <strong className="msd-review-username">{displayName}</strong>
 
               {ratingLabel ? (
-                <span className="msd-review-rating">{ratingLabel}/10</span>
+                <span className="msd-review-rating">{ratingLabel}</span>
               ) : null}
             </div>
 

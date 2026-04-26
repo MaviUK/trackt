@@ -1368,7 +1368,7 @@ export default function MyShowDetails() {
     if (!user || !show?.id || savingBurgr) return;
 
     const rating = Number(value);
-    if (Number.isNaN(rating) || rating < 1 || rating > 10) return;
+    if (Number.isNaN(rating) || rating < 0 || rating > 100) return;
 
     const previousRating = myBurgrRating;
     setMyBurgrRating(String(rating));
@@ -1398,7 +1398,7 @@ export default function MyShowDetails() {
     if (!user || !ep?.id || savingEpisodeRatingId) return;
 
     const rating = Number(value);
-    if (Number.isNaN(rating) || rating < 1 || rating > 10) return;
+    if (Number.isNaN(rating) || rating < 0 || rating > 100) return;
 
     setSavingEpisodeRatingId(ep.id);
 
@@ -1469,7 +1469,7 @@ export default function MyShowDetails() {
     );
   }
 
-  const activeBurgrRating = hoverBurgrRating || Number(myBurgrRating || 0);
+  const activeBurgrRating = Number(myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
@@ -1648,41 +1648,25 @@ export default function MyShowDetails() {
             <div className="msd-stat-box msd-stat-box-full">
               <span className="msd-stat-label">Your Burgr Rating</span>
               <div className="msd-burgr-form msd-burgr-form-compact">
-                <div className="msd-burgr-picker msd-burgr-picker-compact">
-                  {Array.from({ length: 10 }, (_, index) => {
-                    const value = index + 1;
-                    const filled = value <= activeBurgrRating;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        className={`msd-burger-btn ${
-                          filled ? "is-filled" : "is-empty"
-                        }`}
-                        onMouseEnter={() => setHoverBurgrRating(value)}
-                        onMouseLeave={() => setHoverBurgrRating(0)}
-                        onClick={() => handleSelectBurgrRating(value)}
-                        aria-label={`Rate ${value} out of 10 burgers`}
-                        title={`${value}/10`}
-                        disabled={savingBurgr}
-                      >
-                        <img
-                          src="/burger-rating.png"
-                          alt=""
-                          className="msd-burger-icon msd-burger-icon-small"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="msd-burgr-picker-footer msd-burgr-picker-footer-compact">
-                  <span className="msd-burgr-current">
-                    {savingBurgr
-                      ? "Saving..."
-                      : myBurgrRating
-                      ? `${myBurgrRating}/10`
-                      : "Select"}
-                  </span>
+                <div className="msd-rating-slider-wrap">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={activeBurgrRating}
+                    onChange={(event) =>
+                      handleSelectBurgrRating(event.target.value)
+                    }
+                    disabled={savingBurgr}
+                    className="msd-rating-slider"
+                    aria-label="Rate this show from 0 to 100 percent"
+                  />
+                  <div className="msd-rating-slider-row">
+                    <span>0%</span>
+                    <strong>{savingBurgr ? "Saving..." : `${activeBurgrRating}%`}</strong>
+                    <span>100%</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1801,6 +1785,9 @@ export default function MyShowDetails() {
                         <div className="msd-episode-list">
                           {season.episodes.map((ep) => {
                             const watched = isEpisodeWatched(ep, watchedLookup);
+                            const hasMyEpisodeRating = myEpisodeRatings.has(
+                              String(ep.id)
+                            );
                             const myEpisodeRating = Number(
                               myEpisodeRatings.get(String(ep.id)) || 0
                             );
@@ -1883,8 +1870,8 @@ export default function MyShowDetails() {
                                   >
                                     {savingThisEpisode
                                       ? "Saving..."
-                                      : myEpisodeRating
-                                      ? `Rate ${myEpisodeRating}/10`
+                                      : hasMyEpisodeRating
+                                      ? `Rate ${myEpisodeRating}%`
                                       : "Rate"}
                                   </button>
 
@@ -1897,39 +1884,34 @@ export default function MyShowDetails() {
 
                                 {isPickerOpen ? (
                                   <div className="msd-mobile-rating-sheet">
-                                    <div className="msd-mobile-rating-grid">
-                                      {Array.from(
-                                        { length: 10 },
-                                        (_, index) => {
-                                          const value = index + 1;
-                                          const selected =
-                                            value === myEpisodeRating;
-
-                                          return (
-                                            <button
-                                              key={value}
-                                              type="button"
-                                              className={`msd-mobile-rating-option ${
-                                                selected ? "is-selected" : ""
-                                              }`}
-                                              onClick={() =>
-                                                handleSelectEpisodeRating(
-                                                  ep,
-                                                  value
-                                                )
-                                              }
-                                              disabled={savingThisEpisode}
-                                            >
-                                              <img
-                                                src="/burger-rating.png"
-                                                alt=""
-                                                className="msd-burger-icon msd-burger-icon-small"
-                                              />
-                                              <span>{value}/10</span>
-                                            </button>
-                                          );
+                                    <div className="msd-rating-slider-wrap">
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={myEpisodeRating}
+                                        onChange={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.target.value
+                                          )
                                         }
-                                      )}
+                                        disabled={savingThisEpisode}
+                                        className="msd-rating-slider"
+                                        aria-label="Rate this episode from 0 to 100 percent"
+                                      />
+                                      <div className="msd-rating-slider-row">
+                                        <span>0%</span>
+                                        <strong>
+                                          {savingThisEpisode
+                                            ? "Saving..."
+                                            : hasMyEpisodeRating
+                                            ? `${myEpisodeRating}%`
+                                            : "Not rated"}
+                                        </strong>
+                                        <span>100%</span>
+                                      </div>
                                     </div>
                                   </div>
                                 ) : null}
@@ -1968,71 +1950,41 @@ export default function MyShowDetails() {
                                       <span className="msd-episode-rating-meta">
                                         {savingThisEpisode
                                           ? "Saving..."
-                                          : myEpisodeRating
-                                          ? `${myEpisodeRating}/10`
+                                          : hasMyEpisodeRating
+                                          ? `${myEpisodeRating}%`
                                           : "Not rated"}
                                       </span>
                                     </div>
 
-                                    <div className="msd-burgr-picker msd-burgr-picker-compact">
-                                      {Array.from(
-                                        { length: 10 },
-                                        (_, index) => {
-                                          const value = index + 1;
-                                          const filled =
-                                            value <= activeEpisodeRating;
-
-                                          return (
-                                            <button
-                                              key={value}
-                                              type="button"
-                                              className={`msd-burger-btn ${
-                                                filled
-                                                  ? "is-filled"
-                                                  : "is-empty"
-                                              }`}
-                                              onMouseEnter={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: value,
-                                                  })
-                                                )
-                                              }
-                                              onMouseLeave={() =>
-                                                setHoverEpisodeRatings(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [ep.id]: 0,
-                                                  })
-                                                )
-                                              }
-                                              onClick={() =>
-                                                handleSelectEpisodeRating(
-                                                  ep,
-                                                  value
-                                                )
-                                              }
-                                              aria-label={`Rate episode ${value} out of 10 burgers`}
-                                              title={`${value}/10`}
-                                              disabled={savingThisEpisode}
-                                            >
-                                              <img
-                                                src="/burger-rating.png"
-                                                alt=""
-                                                className="msd-burger-icon msd-burger-icon-small"
-                                              />
-                                            </button>
-                                          );
+                                    <div className="msd-rating-slider-wrap">
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={activeEpisodeRating}
+                                        onChange={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.target.value
+                                          )
                                         }
-                                      )}
+                                        disabled={savingThisEpisode}
+                                        className="msd-rating-slider"
+                                        aria-label="Rate this episode from 0 to 100 percent"
+                                      />
+                                      <div className="msd-rating-slider-row">
+                                        <span>0%</span>
+                                        <strong>{activeEpisodeRating}%</strong>
+                                        <span>100%</span>
+                                      </div>
                                     </div>
 
                                     <div className="msd-episode-rating-footer">
                                       <span className="msd-muted">
                                         Average:{" "}
                                         {averageEpisodeRating
-                                          ? `${averageEpisodeRating.avg}/10`
+                                          ? `${averageEpisodeRating.avg}%`
                                           : "—"}
                                         {averageEpisodeRating
                                           ? ` (${averageEpisodeRating.count})`
