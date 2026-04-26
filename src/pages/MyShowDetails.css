@@ -2190,3 +2190,92 @@
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* Compact chatboard composer */
+.msd-chatboard-section {
+  gap: 10px;
+}
+
+.msd-chatboard-section .msd-section-title {
+  margin-bottom: 0;
+}
+
+.msd-chatboard-section > .msd-muted {
+  margin: -4px 0 0;
+}
+
+.msd-chat-compose-form {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px;
+  border-radius: 16px;
+}
+
+.msd-chat-compose-form textarea {
+  min-height: 76px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.msd-chat-compose-actions {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin-top: 8px;
+}
+
+.msd-chat-count {
+  color: #94a3b8;
+  font-size: 0.82rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.msd-chat-post-btn {
+  min-height: 34px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.msd-chatboard-section .msd-review-list {
+  gap: 10px;
+}
+
+.msd-chatboard-section .msd-review-card {
+  padding: 11px 12px;
+  border-radius: 16px;
+}
+
+.msd-chatboard-section .msd-review-head {
+  margin-bottom: 6px !important;
+}
+
+.msd-chatboard-section .msd-review-text {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .msd-chat-compose-form {
+    padding: 9px;
+  }
+
+  .msd-chat-compose-form textarea {
+    min-height: 68px;
+    padding: 9px 10px;
+  }
+
+  .msd-chat-compose-actions {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+
+  .msd-chat-post-btn {
+    min-height: 32px;
+    padding: 7px 12px;
+    font-size: 0.86rem;
+  }
+}

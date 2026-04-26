@@ -259,18 +259,21 @@ export default function ShowChatBoard({ showId, currentUserId }) {
 
   return (
     <section className="msd-reviews-section msd-chatboard-section">
+      <h2 className="msd-section-title">Live Chatboard</h2>
+      <p className="msd-muted">Chat about this show in real time. Replies and votes update live for everyone.</p>
+
       {currentUserId ? (
-        <form className="msd-review-form" onSubmit={handleSubmit}>
+        <form className="msd-review-form msd-chat-compose-form" onSubmit={handleSubmit}>
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             placeholder="Write a live chat message..."
-            rows={4}
+            rows={3}
             maxLength={1000}
           />
-          <div className="msd-review-form-actions">
-            <span>{body.trim().length}/1000</span>
-            <button type="submit" className="msd-btn msd-btn-primary" disabled={saving || !body.trim()}>
+          <div className="msd-review-form-actions msd-chat-compose-actions">
+            <span className="msd-chat-count">{body.trim().length}/1000</span>
+            <button type="submit" className="msd-btn msd-btn-primary msd-chat-post-btn" disabled={saving || !body.trim()}>
               {saving ? "Sending..." : "Post chat"}
             </button>
           </div>
