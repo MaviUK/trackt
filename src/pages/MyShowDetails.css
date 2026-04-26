@@ -1976,16 +1976,22 @@
   top: 12px;
   right: 12px;
   z-index: 2;
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: rgba(2, 6, 23, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+
+  /* REMOVE box styles */
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  border: none;
+  backdrop-filter: none;
+
+  /* keep text */
   color: #ffffff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
+
+  /* keep readability */
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
 .msd-episode-reviews-section {
@@ -2007,7 +2013,7 @@
   .msd-episode-tmdb-rating {
     top: 10px;
     right: 10px;
-    padding: 6px 9px;
+    padding: 0;
     font-size: 12px;
   }
 
