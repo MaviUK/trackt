@@ -363,9 +363,47 @@
 }
 
 .msd-rating-slider {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: #a855f7;
+  height: 28px;
+  background: transparent;
   cursor: pointer;
+}
+
+.msd-rating-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: linear-gradient(90deg, #f97316 0%, #a855f7 50%, #22c55e 100%);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.msd-rating-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  margin-top: -13px;
+  background: #0f172a url("/burger-rating.png") center / 25px 25px no-repeat;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.msd-rating-slider::-moz-range-track {
+  height: 8px;
+  background: linear-gradient(90deg, #f97316 0%, #a855f7 50%, #22c55e 100%);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.msd-rating-slider::-moz-range-thumb {
+  width: 34px;
+  height: 34px;
+  background: #0f172a url("/burger-rating.png") center / 25px 25px no-repeat;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 
 .msd-rating-slider:disabled {
@@ -373,6 +411,13 @@
   opacity: 0.7;
 }
 
+.msd-rating-slider:disabled::-webkit-slider-thumb {
+  cursor: wait;
+}
+
+.msd-rating-slider:disabled::-moz-range-thumb {
+  cursor: wait;
+}
 .msd-rating-slider-row {
   display: flex;
   align-items: center;
