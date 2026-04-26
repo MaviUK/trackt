@@ -1731,6 +1731,25 @@
   white-space: nowrap;
 }
 
+.msd-review-user-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.msd-review-rating {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #475569;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #facc15 !important;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .msd-review-text {
   margin: 0;
   color: #dbe4f3;
