@@ -8,6 +8,7 @@ import {
 import { supabase } from "../lib/supabase";
 import ShowReviews from "../components/ShowReviews";
 import EpisodeReviews from "../components/EpisodeReviews";
+import ShowChatBoard from "../components/ShowChatBoard";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
 import {
@@ -2239,6 +2240,10 @@ export default function MyShowDetails() {
             {activeTab === "reviews" && (
               <ShowReviews showId={show.id} currentUserId={currentUserId} />
             )}
+
+            {activeTab === "chatboard" && (
+              <ShowChatBoard showId={show.id} currentUserId={currentUserId} />
+            )}
           </div>
         </section>
 
@@ -2316,6 +2321,17 @@ export default function MyShowDetails() {
               : isArchived
               ? "Unarchive"
               : "Archive"}
+          </button>
+
+          <button
+            type="button"
+            className="msd-bottom-action-btn"
+            onClick={() => {
+              setActiveTab("chatboard");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Chatboard
           </button>
 
           {nextUnwatchedEpisode ? (

@@ -2023,3 +2023,59 @@
     border-radius: 16px;
   }
 }
+
+/* ===== Review and chat votes ===== */
+.msd-vote-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.msd-vote-btn {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.msd-vote-btn:hover:not(:disabled),
+.msd-vote-btn.is-active {
+  background: rgba(139, 92, 246, 0.22);
+  border-color: rgba(196, 181, 253, 0.62);
+  color: #ffffff;
+}
+
+.msd-vote-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.msd-chatboard-section {
+  scroll-margin-top: 18px;
+}
+
+.msd-chat-card {
+  border-color: rgba(139, 92, 246, 0.24);
+}
+
+@media (max-width: 560px) {
+  .msd-bottom-action-bar {
+    gap: 6px;
+  }
+
+  .msd-bottom-action-btn {
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    padding: 6px 5px;
+  }
+
+  .msd-vote-actions {
+    width: 100%;
+  }
+}
