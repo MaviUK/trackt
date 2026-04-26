@@ -23,6 +23,12 @@ function getDisplayName(profile, fallbackUserId) {
   );
 }
 
+function formatReviewRating(value) {
+  const rating = Number(value);
+  if (Number.isNaN(rating)) return "";
+  return Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+}
+
 function buildReviewTree(rows) {
   const byId = new Map();
 
@@ -59,6 +65,7 @@ function ReviewItem({
   const displayName = getDisplayName(profile, review.user_id);
   const avatarUrl = profile.avatar_url || "";
   const isSaving = savingReplyId === review.id;
+  const ratingLabel = formatReviewRating(review.burgr_rating);
 
   const canReply =
     currentUserId && String(review.user_id) !== String(currentUserId);
@@ -90,7 +97,13 @@ function ReviewItem({
               </div>
             )}
 
-            <strong className="msd-review-username">{displayName}</strong>
+            <div className="msd-review-user-line">
+              <strong className="msd-review-username">{displayName}</strong>
+
+              {ratingLabel ? (
+                <span className="msd-review-rating">{ratingLabel}/10</span>
+              ) : null}
+            </div>
 
             <span className="msd-review-date">
               {formatDateTime(review.created_at)}
@@ -206,10 +219,30 @@ export default function ShowReviews({ showId, currentUserId }) {
         );
       }
 
+      let ratingMap = new Map();
+
+      if (userIds.length) {
+        const { data: ratingRows, error: ratingError } = await supabase
+          .from("burgr_ratings")
+          .select("user_id, show_id, rating")
+          .eq("show_id", showId)
+          .in("user_id", userIds);
+
+        if (ratingError) throw ratingError;
+
+        ratingMap = new Map(
+          (ratingRows || []).map((rating) => [
+            String(rating.user_id),
+            rating.rating,
+          ])
+        );
+      }
+
       setReviews(
         (reviewRows || []).map((row) => ({
           ...row,
           profile: profileMap.get(String(row.user_id)) || null,
+          burgr_rating: ratingMap.get(String(row.user_id)) ?? null,
         }))
       );
     } catch (err) {
