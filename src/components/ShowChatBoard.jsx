@@ -259,8 +259,6 @@ export default function ShowChatBoard({ showId, currentUserId }) {
 
   return (
     <section className="msd-reviews-section msd-chatboard-section">
-      <h2 className="msd-section-title">Live Chatboard</h2>
-      <p className="msd-muted">Chat about this show in real time. Replies and votes update live for everyone.</p>
 
       {currentUserId ? (
         <form className="msd-review-form msd-chat-compose-form" onSubmit={handleSubmit}>
