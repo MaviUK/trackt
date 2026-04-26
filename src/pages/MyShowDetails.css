@@ -2158,13 +2158,12 @@
   color: #fff;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .msd-chatboard-screen {
-    top: 0;
-    bottom: 0;
-    z-index: 9999;
-    padding-top: calc(var(--mobile-top-banner-height) + env(safe-area-inset-top, 0px));
-    padding-bottom: calc(var(--mobile-nav-height) + 62px + env(safe-area-inset-bottom, 0px));
+    top: calc(var(--mobile-top-banner-height) + env(safe-area-inset-top, 0px));
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    z-index: 250;
+    padding: 0;
   }
 
   .msd-chatboard-screen-head {
@@ -2186,8 +2185,8 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 380px) {
   .msd-chatboard-screen {
-    padding-bottom: calc(64px + 60px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }

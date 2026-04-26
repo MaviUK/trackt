@@ -1502,7 +1502,7 @@ export default function MyShowDetails() {
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     document.body.style.position = "fixed";
-    document.body.style.top = `-px`;
+    document.body.style.top = `-${scrollY}px`;
     document.body.style.width = "100%";
 
     return () => {
