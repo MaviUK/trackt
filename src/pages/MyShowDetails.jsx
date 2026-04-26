@@ -269,6 +269,7 @@ export default function MyShowDetails() {
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
+  const [chatBoardOpen, setChatBoardOpen] = useState(false);
   const contentTabsSectionRef = useRef(null);
   const [rankPosition, setRankPosition] = useState(null);
   const [watchProviders, setWatchProviders] = useState(null);
@@ -1471,12 +1472,21 @@ export default function MyShowDetails() {
 
   function openContentTab(tabName) {
     setActiveTab(tabName);
+    setChatBoardOpen(false);
     window.setTimeout(() => {
       contentTabsSectionRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
     }, 0);
+  }
+
+  function openChatBoard() {
+    setChatBoardOpen(true);
+  }
+
+  function closeChatBoard() {
+    setChatBoardOpen(false);
   }
 
   if (loading) {
@@ -1786,10 +1796,8 @@ export default function MyShowDetails() {
 
             <button
               type="button"
-              className={`msd-content-tab ${
-                activeTab === "chatboard" ? "is-active" : ""
-              }`}
-              onClick={() => openContentTab("chatboard")}
+              className={`msd-content-tab ${chatBoardOpen ? "is-active" : ""}`}
+              onClick={openChatBoard}
             >
               Chatboard
             </button>
@@ -2261,12 +2269,7 @@ export default function MyShowDetails() {
 
             {activeTab === "reviews" && (
               <ShowReviews showId={show.id} currentUserId={currentUserId} />
-            )}
-
-            {activeTab === "chatboard" && (
-              <ShowChatBoard showId={show.id} currentUserId={currentUserId} />
-            )}
-          </div>
+            )}          </div>
         </section>
 
         <section className="msd-panel">
@@ -2322,6 +2325,29 @@ export default function MyShowDetails() {
           )}
         </section>
 
+
+        {chatBoardOpen ? (
+          <section className="msd-chatboard-screen" aria-label="Show chatboard">
+            <div className="msd-chatboard-screen-head">
+              <div>
+                <p className="msd-chatboard-screen-kicker">Live chatboard</p>
+                <h2>{show.name}</h2>
+              </div>
+              <button
+                type="button"
+                className="msd-chatboard-close"
+                onClick={closeChatBoard}
+                aria-label="Close chatboard"
+              >
+                ×
+              </button>
+            </div>
+            <div className="msd-chatboard-screen-body">
+              <ShowChatBoard showId={show.id} currentUserId={currentUserId} />
+            </div>
+          </section>
+        ) : null}
+
         <div className="msd-bottom-action-bar">
           <button
             type="button"
@@ -2347,8 +2373,8 @@ export default function MyShowDetails() {
 
           <button
             type="button"
-            className="msd-bottom-action-btn"
-onClick={() => openContentTab("chatboard")}
+            className={`msd-bottom-action-btn ${chatBoardOpen ? "is-active" : ""}`}
+            onClick={openChatBoard}
           >
             Chatboard
           </button>
