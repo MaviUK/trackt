@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import ShowReviews from "../components/ShowReviews";
+import EpisodeReviews from "../components/EpisodeReviews";
 import { formatDate } from "../lib/date";
 import "./MyShowDetails.css";
 import {
@@ -220,6 +221,7 @@ function emptyState() {
     savingEpisodeRatingId: null,
     hoverEpisodeRatings: {},
     openEpisodeRatingPickerId: null,
+    openEpisodeReviewId: null,
     mobileBannerUrl: null,
     rankPosition: null,
     watchProviders: null,
@@ -262,6 +264,7 @@ export default function MyShowDetails() {
   const [hoverEpisodeRatings, setHoverEpisodeRatings] = useState({});
   const [openEpisodeRatingPickerId, setOpenEpisodeRatingPickerId] =
     useState(null);
+  const [openEpisodeReviewId, setOpenEpisodeReviewId] = useState(null);
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
@@ -337,6 +340,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(state.savingEpisodeRatingId);
           setHoverEpisodeRatings(state.hoverEpisodeRatings);
           setOpenEpisodeRatingPickerId(state.openEpisodeRatingPickerId);
+          setOpenEpisodeReviewId(state.openEpisodeReviewId);
           setMobileBannerUrl(state.mobileBannerUrl);
           setRankPosition(state.rankPosition);
           setWatchProviders(state.watchProviders);
@@ -829,6 +833,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
+          setOpenEpisodeReviewId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
           setWatchProviders(null);
@@ -854,6 +859,7 @@ export default function MyShowDetails() {
           setSavingEpisodeRatingId(null);
           setHoverEpisodeRatings({});
           setOpenEpisodeRatingPickerId(null);
+          setOpenEpisodeReviewId(null);
           setMobileBannerUrl(null);
           setRankPosition(null);
           setWatchProviders(null);
@@ -1824,6 +1830,7 @@ export default function MyShowDetails() {
                               savingEpisodeRatingId === ep.id;
                             const isPickerOpen =
                               openEpisodeRatingPickerId === ep.id;
+                            const isReviewOpen = openEpisodeReviewId === ep.id;
 
                             return (
                               <article
@@ -1843,6 +1850,12 @@ export default function MyShowDetails() {
                                       : undefined
                                   }
                                 >
+                                  <div className="msd-episode-tmdb-rating">
+                                    {ep.tmdbRating != null
+                                      ? `${Math.round(ep.tmdbRating * 10)}%`
+                                      : "No TMDB rating"}
+                                  </div>
+
                                   <div className="msd-episode-hero-overlay">
                                     <div className="msd-episode-hero-text">
                                       <h3 className="msd-episode-hero-title">
@@ -1897,11 +1910,21 @@ export default function MyShowDetails() {
                                       : "Rate"}
                                   </button>
 
-                                  <div className="msd-episode-score-pill">
-                                    {ep.tmdbRating != null
-                                      ? `${Math.round(ep.tmdbRating * 10)}%`
-                                      : "—"}
-                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`msd-btn ${
+                                      isReviewOpen
+                                        ? "msd-btn-primary"
+                                        : "msd-btn-secondary"
+                                    }`}
+                                    onClick={() =>
+                                      setOpenEpisodeReviewId((prev) =>
+                                        prev === ep.id ? null : ep.id
+                                      )
+                                    }
+                                  >
+                                    Review
+                                  </button>
                                 </div>
 
                                 {isPickerOpen ? (
@@ -1979,6 +2002,15 @@ export default function MyShowDetails() {
                                   <p className="msd-episode-overview msd-episode-overview-mobile-card">
                                     {ep.overview}
                                   </p>
+                                ) : null}
+
+
+                                {isReviewOpen ? (
+                                  <EpisodeReviews
+                                    episodeId={ep.id}
+                                    currentUserId={currentUserId}
+                                    episodeTitle={`${makeEpisodeCode(ep)} - ${ep.name}`}
+                                  />
                                 ) : null}
 
                                 <div className="msd-episode-rating-desktop">
