@@ -254,7 +254,7 @@ export default function MyShowDetails() {
 
   const [burgrRatings, setBurgrRatings] = useState([]);
   const [myBurgrRating, setMyBurgrRating] = useState("");
-  const [hoverBurgrRating, setHoverBurgrRating] = useState(0);
+  const [draftBurgrRating, setDraftBurgrRating] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [episodeRatings, setEpisodeRatings] = useState([]);
@@ -1372,6 +1372,7 @@ export default function MyShowDetails() {
 
     const previousRating = myBurgrRating;
     setMyBurgrRating(String(rating));
+    setDraftBurgrRating("");
     setSavingBurgr(true);
 
     try {
@@ -1384,9 +1385,11 @@ export default function MyShowDetails() {
     } catch (error) {
       console.error("Failed saving Burgr rating:", error);
       setMyBurgrRating(previousRating);
+      setDraftBurgrRating("");
       alert(error.message || "Failed saving Burgr rating");
     } finally {
       setSavingBurgr(false);
+      setDraftBurgrRating("");
     }
   }
 
@@ -1433,10 +1436,20 @@ export default function MyShowDetails() {
       if (error) throw error;
 
       await refreshEpisodeRatings(episodes.map((episode) => episode.id));
+      setHoverEpisodeRatings((prev) => {
+        const next = { ...prev };
+        delete next[String(ep.id)];
+        return next;
+      });
       setOpenEpisodeRatingPickerId(null);
     } catch (error) {
       console.error("Failed saving episode rating:", error);
       setEpisodeRatings(previousRows);
+      setHoverEpisodeRatings((prev) => {
+        const next = { ...prev };
+        delete next[String(ep.id)];
+        return next;
+      });
       alert(error.message || "Failed saving episode rating");
     } finally {
       setSavingEpisodeRatingId(null);
@@ -1469,7 +1482,7 @@ export default function MyShowDetails() {
     );
   }
 
-  const activeBurgrRating = Number(myBurgrRating || 0);
+  const activeBurgrRating = Number(draftBurgrRating !== "" ? draftBurgrRating : myBurgrRating || 0);
   const baseContext = `sourceShowId=${encodeURIComponent(
     show.tvdb_id || show.tmdb_id || ""
   )}&sourceYear=${encodeURIComponent(
@@ -1655,8 +1668,15 @@ export default function MyShowDetails() {
                     max="100"
                     step="1"
                     value={activeBurgrRating}
-                    onChange={(event) =>
-                      handleSelectBurgrRating(event.target.value)
+                    onChange={(event) => setDraftBurgrRating(event.target.value)}
+                    onMouseUp={(event) =>
+                      handleSelectBurgrRating(event.currentTarget.value)
+                    }
+                    onTouchEnd={(event) =>
+                      handleSelectBurgrRating(event.currentTarget.value)
+                    }
+                    onBlur={(event) =>
+                      handleSelectBurgrRating(event.currentTarget.value)
                     }
                     disabled={savingBurgr}
                     className="msd-rating-slider"
@@ -1791,11 +1811,13 @@ export default function MyShowDetails() {
                             const myEpisodeRating = Number(
                               myEpisodeRatings.get(String(ep.id)) || 0
                             );
-                            const hoverEpisodeRating = Number(
-                              hoverEpisodeRatings[String(ep.id)] || 0
+                            const draftEpisodeRating =
+                              hoverEpisodeRatings[String(ep.id)];
+                            const activeEpisodeRating = Number(
+                              draftEpisodeRating !== undefined
+                                ? draftEpisodeRating
+                                : myEpisodeRating
                             );
-                            const activeEpisodeRating =
-                              hoverEpisodeRating || myEpisodeRating;
                             const averageEpisodeRating =
                               episodeAverageRatings.get(String(ep.id));
                             const savingThisEpisode =
@@ -1890,11 +1912,29 @@ export default function MyShowDetails() {
                                         min="0"
                                         max="100"
                                         step="1"
-                                        value={myEpisodeRating}
+                                        value={activeEpisodeRating}
                                         onChange={(event) =>
+                                          setHoverEpisodeRatings((prev) => ({
+                                            ...prev,
+                                            [String(ep.id)]: event.target.value,
+                                          }))
+                                        }
+                                        onMouseUp={(event) =>
                                           handleSelectEpisodeRating(
                                             ep,
-                                            event.target.value
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onTouchEnd={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onBlur={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.currentTarget.value
                                           )
                                         }
                                         disabled={savingThisEpisode}
@@ -1964,9 +2004,27 @@ export default function MyShowDetails() {
                                         step="1"
                                         value={activeEpisodeRating}
                                         onChange={(event) =>
+                                          setHoverEpisodeRatings((prev) => ({
+                                            ...prev,
+                                            [String(ep.id)]: event.target.value,
+                                          }))
+                                        }
+                                        onMouseUp={(event) =>
                                           handleSelectEpisodeRating(
                                             ep,
-                                            event.target.value
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onTouchEnd={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.currentTarget.value
+                                          )
+                                        }
+                                        onBlur={(event) =>
+                                          handleSelectEpisodeRating(
+                                            ep,
+                                            event.currentTarget.value
                                           )
                                         }
                                         disabled={savingThisEpisode}
