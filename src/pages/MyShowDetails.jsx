@@ -272,6 +272,12 @@ const [burgrRatingLocked, setBurgrRatingLocked] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
   const [chatBoardOpen, setChatBoardOpen] = useState(false);
   const contentTabsSectionRef = useRef(null);
+
+const burgrTouchRef = useRef({
+  startX: 0,
+  startY: 0,
+  horizontalDrag: false,
+});
   const [rankPosition, setRankPosition] = useState(null);
   const [watchProviders, setWatchProviders] = useState(null);
   const [watchOptionsOpen, setWatchOptionsOpen] = useState(false);
@@ -1730,26 +1736,64 @@ setBurgrRatingLocked(true);
     </button>
   ) : (
     <>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="1"
-        value={activeBurgrRating}
-        onChange={(event) => setDraftBurgrRating(event.target.value)}
-        onMouseUp={(event) =>
-          handleSelectBurgrRating(event.currentTarget.value)
-        }
-        onTouchEnd={(event) =>
-          handleSelectBurgrRating(event.currentTarget.value)
-        }
-        onBlur={(event) =>
-          handleSelectBurgrRating(event.currentTarget.value)
-        }
-        disabled={savingBurgr}
-        className="msd-rating-slider"
-        aria-label="Rate this show from 0 to 100 percent"
-      />
+     <input
+  type="range"
+  min="0"
+  max="100"
+  step="1"
+  value={activeBurgrRating}
+  onTouchStart={(event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    burgrTouchRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      horizontalDrag: false,
+    };
+  }}
+  onTouchMove={(event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    const dx = Math.abs(touch.clientX - burgrTouchRef.current.startX);
+    const dy = Math.abs(touch.clientY - burgrTouchRef.current.startY);
+
+    burgrTouchRef.current.horizontalDrag = dx > 12 && dx > dy * 1.4;
+  }}
+  onChange={(event) => {
+    if (
+      event.nativeEvent?.type === "input" &&
+      "ontouchstart" in window &&
+      !burgrTouchRef.current.horizontalDrag
+    ) {
+      return;
+    }
+
+    setDraftBurgrRating(event.target.value);
+  }}
+  onMouseUp={(event) =>
+    handleSelectBurgrRating(event.currentTarget.value)
+  }
+  onTouchEnd={(event) => {
+    if (!burgrTouchRef.current.horizontalDrag) {
+      setDraftBurgrRating("");
+      return;
+    }
+
+    handleSelectBurgrRating(event.currentTarget.value);
+  }}
+  onBlur={(event) => {
+    if ("ontouchstart" in window && !burgrTouchRef.current.horizontalDrag) {
+      return;
+    }
+
+    handleSelectBurgrRating(event.currentTarget.value);
+  }}
+  disabled={savingBurgr}
+  className="msd-rating-slider"
+  aria-label="Rate this show from 0 to 100 percent"
+/>
 
       <div className="msd-rating-slider-row">
         <span>0%</span>
