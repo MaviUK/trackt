@@ -255,9 +255,10 @@ export default function MyShowDetails() {
   const [peopleAlsoWatch, setPeopleAlsoWatch] = useState([]);
   const [savedShowTvdbIds, setSavedShowTvdbIds] = useState(new Set());
 
-  const [burgrRatings, setBurgrRatings] = useState([]);
-  const [myBurgrRating, setMyBurgrRating] = useState("");
-  const [draftBurgrRating, setDraftBurgrRating] = useState("");
+const [burgrRatings, setBurgrRatings] = useState([]);
+const [myBurgrRating, setMyBurgrRating] = useState("");
+const [draftBurgrRating, setDraftBurgrRating] = useState("");
+const [burgrRatingLocked, setBurgrRatingLocked] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState(null);
   const [episodeRatings, setEpisodeRatings] = useState([]);
@@ -649,6 +650,7 @@ export default function MyShowDetails() {
         setWatchedLoaded(true);
         setBurgrRatings(burgrRows || []);
         setMyBurgrRating(mine ? String(mine.rating) : "");
+setBurgrRatingLocked(Boolean(mine));
         setEpisodeRatings(episodeRatingRows || []);
         setSavingEpisodeRatingId(null);
         setHoverEpisodeRatings({});
@@ -1391,6 +1393,7 @@ export default function MyShowDetails() {
       );
       if (error) throw error;
       await refreshBurgrRatings(show.id, user.id);
+setBurgrRatingLocked(true);
     } catch (error) {
       console.error("Failed saving Burgr rating:", error);
       setMyBurgrRating(previousRating);
@@ -1717,32 +1720,47 @@ export default function MyShowDetails() {
               <span className="msd-stat-label">Your Burgr Rating</span>
               <div className="msd-burgr-form msd-burgr-form-compact">
                 <div className="msd-rating-slider-wrap">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={activeBurgrRating}
-                    onChange={(event) => setDraftBurgrRating(event.target.value)}
-                    onMouseUp={(event) =>
-                      handleSelectBurgrRating(event.currentTarget.value)
-                    }
-                    onTouchEnd={(event) =>
-                      handleSelectBurgrRating(event.currentTarget.value)
-                    }
-                    onBlur={(event) =>
-                      handleSelectBurgrRating(event.currentTarget.value)
-                    }
-                    disabled={savingBurgr}
-                    className="msd-rating-slider"
-                    aria-label="Rate this show from 0 to 100 percent"
-                  />
-                  <div className="msd-rating-slider-row">
-                    <span>0%</span>
-                    <strong>{savingBurgr ? "Saving..." : `${activeBurgrRating}%`}</strong>
-                    <span>100%</span>
-                  </div>
-                </div>
+  {burgrRatingLocked ? (
+    <button
+      type="button"
+      className="msd-rating-unlock-btn"
+      onClick={() => setBurgrRatingLocked(false)}
+    >
+      Your rating: {activeBurgrRating}% — tap to change
+    </button>
+  ) : (
+    <>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value={activeBurgrRating}
+        onChange={(event) => setDraftBurgrRating(event.target.value)}
+        onMouseUp={(event) =>
+          handleSelectBurgrRating(event.currentTarget.value)
+        }
+        onTouchEnd={(event) =>
+          handleSelectBurgrRating(event.currentTarget.value)
+        }
+        onBlur={(event) =>
+          handleSelectBurgrRating(event.currentTarget.value)
+        }
+        disabled={savingBurgr}
+        className="msd-rating-slider"
+        aria-label="Rate this show from 0 to 100 percent"
+      />
+
+      <div className="msd-rating-slider-row">
+        <span>0%</span>
+        <strong>
+          {savingBurgr ? "Saving..." : `${activeBurgrRating}%`}
+        </strong>
+        <span>100%</span>
+      </div>
+    </>
+  )}
+</div>
               </div>
             </div>
           </div>
