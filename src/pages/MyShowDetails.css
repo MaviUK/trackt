@@ -2127,14 +2127,16 @@
 }
 
 .msd-chatboard-close {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-size: 1.8rem;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 900;
   line-height: 1;
   cursor: pointer;
 }
