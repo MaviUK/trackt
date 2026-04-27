@@ -268,6 +268,8 @@ export default function MyShowDetails() {
   const [openEpisodeReviewId, setOpenEpisodeReviewId] = useState(null);
   const [mobileBannerUrl, setMobileBannerUrl] = useState(null);
   const [expandedOverview, setExpandedOverview] = useState(false);
+  const overviewRef = useRef(null);
+const [hasOverflow, setHasOverflow] = useState(false);
   const [activeTab, setActiveTab] = useState("seasons");
   const [chatBoardOpen, setChatBoardOpen] = useState(false);
   const contentTabsSectionRef = useRef(null);
@@ -907,6 +909,14 @@ const burgrTouchRef = useRef({
 
     return () => clearTimeout(timer);
   }, [episodes, expandedSeasons, targetEpisodeId, loading]);
+
+  useEffect(() => {
+  if (!overviewRef.current) return;
+
+  const el = overviewRef.current;
+
+  setHasOverflow(el.scrollHeight > el.clientHeight);
+}, [show?.overview, expandedOverview]);
 
   const groupedSeasons = useMemo(() => {
     const grouped = {};
@@ -1607,23 +1617,26 @@ const burgrTouchRef = useRef({
             {show.overview ? (
               <div className="msd-overview-wrapper">
                 <p
-                  className={`msd-overview msd-overview-mobile ${
-                    expandedOverview ? "expanded" : "collapsed"
-                  }`}
-                >
+  ref={overviewRef}
+  className={`msd-overview msd-overview-mobile ${
+    expandedOverview ? "expanded" : "collapsed"
+  }`}
+>
                   {show.overview}
                 </p>
 
-                <button
-                  type="button"
-                  className="msd-overview-dots"
-                  onClick={() => setExpandedOverview((prev) => !prev)}
-                  aria-label={
-                    expandedOverview ? "Collapse overview" : "Expand overview"
-                  }
-                >
-                  •••
-                </button>
+                {hasOverflow ? (
+  <button
+    type="button"
+    className="msd-overview-dots"
+    onClick={() => setExpandedOverview((prev) => !prev)}
+    aria-label={
+      expandedOverview ? "Collapse overview" : "Expand overview"
+    }
+  >
+    •••
+  </button>
+) : null}
               </div>
             ) : null}
 
