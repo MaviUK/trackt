@@ -1625,7 +1625,7 @@ const burgrTouchRef = useRef({
                   {show.overview}
                 </p>
 
-                {hasOverflow ? (
+               {hasOverflow || expandedOverview ? (
   <button
     type="button"
     className="msd-overview-dots"
