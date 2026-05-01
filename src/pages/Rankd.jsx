@@ -5,7 +5,7 @@ import "./Rankd.css";
 
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
-const FOCUS_RANK_ROUNDS = 5;
+
 
 function sortByLadder(a, b) {
   const aUnrated = (a.rank_comparisons || 0) === 0;
@@ -84,7 +84,7 @@ function getFocusedPair(items, focusShowId, focus = null) {
   const focusShow = sorted[focusIndex];
   const testedIds = new Set((focus?.testedIds || []).map(String));
 
-  const offsets = [-1, 1, -2, 2, -3, 3, -4, 4, -5, 5];
+  const offsets = [-1, 1, -2, 2, -4, 4, -3, 3, -6, 6, -5, 5, -8, 8, -10, 10];
 
   for (const offset of offsets) {
     const opponent = sorted[focusIndex + offset];
@@ -100,7 +100,18 @@ function getFocusedPair(items, focusShowId, focus = null) {
     }
   }
 
-  return [];
+  // If nearby options are exhausted, try any untested show
+  const untestedOpponent = sorted.find(
+    (show) =>
+      String(show.show_id) !== String(focusShowId) &&
+      !testedIds.has(String(show.show_id))
+  );
+
+  if (!untestedOpponent) return [];
+
+  return Math.random() > 0.5
+    ? [focusShow, untestedOpponent]
+    : [untestedOpponent, focusShow];
 }
 
 function chunkArray(items, size) {
@@ -864,15 +875,23 @@ export default function Rankd() {
             : rankFocus.lostToIds || [],
         };
 
-        if (
-          nextRoundsDone >= FOCUS_RANK_ROUNDS ||
-          isFocusSettled(updatedLadder, nextRankFocus)
-        ) {
-          nextRankFocus = null;
-          setRankFocus(null);
-        } else {
-          setRankFocus(nextRankFocus);
-        }
+        if (isFocusSettled(updatedLadder, nextRankFocus)) {
+  nextRankFocus = null;
+  setRankFocus(null);
+} else {
+  const nextFocusedPair = getFocusedPair(
+    updatedLadder,
+    nextRankFocus.showId,
+    nextRankFocus
+  );
+
+  if (nextFocusedPair.length !== 2) {
+    nextRankFocus = null;
+    setRankFocus(null);
+  } else {
+    setRankFocus(nextRankFocus);
+  }
+}
       }
 
       const nextPair = nextRankFocus
