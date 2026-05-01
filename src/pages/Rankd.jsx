@@ -3,8 +3,37 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./Rankd.css";
 
-const DEFAULT_RATING = 1200;
-const K_FACTOR = 32;
+const DEFAULT_LADDER_POSITION = 999999;
+
+function applyLadderWin(shows, winnerId, loserId) {
+  const ranked = [...shows].sort((a, b) => {
+    const aPos = a.ladder_position ?? 999999;
+    const bPos = b.ladder_position ?? 999999;
+    return aPos - bPos;
+  });
+
+  const winnerIndex = ranked.findIndex(
+    (show) => String(show.show_id) === String(winnerId)
+  );
+
+  const loserIndex = ranked.findIndex(
+    (show) => String(show.show_id) === String(loserId)
+  );
+
+  if (winnerIndex === -1 || loserIndex === -1) return shows;
+
+  // Winner already above loser, no ladder movement
+  if (winnerIndex < loserIndex) return shows;
+
+  const [winner] = ranked.splice(winnerIndex, 1);
+  ranked.splice(loserIndex, 0, winner);
+
+  return ranked.map((show, index) => ({
+    ...show,
+    ladder_position: index + 1,
+  }));
+}
+
 const SWIPE_THRESHOLD = 70;
 
 function chunkArray(items, size) {
@@ -13,19 +42,7 @@ function chunkArray(items, size) {
   return chunks;
 }
 
-function expectedScore(playerRating, opponentRating) {
-  return 1 / (1 + 10 ** ((opponentRating - playerRating) / 400));
-}
 
-function calculateNextRatings(winnerRating, loserRating) {
-  const winnerExpected = expectedScore(winnerRating, loserRating);
-  const loserExpected = expectedScore(loserRating, winnerRating);
-
-  return {
-    winner: Math.round(winnerRating + K_FACTOR * (1 - winnerExpected)),
-    loser: Math.round(loserRating + K_FACTOR * (0 - loserExpected)),
-  };
-}
 
 function makePairKey(firstId, secondId) {
   return [firstId, secondId].map(String).sort().join(":");
@@ -426,9 +443,9 @@ export default function Rankd() {
           fetchAllWatchedEpisodeRows(user.id),
           fetchEpisodesForShowIds(showIds),
           supabase
-            .from("user_show_rankings")
-            .select("show_id, rating, wins, losses, comparisons")
-            .eq("user_id", user.id),
+  .from("user_show_rankings")
+  .select("show_id, ladder_position, wins, losses, comparisons")
+  .eq("user_id", user.id),
           supabase
             .from("rankd_matchups")
             .select("*")
@@ -494,20 +511,20 @@ export default function Rankd() {
               totalMainEpisodes: mainEpisodes.length,
               watchedMainCount,
               hasWatchedWholeFirstSeason,
-              rank_rating: ranking?.rating ?? DEFAULT_RATING,
-              rank_wins: ranking?.wins ?? 0,
-              rank_losses: ranking?.losses ?? 0,
-              rank_comparisons: ranking?.comparisons ?? 0,
+              ladder_position: ranking?.ladder_position ?? null,
+rank_wins: ranking?.wins ?? 0,
+rank_losses: ranking?.losses ?? 0,
+rank_comparisons: ranking?.comparisons ?? 0,
             };
           })
           .filter((show) => show.hasWatchedWholeFirstSeason)
           .sort((a, b) => {
-            if ((b.rank_rating || DEFAULT_RATING) !== (a.rank_rating || DEFAULT_RATING)) {
-              return (b.rank_rating || DEFAULT_RATING) - (a.rank_rating || DEFAULT_RATING);
-            }
+  const aPos = a.ladder_position ?? 999999;
+  const bPos = b.ladder_position ?? 999999;
 
-            return (b.rank_wins || 0) - (a.rank_wins || 0);
-          });
+  if (aPos !== bPos) return aPos - bPos;
+  return (a.show_name || "").localeCompare(b.show_name || "");
+});
 
         setEligibleShows(withProgress);
 
@@ -577,10 +594,10 @@ export default function Rankd() {
               tvdb_id: fetched.tvdb_id,
               show_name: fetched.name || "Unknown title",
               poster_url: fetched.poster_url || null,
-              rank_rating: DEFAULT_RATING,
-              rank_wins: 0,
-              rank_losses: 0,
-              rank_comparisons: 0,
+              ladder_position: null,
+rank_wins: 0,
+rank_losses: 0,
+rank_comparisons: 0,
             };
           })
           .filter(Boolean);
@@ -642,10 +659,10 @@ export default function Rankd() {
               tvdb_id: fetched.tvdb_id,
               show_name: fetched.name || "Unknown title",
               poster_url: fetched.poster_url || null,
-              rank_rating: DEFAULT_RATING,
-              rank_wins: 0,
-              rank_losses: 0,
-              rank_comparisons: 0,
+              ladder_position: null,
+rank_wins: 0,
+rank_losses: 0,
+rank_comparisons: 0,
             };
           })
           .filter(Boolean);
@@ -672,164 +689,162 @@ export default function Rankd() {
   }, [pendingCommentId, comments]);
 
   const leaderboard = useMemo(() => {
-    return [...eligibleShows].sort((a, b) => {
-      if ((b.rank_rating || DEFAULT_RATING) !== (a.rank_rating || DEFAULT_RATING)) {
-        return (b.rank_rating || DEFAULT_RATING) - (a.rank_rating || DEFAULT_RATING);
-      }
+  return [...eligibleShows].sort((a, b) => {
+    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
 
-      if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
-        return (b.rank_wins || 0) - (a.rank_wins || 0);
-      }
+    if (aPos !== bPos) return aPos - bPos;
 
-      return (a.show_name || "").localeCompare(b.show_name || "");
-    });
-  }, [eligibleShows]);
+    if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
+      return (b.rank_wins || 0) - (a.rank_wins || 0);
+    }
+
+    return (a.show_name || "").localeCompare(b.show_name || "");
+  });
+}, [eligibleShows]);
 
   async function handleChoice(winnerShowId) {
     if (saving || currentPair.length !== 2) return;
 
     const [firstShow, secondShow] = currentPair;
     const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
-    const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
+    const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;async function handleChoice(winnerShowId) {
+  if (saving || currentPair.length !== 2) return;
 
-    const nextRatings = calculateNextRatings(
-      winner.rank_rating || DEFAULT_RATING,
-      loser.rank_rating || DEFAULT_RATING
+  const [firstShow, secondShow] = currentPair;
+  const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
+  const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
+
+  try {
+    setSaving(true);
+    setError("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+    if (!user) throw new Error("You must be logged in to use Rank'd.");
+
+    const ladderReadyShows = [...eligibleShows]
+      .sort((a, b) => {
+        const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+        const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+
+        if (aPos !== bPos) return aPos - bPos;
+        return (a.show_name || "").localeCompare(b.show_name || "");
+      })
+      .map((show, index) => ({
+        ...show,
+        ladder_position: show.ladder_position ?? index + 1,
+      }));
+
+    const updatedLadder = applyLadderWin(
+      ladderReadyShows,
+      winner.show_id,
+      loser.show_id
+    ).map((show) => {
+      if (String(show.show_id) === String(winner.show_id)) {
+        return {
+          ...show,
+          rank_wins: (show.rank_wins || 0) + 1,
+          rank_comparisons: (show.rank_comparisons || 0) + 1,
+        };
+      }
+
+      if (String(show.show_id) === String(loser.show_id)) {
+        return {
+          ...show,
+          rank_losses: (show.rank_losses || 0) + 1,
+          rank_comparisons: (show.rank_comparisons || 0) + 1,
+        };
+      }
+
+      return show;
+    });
+
+    for (const show of updatedLadder) {
+      const { data: existingRanking, error: findRankingError } = await supabase
+        .from("user_show_rankings")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("show_id", show.show_id)
+        .maybeSingle();
+
+      if (findRankingError) throw findRankingError;
+
+      const rankingPayload = {
+        user_id: user.id,
+        show_id: show.show_id,
+        ladder_position: show.ladder_position,
+        wins: show.rank_wins || 0,
+        losses: show.rank_losses || 0,
+        comparisons: show.rank_comparisons || 0,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingRanking?.id) {
+        const { error: updateRankingError } = await supabase
+          .from("user_show_rankings")
+          .update(rankingPayload)
+          .eq("id", existingRanking.id);
+
+        if (updateRankingError) throw updateRankingError;
+      } else {
+        const { error: insertRankingError } = await supabase
+          .from("user_show_rankings")
+          .insert(rankingPayload);
+
+        if (insertRankingError) throw insertRankingError;
+      }
+    }
+
+    const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
+
+    const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
+      "rankd_record_matchup_vote",
+      {
+        p_show_a_id: showAId,
+        p_show_b_id: showBId,
+        p_winner_show_id: String(winner.show_id),
+        p_loser_show_id: String(loser.show_id),
+      }
     );
 
-    try {
-      setSaving(true);
-      setError("");
+    if (matchupError) throw matchupError;
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const nextMatchupRow = Array.isArray(recordedMatchup)
+      ? recordedMatchup[0]
+      : recordedMatchup;
 
-      if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in to use Rank'd.");
+    const updatedMatchupMap = new Map(matchupMap);
 
-      const upsertPayload = [
-        {
-          user_id: user.id,
-          show_id: winner.show_id,
-          rating: nextRatings.winner,
-          wins: (winner.rank_wins || 0) + 1,
-          losses: winner.rank_losses || 0,
-          comparisons: (winner.rank_comparisons || 0) + 1,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          user_id: user.id,
-          show_id: loser.show_id,
-          rating: nextRatings.loser,
-          wins: loser.rank_wins || 0,
-          losses: (loser.rank_losses || 0) + 1,
-          comparisons: (loser.rank_comparisons || 0) + 1,
-          updated_at: new Date().toISOString(),
-        },
-      ];
-
-      for (const rankingRow of upsertPayload) {
-        const { data: existingRanking, error: findRankingError } = await supabase
-          .from("user_show_rankings")
-          .select("id")
-          .eq("user_id", rankingRow.user_id)
-          .eq("show_id", rankingRow.show_id)
-          .maybeSingle();
-
-        if (findRankingError) throw findRankingError;
-
-        if (existingRanking?.id) {
-          const { error: updateRankingError } = await supabase
-            .from("user_show_rankings")
-            .update({
-              rating: rankingRow.rating,
-              wins: rankingRow.wins,
-              losses: rankingRow.losses,
-              comparisons: rankingRow.comparisons,
-              updated_at: rankingRow.updated_at,
-            })
-            .eq("id", existingRanking.id);
-
-          if (updateRankingError) throw updateRankingError;
-        } else {
-          const { error: insertRankingError } = await supabase
-            .from("user_show_rankings")
-            .insert(rankingRow);
-
-          if (insertRankingError) throw insertRankingError;
-        }
-      }
-
-      const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
-
-      const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
-        "rankd_record_matchup_vote",
-        {
-          p_show_a_id: showAId,
-          p_show_b_id: showBId,
-          p_winner_show_id: String(winner.show_id),
-          p_loser_show_id: String(loser.show_id),
-        }
-      );
-
-      if (matchupError) throw matchupError;
-
-      const nextMatchupRow = Array.isArray(recordedMatchup)
-        ? recordedMatchup[0]
-        : recordedMatchup;
-
-      const updatedMatchupMap = new Map(matchupMap);
-
-      if (nextMatchupRow?.pair_key) {
-        updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
-      }
-
-      setMatchupMap(updatedMatchupMap);
-
-      const updatedShows = eligibleShows.map((show) => {
-        if (String(show.show_id) === String(winner.show_id)) {
-          return {
-            ...show,
-            rank_rating: nextRatings.winner,
-            rank_wins: (show.rank_wins || 0) + 1,
-            rank_comparisons: (show.rank_comparisons || 0) + 1,
-          };
-        }
-
-        if (String(show.show_id) === String(loser.show_id)) {
-          return {
-            ...show,
-            rank_rating: nextRatings.loser,
-            rank_losses: (show.rank_losses || 0) + 1,
-            rank_comparisons: (show.rank_comparisons || 0) + 1,
-          };
-        }
-
-        return show;
-      });
-
-      setEligibleShows(updatedShows);
-
-      const nextPair = getFairPair(updatedShows, updatedMatchupMap, currentPairKey);
-      setCurrentPair(nextPair);
-      setLastPairKey(
-        nextPair.length === 2
-          ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-          : ""
-      );
-
-      setCommentText("");
-      setReplyTo(null);
-      setShowComments(false);
-    } catch (saveChoiceError) {
-      console.error("RANKD SAVE FAILED:", saveChoiceError);
-      setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
-    } finally {
-      setSaving(false);
+    if (nextMatchupRow?.pair_key) {
+      updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
     }
+
+    setMatchupMap(updatedMatchupMap);
+    setEligibleShows(updatedLadder);
+
+    const nextPair = getFairPair(updatedLadder, updatedMatchupMap, currentPairKey);
+    setCurrentPair(nextPair);
+    setLastPairKey(
+      nextPair.length === 2
+        ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
+        : ""
+    );
+
+    setCommentText("");
+    setReplyTo(null);
+    setShowComments(false);
+  } catch (saveChoiceError) {
+    console.error("RANKD SAVE FAILED:", saveChoiceError);
+    setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
+  } finally {
+    setSaving(false);
   }
+}
 
   async function handleAddComment(event) {
     event.preventDefault();
