@@ -292,7 +292,7 @@ export default function CalendarPage() {
     <div className="calendar-page">
       <div className="calendar-shell">
         <div className="calendar-header">
-          <h1>Calendar UPDATED</h1>
+          <h1>Calendar</h1>
           <p>Upcoming episodes from your saved shows.</p>
         </div>
 
@@ -331,49 +331,39 @@ export default function CalendarPage() {
                   <h2>{group.label}</h2>
                 </div>
 
-                <div className="calendar-list">
-                 <Link
-  key={`${item.showTvdbId}-${item.episodeId}`}
-  to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
-  className="dashboard-item"
->
-  {item.posterUrl ? (
-    <img
-      src={item.posterUrl}
-      alt={item.showName}
-      className="dashboard-poster"
-    />
-  ) : (
-    <div className="dashboard-poster" />
-  )}
+               <div className="calendar-list">
+  {group.episodes.map((item) => (
+    <Link
+      key={`${item.showTvdbId}-${item.episodeId}`}
+      to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
+      className="dashboard-item"
+    >
+      {item.posterUrl ? (
+        <img
+          src={item.posterUrl}
+          alt={item.showName}
+          className="dashboard-poster"
+        />
+      ) : (
+        <div className="dashboard-poster" />
+      )}
 
-  <div className="dashboard-item-info">
-    <strong>{item.showName}</strong>
+      <div className="dashboard-item-info">
+        <strong>{item.showName}</strong>
 
-    <span>
-      {getEpisodeCode({
-        seasonNumber: item.seasonNumber,
-        number: item.episodeNumber,
-      })}{" "}
-      - {item.episodeName || "Untitled episode"}
-    </span>
+        <span>
+          {getEpisodeCode({
+            seasonNumber: item.seasonNumber,
+            number: item.episodeNumber,
+          })}{" "}
+          - {item.episodeName || "Untitled episode"}
+        </span>
 
-    <small>Airs: {formatDate(item.aired)}</small>
-  </div>
-</Link>
-
-                      <div className="calendar-main">
-                        <div
-                          style={{
-                            fontSize: 22,
-                            fontWeight: 900,
-                            color: "#f8fafc",
-                            lineHeight: 1.15,
-                            marginBottom: 10,
-                          }}
-                        >
-                          {item.showName}
-                        </div>
+        <small>Airs: {formatDate(item.aired)}</small>
+      </div>
+    </Link>
+  ))}
+</div>
 
                         <div
                           style={{
