@@ -537,12 +537,18 @@ export default function Rankd() {
           })
           .filter((show) => show.hasWatchedWholeFirstSeason)
           .sort((a, b) => {
-            const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-            const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+  const aUnrated = (a.rank_comparisons || 0) === 0;
+  const bUnrated = (b.rank_comparisons || 0) === 0;
 
-            if (aPos !== bPos) return aPos - bPos;
-            return (a.show_name || "").localeCompare(b.show_name || "");
-          })
+  if (aUnrated && !bUnrated) return 1;
+  if (!aUnrated && bUnrated) return -1;
+
+  const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+  const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+
+  if (aPos !== bPos) return aPos - bPos;
+  return (a.show_name || "").localeCompare(b.show_name || "");
+})
           .map((show, index) => ({
             ...show,
             ladder_position: show.ladder_position ?? index + 1,
