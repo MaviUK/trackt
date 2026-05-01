@@ -773,40 +773,35 @@ export default function Rankd() {
     setPendingCommentId(null);
   }, [pendingCommentId, comments]);
 
-  function startFocusedRanking(show) {
-    const sorted = [...eligibleShows].sort(sortByLadder);
-const focusIndex = sorted.findIndex(
-  (item) => String(item.show_id) === String(show.show_id)
-);
+function startFocusedRanking(show) {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
 
-const newFocus = {
-  showId: show.show_id,
-  showName: show.show_name,
-  roundsDone: 0,
-  testedIds: [],
-  lowerBound: 0,
-  upperBound: sorted.length - 1,
-  lastOpponentId: null,
-};
+  const sorted = [...eligibleShows].sort(sortByLadder);
 
-    const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
+  const newFocus = {
+    showId: show.show_id,
+    showName: show.show_name,
+    roundsDone: 0,
+    testedIds: [],
+    lowerBound: 0,
+    upperBound: sorted.length - 1,
+    lastOpponentId: null,
+  };
 
-    if (nextPair.length !== 2) return;
+  const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
 
-    setRankFocus(newFocus);
-    setCurrentPair(nextPair);
-    setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
-    setShowComments(false);
-    setCommentText("");
-    setReplyTo(null);
+  if (nextPair.length !== 2) return;
 
-    setTimeout(() => {
-      battleRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
-  }
+  setRankFocus(newFocus);
+  setCurrentPair(nextPair);
+  setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
+  setShowComments(false);
+  setCommentText("");
+  setReplyTo(null);
+}
 
   async function handleChoice(winnerShowId) {
     if (saving || currentPair.length !== 2) return;
@@ -1138,7 +1133,7 @@ nextRankFocus = {
         ) : null}
 
         <div className="rankd-main-grid">
-          <div className="section-card rankd-battle-shell" ref={battleRef}>
+          <div id="rankd-top" className="section-card rankd-battle-shell" ref={battleRef}>
             <div className="rankd-battle-layout">
               <RankCard
                 show={currentPair[0]}
