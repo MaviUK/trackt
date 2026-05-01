@@ -5,13 +5,24 @@ import "./Rankd.css";
 
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
+const FOCUS_RANK_ROUNDS = 5;
+
+function sortByLadder(a, b) {
+  const aUnrated = (a.rank_comparisons || 0) === 0;
+  const bUnrated = (b.rank_comparisons || 0) === 0;
+
+  if (aUnrated && !bUnrated) return 1;
+  if (!aUnrated && bUnrated) return -1;
+
+  const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+  const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+
+  if (aPos !== bPos) return aPos - bPos;
+  return (a.show_name || "").localeCompare(b.show_name || "");
+}
 
 function applyLadderWin(shows, winnerId, loserId) {
-  const ranked = [...shows].sort((a, b) => {
-    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-    return aPos - bPos;
-  });
+  const ranked = [...shows].sort(sortByLadder);
 
   const winnerIndex = ranked.findIndex(
     (show) => String(show.show_id) === String(winnerId)
@@ -23,7 +34,12 @@ function applyLadderWin(shows, winnerId, loserId) {
 
   if (winnerIndex === -1 || loserIndex === -1) return shows;
 
-  if (winnerIndex < loserIndex) return ranked;
+  if (winnerIndex < loserIndex) {
+    return ranked.map((show, index) => ({
+      ...show,
+      ladder_position: index + 1,
+    }));
+  }
 
   const [winner] = ranked.splice(winnerIndex, 1);
   ranked.splice(loserIndex, 0, winner);
@@ -32,6 +48,46 @@ function applyLadderWin(shows, winnerId, loserId) {
     ...show,
     ladder_position: index + 1,
   }));
+}
+
+function getFocusedPair(items, focusShowId, roundNumber = 0) {
+  const sorted = [...items].sort(sortByLadder);
+
+  const focusIndex = sorted.findIndex(
+    (show) => String(show.show_id) === String(focusShowId)
+  );
+
+  if (focusIndex === -1) return [];
+
+  const focusShow = sorted[focusIndex];
+
+  const offsets = [-2, -1, 1, 2, 3, -3, 4, -4, 5, -5];
+  let opponent = null;
+
+  for (let i = 0; i < offsets.length; i += 1) {
+    const offset = offsets[(roundNumber + i) % offsets.length];
+    const possibleOpponent = sorted[focusIndex + offset];
+
+    if (
+      possibleOpponent &&
+      String(possibleOpponent.show_id) !== String(focusShowId)
+    ) {
+      opponent = possibleOpponent;
+      break;
+    }
+  }
+
+  if (!opponent) {
+    opponent = sorted.find(
+      (show) => String(show.show_id) !== String(focusShowId)
+    );
+  }
+
+  if (!opponent) return [];
+
+  return Math.random() > 0.5
+    ? [focusShow, opponent]
+    : [opponent, focusShow];
 }
 
 function chunkArray(items, size) {
@@ -277,6 +333,7 @@ export default function Rankd() {
   const [saving, setSaving] = useState(false);
   const [eligibleShows, setEligibleShows] = useState([]);
   const [currentPair, setCurrentPair] = useState([]);
+  const [rankFocus, setRankFocus] = useState(null);
   const [lastPairKey, setLastPairKey] = useState("");
   const [matchupMap, setMatchupMap] = useState(new Map());
   const [matchupStats, setMatchupStats] = useState(null);
@@ -298,26 +355,8 @@ export default function Rankd() {
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
 
   const leaderboard = useMemo(() => {
-  return [...eligibleShows].sort((a, b) => {
-    const aUnrated = (a.rank_comparisons || 0) === 0;
-    const bUnrated = (b.rank_comparisons || 0) === 0;
-
-    // Unrated shows always go to the bottom
-    if (aUnrated && !bUnrated) return 1;
-    if (!aUnrated && bUnrated) return -1;
-
-    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-
-    if (aPos !== bPos) return aPos - bPos;
-
-    if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
-      return (b.rank_wins || 0) - (a.rank_wins || 0);
-    }
-
-    return (a.show_name || "").localeCompare(b.show_name || "");
-  });
-}, [eligibleShows]);
+    return [...eligibleShows].sort(sortByLadder);
+  }, [eligibleShows]);
 
   function scrollToComment(commentId) {
     if (!commentId) return;
@@ -536,19 +575,7 @@ export default function Rankd() {
             };
           })
           .filter((show) => show.hasWatchedWholeFirstSeason)
-          .sort((a, b) => {
-  const aUnrated = (a.rank_comparisons || 0) === 0;
-  const bUnrated = (b.rank_comparisons || 0) === 0;
-
-  if (aUnrated && !bUnrated) return 1;
-  if (!aUnrated && bUnrated) return -1;
-
-  const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-  const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-
-  if (aPos !== bPos) return aPos - bPos;
-  return (a.show_name || "").localeCompare(b.show_name || "");
-})
+          .sort(sortByLadder)
           .map((show, index) => ({
             ...show,
             ladder_position: show.ladder_position ?? index + 1,
@@ -633,6 +660,7 @@ export default function Rankd() {
 
       if (pair.length !== 2) return;
 
+      setRankFocus(null);
       setCurrentPair(pair);
       setLastPairKey(pairKey);
       setShowComments(true);
@@ -698,6 +726,7 @@ export default function Rankd() {
 
       if (pair.length !== 2) return;
 
+      setRankFocus(null);
       setCurrentPair(pair);
       setLastPairKey(pairKey);
       setShowComments(true);
@@ -715,6 +744,24 @@ export default function Rankd() {
     scrollToComment(pendingCommentId);
     setPendingCommentId(null);
   }, [pendingCommentId, comments]);
+
+  function startFocusedRanking(show) {
+    const nextPair = getFocusedPair(eligibleShows, show.show_id, 0);
+
+    if (nextPair.length !== 2) return;
+
+    setRankFocus({
+      showId: show.show_id,
+      showName: show.show_name,
+      roundsDone: 0,
+    });
+
+    setCurrentPair(nextPair);
+    setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
+    setShowComments(false);
+    setCommentText("");
+    setReplyTo(null);
+  }
 
   async function handleChoice(winnerShowId) {
     if (saving || currentPair.length !== 2) return;
@@ -738,13 +785,7 @@ export default function Rankd() {
       if (!user) throw new Error("You must be logged in to use Rank'd.");
 
       const ladderReadyShows = [...eligibleShows]
-        .sort((a, b) => {
-          const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-          const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-
-          if (aPos !== bPos) return aPos - bPos;
-          return (a.show_name || "").localeCompare(b.show_name || "");
-        })
+        .sort(sortByLadder)
         .map((show, index) => ({
           ...show,
           ladder_position: show.ladder_position ?? index + 1,
@@ -774,41 +815,60 @@ export default function Rankd() {
         return show;
       });
 
-      const nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+      let nextRankFocus = rankFocus;
 
-setEligibleShows(updatedLadder);
-setCurrentPair(nextPair);
-setLastPairKey(
-  nextPair.length === 2
-    ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-    : ""
-);
+      if (rankFocus) {
+        const nextRoundsDone = (rankFocus.roundsDone || 0) + 1;
 
-setCommentText("");
-setReplyTo(null);
-setShowComments(false);
+        if (nextRoundsDone >= FOCUS_RANK_ROUNDS) {
+          nextRankFocus = null;
+          setRankFocus(null);
+        } else {
+          nextRankFocus = {
+            ...rankFocus,
+            roundsDone: nextRoundsDone,
+          };
+          setRankFocus(nextRankFocus);
+        }
+      }
 
-const now = new Date().toISOString();
+      const nextPair = nextRankFocus
+        ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus.roundsDone)
+        : getFairPair(updatedLadder, matchupMap, currentPairKey);
 
-const rankingPayload = updatedLadder.map((show) => ({
-  user_id: user.id,
-  show_id: show.show_id,
-  ladder_position: show.ladder_position,
-  wins: show.rank_wins || 0,
-  losses: show.rank_losses || 0,
-  comparisons: show.rank_comparisons || 0,
-  updated_at: now,
-}));
+      setEligibleShows(updatedLadder);
+      setCurrentPair(nextPair);
+      setLastPairKey(
+        nextPair.length === 2
+          ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
+          : ""
+      );
 
-const { error: rankingSaveError } = await supabase
-  .from("user_show_rankings")
-  .upsert(rankingPayload, {
-    onConflict: "user_id,show_id",
-  });
+      setCommentText("");
+      setReplyTo(null);
+      setShowComments(false);
 
-if (rankingSaveError) throw rankingSaveError;
+      const now = new Date().toISOString();
 
-const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
+      const rankingPayload = updatedLadder.map((show) => ({
+        user_id: user.id,
+        show_id: show.show_id,
+        ladder_position: show.ladder_position,
+        wins: show.rank_wins || 0,
+        losses: show.rank_losses || 0,
+        comparisons: show.rank_comparisons || 0,
+        updated_at: now,
+      }));
+
+      const { error: rankingSaveError } = await supabase
+        .from("user_show_rankings")
+        .upsert(rankingPayload, {
+          onConflict: "user_id,show_id",
+        });
+
+      if (rankingSaveError) throw rankingSaveError;
+
+      const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
 
       const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
         "rankd_record_matchup_vote",
@@ -974,10 +1034,19 @@ const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
     <div className="page rankd-page">
       <div className="page-shell">
         <div className="rankd-matchup-number">
-          Matchup #
-          {Math.floor(
-            leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
-          ) + 1}
+          {rankFocus ? (
+            <>
+              Ranking {rankFocus.showName} — round{" "}
+              {(rankFocus.roundsDone || 0) + 1}/{FOCUS_RANK_ROUNDS}
+            </>
+          ) : (
+            <>
+              Matchup #
+              {Math.floor(
+                leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
+              ) + 1}
+            </>
+          )}
         </div>
 
         {error ? (
@@ -1124,6 +1193,18 @@ const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
                       #{index + 1} {show.show_name}
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    className="rankd-rank-button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      startFocusedRanking(show);
+                    }}
+                  >
+                    Rank
+                  </button>
                 </Link>
               ))}
             </div>
