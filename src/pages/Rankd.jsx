@@ -4,11 +4,12 @@ import { supabase } from "../lib/supabase";
 import "./Rankd.css";
 
 const DEFAULT_LADDER_POSITION = 999999;
+const SWIPE_THRESHOLD = 70;
 
 function applyLadderWin(shows, winnerId, loserId) {
   const ranked = [...shows].sort((a, b) => {
-    const aPos = a.ladder_position ?? 999999;
-    const bPos = b.ladder_position ?? 999999;
+    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
     return aPos - bPos;
   });
 
@@ -22,8 +23,7 @@ function applyLadderWin(shows, winnerId, loserId) {
 
   if (winnerIndex === -1 || loserIndex === -1) return shows;
 
-  // Winner already above loser, no ladder movement
-  if (winnerIndex < loserIndex) return shows;
+  if (winnerIndex < loserIndex) return ranked;
 
   const [winner] = ranked.splice(winnerIndex, 1);
   ranked.splice(loserIndex, 0, winner);
@@ -34,15 +34,11 @@ function applyLadderWin(shows, winnerId, loserId) {
   }));
 }
 
-const SWIPE_THRESHOLD = 70;
-
 function chunkArray(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
 }
-
-
 
 function makePairKey(firstId, secondId) {
   return [firstId, secondId].map(String).sort().join(":");
@@ -301,6 +297,21 @@ export default function Rankd() {
 
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
 
+  const leaderboard = useMemo(() => {
+    return [...eligibleShows].sort((a, b) => {
+      const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+      const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+
+      if (aPos !== bPos) return aPos - bPos;
+
+      if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
+        return (b.rank_wins || 0) - (a.rank_wins || 0);
+      }
+
+      return (a.show_name || "").localeCompare(b.show_name || "");
+    });
+  }, [eligibleShows]);
+
   function scrollToComment(commentId) {
     if (!commentId) return;
 
@@ -443,9 +454,9 @@ export default function Rankd() {
           fetchAllWatchedEpisodeRows(user.id),
           fetchEpisodesForShowIds(showIds),
           supabase
-  .from("user_show_rankings")
-  .select("show_id, ladder_position, wins, losses, comparisons")
-  .eq("user_id", user.id),
+            .from("user_show_rankings")
+            .select("show_id, ladder_position, wins, losses, comparisons")
+            .eq("user_id", user.id),
           supabase
             .from("rankd_matchups")
             .select("*")
@@ -512,19 +523,23 @@ export default function Rankd() {
               watchedMainCount,
               hasWatchedWholeFirstSeason,
               ladder_position: ranking?.ladder_position ?? null,
-rank_wins: ranking?.wins ?? 0,
-rank_losses: ranking?.losses ?? 0,
-rank_comparisons: ranking?.comparisons ?? 0,
+              rank_wins: ranking?.wins ?? 0,
+              rank_losses: ranking?.losses ?? 0,
+              rank_comparisons: ranking?.comparisons ?? 0,
             };
           })
           .filter((show) => show.hasWatchedWholeFirstSeason)
           .sort((a, b) => {
-  const aPos = a.ladder_position ?? 999999;
-  const bPos = b.ladder_position ?? 999999;
+            const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+            const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
 
-  if (aPos !== bPos) return aPos - bPos;
-  return (a.show_name || "").localeCompare(b.show_name || "");
-});
+            if (aPos !== bPos) return aPos - bPos;
+            return (a.show_name || "").localeCompare(b.show_name || "");
+          })
+          .map((show, index) => ({
+            ...show,
+            ladder_position: show.ladder_position ?? index + 1,
+          }));
 
         setEligibleShows(withProgress);
 
@@ -595,9 +610,9 @@ rank_comparisons: ranking?.comparisons ?? 0,
               show_name: fetched.name || "Unknown title",
               poster_url: fetched.poster_url || null,
               ladder_position: null,
-rank_wins: 0,
-rank_losses: 0,
-rank_comparisons: 0,
+              rank_wins: 0,
+              rank_losses: 0,
+              rank_comparisons: 0,
             };
           })
           .filter(Boolean);
@@ -660,9 +675,9 @@ rank_comparisons: 0,
               show_name: fetched.name || "Unknown title",
               poster_url: fetched.poster_url || null,
               ladder_position: null,
-rank_wins: 0,
-rank_losses: 0,
-rank_comparisons: 0,
+              rank_wins: 0,
+              rank_losses: 0,
+              rank_comparisons: 0,
             };
           })
           .filter(Boolean);
@@ -688,163 +703,145 @@ rank_comparisons: 0,
     setPendingCommentId(null);
   }, [pendingCommentId, comments]);
 
-  const leaderboard = useMemo(() => {
-  return [...eligibleShows].sort((a, b) => {
-    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-
-    if (aPos !== bPos) return aPos - bPos;
-
-    if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
-      return (b.rank_wins || 0) - (a.rank_wins || 0);
-    }
-
-    return (a.show_name || "").localeCompare(b.show_name || "");
-  });
-}, [eligibleShows]);
-
   async function handleChoice(winnerShowId) {
-  if (saving || currentPair.length !== 2) return;
+    if (saving || currentPair.length !== 2) return;
 
-  const [firstShow, secondShow] = currentPair;
-  const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
-  const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
-  if (saving || currentPair.length !== 2) return;
+    const [firstShow, secondShow] = currentPair;
+    const winner =
+      String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
+    const loser =
+      String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
 
-  const [firstShow, secondShow] = currentPair;
-  const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
-  const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
+    try {
+      setSaving(true);
+      setError("");
 
-  try {
-    setSaving(true);
-    setError("");
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("You must be logged in to use Rank'd.");
 
-    if (userError) throw userError;
-    if (!user) throw new Error("You must be logged in to use Rank'd.");
+      const ladderReadyShows = [...eligibleShows]
+        .sort((a, b) => {
+          const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+          const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
 
-    const ladderReadyShows = [...eligibleShows]
-      .sort((a, b) => {
-        const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-        const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
-
-        if (aPos !== bPos) return aPos - bPos;
-        return (a.show_name || "").localeCompare(b.show_name || "");
-      })
-      .map((show, index) => ({
-        ...show,
-        ladder_position: show.ladder_position ?? index + 1,
-      }));
-
-    const updatedLadder = applyLadderWin(
-      ladderReadyShows,
-      winner.show_id,
-      loser.show_id
-    ).map((show) => {
-      if (String(show.show_id) === String(winner.show_id)) {
-        return {
+          if (aPos !== bPos) return aPos - bPos;
+          return (a.show_name || "").localeCompare(b.show_name || "");
+        })
+        .map((show, index) => ({
           ...show,
-          rank_wins: (show.rank_wins || 0) + 1,
-          rank_comparisons: (show.rank_comparisons || 0) + 1,
-        };
-      }
+          ladder_position: show.ladder_position ?? index + 1,
+        }));
 
-      if (String(show.show_id) === String(loser.show_id)) {
-        return {
-          ...show,
-          rank_losses: (show.rank_losses || 0) + 1,
-          rank_comparisons: (show.rank_comparisons || 0) + 1,
-        };
-      }
+      const updatedLadder = applyLadderWin(
+        ladderReadyShows,
+        winner.show_id,
+        loser.show_id
+      ).map((show) => {
+        if (String(show.show_id) === String(winner.show_id)) {
+          return {
+            ...show,
+            rank_wins: (show.rank_wins || 0) + 1,
+            rank_comparisons: (show.rank_comparisons || 0) + 1,
+          };
+        }
 
-      return show;
-    });
+        if (String(show.show_id) === String(loser.show_id)) {
+          return {
+            ...show,
+            rank_losses: (show.rank_losses || 0) + 1,
+            rank_comparisons: (show.rank_comparisons || 0) + 1,
+          };
+        }
 
-    for (const show of updatedLadder) {
-      const { data: existingRanking, error: findRankingError } = await supabase
-        .from("user_show_rankings")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("show_id", show.show_id)
-        .maybeSingle();
+        return show;
+      });
 
-      if (findRankingError) throw findRankingError;
-
-      const rankingPayload = {
-        user_id: user.id,
-        show_id: show.show_id,
-        ladder_position: show.ladder_position,
-        wins: show.rank_wins || 0,
-        losses: show.rank_losses || 0,
-        comparisons: show.rank_comparisons || 0,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existingRanking?.id) {
-        const { error: updateRankingError } = await supabase
+      for (const show of updatedLadder) {
+        const { data: existingRanking, error: findRankingError } = await supabase
           .from("user_show_rankings")
-          .update(rankingPayload)
-          .eq("id", existingRanking.id);
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("show_id", show.show_id)
+          .maybeSingle();
 
-        if (updateRankingError) throw updateRankingError;
-      } else {
-        const { error: insertRankingError } = await supabase
-          .from("user_show_rankings")
-          .insert(rankingPayload);
+        if (findRankingError) throw findRankingError;
 
-        if (insertRankingError) throw insertRankingError;
+        const rankingPayload = {
+          user_id: user.id,
+          show_id: show.show_id,
+          ladder_position: show.ladder_position,
+          wins: show.rank_wins || 0,
+          losses: show.rank_losses || 0,
+          comparisons: show.rank_comparisons || 0,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existingRanking?.id) {
+          const { error: updateRankingError } = await supabase
+            .from("user_show_rankings")
+            .update(rankingPayload)
+            .eq("id", existingRanking.id);
+
+          if (updateRankingError) throw updateRankingError;
+        } else {
+          const { error: insertRankingError } = await supabase
+            .from("user_show_rankings")
+            .insert(rankingPayload);
+
+          if (insertRankingError) throw insertRankingError;
+        }
       }
-    }
 
-    const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
+      const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
 
-    const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
-      "rankd_record_matchup_vote",
-      {
-        p_show_a_id: showAId,
-        p_show_b_id: showBId,
-        p_winner_show_id: String(winner.show_id),
-        p_loser_show_id: String(loser.show_id),
+      const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
+        "rankd_record_matchup_vote",
+        {
+          p_show_a_id: showAId,
+          p_show_b_id: showBId,
+          p_winner_show_id: String(winner.show_id),
+          p_loser_show_id: String(loser.show_id),
+        }
+      );
+
+      if (matchupError) throw matchupError;
+
+      const nextMatchupRow = Array.isArray(recordedMatchup)
+        ? recordedMatchup[0]
+        : recordedMatchup;
+
+      const updatedMatchupMap = new Map(matchupMap);
+
+      if (nextMatchupRow?.pair_key) {
+        updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
       }
-    );
 
-    if (matchupError) throw matchupError;
+      setMatchupMap(updatedMatchupMap);
+      setEligibleShows(updatedLadder);
 
-    const nextMatchupRow = Array.isArray(recordedMatchup)
-      ? recordedMatchup[0]
-      : recordedMatchup;
+      const nextPair = getFairPair(updatedLadder, updatedMatchupMap, currentPairKey);
+      setCurrentPair(nextPair);
+      setLastPairKey(
+        nextPair.length === 2
+          ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
+          : ""
+      );
 
-    const updatedMatchupMap = new Map(matchupMap);
-
-    if (nextMatchupRow?.pair_key) {
-      updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
+      setCommentText("");
+      setReplyTo(null);
+      setShowComments(false);
+    } catch (saveChoiceError) {
+      console.error("RANKD SAVE FAILED:", saveChoiceError);
+      setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
+    } finally {
+      setSaving(false);
     }
-
-    setMatchupMap(updatedMatchupMap);
-    setEligibleShows(updatedLadder);
-
-    const nextPair = getFairPair(updatedLadder, updatedMatchupMap, currentPairKey);
-    setCurrentPair(nextPair);
-    setLastPairKey(
-      nextPair.length === 2
-        ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-        : ""
-    );
-
-    setCommentText("");
-    setReplyTo(null);
-    setShowComments(false);
-  } catch (saveChoiceError) {
-    console.error("RANKD SAVE FAILED:", saveChoiceError);
-    setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
-  } finally {
-    setSaving(false);
   }
-}
 
   async function handleAddComment(event) {
     event.preventDefault();
@@ -1104,7 +1101,7 @@ rank_comparisons: 0,
             <div className="rankd-leaderboard-header">
               <div>
                 <h2>Your Top Shows</h2>
-                <p>Your personal ranking from Rank'd decisions.</p>
+                <p>Your personal ladder from Rank'd decisions.</p>
               </div>
               <div>{leaderboard.length} shows</div>
             </div>
