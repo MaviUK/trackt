@@ -465,16 +465,25 @@
 
 .rankd-rank-button {
   margin-left: auto;
-  border: 0;
+  align-self: center;
+  border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 999px;
-  padding: 8px 14px;
-  background: #7c3aed;
-  color: #ffffff;
-  font-weight: 800;
+  padding: 5px 10px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .rankd-rank-button:hover {
-  background: #8b5cf6;
+  background: rgba(148, 163, 184, 0.14);
+  color: #ffffff;
+}
+
+.rankd-leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
