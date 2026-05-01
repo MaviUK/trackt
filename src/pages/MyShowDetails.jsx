@@ -745,7 +745,7 @@ const burgrTouchRef = useRef({
             setCrew(crewRows);
             setPeopleAlsoWatch([]);
             setRecommendedShows(filteredTmdbRecommendations);
-            setMobileBannerUrl(bannerFromExtras || null);
+            setMobileBannerUrl(storedBackdropUrl || bannerFromExtras || null);
             setWatchProviders(providers);
           }
         } catch (extrasError) {
