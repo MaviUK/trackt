@@ -2350,10 +2350,26 @@ const burgrTouchRef = useRef({
         <section className="msd-panel">
           <h2 className="msd-section-title">Recommended Shows</h2>
           {extrasLoading ? (
-            <p className="msd-muted">Loading recommendations...</p>
-          ) : recommendedShows.length > 0 ? (
-            <div className="msd-recommended-row">
-              {recommendedShows.map((rec, index) => {
+  <p className="msd-muted">Loading recommendations...</p>
+) : recommendedShows.filter((rec) => {
+    const recTvdbId =
+      rec?.resolved_tvdb_id ?? rec?.tvdb_id ?? rec?.tvdbId ?? null;
+
+    if (!recTvdbId) return true;
+
+    return !savedShowTvdbIds.has(String(recTvdbId));
+  }).length > 0 ? (
+  <div className="msd-recommended-row">
+    {recommendedShows
+      .filter((rec) => {
+        const recTvdbId =
+          rec?.resolved_tvdb_id ?? rec?.tvdb_id ?? rec?.tvdbId ?? null;
+
+        if (!recTvdbId) return true;
+
+        return !savedShowTvdbIds.has(String(recTvdbId));
+      })
+      .map((rec, index) => {
                 const showName = rec.name || rec.title || "Unknown show";
                 const recTvdbId =
                   rec?.resolved_tvdb_id ?? rec?.tvdb_id ?? rec?.tvdbId ?? null;
