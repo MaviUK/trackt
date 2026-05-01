@@ -331,29 +331,35 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="calendar-list">
-                  {group.episodes.map((item) => (
-                    <Link
+                 <Link
   key={`${item.showTvdbId}-${item.episodeId}`}
   to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
-  className="calendar-item"
+  className="dashboard-item"
 >
-                      {item.posterUrl ? (
-                        <img
-  src={item.posterUrl}
-  alt={item.showName}
-  className="calendar-poster"
-/>
-                      ) : (
-                        <div
-                          style={{
-                            width: 76,
-                            height: 110,
-                            borderRadius: 14,
-                            background: "#0f172a",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
+  {item.posterUrl ? (
+    <img
+      src={item.posterUrl}
+      alt={item.showName}
+      className="dashboard-poster"
+    />
+  ) : (
+    <div className="dashboard-poster" />
+  )}
+
+  <div className="dashboard-item-info">
+    <strong>{item.showName}</strong>
+
+    <span>
+      {getEpisodeCode({
+        seasonNumber: item.seasonNumber,
+        number: item.episodeNumber,
+      })}{" "}
+      - {item.episodeName || "Untitled episode"}
+    </span>
+
+    <small>Airs: {formatDate(item.aired)}</small>
+  </div>
+</Link>
 
                       <div className="calendar-main">
                         <div
