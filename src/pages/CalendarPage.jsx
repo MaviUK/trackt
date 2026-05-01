@@ -333,32 +333,16 @@ export default function CalendarPage() {
                 <div className="calendar-list">
                   {group.episodes.map((item) => (
                     <Link
-                      key={`${item.showTvdbId}-${item.episodeId}`}
-                      to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        padding: 18,
-                        marginBottom: 16,
-                        borderRadius: 28,
-                        background: "#151c2b",
-                        color: "inherit",
-                        textDecoration: "none",
-                      }}
-                    >
+  key={`${item.showTvdbId}-${item.episodeId}`}
+  to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
+  className="calendar-item"
+>
                       {item.posterUrl ? (
                         <img
-                          src={item.posterUrl}
-                          alt={item.showName}
-                          style={{
-                            width: 76,
-                            height: 110,
-                            objectFit: "cover",
-                            borderRadius: 14,
-                            flexShrink: 0,
-                          }}
-                        />
+  src={item.posterUrl}
+  alt={item.showName}
+  className="calendar-poster"
+/>
                       ) : (
                         <div
                           style={{
@@ -371,7 +355,7 @@ export default function CalendarPage() {
                         />
                       )}
 
-                      <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="calendar-main">
                         <div
                           style={{
                             fontSize: 22,
