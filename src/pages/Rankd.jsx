@@ -761,41 +761,25 @@ export default function Rankd() {
         return show;
       });
 
-      for (const show of updatedLadder) {
-        const { data: existingRanking, error: findRankingError } = await supabase
-          .from("user_show_rankings")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("show_id", show.show_id)
-          .maybeSingle();
+      const now = new Date().toISOString();
 
-        if (findRankingError) throw findRankingError;
+const rankingPayload = updatedLadder.map((show) => ({
+  user_id: user.id,
+  show_id: show.show_id,
+  ladder_position: show.ladder_position,
+  wins: show.rank_wins || 0,
+  losses: show.rank_losses || 0,
+  comparisons: show.rank_comparisons || 0,
+  updated_at: now,
+}));
 
-        const rankingPayload = {
-          user_id: user.id,
-          show_id: show.show_id,
-          ladder_position: show.ladder_position,
-          wins: show.rank_wins || 0,
-          losses: show.rank_losses || 0,
-          comparisons: show.rank_comparisons || 0,
-          updated_at: new Date().toISOString(),
-        };
+const { error: rankingSaveError } = await supabase
+  .from("user_show_rankings")
+  .upsert(rankingPayload, {
+    onConflict: "user_id,show_id",
+  });
 
-        if (existingRanking?.id) {
-          const { error: updateRankingError } = await supabase
-            .from("user_show_rankings")
-            .update(rankingPayload)
-            .eq("id", existingRanking.id);
-
-          if (updateRankingError) throw updateRankingError;
-        } else {
-          const { error: insertRankingError } = await supabase
-            .from("user_show_rankings")
-            .insert(rankingPayload);
-
-          if (insertRankingError) throw insertRankingError;
-        }
-      }
+if (rankingSaveError) throw rankingSaveError;
 
       const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
 
