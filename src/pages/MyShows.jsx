@@ -396,7 +396,7 @@ export default function MyShows() {
           gap: 8,
           flexWrap: "wrap",
           marginTop: 18,
-          marginBottom: 18,
+          marginBottom: 10,
           paddingTop:10,
         }}
       >
