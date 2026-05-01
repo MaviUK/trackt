@@ -104,9 +104,7 @@ export default function CalendarPage() {
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows.tvdb_id,
-            show_name:
-              row.shows.name ||
-              "Unknown title",
+            show_name: row.shows.name || "Unknown title",
             poster_url: row.shows.poster_url || null,
             watch_status: row.watch_status || null,
           }));
@@ -337,33 +335,82 @@ export default function CalendarPage() {
                     <Link
                       key={`${item.showTvdbId}-${item.episodeId}`}
                       to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
-                      className="calendar-item"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        padding: 18,
+                        marginBottom: 16,
+                        borderRadius: 28,
+                        background: "#151c2b",
+                        color: "inherit",
+                        textDecoration: "none",
+                      }}
                     >
                       {item.posterUrl ? (
                         <img
                           src={item.posterUrl}
                           alt={item.showName}
-                          className="calendar-poster"
+                          style={{
+                            width: 76,
+                            height: 110,
+                            objectFit: "cover",
+                            borderRadius: 14,
+                            flexShrink: 0,
+                          }}
                         />
                       ) : (
-                        <div className="calendar-poster calendar-poster-fallback" />
+                        <div
+                          style={{
+                            width: 76,
+                            height: 110,
+                            borderRadius: 14,
+                            background: "#0f172a",
+                            flexShrink: 0,
+                          }}
+                        />
                       )}
 
-                      <div className="calendar-main">
-                        <div className="calendar-show-name">{item.showName}</div>
-                        <div className="calendar-episode-code">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: 22,
+                            fontWeight: 900,
+                            color: "#f8fafc",
+                            lineHeight: 1.15,
+                            marginBottom: 10,
+                          }}
+                        >
+                          {item.showName}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 19,
+                            color: "#cbd5e1",
+                            lineHeight: 1.3,
+                            marginBottom: 8,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
                           {getEpisodeCode({
                             seasonNumber: item.seasonNumber,
                             number: item.episodeNumber,
-                          })}
+                          })}{" "}
+                          - {item.episodeName || "Untitled episode"}
                         </div>
-                        <div className="calendar-episode-name">
-                          {item.episodeName || "Untitled episode"}
-                        </div>
-                      </div>
 
-                      <div className="calendar-date">
-                        {formatDate(item.aired)}
+                        <div
+                          style={{
+                            fontSize: 17,
+                            color: "#94a3b8",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Airs: {formatDate(item.aired)}
+                        </div>
                       </div>
                     </Link>
                   ))}
