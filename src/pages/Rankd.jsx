@@ -704,11 +704,11 @@ rank_comparisons: 0,
 }, [eligibleShows]);
 
   async function handleChoice(winnerShowId) {
-    if (saving || currentPair.length !== 2) return;
+  if (saving || currentPair.length !== 2) return;
 
-    const [firstShow, secondShow] = currentPair;
-    const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
-    const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;async function handleChoice(winnerShowId) {
+  const [firstShow, secondShow] = currentPair;
+  const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
+  const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
   if (saving || currentPair.length !== 2) return;
 
   const [firstShow, secondShow] = currentPair;
