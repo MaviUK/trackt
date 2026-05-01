@@ -64,6 +64,20 @@ export default function CalendarPage() {
           return;
         }
 
+        const { data: watchedRows, error: watchedError } = await supabase
+          .from("watched_episodes")
+          .select("episode_id")
+          .eq("user_id", user.id);
+
+        if (watchedError) throw watchedError;
+
+        const watchedEpisodeIds = new Set(
+          (watchedRows || [])
+            .map((row) => row.episode_id)
+            .filter(Boolean)
+            .map(String)
+        );
+
         const { data: userShows, error: showsError } = await supabase
           .from("user_shows_new")
           .select(`
@@ -77,25 +91,28 @@ export default function CalendarPage() {
               id,
               tvdb_id,
               name,
+              english_name,
+              name_eng,
+              english_title,
               poster_url
             )
           `)
           .eq("user_id", user.id)
           .order("added_at", { ascending: true });
 
-        if (showsError) {
-          console.error("Failed to load shows:", showsError);
-          setItems([]);
-          setLoading(false);
-          return;
-        }
+        if (showsError) throw showsError;
 
         const safeShows = (userShows || [])
           .filter((row) => !isArchivedStatus(row.watch_status))
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows.tvdb_id,
-            show_name: row.shows.name || "Unknown title",
+            show_name:
+              row.shows.english_name ||
+              row.shows.name_eng ||
+              row.shows.english_title ||
+              row.shows.name ||
+              "Unknown title",
             poster_url: row.shows.poster_url || null,
             watch_status: row.watch_status || null,
           }));
@@ -131,16 +148,13 @@ export default function CalendarPage() {
           .order("season_number", { ascending: true })
           .order("episode_number", { ascending: true });
 
-        if (episodesError) {
-          console.error("Failed to load calendar episodes:", episodesError);
-          setItems([]);
-          setLoading(false);
-          return;
-        }
+        if (episodesError) throw episodesError;
 
         const episodesByShow = {};
 
         for (const row of episodeRows || []) {
+          if (watchedEpisodeIds.has(String(row.id))) continue;
+
           const show = showLookup[row.show_id];
           if (!show) continue;
 
@@ -181,14 +195,10 @@ export default function CalendarPage() {
           const firstUpcomingEpisode = showEpisodes[0];
           const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
 
-          if (isArchivedStatus(status)) {
-            return;
-          }
+          if (isArchivedStatus(status)) return;
 
           if (isWatchlistStatus(status)) {
-            if (!isFirstEpisode(firstUpcomingEpisode)) {
-              return;
-            }
+            if (!isFirstEpisode(firstUpcomingEpisode)) return;
           }
 
           collected.push(...showEpisodes);
@@ -245,14 +255,31 @@ export default function CalendarPage() {
       }));
   }, [filteredItems]);
 
-  const toggleStyle = (active) => ({
-    padding: "10px 16px",
-    borderRadius: "999px",
-    border: active ? "1px solid #8b5cf6" : "1px solid #26324a",
-    background: active ? "#8b5cf6" : "#121a2b",
-    color: "#fff",
-    fontWeight: "700",
+  const rangeButtons = [
+    ["today", "⌂", "Today"],
+    ["week", "◷", "This Week"],
+    ["month", "▦", "This Month"],
+    ["all", "📅", "All Upcoming"],
+  ];
+
+  const filterButtonStyle = (active) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: active
+      ? "rgba(99,102,241,0.22)"
+      : "rgba(255,255,255,0.05)",
+    color: active ? "#ffffff" : "#cbd5e1",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1,
     cursor: "pointer",
+    opacity: active ? 1 : 0.82,
+    whiteSpace: "nowrap",
   });
 
   if (loading) {
@@ -278,40 +305,25 @@ export default function CalendarPage() {
 
         <div
           style={{
-            marginBottom: "20px",
             display: "flex",
-            gap: "10px",
+            gap: 8,
             flexWrap: "wrap",
+            marginTop: 28,
+            marginBottom: 22,
+            paddingTop: 10,
           }}
         >
-          <button
-            type="button"
-            onClick={() => setRange("today")}
-            style={toggleStyle(range === "today")}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => setRange("week")}
-            style={toggleStyle(range === "week")}
-          >
-            This Week
-          </button>
-          <button
-            type="button"
-            onClick={() => setRange("month")}
-            style={toggleStyle(range === "month")}
-          >
-            This Month
-          </button>
-          <button
-            type="button"
-            onClick={() => setRange("all")}
-            style={toggleStyle(range === "all")}
-          >
-            All Upcoming
-          </button>
+          {rangeButtons.map(([value, icon, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setRange(value)}
+              style={filterButtonStyle(range === value)}
+            >
+              <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
+              {label}
+            </button>
+          ))}
         </div>
 
         {groupedItems.length === 0 ? (
@@ -324,10 +336,6 @@ export default function CalendarPage() {
               <section key={group.date} className="calendar-group-card">
                 <div className="calendar-group-header">
                   <h2>{group.label}</h2>
-                  <span>
-                    {group.episodes.length} episode
-                    {group.episodes.length === 1 ? "" : "s"}
-                  </span>
                 </div>
 
                 <div className="calendar-list">
