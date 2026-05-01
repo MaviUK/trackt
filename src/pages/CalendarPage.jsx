@@ -91,9 +91,6 @@ export default function CalendarPage() {
               id,
               tvdb_id,
               name,
-              english_name,
-              name_eng,
-              english_title,
               poster_url
             )
           `)
@@ -108,9 +105,6 @@ export default function CalendarPage() {
             show_id: row.show_id,
             tvdb_id: row.shows.tvdb_id,
             show_name:
-              row.shows.english_name ||
-              row.shows.name_eng ||
-              row.shows.english_title ||
               row.shows.name ||
               "Unknown title",
             poster_url: row.shows.poster_url || null,
