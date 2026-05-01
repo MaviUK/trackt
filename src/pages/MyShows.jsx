@@ -363,6 +363,15 @@ export default function MyShows() {
     [shows]
   );
 
+  const filters = [
+    ["all", "⌂", `All (${counts.all})`],
+    ["watchlist", "☆", `Watchlist (${counts.watchlist})`],
+    ["inprogress", "▶", `In Progress (${counts.inprogress})`],
+    ["completed", "✓", `Completed (${counts.completed})`],
+    ["archived", "▣", `Archived (${counts.archived})`],
+    ["airing", "◷", `Airing (${counts.airing})`],
+  ];
+
   if (loading) {
     return (
       <div className="page">
@@ -384,26 +393,39 @@ export default function MyShows() {
       <div
         style={{
           display: "flex",
-          gap: 12,
+          gap: 8,
           flexWrap: "wrap",
-          marginBottom: 20,
+          marginTop: 18,
+          marginBottom: 18,
         }}
       >
-        {[
-          ["all", `All (${counts.all})`],
-          ["watchlist", `Watchlist (${counts.watchlist})`],
-          ["inprogress", `In Progress (${counts.inprogress})`],
-          ["completed", `Completed (${counts.completed})`],
-          ["archived", `Archived (${counts.archived})`],
-          ["airing", `Airing (${counts.airing})`],
-        ].map(([value, label]) => (
+        {filters.map(([value, icon, label]) => (
           <button
             key={value}
-            className="msd-btn msd-btn-secondary"
             type="button"
             onClick={() => setFilterBy(value)}
-            style={{ opacity: filterBy === value ? 1 : 0.7 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "7px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background:
+                filterBy === value
+                  ? "rgba(99,102,241,0.22)"
+                  : "rgba(255,255,255,0.05)",
+              color: filterBy === value ? "#ffffff" : "#cbd5e1",
+              fontSize: 12,
+              fontWeight: 800,
+              lineHeight: 1,
+              cursor: "pointer",
+              opacity: filterBy === value ? 1 : 0.82,
+              whiteSpace: "nowrap",
+            }}
           >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
             {label}
           </button>
         ))}
