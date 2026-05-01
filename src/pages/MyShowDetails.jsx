@@ -1876,14 +1876,6 @@ const burgrTouchRef = useRef({
             >
               Reviews
             </button>
-
-            <button
-              type="button"
-              className={`msd-content-tab ${chatBoardOpen ? "is-active" : ""}`}
-              onClick={openChatBoard}
-            >
-              Chatboard
-            </button>
           </div>
 
           <div className="msd-tab-panel">
