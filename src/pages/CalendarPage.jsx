@@ -291,7 +291,7 @@ export default function CalendarPage() {
     <div className="calendar-page">
       <div className="calendar-shell">
         <div className="calendar-header">
-          <h1>Calendar</h1>
+          <h1>Calendar UPDATED</h1>
           <p>Upcoming episodes from your saved shows.</p>
         </div>
 
