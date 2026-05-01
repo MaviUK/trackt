@@ -138,59 +138,25 @@
 }
 
 @media (max-width: 640px) {
-  .calendar-page {
-    padding: 16px 12px
-      calc(var(--mobile-nav-height, 72px) + 48px + env(safe-area-inset-bottom));
-  }
-
-  .calendar-header {
-    margin-bottom: 18px;
-  }
-
-  .calendar-header h1 {
-    font-size: 2rem;
-  }
-
-  .calendar-header p {
-    font-size: 0.95rem;
-  }
-
-  .calendar-group-header {
-    margin: 16px 0 10px;
-  }
-
-  .calendar-group-header h2 {
-    font-size: 15px;
-  }
-
-  .calendar-list {
-    gap: 16px;
-  }
-
   .calendar-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 18px;
-    border-radius: 28px;
+    display: flex !important;
+    grid-template-columns: none !important;
+    align-items: center !important;
+    gap: 16px !important;
+    padding: 18px !important;
+    margin-bottom: 16px !important;
+    border-radius: 28px !important;
+    background: #151c2b !important;
+    border: none !important;
   }
 
   .calendar-poster {
-    width: 76px;
-    height: 110px;
-    border-radius: 14px;
-  }
-
-  .calendar-show-name {
-    font-size: 22px;
-  }
-
-  .calendar-episode-code,
-  .calendar-episode-name {
-    font-size: 19px;
+    width: 76px !important;
+    height: 110px !important;
+    border-radius: 14px !important;
   }
 
   .calendar-date {
-    display: none;
+    display: none !important;
   }
 }
