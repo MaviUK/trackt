@@ -432,7 +432,7 @@ export default function MyShows() {
         ))}
       </div>
 
-      <div style={{ marginBottom: 24, maxWidth: 420 }}>
+      <div style={{ marginBottom: 10, maxWidth: 420 }}>
         <input
           type="text"
           value={searchTerm}
