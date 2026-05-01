@@ -774,7 +774,21 @@ export default function Rankd() {
         return show;
       });
 
-      const now = new Date().toISOString();
+      const nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+
+setEligibleShows(updatedLadder);
+setCurrentPair(nextPair);
+setLastPairKey(
+  nextPair.length === 2
+    ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
+    : ""
+);
+
+setCommentText("");
+setReplyTo(null);
+setShowComments(false);
+
+const now = new Date().toISOString();
 
 const rankingPayload = updatedLadder.map((show) => ({
   user_id: user.id,
@@ -794,7 +808,7 @@ const { error: rankingSaveError } = await supabase
 
 if (rankingSaveError) throw rankingSaveError;
 
-      const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
+const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
 
       const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
         "rankd_record_matchup_vote",
@@ -819,19 +833,6 @@ if (rankingSaveError) throw rankingSaveError;
       }
 
       setMatchupMap(updatedMatchupMap);
-      setEligibleShows(updatedLadder);
-
-      const nextPair = getFairPair(updatedLadder, updatedMatchupMap, currentPairKey);
-      setCurrentPair(nextPair);
-      setLastPairKey(
-        nextPair.length === 2
-          ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-          : ""
-      );
-
-      setCommentText("");
-      setReplyTo(null);
-      setShowComments(false);
     } catch (saveChoiceError) {
       console.error("RANKD SAVE FAILED:", saveChoiceError);
       setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
