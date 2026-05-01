@@ -50,7 +50,29 @@ function applyLadderWin(shows, winnerId, loserId) {
   }));
 }
 
-function getFocusedPair(items, focusShowId, roundNumber = 0) {
+function isFocusSettled(items, focus) {
+  if (!focus) return false;
+
+  const sorted = [...items].sort(sortByLadder);
+  const focusIndex = sorted.findIndex(
+    (show) => String(show.show_id) === String(focus.showId)
+  );
+
+  if (focusIndex === -1) return false;
+
+  const above = sorted[focusIndex - 1];
+  const below = sorted[focusIndex + 1];
+
+  const lostToAbove =
+    !above || (focus.lostToIds || []).includes(String(above.show_id));
+
+  const beatBelow =
+    !below || (focus.beatenIds || []).includes(String(below.show_id));
+
+  return lostToAbove && beatBelow;
+}
+
+function getFocusedPair(items, focusShowId, focus = null) {
   const sorted = [...items].sort(sortByLadder);
 
   const focusIndex = sorted.findIndex(
@@ -60,39 +82,32 @@ function getFocusedPair(items, focusShowId, roundNumber = 0) {
   if (focusIndex === -1) return [];
 
   const focusShow = sorted[focusIndex];
+  const testedIds = new Set((focus?.testedIds || []).map(String));
 
-  const offsets = [-2, -1, 1, 2, 3, -3, 4, -4, 5, -5];
-  let opponent = null;
+  const offsets = [-1, 1, -2, 2, -3, 3, -4, 4, -5, 5];
 
-  for (let i = 0; i < offsets.length; i += 1) {
-    const offset = offsets[(roundNumber + i) % offsets.length];
-    const possibleOpponent = sorted[focusIndex + offset];
+  for (const offset of offsets) {
+    const opponent = sorted[focusIndex + offset];
 
     if (
-      possibleOpponent &&
-      String(possibleOpponent.show_id) !== String(focusShowId)
+      opponent &&
+      String(opponent.show_id) !== String(focusShowId) &&
+      !testedIds.has(String(opponent.show_id))
     ) {
-      opponent = possibleOpponent;
-      break;
+      return Math.random() > 0.5
+        ? [focusShow, opponent]
+        : [opponent, focusShow];
     }
   }
 
-  if (!opponent) {
-    opponent = sorted.find(
-      (show) => String(show.show_id) !== String(focusShowId)
-    );
-  }
-
-  if (!opponent) return [];
-
-  return Math.random() > 0.5
-    ? [focusShow, opponent]
-    : [opponent, focusShow];
+  return [];
 }
 
 function chunkArray(items, size) {
   const chunks = [];
-  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
   return chunks;
 }
 
@@ -345,7 +360,9 @@ export default function Rankd() {
   const [pendingCommentId, setPendingCommentId] = useState(null);
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
+
   const touchStartX = useRef(null);
+  const battleRef = useRef(null);
 
   const currentPairKey =
     currentPair.length === 2
@@ -746,21 +763,32 @@ export default function Rankd() {
   }, [pendingCommentId, comments]);
 
   function startFocusedRanking(show) {
-    const nextPair = getFocusedPair(eligibleShows, show.show_id, 0);
-
-    if (nextPair.length !== 2) return;
-
-    setRankFocus({
+    const newFocus = {
       showId: show.show_id,
       showName: show.show_name,
       roundsDone: 0,
-    });
+      testedIds: [],
+      beatenIds: [],
+      lostToIds: [],
+    };
 
+    const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
+
+    if (nextPair.length !== 2) return;
+
+    setRankFocus(newFocus);
     setCurrentPair(nextPair);
     setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
     setShowComments(false);
     setCommentText("");
     setReplyTo(null);
+
+    setTimeout(() => {
+      battleRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   }
 
   async function handleChoice(winnerShowId) {
@@ -818,22 +846,37 @@ export default function Rankd() {
       let nextRankFocus = rankFocus;
 
       if (rankFocus) {
+        const focusWon = String(winner.show_id) === String(rankFocus.showId);
+        const opponent = focusWon ? loser : winner;
         const nextRoundsDone = (rankFocus.roundsDone || 0) + 1;
 
-        if (nextRoundsDone >= FOCUS_RANK_ROUNDS) {
+        nextRankFocus = {
+          ...rankFocus,
+          roundsDone: nextRoundsDone,
+          testedIds: [
+            ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
+          ],
+          beatenIds: focusWon
+            ? [...new Set([...(rankFocus.beatenIds || []), String(opponent.show_id)])]
+            : rankFocus.beatenIds || [],
+          lostToIds: !focusWon
+            ? [...new Set([...(rankFocus.lostToIds || []), String(opponent.show_id)])]
+            : rankFocus.lostToIds || [],
+        };
+
+        if (
+          nextRoundsDone >= FOCUS_RANK_ROUNDS ||
+          isFocusSettled(updatedLadder, nextRankFocus)
+        ) {
           nextRankFocus = null;
           setRankFocus(null);
         } else {
-          nextRankFocus = {
-            ...rankFocus,
-            roundsDone: nextRoundsDone,
-          };
           setRankFocus(nextRankFocus);
         }
       }
 
       const nextPair = nextRankFocus
-        ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus.roundsDone)
+        ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus)
         : getFairPair(updatedLadder, matchupMap, currentPairKey);
 
       setEligibleShows(updatedLadder);
@@ -1043,7 +1086,10 @@ export default function Rankd() {
             <>
               Matchup #
               {Math.floor(
-                leaderboard.reduce((total, show) => total + (show.rank_comparisons || 0), 0) / 2
+                leaderboard.reduce(
+                  (total, show) => total + (show.rank_comparisons || 0),
+                  0
+                ) / 2
               ) + 1}
             </>
           )}
@@ -1057,7 +1103,7 @@ export default function Rankd() {
         ) : null}
 
         <div className="rankd-main-grid">
-          <div className="section-card rankd-battle-shell">
+          <div className="section-card rankd-battle-shell" ref={battleRef}>
             <div className="rankd-battle-layout">
               <RankCard
                 show={currentPair[0]}
