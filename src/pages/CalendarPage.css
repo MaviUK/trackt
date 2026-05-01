@@ -119,18 +119,26 @@
   margin-bottom: 10px;
 }
 
-.calendar-episode-code,
-.calendar-episode-name {
-  display: inline;
+.calendar-episode-line {
   font-size: 19px;
   color: #cbd5e1;
   line-height: 1.3;
-}
-
-.calendar-episode-name {
+  margin-bottom: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.calendar-episode-code,
+.calendar-episode-name {
+  display: inline;
+  color: #cbd5e1;
+}
+
+.calendar-air-date {
+  font-size: 17px;
+  color: #94a3b8;
+  font-weight: 600;
 }
 
 .calendar-date {
@@ -138,6 +146,31 @@
 }
 
 @media (max-width: 640px) {
+  .calendar-page {
+    padding: 16px 12px
+      calc(var(--mobile-nav-height, 72px) + 48px + env(safe-area-inset-bottom));
+  }
+
+  .calendar-header {
+    margin-bottom: 18px;
+  }
+
+  .calendar-header h1 {
+    font-size: 2rem;
+  }
+
+  .calendar-header p {
+    font-size: 0.95rem;
+  }
+
+  .calendar-group-header {
+    margin: 16px 0 10px;
+  }
+
+  .calendar-group-header h2 {
+    font-size: 15px;
+  }
+
   .calendar-item {
     display: flex !important;
     grid-template-columns: none !important;
@@ -148,12 +181,26 @@
     border-radius: 28px !important;
     background: #151c2b !important;
     border: none !important;
+    box-shadow: none !important;
   }
 
   .calendar-poster {
     width: 76px !important;
     height: 110px !important;
     border-radius: 14px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .calendar-show-name {
+    font-size: 22px;
+  }
+
+  .calendar-episode-line {
+    font-size: 19px;
+  }
+
+  .calendar-air-date {
+    font-size: 17px;
   }
 
   .calendar-date {
