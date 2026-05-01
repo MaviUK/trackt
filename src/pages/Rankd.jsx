@@ -84,34 +84,34 @@ function getFocusedPair(items, focusShowId, focus = null) {
   const focusShow = sorted[focusIndex];
   const testedIds = new Set((focus?.testedIds || []).map(String));
 
-  const offsets = [-1, 1, -2, 2, -4, 4, -3, 3, -6, 6, -5, 5, -8, 8, -10, 10];
+  const lowerBound = focus?.lowerBound ?? 0;
+  const upperBound = focus?.upperBound ?? sorted.length - 1;
 
-  for (const offset of offsets) {
-    const opponent = sorted[focusIndex + offset];
+  let targetIndex = Math.floor((lowerBound + upperBound) / 2);
 
-    if (
-      opponent &&
-      String(opponent.show_id) !== String(focusShowId) &&
-      !testedIds.has(String(opponent.show_id))
-    ) {
-      return Math.random() > 0.5
-        ? [focusShow, opponent]
-        : [opponent, focusShow];
-    }
+  if (targetIndex === focusIndex) {
+    targetIndex = focusIndex > lowerBound ? focusIndex - 1 : focusIndex + 1;
   }
 
-  // If nearby options are exhausted, try any untested show
-  const untestedOpponent = sorted.find(
-    (show) =>
-      String(show.show_id) !== String(focusShowId) &&
-      !testedIds.has(String(show.show_id))
-  );
+  let opponent = sorted[targetIndex];
 
-  if (!untestedOpponent) return [];
+  if (
+    !opponent ||
+    String(opponent.show_id) === String(focusShowId) ||
+    testedIds.has(String(opponent.show_id))
+  ) {
+    opponent = sorted.find((show, index) => {
+      if (String(show.show_id) === String(focusShowId)) return false;
+      if (testedIds.has(String(show.show_id))) return false;
+      return index >= lowerBound && index <= upperBound;
+    });
+  }
+
+  if (!opponent) return [];
 
   return Math.random() > 0.5
-    ? [focusShow, untestedOpponent]
-    : [untestedOpponent, focusShow];
+    ? [focusShow, opponent]
+    : [opponent, focusShow];
 }
 
 function chunkArray(items, size) {
@@ -774,14 +774,20 @@ export default function Rankd() {
   }, [pendingCommentId, comments]);
 
   function startFocusedRanking(show) {
-    const newFocus = {
-      showId: show.show_id,
-      showName: show.show_name,
-      roundsDone: 0,
-      testedIds: [],
-      beatenIds: [],
-      lostToIds: [],
-    };
+    const sorted = [...eligibleShows].sort(sortByLadder);
+const focusIndex = sorted.findIndex(
+  (item) => String(item.show_id) === String(show.show_id)
+);
+
+const newFocus = {
+  showId: show.show_id,
+  showName: show.show_name,
+  roundsDone: 0,
+  testedIds: [],
+  lowerBound: 0,
+  upperBound: sorted.length - 1,
+  lastOpponentId: null,
+};
 
     const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
 
@@ -861,21 +867,31 @@ export default function Rankd() {
         const opponent = focusWon ? loser : winner;
         const nextRoundsDone = (rankFocus.roundsDone || 0) + 1;
 
-        nextRankFocus = {
-          ...rankFocus,
-          roundsDone: nextRoundsDone,
-          testedIds: [
-            ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
-          ],
-          beatenIds: focusWon
-            ? [...new Set([...(rankFocus.beatenIds || []), String(opponent.show_id)])]
-            : rankFocus.beatenIds || [],
-          lostToIds: !focusWon
-            ? [...new Set([...(rankFocus.lostToIds || []), String(opponent.show_id)])]
-            : rankFocus.lostToIds || [],
-        };
+        const sortedAfterVote = [...updatedLadder].sort(sortByLadder);
+const opponentIndex = sortedAfterVote.findIndex(
+  (show) => String(show.show_id) === String(opponent.show_id)
+);
 
-        if (isFocusSettled(updatedLadder, nextRankFocus)) {
+nextRankFocus = {
+  ...rankFocus,
+  roundsDone: nextRoundsDone,
+  testedIds: [
+    ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
+  ],
+  lastOpponentId: String(opponent.show_id),
+
+  // If focus won, it belongs above that opponent.
+  // If focus lost, it belongs below that opponent.
+  lowerBound: focusWon
+    ? rankFocus.lowerBound ?? 0
+    : Math.max(rankFocus.lowerBound ?? 0, opponentIndex + 1),
+
+  upperBound: focusWon
+    ? Math.min(rankFocus.upperBound ?? sortedAfterVote.length - 1, opponentIndex - 1)
+    : rankFocus.upperBound ?? sortedAfterVote.length - 1,
+};
+
+        if ((nextRankFocus.upperBound - nextRankFocus.lowerBound) <= 1) {
   nextRankFocus = null;
   setRankFocus(null);
 } else {
