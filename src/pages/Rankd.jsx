@@ -895,8 +895,8 @@ export default function Rankd() {
       }
 
       const nextPair = nextRankFocus
-        ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus)
-        : getFairPair(updatedLadder, matchupMap, currentPairKey);
+  ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus)
+  : getFairPair(updatedLadder, matchupMap, currentPairKey);
 
       setEligibleShows(updatedLadder);
       setCurrentPair(nextPair);
@@ -1098,8 +1098,8 @@ export default function Rankd() {
         <div className="rankd-matchup-number">
           {rankFocus ? (
             <>
-              Ranking {rankFocus.showName} — round{" "}
-              {(rankFocus.roundsDone || 0) + 1}/{FOCUS_RANK_ROUNDS}
+              Finding place for {rankFocus.showName} — round{" "}
+{(rankFocus.roundsDone || 0) + 1}
             </>
           ) : (
             <>
