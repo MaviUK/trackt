@@ -397,6 +397,7 @@ export default function MyShows() {
           flexWrap: "wrap",
           marginTop: 18,
           marginBottom: 18,
+          paddingTop:10,
         }}
       >
         {filters.map(([value, icon, label]) => (
