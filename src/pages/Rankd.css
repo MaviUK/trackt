@@ -462,3 +462,19 @@
   outline: 2px solid #facc15;
   box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.18);
 }
+
+.rankd-rank-button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #7c3aed;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rankd-rank-button:hover {
+  background: #8b5cf6;
+}
