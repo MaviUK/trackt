@@ -886,7 +886,7 @@ nextRankFocus = {
     : rankFocus.upperBound ?? sortedAfterVote.length - 1,
 };
 
-        if ((nextRankFocus.upperBound - nextRankFocus.lowerBound) <= 1) {
+        if (nextRankFocus.upperBound < nextRankFocus.lowerBound) {
   nextRankFocus = null;
   setRankFocus(null);
 } else {
