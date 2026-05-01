@@ -298,19 +298,26 @@ export default function Rankd() {
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
 
   const leaderboard = useMemo(() => {
-    return [...eligibleShows].sort((a, b) => {
-      const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
-      const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
+  return [...eligibleShows].sort((a, b) => {
+    const aUnrated = (a.rank_comparisons || 0) === 0;
+    const bUnrated = (b.rank_comparisons || 0) === 0;
 
-      if (aPos !== bPos) return aPos - bPos;
+    // Unrated shows always go to the bottom
+    if (aUnrated && !bUnrated) return 1;
+    if (!aUnrated && bUnrated) return -1;
 
-      if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
-        return (b.rank_wins || 0) - (a.rank_wins || 0);
-      }
+    const aPos = a.ladder_position ?? DEFAULT_LADDER_POSITION;
+    const bPos = b.ladder_position ?? DEFAULT_LADDER_POSITION;
 
-      return (a.show_name || "").localeCompare(b.show_name || "");
-    });
-  }, [eligibleShows]);
+    if (aPos !== bPos) return aPos - bPos;
+
+    if ((b.rank_wins || 0) !== (a.rank_wins || 0)) {
+      return (b.rank_wins || 0) - (a.rank_wins || 0);
+    }
+
+    return (a.show_name || "").localeCompare(b.show_name || "");
+  });
+}, [eligibleShows]);
 
   function scrollToComment(commentId) {
     if (!commentId) return;
