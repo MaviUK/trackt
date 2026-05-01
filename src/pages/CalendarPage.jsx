@@ -61,7 +61,6 @@ export default function CalendarPage() {
 
         if (!user) {
           setItems([]);
-          setLoading(false);
           return;
         }
 
@@ -119,7 +118,6 @@ export default function CalendarPage() {
 
         if (showIds.length === 0) {
           setItems([]);
-          setLoading(false);
           return;
         }
 
@@ -331,67 +329,35 @@ export default function CalendarPage() {
                   <h2>{group.label}</h2>
                 </div>
 
-               <div className="calendar-list">
-  {group.episodes.map((item) => (
-    <Link
-      key={`${item.showTvdbId}-${item.episodeId}`}
-      to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
-      className="dashboard-item"
-    >
-      {item.posterUrl ? (
-        <img
-          src={item.posterUrl}
-          alt={item.showName}
-          className="dashboard-poster"
-        />
-      ) : (
-        <div className="dashboard-poster" />
-      )}
+                <div className="calendar-list">
+                  {group.episodes.map((item) => (
+                    <Link
+                      key={`${item.showTvdbId}-${item.episodeId}`}
+                      to={`/my-shows/${item.showTvdbId}?episode=${item.episodeId}`}
+                      className="dashboard-item"
+                    >
+                      {item.posterUrl ? (
+                        <img
+                          src={item.posterUrl}
+                          alt={item.showName}
+                          className="dashboard-poster"
+                        />
+                      ) : (
+                        <div className="dashboard-poster" />
+                      )}
 
-      <div className="dashboard-item-info">
-        <strong>{item.showName}</strong>
+                      <div className="dashboard-item-info">
+                        <strong>{item.showName}</strong>
 
-        <span>
-          {getEpisodeCode({
-            seasonNumber: item.seasonNumber,
-            number: item.episodeNumber,
-          })}{" "}
-          - {item.episodeName || "Untitled episode"}
-        </span>
-
-        <small>Airs: {formatDate(item.aired)}</small>
-      </div>
-    </Link>
-  ))}
-</div>
-
-                        <div
-                          style={{
-                            fontSize: 19,
-                            color: "#cbd5e1",
-                            lineHeight: 1.3,
-                            marginBottom: 8,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
+                        <span>
                           {getEpisodeCode({
                             seasonNumber: item.seasonNumber,
                             number: item.episodeNumber,
                           })}{" "}
                           - {item.episodeName || "Untitled episode"}
-                        </div>
+                        </span>
 
-                        <div
-                          style={{
-                            fontSize: 17,
-                            color: "#94a3b8",
-                            fontWeight: 600,
-                          }}
-                        >
-                          Airs: {formatDate(item.aired)}
-                        </div>
+                        <small>Airs: {formatDate(item.aired)}</small>
                       </div>
                     </Link>
                   ))}
