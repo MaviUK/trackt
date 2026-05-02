@@ -49,6 +49,15 @@ function buildTree(rows) {
   return roots;
 }
 
+function countAllReplies(review) {
+  if (!Array.isArray(review?.replies) || review.replies.length === 0) return 0;
+
+  return review.replies.reduce(
+    (total, reply) => total + 1 + countAllReplies(reply),
+    0
+  );
+}
+
 function ReviewItem({
   review,
   config,
@@ -59,6 +68,7 @@ function ReviewItem({
   savingEditId,
   onVoteChanged,
   depth = 0,
+  forceShowReplies = false,
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
@@ -78,6 +88,8 @@ function ReviewItem({
 
   const canReply = currentUserId && !isOwnReview;
   const hasReplies = Array.isArray(review.replies) && review.replies.length > 0;
+  const allRepliesCount = countAllReplies(review);
+  const effectiveShowReplies = forceShowReplies || showReplies;
   const canEdit = isOwnReview;
   const editModeLabel = hasReplies ? "Add to this" : "Edit";
 
@@ -146,9 +158,24 @@ function ReviewItem({
               ) : null}
             </div>
 
-            <span className="msd-review-date">
-              {formatDateTime(review.created_at)}
-            </span>
+            <div className="msd-review-head-right">
+              <span className="msd-review-date">
+                {formatDateTime(review.created_at)}
+              </span>
+
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="msd-review-header-action"
+                  onClick={() => {
+                    setEditBody(hasReplies ? "" : review.body || "");
+                    setEditing((prev) => !prev);
+                  }}
+                >
+                  {editModeLabel}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {editing ? (
@@ -213,36 +240,23 @@ function ReviewItem({
             }
           />
 
-          {hasReplies ? (
+          {hasReplies && !forceShowReplies ? (
             <button
               type="button"
               className="msd-review-action msd-review-replies-toggle"
               onClick={() => setShowReplies((prev) => !prev)}
             >
               {showReplies
-                ? `Hide ${review.replies.length} ${
-                    review.replies.length === 1 ? "reply" : "replies"
+                ? `Hide ${allRepliesCount} ${
+                    allRepliesCount === 1 ? "reply" : "replies"
                   }`
-                : `View ${review.replies.length} ${
-                    review.replies.length === 1 ? "reply" : "replies"
+                : `View ${allRepliesCount} ${
+                    allRepliesCount === 1 ? "reply" : "replies"
                   }`}
             </button>
           ) : null}
 
           <div className="msd-review-action-right">
-            {canEdit ? (
-              <button
-                type="button"
-                className="msd-review-action"
-                onClick={() => {
-                  setEditBody(hasReplies ? "" : review.body || "");
-                  setEditing((prev) => !prev);
-                }}
-              >
-                {editModeLabel}
-              </button>
-            ) : null}
-
             {canReply ? (
               <button
                 type="button"
@@ -295,7 +309,7 @@ function ReviewItem({
         ) : null}
 
 
-        {hasReplies && showReplies ? (
+        {hasReplies && effectiveShowReplies ? (
           <div className="msd-review-replies">
             {review.replies.map((reply) => (
               <ReviewItem
@@ -309,6 +323,7 @@ function ReviewItem({
                 savingEditId={savingEditId}
                 onVoteChanged={onVoteChanged}
                 depth={depth + 1}
+                forceShowReplies={effectiveShowReplies}
               />
             ))}
           </div>
