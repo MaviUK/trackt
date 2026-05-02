@@ -166,26 +166,30 @@ function ReviewItem({
               />
 
               <div className="msd-review-form-actions">
-                <span>{editBody.trim().length}/2000</span>
+                <span className="msd-review-char-count">
+                  {editBody.trim().length}/2000
+                </span>
 
-                <button
-                  type="button"
-                  className="msd-btn msd-btn-secondary"
-                  onClick={() => {
-                    setEditBody(hasReplies ? "" : review.body || "");
-                    setEditing(false);
-                  }}
-                >
-                  Cancel
-                </button>
+                <div className="msd-review-form-buttons">
+                  <button
+                    type="button"
+                    className="msd-btn msd-btn-secondary"
+                    onClick={() => {
+                      setEditBody(hasReplies ? "" : review.body || "");
+                      setEditing(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
 
-                <button
-                  type="submit"
-                  className="msd-btn msd-btn-primary"
-                  disabled={isSavingEdit || !editBody.trim()}
-                >
-                  {isSavingEdit ? "Saving..." : hasReplies ? "Add update" : "Save"}
-                </button>
+                  <button
+                    type="submit"
+                    className="msd-btn msd-btn-primary"
+                    disabled={isSavingEdit || !editBody.trim()}
+                  >
+                    {isSavingEdit ? "Saving..." : hasReplies ? "Add update" : "Save"}
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
@@ -242,24 +246,30 @@ function ReviewItem({
             />
 
             <div className="msd-review-form-actions">
-              <button
-                type="button"
-                className="msd-btn msd-btn-secondary"
-                onClick={() => {
-                  setReplyBody("");
-                  setReplyOpen(false);
-                }}
-              >
-                Cancel
-              </button>
+              <span className="msd-review-char-count">
+                {replyBody.trim().length}/1000
+              </span>
 
-              <button
-                type="submit"
-                className="msd-btn msd-btn-primary"
-                disabled={isSavingReply || !replyBody.trim()}
-              >
-                {isSavingReply ? "Saving..." : "Post reply"}
-              </button>
+              <div className="msd-review-form-buttons">
+                <button
+                  type="button"
+                  className="msd-btn msd-btn-secondary"
+                  onClick={() => {
+                    setReplyBody("");
+                    setReplyOpen(false);
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="msd-btn msd-btn-primary"
+                  disabled={isSavingReply || !replyBody.trim()}
+                >
+                  {isSavingReply ? "Saving..." : "Post reply"}
+                </button>
+              </div>
             </div>
           </form>
         ) : null}
@@ -613,15 +623,19 @@ function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
           />
 
           <div className="msd-review-form-actions">
-            <span>{body.trim().length}/2000</span>
+            <span className="msd-review-char-count">
+              {body.trim().length}/2000
+            </span>
 
-            <button
-              type="submit"
-              className="msd-btn msd-btn-primary"
-              disabled={saving || !body.trim()}
-            >
-              {saving ? "Posting..." : "Post review"}
-            </button>
+            <div className="msd-review-form-buttons">
+              <button
+                type="submit"
+                className="msd-btn msd-btn-primary"
+                disabled={saving || !body.trim()}
+              >
+                {saving ? "Posting..." : "Post review"}
+              </button>
+            </div>
           </div>
         </form>
       ) : !currentUserId ? (

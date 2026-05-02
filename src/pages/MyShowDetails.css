@@ -1739,6 +1739,24 @@
   font-size: 0.9rem;
 }
 
+
+.msd-review-char-count {
+  flex: 0 0 auto;
+  color: #a5b4cc;
+}
+
+.msd-review-form-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.msd-review-form-buttons .msd-btn {
+  white-space: nowrap;
+}
+
 .msd-review-edit-note {
   margin: 0 0 10px;
   border: 1px solid rgba(250, 204, 21, 0.24);
@@ -1882,7 +1900,6 @@
 
 @media (max-width: 640px) {
   .msd-reviews-header,
-  .msd-review-form-actions,
   .msd-review-head {
     flex-direction: column;
     align-items: flex-start;
