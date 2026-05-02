@@ -296,7 +296,7 @@ export default function ReviewThread({ config, itemId, currentUserId, heading, s
       {subheading ? <p className="msd-muted">{subheading}</p> : null}
 
       {currentUserId && hasPostedRootReview ? (
-        <div className="msd-review-login-note">You have already posted a review. You can still reply to other reviews.</div>
+        <div className="msd-review-login-note">Already Reviewed. You can still reply to others.</div>
       ) : currentUserId ? (
         <form className="msd-review-form" onSubmit={handleSubmitReview}>
           <textarea
