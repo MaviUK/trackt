@@ -1892,6 +1892,25 @@
   text-align: right;
 }
 
+
+.msd-review-replies-toggle-row {
+  margin-top: 10px;
+  padding-left: 4px;
+}
+
+.msd-review-replies-toggle {
+  border: none;
+  background: transparent;
+  color: #c4b5fd;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.msd-review-replies-toggle:hover {
+  color: #ddd6fe;
+}
+
 .msd-review-replies {
   border-left: 2px solid #26324a;
   margin-top: 12px;

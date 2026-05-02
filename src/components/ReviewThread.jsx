@@ -64,6 +64,7 @@ function ReviewItem({
   const [replyBody, setReplyBody] = useState("");
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(review.body || "");
+  const [showReplies, setShowReplies] = useState(false);
 
   const profile = review.profile || {};
   const displayName = getDisplayName(profile);
@@ -78,7 +79,7 @@ function ReviewItem({
   const canReply = currentUserId && !isOwnReview;
   const hasReplies = Array.isArray(review.replies) && review.replies.length > 0;
   const canEdit = isOwnReview;
-  const editModeLabel = hasReplies ? "Edit";
+  const editModeLabel = hasReplies ? "Add to this" : "Edit";
 
   const isSavingReply = savingReplyId === review.id;
   const isSavingEdit = savingEditId === review.id;
@@ -94,6 +95,7 @@ function ReviewItem({
     if (ok) {
       setReplyBody("");
       setReplyOpen(false);
+      setShowReplies(true);
     }
   }
 
@@ -274,7 +276,25 @@ function ReviewItem({
           </form>
         ) : null}
 
-        {review.replies?.length > 0 ? (
+        {hasReplies ? (
+          <div className="msd-review-replies-toggle-row">
+            <button
+              type="button"
+              className="msd-review-replies-toggle"
+              onClick={() => setShowReplies((prev) => !prev)}
+            >
+              {showReplies
+                ? `Hide ${review.replies.length} ${
+                    review.replies.length === 1 ? "reply" : "replies"
+                  }`
+                : `View ${review.replies.length} ${
+                    review.replies.length === 1 ? "reply" : "replies"
+                  }`}
+            </button>
+          </div>
+        ) : null}
+
+        {hasReplies && showReplies ? (
           <div className="msd-review-replies">
             {review.replies.map((reply) => (
               <ReviewItem
