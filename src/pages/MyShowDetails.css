@@ -1826,11 +1826,10 @@
 }
 
 .msd-review-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #f8fafc;
-  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
 }
 
 .msd-review-head span {
@@ -1840,9 +1839,6 @@
 }
 
 .msd-review-user-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   min-width: 0;
 }
 
@@ -2396,4 +2392,30 @@
   .msd-review-header-action {
     font-size: 13px !important;
   }
+}
+
+.msd-review-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.msd-review-date {
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: left;
+}
+
+.msd-review-header-action {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 4px 0;
 }
