@@ -73,6 +73,7 @@ function getVideoEmbedInfo(urlValue) {
       embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
       label: "YouTube video",
       canEmbed: true,
+      needsResolve: false,
     };
   }
 
@@ -84,6 +85,7 @@ function getVideoEmbedInfo(urlValue) {
       embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId}`,
       label: "TikTok video",
       canEmbed: true,
+      needsResolve: false,
     };
   }
 
@@ -91,16 +93,14 @@ function getVideoEmbedInfo(urlValue) {
     const url = new URL(cleanedUrl);
     const host = url.hostname.replace(/^www\./, "");
 
-    // TikTok short links such as https://vm.tiktok.com/... are valid,
-    // but they cannot be embedded until the redirect is resolved server-side.
-    // For now, we accept and save them as clickable TikTok links.
     if (host.endsWith("tiktok.com")) {
       return {
         provider: "tiktok",
         url: cleanedUrl,
         embedUrl: null,
-        label: "TikTok link",
+        label: "TikTok video",
         canEmbed: false,
+        needsResolve: true,
       };
     }
   } catch {
@@ -108,6 +108,46 @@ function getVideoEmbedInfo(urlValue) {
   }
 
   return null;
+}
+
+async function resolveTikTokEmbedInfo(urlValue) {
+  const cleanedUrl = normalizeUrl(urlValue);
+  if (!cleanedUrl) return null;
+
+  const directInfo = getVideoEmbedInfo(cleanedUrl);
+  if (!directInfo || directInfo.provider !== "tiktok") return directInfo;
+  if (directInfo.canEmbed) return directInfo;
+
+  try {
+    const response = await fetch(
+      `https://www.tiktok.com/oembed?url=${encodeURIComponent(cleanedUrl)}`
+    );
+
+    if (!response.ok) return directInfo;
+
+    const data = await response.json();
+    const html = String(data?.html || "");
+    const resolvedUrl = String(data?.author_url || cleanedUrl);
+    const videoId =
+      html.match(/data-video-id=["'](\d+)["']/)?.[1] ||
+      html.match(/\/video\/(\d+)/)?.[1] ||
+      html.match(/embed\/v2\/(\d+)/)?.[1];
+
+    if (!videoId) return directInfo;
+
+    return {
+      provider: "tiktok",
+      url: cleanedUrl,
+      resolvedUrl,
+      embedUrl: `https://www.tiktok.com/embed/v2/${videoId}`,
+      label: "TikTok video",
+      canEmbed: true,
+      needsResolve: false,
+    };
+  } catch (err) {
+    console.warn("Failed to resolve TikTok short link:", err);
+    return directInfo;
+  }
 }
 
 function clamp(value, min, max) {
@@ -353,8 +393,43 @@ export default function ProfileEdit() {
     return selectedAvatarDataUrl || existingAvatarUrl || "";
   }, [selectedAvatarDataUrl, existingAvatarUrl]);
 
-  const postVideoPreview = useMemo(() => {
-    return getVideoEmbedInfo(postVideoUrl);
+  const [postVideoPreview, setPostVideoPreview] = useState(null);
+  const [postVideoResolving, setPostVideoResolving] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function prepareVideoPreview() {
+      const trimmed = postVideoUrl.trim();
+
+      if (!trimmed) {
+        setPostVideoPreview(null);
+        setPostVideoResolving(false);
+        return;
+      }
+
+      const basicInfo = getVideoEmbedInfo(trimmed);
+      setPostVideoPreview(basicInfo);
+
+      if (!basicInfo?.needsResolve) {
+        setPostVideoResolving(false);
+        return;
+      }
+
+      setPostVideoResolving(true);
+      const resolvedInfo = await resolveTikTokEmbedInfo(trimmed);
+
+      if (!isCancelled) {
+        setPostVideoPreview(resolvedInfo);
+        setPostVideoResolving(false);
+      }
+    }
+
+    prepareVideoPreview();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [postVideoUrl]);
 
   useEffect(() => {
@@ -670,10 +745,18 @@ export default function ProfileEdit() {
       if (userError) throw userError;
       if (!user) throw new Error("You must be logged in.");
 
-      const videoInfo = getVideoEmbedInfo(postVideoUrl);
+      const videoInfo = postVideoUrl.trim()
+        ? await resolveTikTokEmbedInfo(postVideoUrl)
+        : null;
 
       if (postVideoUrl.trim() && !videoInfo) {
         throw new Error("Please enter a valid YouTube or TikTok link.");
+      }
+
+      if (postVideoUrl.trim() && !videoInfo?.canEmbed) {
+        throw new Error(
+          "This TikTok link could not be embedded. Open the TikTok link, tap Share, copy the full video link, and try again."
+        );
       }
 
       const { error: postError } = await supabase
@@ -1274,7 +1357,11 @@ export default function ProfileEdit() {
               />
 
               {postVideoUrl.trim() ? (
-                postVideoPreview ? (
+                postVideoResolving ? (
+                  <p style={{ margin: 0, color: "#c4b5fd", fontSize: 13, fontWeight: 700 }}>
+                    Resolving TikTok embed...
+                  </p>
+                ) : postVideoPreview ? (
                   postVideoPreview.canEmbed ? (
                     <div
                       style={{
@@ -1298,19 +1385,9 @@ export default function ProfileEdit() {
                       />
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        padding: 12,
-                        borderRadius: 14,
-                        border: "1px solid rgba(34,197,94,0.25)",
-                        background: "rgba(34,197,94,0.1)",
-                        color: "#bbf7d0",
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}
-                    >
-                      TikTok link accepted. Short TikTok links will open on TikTok instead of embedding.
-                    </div>
+                    <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
+                      This TikTok short link could not be converted into an embed. Open it in TikTok, tap Share, copy the full video link, and paste that instead.
+                    </p>
                   )
                 ) : (
                   <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
