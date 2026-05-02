@@ -1739,6 +1739,17 @@
   font-size: 0.9rem;
 }
 
+.msd-review-edit-note {
+  margin: 0 0 10px;
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  border-radius: 12px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #fde68a;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
 .msd-review-login-note,
 .msd-review-error {
   background: #121a2b;
@@ -1839,8 +1850,10 @@
 
 .msd-review-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin: 8px 0 0 4px;
+  width: calc(100% - 4px);
 }
 
 .msd-review-action {
@@ -1854,6 +1867,11 @@
 
 .msd-review-action:hover {
   color: #ddd6fe;
+}
+
+.msd-review-reply-action {
+  margin-left: auto;
+  text-align: right;
 }
 
 .msd-review-replies {

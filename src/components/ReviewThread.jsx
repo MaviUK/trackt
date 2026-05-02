@@ -76,7 +76,9 @@ function ReviewItem({
     currentUserId && String(review.user_id) === String(currentUserId);
 
   const canReply = currentUserId && !isOwnReview;
+  const hasReplies = Array.isArray(review.replies) && review.replies.length > 0;
   const canEdit = isOwnReview;
+  const editModeLabel = hasReplies ? "Add to this" : "Edit";
 
   const isSavingReply = savingReplyId === review.id;
   const isSavingEdit = savingEditId === review.id;
@@ -101,9 +103,12 @@ function ReviewItem({
     const trimmed = editBody.trim();
     if (!trimmed || !canEdit) return;
 
-    const ok = await onEdit(review.id, trimmed);
+    const ok = await onEdit(review.id, trimmed, {
+      appendOnly: hasReplies,
+    });
 
     if (ok) {
+      setEditBody(hasReplies ? "" : trimmed);
       setEditing(false);
     }
   }
@@ -146,11 +151,18 @@ function ReviewItem({
 
           {editing ? (
             <form className="msd-review-reply-form" onSubmit={submitEdit}>
+              {hasReplies ? (
+                <div className="msd-review-edit-note">
+                  This has replies, so you can only add to it. The original text will stay unchanged.
+                </div>
+              ) : null}
+
               <textarea
                 value={editBody}
                 onChange={(event) => setEditBody(event.target.value)}
                 rows={4}
                 maxLength={2000}
+                placeholder={hasReplies ? "Add an update..." : "Edit your review..."}
               />
 
               <div className="msd-review-form-actions">
@@ -160,7 +172,7 @@ function ReviewItem({
                   type="button"
                   className="msd-btn msd-btn-secondary"
                   onClick={() => {
-                    setEditBody(review.body || "");
+                    setEditBody(hasReplies ? "" : review.body || "");
                     setEditing(false);
                   }}
                 >
@@ -172,7 +184,7 @@ function ReviewItem({
                   className="msd-btn msd-btn-primary"
                   disabled={isSavingEdit || !editBody.trim()}
                 >
-                  {isSavingEdit ? "Saving..." : "Save"}
+                  {isSavingEdit ? "Saving..." : hasReplies ? "Add update" : "Save"}
                 </button>
               </div>
             </form>
@@ -200,18 +212,18 @@ function ReviewItem({
               type="button"
               className="msd-review-action"
               onClick={() => {
-                setEditBody(review.body || "");
+                setEditBody(hasReplies ? "" : review.body || "");
                 setEditing((prev) => !prev);
               }}
             >
-              Edit
+              {editModeLabel}
             </button>
           ) : null}
 
           {canReply ? (
             <button
               type="button"
-              className="msd-review-action"
+              className="msd-review-action msd-review-reply-action"
               onClick={() => setReplyOpen((prev) => !prev)}
             >
               Reply
@@ -486,10 +498,29 @@ export default function ReviewThread({
     }
   }
 
-  async function handleEditReview(reviewId, updatedBody) {
+  async function handleEditReview(reviewId, updatedBody, options = {}) {
     const trimmed = updatedBody.trim();
 
     if (!currentUserId || !reviewId || !trimmed) return false;
+
+    const targetReview = reviews.find(
+      (review) => String(review.id) === String(reviewId)
+    );
+
+    if (!targetReview || String(targetReview.user_id) !== String(currentUserId)) {
+      setError("You can only edit your own review.");
+      return false;
+    }
+
+    const hasReplies = reviews.some(
+      (review) => String(review.parent_id || "") === String(reviewId)
+    );
+    const shouldAppend = Boolean(options.appendOnly || hasReplies);
+    const nextBody = shouldAppend
+      ? `${targetReview.body || ""}
+
+${trimmed}`.trim()
+      : trimmed;
 
     const previousReviews = reviews;
     const now = new Date().toISOString();
@@ -503,7 +534,7 @@ export default function ReviewThread({
         String(review.user_id) === String(currentUserId)
           ? {
               ...review,
-              body: trimmed,
+              body: nextBody,
               updated_at: now,
             }
           : review
@@ -514,7 +545,7 @@ export default function ReviewThread({
       const { data, error: updateError } = await supabase
         .from(config.reviewTable)
         .update({
-          body: trimmed,
+          body: nextBody,
           updated_at: now,
         })
         .eq("id", reviewId)
