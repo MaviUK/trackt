@@ -173,18 +173,20 @@ function ReviewItem({
           )}
         </div>
 
-       <ReviewVotes
-  tableName={config.voteTable}
-  idColumn={config.voteIdColumn}
-  itemId={review.id}
-  currentUserId={currentUserId}
-  upCount={review.up_count || 0}
-  downCount={review.down_count || 0}
-  myVote={review.my_vote ?? null}
-  onChanged={(nextVote, previousVote) =>
-    onVoteChanged(review.id, nextVote, previousVote)
-  }
-/>
+               <div className="msd-review-actions">
+          <ReviewVotes
+            tableName={config.voteTable}
+            idColumn={config.voteIdColumn}
+            itemId={review.id}
+            currentUserId={currentUserId}
+            upCount={review.up_count || 0}
+            downCount={review.down_count || 0}
+            myVote={review.my_vote ?? null}
+            onChanged={(nextVote, previousVote) =>
+              onVoteChanged(review.id, nextVote, previousVote)
+            }
+          />
+
           {canEdit ? (
             <button
               type="button"
