@@ -241,7 +241,7 @@ export default function ReviewThread({ config, itemId, currentUserId, heading, s
     setError("");
     try {
       if (hasPostedRootReview) {
-        
+        setError("Already Reviewed. You can still reply to others");
         return;
       }
       const { error: insertError } = await supabase.from(config.reviewTable).insert({
@@ -296,6 +296,7 @@ export default function ReviewThread({ config, itemId, currentUserId, heading, s
       {subheading ? <p className="msd-muted">{subheading}</p> : null}
 
       {currentUserId && hasPostedRootReview ? (
+        
       ) : currentUserId ? (
         <form className="msd-review-form" onSubmit={handleSubmitReview}>
           <textarea
