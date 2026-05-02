@@ -241,7 +241,7 @@ export default function ReviewThread({ config, itemId, currentUserId, heading, s
     setError("");
     try {
       if (hasPostedRootReview) {
-        setError("You have already posted a review. You can reply to other people instead.");
+        setError("Already Reviewed. You can still reply to others");
         return;
       }
       const { error: insertError } = await supabase.from(config.reviewTable).insert({
