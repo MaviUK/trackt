@@ -72,6 +72,7 @@ function getVideoEmbedInfo(urlValue) {
       url: cleanedUrl,
       embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
       label: "YouTube video",
+      canEmbed: true,
     };
   }
 
@@ -82,7 +83,28 @@ function getVideoEmbedInfo(urlValue) {
       url: cleanedUrl,
       embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId}`,
       label: "TikTok video",
+      canEmbed: true,
     };
+  }
+
+  try {
+    const url = new URL(cleanedUrl);
+    const host = url.hostname.replace(/^www\./, "");
+
+    // TikTok short links such as https://vm.tiktok.com/... are valid,
+    // but they cannot be embedded until the redirect is resolved server-side.
+    // For now, we accept and save them as clickable TikTok links.
+    if (host.endsWith("tiktok.com")) {
+      return {
+        provider: "tiktok",
+        url: cleanedUrl,
+        embedUrl: null,
+        label: "TikTok link",
+        canEmbed: false,
+      };
+    }
+  } catch {
+    return null;
   }
 
   return null;
@@ -651,7 +673,7 @@ export default function ProfileEdit() {
       const videoInfo = getVideoEmbedInfo(postVideoUrl);
 
       if (postVideoUrl.trim() && !videoInfo) {
-        throw new Error("Please enter a valid YouTube or TikTok video link.");
+        throw new Error("Please enter a valid YouTube or TikTok link.");
       }
 
       const { error: postError } = await supabase
@@ -1253,30 +1275,46 @@ export default function ProfileEdit() {
 
               {postVideoUrl.trim() ? (
                 postVideoPreview ? (
-                  <div
-                    style={{
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      border: "1px solid rgba(148,163,184,0.18)",
-                      background: "#020617",
-                    }}
-                  >
-                    <iframe
-                      title={postVideoPreview.label}
-                      src={postVideoPreview.embedUrl}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
+                  postVideoPreview.canEmbed ? (
+                    <div
                       style={{
-                        display: "block",
-                        width: "100%",
-                        aspectRatio: postVideoPreview.provider === "tiktok" ? "9 / 16" : "16 / 9",
-                        border: "none",
+                        borderRadius: 16,
+                        overflow: "hidden",
+                        border: "1px solid rgba(148,163,184,0.18)",
+                        background: "#020617",
                       }}
-                    />
-                  </div>
+                    >
+                      <iframe
+                        title={postVideoPreview.label}
+                        src={postVideoPreview.embedUrl}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          aspectRatio: postVideoPreview.provider === "tiktok" ? "9 / 16" : "16 / 9",
+                          border: "none",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 14,
+                        border: "1px solid rgba(34,197,94,0.25)",
+                        background: "rgba(34,197,94,0.1)",
+                        color: "#bbf7d0",
+                        fontSize: 13,
+                        fontWeight: 700,
+                      }}
+                    >
+                      TikTok link accepted. Short TikTok links will open on TikTok instead of embedding.
+                    </div>
+                  )
                 ) : (
                   <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
-                    Paste a valid YouTube or TikTok video URL.
+                    Paste a valid YouTube or TikTok link.
                   </p>
                 )
               ) : null}
