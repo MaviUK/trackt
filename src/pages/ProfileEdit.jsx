@@ -216,6 +216,10 @@ export default function ProfileEdit() {
   const [commentHistory, setCommentHistory] = useState([]);
   const [reviewHistory, setReviewHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
+  const [postBody, setPostBody] = useState("");
+  const [postType, setPostType] = useState("post");
+  const [posting, setPosting] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -235,11 +239,11 @@ export default function ProfileEdit() {
     gender: "",
     country: "",
     bio: "",
-cover_url: "",
-creator_tagline: "",
-creator_niche: "",
-creator_bio: "",
-instagram_url: "",
+    cover_url: "",
+    creator_tagline: "",
+    creator_niche: "",
+    creator_bio: "",
+    instagram_url: "",
     x_url: "",
     tiktok_url: "",
     youtube_url: "",
@@ -300,16 +304,15 @@ instagram_url: "",
             gender,
             country,
             bio,
-            bio,
-cover_url,
-creator_tagline,
-creator_niche,
-creator_bio,
-instagram_url,
-x_url,
-tiktok_url,
-youtube_url,
-website_url
+            cover_url,
+            creator_tagline,
+            creator_niche,
+            creator_bio,
+            instagram_url,
+            x_url,
+            tiktok_url,
+            youtube_url,
+            website_url
           `)
           .eq("id", user.id)
           .maybeSingle();
@@ -329,11 +332,11 @@ website_url
             gender: data.gender || "",
             country: data.country || "",
             bio: data.bio || "",
-cover_url: data.cover_url || "",
-creator_tagline: data.creator_tagline || "",
-creator_niche: data.creator_niche || "",
-creator_bio: data.creator_bio || "",
-instagram_url: data.instagram_url || "",
+            cover_url: data.cover_url || "",
+            creator_tagline: data.creator_tagline || "",
+            creator_niche: data.creator_niche || "",
+            creator_bio: data.creator_bio || "",
+            instagram_url: data.instagram_url || "",
             x_url: data.x_url || "",
             tiktok_url: data.tiktok_url || "",
             youtube_url: data.youtube_url || "",
@@ -360,7 +363,6 @@ instagram_url: data.instagram_url || "",
           setHistoryLoading(false);
         }
       } catch (err) {
-
         console.error("Failed to load profile:", err);
         setError(err.message || "Failed to load profile.");
       } finally {
@@ -544,6 +546,51 @@ instagram_url: data.instagram_url || "",
     if (insertError) throw insertError;
   }
 
+  async function handleCreatePost(event) {
+    event.preventDefault();
+
+    if (!postBody.trim()) {
+      setError("Post body is required.");
+      return;
+    }
+
+    setPosting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) throw new Error("You must be logged in.");
+
+      const { error: postError } = await supabase
+        .from("creator_posts")
+        .insert({
+          user_id: user.id,
+          title: postTitle.trim() || null,
+          body: postBody.trim(),
+          post_type: postType,
+          visibility: "public",
+        });
+
+      if (postError) throw postError;
+
+      setPostTitle("");
+      setPostBody("");
+      setPostType("post");
+      setMessage("Creator post published.");
+    } catch (err) {
+      console.error("Failed creating creator post:", err);
+      setError(err.message || "Failed creating creator post.");
+    } finally {
+      setPosting(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setSaving(true);
@@ -564,9 +611,9 @@ instagram_url: data.instagram_url || "",
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
       const cleanedCoverUrl = normalizeUrl(form.cover_url);
-const cleanedCreatorTagline = form.creator_tagline.trim();
-const cleanedCreatorNiche = form.creator_niche.trim();
-const cleanedCreatorBio = form.creator_bio.trim();
+      const cleanedCreatorTagline = form.creator_tagline.trim();
+      const cleanedCreatorNiche = form.creator_niche.trim();
+      const cleanedCreatorBio = form.creator_bio.trim();
 
       let avatarUrlToSave = existingAvatarUrl || null;
 
@@ -590,11 +637,11 @@ const cleanedCreatorBio = form.creator_bio.trim();
         gender: form.gender.trim() || null,
         country: cleanedCountry || null,
         bio: cleanedBio || null,
-cover_url: cleanedCoverUrl || null,
-creator_tagline: cleanedCreatorTagline || null,
-creator_niche: cleanedCreatorNiche || null,
-creator_bio: cleanedCreatorBio || null,
-instagram_url: normalizeUrl(form.instagram_url) || null,
+        cover_url: cleanedCoverUrl || null,
+        creator_tagline: cleanedCreatorTagline || null,
+        creator_niche: cleanedCreatorNiche || null,
+        creator_bio: cleanedCreatorBio || null,
+        instagram_url: normalizeUrl(form.instagram_url) || null,
         x_url: normalizeUrl(form.x_url) || null,
         tiktok_url: normalizeUrl(form.tiktok_url) || null,
         youtube_url: normalizeUrl(form.youtube_url) || null,
@@ -647,7 +694,7 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
     <div className="page profile-edit-page">
       <div className="page-header profile-edit-header" style={{ marginBottom: isMobile ? 18 : 24 }}>
         <h1>Edit Profile</h1>
-        <p>Update your photo, name, bio, and socials.</p>
+        <p>Update your photo, name, bio, socials, and creator page.</p>
       </div>
 
       <div
@@ -660,7 +707,6 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
           padding: isMobile ? 16 : 24,
         }}
       >
-
         {error ? (
           <div
             style={{
@@ -886,115 +932,155 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
             />
           </div>
 
-<div
-  style={{
-    marginBottom: 20,
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(99,102,241,0.25)",
-    background: "rgba(99,102,241,0.08)",
-  }}
->
-  <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
-    Creator Profile
-  </h2>
+          <div
+            style={{
+              marginBottom: 20,
+              padding: 16,
+              borderRadius: 18,
+              border: "1px solid rgba(99,102,241,0.25)",
+              background: "rgba(99,102,241,0.08)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
+              Creator Profile
+            </h2>
 
-  <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
-    These details appear on your public creator page.
-  </p>
+            <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
+              These details appear on your public creator page.
+            </p>
 
-  <div style={{ display: "grid", gap: 16 }}>
-    <div>
-      <label style={labelStyle}>Cover image URL</label>
-      <input
-        type="text"
-        value={form.cover_url}
-        onChange={(e) => updateField("cover_url", e.target.value)}
-        placeholder="Image URL for your creator page cover"
-        style={inputStyle}
-      />
-    </div>
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Cover image URL</label>
+                <input
+                  type="text"
+                  value={form.cover_url}
+                  onChange={(e) => updateField("cover_url", e.target.value)}
+                  placeholder="Image URL for your creator page cover"
+                  style={inputStyle}
+                />
+              </div>
 
-<div>
-  <label style={labelStyle}>Creator bio</label>
-  <textarea
-    value={form.creator_bio}
-    onChange={(e) => updateField("creator_bio", e.target.value)}
-    placeholder="Tell followers why they should follow your TV taste..."
-    rows={5}
-    style={{
-      ...inputStyle,
-      resize: "vertical",
-      minHeight: 120,
-    }}
-  />
-</div>
+              <div>
+                <label style={labelStyle}>Creator tagline</label>
+                <input
+                  type="text"
+                  value={form.creator_tagline}
+                  onChange={(e) => updateField("creator_tagline", e.target.value)}
+                  placeholder="Crime dramas, hidden gems & brutal finales"
+                  style={inputStyle}
+                />
+              </div>
 
-{form.username ? (
-  <Link
-    to={`/u/${encodeURIComponent(form.username.trim())}`}
-    style={{
-      marginTop: 4,
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "10px 14px",
-      borderRadius: 12,
-      border: "1px solid #6366f1",
-      background: "#4f46e5",
-      color: "#fff",
-      fontWeight: 700,
-      textDecoration: "none",
-      fontSize: 14,
-    }}
-  >
-    View Creator Page
-  </Link>
-) : (
-  <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
-    Set a username to preview your creator page.
-  </p>
-)}
-    
-    <div>
-      <label style={labelStyle}>Creator tagline</label>
-      <input
-        type="text"
-        value={form.creator_tagline}
-        onChange={(e) => updateField("creator_tagline", e.target.value)}
-        placeholder="Crime dramas, hidden gems & brutal finales"
-        style={inputStyle}
-      />
-    </div>
+              <div>
+                <label style={labelStyle}>Creator niche</label>
+                <input
+                  type="text"
+                  value={form.creator_niche}
+                  onChange={(e) => updateField("creator_niche", e.target.value)}
+                  placeholder="Crime dramas / thrillers / hidden gems"
+                  style={inputStyle}
+                />
+              </div>
 
-    <div>
-      <label style={labelStyle}>Creator niche</label>
-      <input
-        type="text"
-        value={form.creator_niche}
-        onChange={(e) => updateField("creator_niche", e.target.value)}
-        placeholder="Crime dramas / thrillers / hidden gems"
-        style={inputStyle}
-      />
-    </div>
+              <div>
+                <label style={labelStyle}>Creator bio</label>
+                <textarea
+                  value={form.creator_bio}
+                  onChange={(e) => updateField("creator_bio", e.target.value)}
+                  placeholder="Tell followers why they should follow your TV taste..."
+                  rows={5}
+                  style={{
+                    ...inputStyle,
+                    resize: "vertical",
+                    minHeight: 120,
+                  }}
+                />
+              </div>
 
-    <div>
-      <label style={labelStyle}>Creator bio</label>
-      <textarea
-        value={form.creator_bio}
-        onChange={(e) => updateField("creator_bio", e.target.value)}
-        placeholder="Tell followers why they should follow your TV taste..."
-        rows={5}
-        style={{
-          ...inputStyle,
-          resize: "vertical",
-          minHeight: 120,
-        }}
-      />
-    </div>
-  </div>
-</div>
-          
+              {form.username ? (
+                <Link
+                  to={`/u/${encodeURIComponent(form.username.trim())}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    border: "1px solid #6366f1",
+                    background: "#4f46e5",
+                    color: "#fff",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    fontSize: 14,
+                  }}
+                >
+                  View Creator Page
+                </Link>
+              ) : (
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
+                  Set a username to preview your creator page.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <section
+            style={{
+              marginBottom: 20,
+              padding: 16,
+              borderRadius: 18,
+              border: "1px solid rgba(148,163,184,0.15)",
+              background: "#111827",
+            }}
+          >
+            <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
+              Create Post
+            </h2>
+
+            <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
+              Share a post with people who follow your creator page.
+            </p>
+
+            <form onSubmit={handleCreatePost} style={{ display: "grid", gap: 12 }}>
+              <select
+                value={postType}
+                onChange={(e) => setPostType(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="post">Post</option>
+                <option value="hot_take">Hot take</option>
+                <option value="recommendation">Recommendation</option>
+                <option value="tonights_pick">Tonight&apos;s pick</option>
+                <option value="watchlist_advice">Watchlist advice</option>
+              </select>
+
+              <input
+                type="text"
+                value={postTitle}
+                onChange={(e) => setPostTitle(e.target.value)}
+                placeholder="Optional title"
+                style={inputStyle}
+              />
+
+              <textarea
+                value={postBody}
+                onChange={(e) => setPostBody(e.target.value)}
+                placeholder="What do you want to share?"
+                rows={5}
+                style={{
+                  ...inputStyle,
+                  resize: "vertical",
+                  minHeight: 120,
+                }}
+              />
+
+              <button type="submit" disabled={posting} style={primaryButtonStyle}>
+                {posting ? "Publishing..." : "Publish Post"}
+              </button>
+            </form>
+          </section>
+
           <div
             className="profile-edit-socials-grid"
             style={{
@@ -1254,7 +1340,6 @@ const secondaryLinkStyle = {
   fontWeight: 700,
   textDecoration: "none",
 };
-
 
 const historyItemStyle = {
   display: "block",
