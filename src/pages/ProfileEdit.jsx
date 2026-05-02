@@ -13,143 +13,6 @@ function normalizeUrl(value) {
   return `https://${trimmed}`;
 }
 
-
-function getYouTubeVideoId(urlValue) {
-  try {
-    const url = new URL(normalizeUrl(urlValue));
-    const host = url.hostname.replace(/^www\./, "");
-
-    if (host === "youtu.be") {
-      return url.pathname.split("/").filter(Boolean)[0] || "";
-    }
-
-    if (host.endsWith("youtube.com")) {
-      if (url.pathname.startsWith("/shorts/")) {
-        return url.pathname.split("/").filter(Boolean)[1] || "";
-      }
-
-      if (url.pathname.startsWith("/embed/")) {
-        return url.pathname.split("/").filter(Boolean)[1] || "";
-      }
-
-      return url.searchParams.get("v") || "";
-    }
-  } catch {
-    return "";
-  }
-
-  return "";
-}
-
-function getTikTokVideoId(urlValue) {
-  try {
-    const url = new URL(normalizeUrl(urlValue));
-    const host = url.hostname.replace(/^www\./, "");
-
-    if (!host.endsWith("tiktok.com")) return "";
-
-    const parts = url.pathname.split("/").filter(Boolean);
-    const videoIndex = parts.indexOf("video");
-
-    if (videoIndex >= 0 && parts[videoIndex + 1]) {
-      return parts[videoIndex + 1];
-    }
-  } catch {
-    return "";
-  }
-
-  return "";
-}
-
-function getVideoEmbedInfo(urlValue) {
-  const cleanedUrl = normalizeUrl(urlValue);
-  if (!cleanedUrl) return null;
-
-  const youtubeId = getYouTubeVideoId(cleanedUrl);
-  if (youtubeId) {
-    return {
-      provider: "youtube",
-      url: cleanedUrl,
-      embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
-      label: "YouTube video",
-      canEmbed: true,
-      needsResolve: false,
-    };
-  }
-
-  const tiktokId = getTikTokVideoId(cleanedUrl);
-  if (tiktokId) {
-    return {
-      provider: "tiktok",
-      url: cleanedUrl,
-      embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId}`,
-      label: "TikTok video",
-      canEmbed: true,
-      needsResolve: false,
-    };
-  }
-
-  try {
-    const url = new URL(cleanedUrl);
-    const host = url.hostname.replace(/^www\./, "");
-
-    if (host.endsWith("tiktok.com")) {
-      return {
-        provider: "tiktok",
-        url: cleanedUrl,
-        embedUrl: null,
-        label: "TikTok video",
-        canEmbed: false,
-        needsResolve: true,
-      };
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-async function resolveTikTokEmbedInfo(urlValue) {
-  const cleanedUrl = normalizeUrl(urlValue);
-  if (!cleanedUrl) return null;
-
-  const directInfo = getVideoEmbedInfo(cleanedUrl);
-  if (!directInfo || directInfo.provider !== "tiktok") return directInfo;
-  if (directInfo.canEmbed) return directInfo;
-
-  try {
-    const response = await fetch(
-      `https://www.tiktok.com/oembed?url=${encodeURIComponent(cleanedUrl)}`
-    );
-
-    if (!response.ok) return directInfo;
-
-    const data = await response.json();
-    const html = String(data?.html || "");
-    const resolvedUrl = String(data?.author_url || cleanedUrl);
-    const videoId =
-      html.match(/data-video-id=["'](\d+)["']/)?.[1] ||
-      html.match(/\/video\/(\d+)/)?.[1] ||
-      html.match(/embed\/v2\/(\d+)/)?.[1];
-
-    if (!videoId) return directInfo;
-
-    return {
-      provider: "tiktok",
-      url: cleanedUrl,
-      resolvedUrl,
-      embedUrl: `https://www.tiktok.com/embed/v2/${videoId}`,
-      label: "TikTok video",
-      canEmbed: true,
-      needsResolve: false,
-    };
-  } catch (err) {
-    console.warn("Failed to resolve TikTok short link:", err);
-    return directInfo;
-  }
-}
-
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -353,12 +216,6 @@ export default function ProfileEdit() {
   const [commentHistory, setCommentHistory] = useState([]);
   const [reviewHistory, setReviewHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
-  const [postTitle, setPostTitle] = useState("");
-  const [postBody, setPostBody] = useState("");
-  const [postType, setPostType] = useState("post");
-  const [postVideoUrl, setPostVideoUrl] = useState("");
-  const [posting, setPosting] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -378,10 +235,6 @@ export default function ProfileEdit() {
     gender: "",
     country: "",
     bio: "",
-    cover_url: "",
-    creator_tagline: "",
-    creator_niche: "",
-    creator_bio: "",
     instagram_url: "",
     x_url: "",
     tiktok_url: "",
@@ -392,45 +245,6 @@ export default function ProfileEdit() {
   const previewAvatarUrl = useMemo(() => {
     return selectedAvatarDataUrl || existingAvatarUrl || "";
   }, [selectedAvatarDataUrl, existingAvatarUrl]);
-
-  const [postVideoPreview, setPostVideoPreview] = useState(null);
-  const [postVideoResolving, setPostVideoResolving] = useState(false);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function prepareVideoPreview() {
-      const trimmed = postVideoUrl.trim();
-
-      if (!trimmed) {
-        setPostVideoPreview(null);
-        setPostVideoResolving(false);
-        return;
-      }
-
-      const basicInfo = getVideoEmbedInfo(trimmed);
-      setPostVideoPreview(basicInfo);
-
-      if (!basicInfo?.needsResolve) {
-        setPostVideoResolving(false);
-        return;
-      }
-
-      setPostVideoResolving(true);
-      const resolvedInfo = await resolveTikTokEmbedInfo(trimmed);
-
-      if (!isCancelled) {
-        setPostVideoPreview(resolvedInfo);
-        setPostVideoResolving(false);
-      }
-    }
-
-    prepareVideoPreview();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [postVideoUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -482,10 +296,6 @@ export default function ProfileEdit() {
             gender,
             country,
             bio,
-            cover_url,
-            creator_tagline,
-            creator_niche,
-            creator_bio,
             instagram_url,
             x_url,
             tiktok_url,
@@ -510,10 +320,6 @@ export default function ProfileEdit() {
             gender: data.gender || "",
             country: data.country || "",
             bio: data.bio || "",
-            cover_url: data.cover_url || "",
-            creator_tagline: data.creator_tagline || "",
-            creator_niche: data.creator_niche || "",
-            creator_bio: data.creator_bio || "",
             instagram_url: data.instagram_url || "",
             x_url: data.x_url || "",
             tiktok_url: data.tiktok_url || "",
@@ -541,6 +347,7 @@ export default function ProfileEdit() {
           setHistoryLoading(false);
         }
       } catch (err) {
+
         console.error("Failed to load profile:", err);
         setError(err.message || "Failed to load profile.");
       } finally {
@@ -724,69 +531,6 @@ export default function ProfileEdit() {
     if (insertError) throw insertError;
   }
 
-  async function handleCreatePost(event) {
-    event?.preventDefault?.();
-
-    if (!postBody.trim()) {
-      setError("Post body is required.");
-      return;
-    }
-
-    setPosting(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in.");
-
-      const videoInfo = postVideoUrl.trim()
-        ? await resolveTikTokEmbedInfo(postVideoUrl)
-        : null;
-
-      if (postVideoUrl.trim() && !videoInfo) {
-        throw new Error("Please enter a valid YouTube or TikTok link.");
-      }
-
-      if (postVideoUrl.trim() && !videoInfo?.canEmbed) {
-        throw new Error(
-          "This TikTok link could not be embedded. Open the TikTok link, tap Share, copy the full video link, and try again."
-        );
-      }
-
-      const { error: postError } = await supabase
-        .from("creator_posts")
-        .insert({
-          user_id: user.id,
-          title: postTitle.trim() || null,
-          body: postBody.trim(),
-          post_type: postType,
-          visibility: "public",
-          video_url: videoInfo?.url || null,
-          video_provider: videoInfo?.provider || null,
-          video_embed_url: videoInfo?.embedUrl || null,
-        });
-
-      if (postError) throw postError;
-
-      setPostTitle("");
-      setPostBody("");
-      setPostType("post");
-      setPostVideoUrl("");
-      setMessage("Creator post published.");
-    } catch (err) {
-      console.error("Failed creating creator post:", err);
-      setError(err.message || "Failed creating creator post.");
-    } finally {
-      setPosting(false);
-    }
-  }
-
   async function handleSubmit(event) {
     event.preventDefault();
     setSaving(true);
@@ -806,10 +550,6 @@ export default function ProfileEdit() {
       const cleanedFullName = form.full_name.trim();
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
-      const cleanedCoverUrl = normalizeUrl(form.cover_url);
-      const cleanedCreatorTagline = form.creator_tagline.trim();
-      const cleanedCreatorNiche = form.creator_niche.trim();
-      const cleanedCreatorBio = form.creator_bio.trim();
 
       let avatarUrlToSave = existingAvatarUrl || null;
 
@@ -833,10 +573,6 @@ export default function ProfileEdit() {
         gender: form.gender.trim() || null,
         country: cleanedCountry || null,
         bio: cleanedBio || null,
-        cover_url: cleanedCoverUrl || null,
-        creator_tagline: cleanedCreatorTagline || null,
-        creator_niche: cleanedCreatorNiche || null,
-        creator_bio: cleanedCreatorBio || null,
         instagram_url: normalizeUrl(form.instagram_url) || null,
         x_url: normalizeUrl(form.x_url) || null,
         tiktok_url: normalizeUrl(form.tiktok_url) || null,
@@ -890,624 +626,407 @@ export default function ProfileEdit() {
     <div className="page profile-edit-page">
       <div className="page-header profile-edit-header" style={{ marginBottom: isMobile ? 18 : 24 }}>
         <h1>Edit Profile</h1>
-        <p>Update your profile, creator page, posts, and history.</p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 8,
-            marginTop: 14,
-          }}
-        >
-          <button type="button" onClick={() => setActiveTab("profile")} style={mainTabStyle(activeTab === "profile")}>
-            Profile
-          </button>
-          <button type="button" onClick={() => setActiveTab("creator")} style={mainTabStyle(activeTab === "creator")}>
-            Creator
-          </button>
-          <button type="button" onClick={() => setActiveTab("history")} style={mainTabStyle(activeTab === "history")}>
-            History
-          </button>
-        </div>
+        <p>Update your photo, name, bio, and socials.</p>
       </div>
 
-      {error ? (
-        <div
-          style={{
-            maxWidth: 860,
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 12,
-            background: "rgba(239,68,68,0.12)",
-            color: "#fecaca",
-            border: "1px solid rgba(239,68,68,0.25)",
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+      <div
+        className="profile-edit-card"
+        style={{
+          maxWidth: 860,
+          background: "#0f172a",
+          border: "1px solid rgba(148,163,184,0.15)",
+          borderRadius: 20,
+          padding: isMobile ? 16 : 24,
+        }}
+      >
 
-      {message ? (
-        <div
-          style={{
-            maxWidth: 860,
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 12,
-            background: "rgba(34,197,94,0.12)",
-            color: "#bbf7d0",
-            border: "1px solid rgba(34,197,94,0.25)",
-          }}
-        >
-          {message}
-        </div>
-      ) : null}
+        {error ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 12,
+              background: "rgba(239,68,68,0.12)",
+              color: "#fecaca",
+              border: "1px solid rgba(239,68,68,0.25)",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
-      {activeTab === "profile" ? (
-        <div
-          className="profile-edit-card"
-          style={{
-            maxWidth: 860,
-            background: "#0f172a",
-            border: "1px solid rgba(148,163,184,0.15)",
-            borderRadius: 20,
-            padding: isMobile ? 16 : 24,
-          }}
-        >
-          <form onSubmit={handleSubmit} className="profile-edit-form">
-            <div
-              className="profile-edit-top-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
-                gap: isMobile ? 16 : 24,
-                alignItems: "start",
-                marginBottom: 24,
-              }}
-            >
-              <div className="profile-edit-avatar-column">
-                {previewAvatarUrl ? (
-                  <>
-                    <div
-                      ref={previewRef}
-                      onPointerDown={handlePointerDown}
-                      onPointerMove={handlePointerMove}
-                      onPointerUp={endPointerDrag}
-                      onPointerCancel={endPointerDrag}
-                      onWheel={handleWheel}
-                      onTouchStart={handleTouchStart}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                      className="profile-edit-avatar-preview"
-                      style={{
-                        width: isMobile ? 180 : 200,
-                        height: isMobile ? 180 : 200,
-                        borderRadius: "999px",
-                        overflow: "hidden",
-                        position: "relative",
-                        cursor: isDragging ? "grabbing" : "grab",
-                        userSelect: "none",
-                        touchAction: "none",
-                        border: "1px solid rgba(148,163,184,0.25)",
-                        backgroundColor: "#e5e7eb",
-                        backgroundImage:
-                          "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
-                        backgroundSize: "20px 20px",
-                        backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
-                      }}
-                    >
-                      <img
-                        src={previewAvatarUrl}
-                        alt="Profile preview"
-                        draggable={false}
-                        style={{
-                          position: "absolute",
-                          top: "50%",
-                          left: "50%",
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          transform: `translate(calc(-50% + ${form.avatar_x}px), calc(-50% + ${form.avatar_y}px)) scale(${form.avatar_zoom})`,
-                          transformOrigin: "center",
-                          display: "block",
-                          pointerEvents: "none",
-                        }}
-                      />
-                    </div>
+        {message ? (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 12,
+              background: "rgba(34,197,94,0.12)",
+              color: "#bbf7d0",
+              border: "1px solid rgba(34,197,94,0.25)",
+            }}
+          >
+            {message}
+          </div>
+        ) : null}
 
-                    <div className="profile-edit-avatar-help" style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
-                      Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
-                    </div>
-                  </>
-                ) : (
+        <form onSubmit={handleSubmit} className="profile-edit-form">
+          <div
+            className="profile-edit-top-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+              gap: isMobile ? 16 : 24,
+              alignItems: "start",
+              marginBottom: 24,
+            }}
+          >
+            <div className="profile-edit-avatar-column">
+              {previewAvatarUrl ? (
+                <>
                   <div
-                    className="profile-edit-avatar-placeholder"
+                    ref={previewRef}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={endPointerDrag}
+                    onPointerCancel={endPointerDrag}
+                    onWheel={handleWheel}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    className="profile-edit-avatar-preview"
                     style={{
                       width: isMobile ? 180 : 200,
                       height: isMobile ? 180 : 200,
                       borderRadius: "999px",
-                      background: "#1e293b",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 64,
-                      fontWeight: 800,
-                      color: "#fff",
+                      overflow: "hidden",
+                      position: "relative",
+                      cursor: isDragging ? "grabbing" : "grab",
+                      userSelect: "none",
+                      touchAction: "none",
+                      border: "1px solid rgba(148,163,184,0.25)",
+                      backgroundColor: "#e5e7eb",
+                      backgroundImage:
+                        "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+                      backgroundSize: "20px 20px",
+                      backgroundPosition:
+                        "0 0, 0 10px, 10px -10px, -10px 0px",
                     }}
                   >
-                    {(form.username || form.full_name || "U").charAt(0).toUpperCase()}
+                    <img
+                      src={previewAvatarUrl}
+                      alt="Profile preview"
+                      draggable={false}
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        transform: `translate(calc(-50% + ${form.avatar_x}px), calc(-50% + ${form.avatar_y}px)) scale(${form.avatar_zoom})`,
+                        transformOrigin: "center",
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
+                    />
                   </div>
-                )}
-              </div>
 
-              <div className="profile-edit-image-controls">
-                <label style={{ display: "block", fontWeight: 700, marginBottom: 8, color: "#f8fafc" }}>
-                  Profile image
-                </label>
-
-                <input
-                  className="profile-edit-file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  disabled={saving}
-                  style={{ color: "#cbd5e1" }}
-                />
-
-                <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
-                  PNG, JPG, WEBP supported.
+                  <div className="profile-edit-avatar-help" style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
+                    Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="profile-edit-avatar-placeholder"
+                  style={{
+                    width: isMobile ? 180 : 200,
+                    height: isMobile ? 180 : 200,
+                    borderRadius: "999px",
+                    background: "#1e293b",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 64,
+                    fontWeight: 800,
+                    color: "#fff",
+                  }}
+                >
+                  {(form.username || form.full_name || "U")
+                    .charAt(0)
+                    .toUpperCase()}
                 </div>
-              </div>
+              )}
             </div>
 
-            <div
-              className="profile-edit-fields-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                gap: 16,
-                marginBottom: 16,
-              }}
-            >
-              <div>
-                <label style={labelStyle}>Username</label>
-                <input
-                  type="text"
-                  value={form.username}
-                  onChange={(e) => updateField("username", e.target.value)}
-                  placeholder="Unique username"
-                  style={inputStyle}
-                />
-              </div>
+            <div className="profile-edit-image-controls">
+              <label
+                style={{
+                  display: "block",
+                  fontWeight: 700,
+                  marginBottom: 8,
+                  color: "#f8fafc",
+                }}
+              >
+                Profile image
+              </label>
 
-              <div>
-                <label style={labelStyle}>Display name</label>
-                <input
-                  type="text"
-                  value={form.full_name}
-                  onChange={(e) => updateField("full_name", e.target.value)}
-                  placeholder="Your name"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Date of birth</label>
-                <input
-                  type="date"
-                  value={form.dob}
-                  onChange={(e) => updateField("dob", e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Gender</label>
-                <input
-                  type="text"
-                  value={form.gender}
-                  onChange={(e) => updateField("gender", e.target.value)}
-                  placeholder="Gender"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Country</label>
-                <input
-                  type="text"
-                  value={form.country}
-                  onChange={(e) => updateField("country", e.target.value)}
-                  placeholder="Country"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Bio</label>
-              <textarea
-                value={form.bio}
-                onChange={(e) => updateField("bio", e.target.value)}
-                placeholder="Tell people a little about yourself..."
-                rows={5}
-                style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
+              <input
+                className="profile-edit-file-input"
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                disabled={saving}
+                style={{ color: "#cbd5e1" }}
               />
-            </div>
 
-            <div
-              className="profile-edit-socials-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-                gap: 16,
-                marginBottom: 20,
-              }}
-            >
-              <div>
-                <label style={labelStyle}>Instagram</label>
-                <input
-                  type="text"
-                  value={form.instagram_url}
-                  onChange={(e) => updateField("instagram_url", e.target.value)}
-                  placeholder="instagram.com/yourname"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>X / Twitter</label>
-                <input
-                  type="text"
-                  value={form.x_url}
-                  onChange={(e) => updateField("x_url", e.target.value)}
-                  placeholder="x.com/yourname"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>TikTok</label>
-                <input
-                  type="text"
-                  value={form.tiktok_url}
-                  onChange={(e) => updateField("tiktok_url", e.target.value)}
-                  placeholder="tiktok.com/@yourname"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>YouTube</label>
-                <input
-                  type="text"
-                  value={form.youtube_url}
-                  onChange={(e) => updateField("youtube_url", e.target.value)}
-                  placeholder="youtube.com/@yourname"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Website</label>
-                <input
-                  type="text"
-                  value={form.website_url}
-                  onChange={(e) => updateField("website_url", e.target.value)}
-                  placeholder="yourwebsite.com"
-                  style={inputStyle}
-                />
+              <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
+                PNG, JPG, WEBP supported.
               </div>
             </div>
+          </div>
 
-            <ProfileActions saving={saving} handleLogout={handleLogout} isMobile={isMobile} />
-          </form>
-        </div>
-      ) : null}
-
-      {activeTab === "creator" ? (
-        <div
-          className="profile-edit-card"
-          style={{
-            maxWidth: 860,
-            background: "#0f172a",
-            border: "1px solid rgba(148,163,184,0.15)",
-            borderRadius: 20,
-            padding: isMobile ? 16 : 24,
-          }}
-        >
-          <form onSubmit={handleSubmit} className="profile-edit-form">
-            <div
-              style={{
-                marginBottom: 20,
-                padding: 16,
-                borderRadius: 18,
-                border: "1px solid rgba(99,102,241,0.25)",
-                background: "rgba(99,102,241,0.08)",
-              }}
-            >
-              <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
-                Creator Profile
-              </h2>
-
-              <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
-                These details appear on your public creator page.
-              </p>
-
-              <div style={{ display: "grid", gap: 16 }}>
-                <div>
-                  <label style={labelStyle}>Cover image URL</label>
-                  <input
-                    type="text"
-                    value={form.cover_url}
-                    onChange={(e) => updateField("cover_url", e.target.value)}
-                    placeholder="Image URL for your creator page cover"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Creator tagline</label>
-                  <input
-                    type="text"
-                    value={form.creator_tagline}
-                    onChange={(e) => updateField("creator_tagline", e.target.value)}
-                    placeholder="Crime dramas, hidden gems & brutal finales"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Creator niche</label>
-                  <input
-                    type="text"
-                    value={form.creator_niche}
-                    onChange={(e) => updateField("creator_niche", e.target.value)}
-                    placeholder="Crime dramas / thrillers / hidden gems"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Creator bio</label>
-                  <textarea
-                    value={form.creator_bio}
-                    onChange={(e) => updateField("creator_bio", e.target.value)}
-                    placeholder="Tell followers why they should follow your TV taste..."
-                    rows={5}
-                    style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
-                  />
-                </div>
-
-                {form.username ? (
-                  <Link
-                    to={`/u/${encodeURIComponent(form.username.trim())}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "10px 14px",
-                      borderRadius: 12,
-                      border: "1px solid #6366f1",
-                      background: "#4f46e5",
-                      color: "#fff",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                      fontSize: 14,
-                    }}
-                  >
-                    View Creator Page
-                  </Link>
-                ) : (
-                  <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
-                    Set a username to preview your creator page.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <ProfileActions saving={saving} handleLogout={handleLogout} isMobile={isMobile} />
-          </form>
-
-          <section
+          <div
+            className="profile-edit-fields-grid"
             style={{
-              marginTop: 20,
-              padding: 16,
-              borderRadius: 18,
-              border: "1px solid rgba(148,163,184,0.15)",
-              background: "#111827",
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+              gap: 16,
+              marginBottom: 16,
             }}
           >
-            <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
-              Create Post
-            </h2>
-
-            <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
-              Share a post with people who follow your creator page.
-            </p>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              <select
-                value={postType}
-                onChange={(e) => setPostType(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="post">Post</option>
-                <option value="hot_take">Hot take</option>
-                <option value="recommendation">Recommendation</option>
-                <option value="tonights_pick">Tonight&apos;s pick</option>
-                <option value="watchlist_advice">Watchlist advice</option>
-              </select>
-
+            <div>
+              <label style={labelStyle}>Username</label>
               <input
                 type="text"
-                value={postTitle}
-                onChange={(e) => setPostTitle(e.target.value)}
-                placeholder="Optional title"
+                value={form.username}
+                onChange={(e) => updateField("username", e.target.value)}
+                placeholder="Unique username"
                 style={inputStyle}
               />
-
-              <input
-                type="text"
-                value={postVideoUrl}
-                onChange={(e) => setPostVideoUrl(e.target.value)}
-                placeholder="Optional YouTube or TikTok video link"
-                style={inputStyle}
-              />
-
-              {postVideoUrl.trim() ? (
-                postVideoResolving ? (
-                  <p style={{ margin: 0, color: "#c4b5fd", fontSize: 13, fontWeight: 700 }}>
-                    Resolving TikTok embed...
-                  </p>
-                ) : postVideoPreview ? (
-                  postVideoPreview.canEmbed ? (
-                    <div
-                      style={{
-                        borderRadius: 16,
-                        overflow: "hidden",
-                        border: "1px solid rgba(148,163,184,0.18)",
-                        background: "#020617",
-                      }}
-                    >
-                      <iframe
-                        title={postVideoPreview.label}
-                        src={postVideoPreview.embedUrl}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          aspectRatio: postVideoPreview.provider === "tiktok" ? "9 / 16" : "16 / 9",
-                          border: "none",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
-                      This TikTok short link could not be converted into an embed. Open it in TikTok, tap Share, copy the full video link, and paste that instead.
-                    </p>
-                  )
-                ) : (
-                  <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
-                    Paste a valid YouTube or TikTok link.
-                  </p>
-                )
-              ) : null}
-
-              <textarea
-                value={postBody}
-                onChange={(e) => setPostBody(e.target.value)}
-                placeholder="What do you want to share?"
-                rows={5}
-                style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
-              />
-
-              <button type="button" onClick={handleCreatePost} disabled={posting} style={primaryButtonStyle}>
-                {posting ? "Publishing..." : "Publish Post"}
-              </button>
             </div>
-          </section>
-        </div>
-      ) : null}
 
-      {activeTab === "history" ? (
-        <section
-          className="profile-comment-history-card"
+            <div>
+              <label style={labelStyle}>Display name</label>
+              <input
+                type="text"
+                value={form.full_name}
+                onChange={(e) => updateField("full_name", e.target.value)}
+                placeholder="Your name"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Date of birth</label>
+              <input
+                type="date"
+                value={form.dob}
+                onChange={(e) => updateField("dob", e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Gender</label>
+              <input
+                type="text"
+                value={form.gender}
+                onChange={(e) => updateField("gender", e.target.value)}
+                placeholder="Gender"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Country</label>
+              <input
+                type="text"
+                value={form.country}
+                onChange={(e) => updateField("country", e.target.value)}
+                placeholder="Country"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Bio</label>
+            <textarea
+              value={form.bio}
+              onChange={(e) => updateField("bio", e.target.value)}
+              placeholder="Tell people a little about yourself..."
+              rows={5}
+              style={{
+                ...inputStyle,
+                resize: "vertical",
+                minHeight: 120,
+              }}
+            />
+          </div>
+
+          <div
+            className="profile-edit-socials-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+              gap: 16,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Instagram</label>
+              <input
+                type="text"
+                value={form.instagram_url}
+                onChange={(e) => updateField("instagram_url", e.target.value)}
+                placeholder="instagram.com/yourname"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>X / Twitter</label>
+              <input
+                type="text"
+                value={form.x_url}
+                onChange={(e) => updateField("x_url", e.target.value)}
+                placeholder="x.com/yourname"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>TikTok</label>
+              <input
+                type="text"
+                value={form.tiktok_url}
+                onChange={(e) => updateField("tiktok_url", e.target.value)}
+                placeholder="tiktok.com/@yourname"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>YouTube</label>
+              <input
+                type="text"
+                value={form.youtube_url}
+                onChange={(e) => updateField("youtube_url", e.target.value)}
+                placeholder="youtube.com/@yourname"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Website</label>
+              <input
+                type="text"
+                value={form.website_url}
+                onChange={(e) => updateField("website_url", e.target.value)}
+                placeholder="yourwebsite.com"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="profile-edit-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
+            <button
+              type="submit"
+              disabled={saving}
+              style={primaryButtonStyle}
+            >
+              {saving ? "Saving..." : "Save Profile"}
+            </button>
+
+            <Link to="/dashboard" style={secondaryLinkStyle}>
+              Cancel
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={saving}
+              style={dangerButtonStyle}
+            >
+              Logout
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <section
+        className="profile-comment-history-card"
+        style={{
+          maxWidth: 860,
+          marginTop: 24,
+          padding: isMobile ? 16 : 24,
+          borderRadius: 20,
+          border: "1px solid rgba(148,163,184,0.15)",
+          background: "#0f172a",
+        }}
+      >
+        <div style={{ marginBottom: 14 }}>
+          <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
+            Profile History
+          </h2>
+          <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
+            View your Rank'd comments and show reviews in separate tabs.
+          </p>
+        </div>
+
+        <div
           style={{
-            maxWidth: 860,
-            padding: isMobile ? 16 : 24,
-            borderRadius: 20,
-            border: "1px solid rgba(148,163,184,0.15)",
-            background: "#0f172a",
+            display: "flex",
+            gap: 10,
+            marginBottom: 16,
+            flexWrap: "wrap",
           }}
         >
-          <div style={{ marginBottom: 14 }}>
-            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
-              Profile History
-            </h2>
-            <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
-              View your Rank'd comments and show reviews in separate tabs.
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveHistoryTab("comments")}
+            style={historyTabStyle(activeHistoryTab === "comments")}
+          >
+            Comments ({commentHistory.length})
+          </button>
 
-          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => setActiveHistoryTab("comments")}
-              style={historyTabStyle(activeHistoryTab === "comments")}
-            >
-              Comments ({commentHistory.length})
-            </button>
+          <button
+            type="button"
+            onClick={() => setActiveHistoryTab("reviews")}
+            style={historyTabStyle(activeHistoryTab === "reviews")}
+          >
+            Reviews ({reviewHistory.length})
+          </button>
+        </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveHistoryTab("reviews")}
-              style={historyTabStyle(activeHistoryTab === "reviews")}
-            >
-              Reviews ({reviewHistory.length})
-            </button>
-          </div>
-
-          {historyLoading ? (
-            <p style={{ color: "#94a3b8", margin: 0 }}>Loading history...</p>
-          ) : activeHistoryTab === "comments" ? (
-            commentHistory.length ? (
-              <div style={{ display: "grid", gap: 10 }}>
-                {commentHistory.map((comment) => {
-                  const matchup = comment.matchup;
-                  const targetUrl = matchup?.pair_key
-                    ? `/rankd?matchup=${encodeURIComponent(matchup.pair_key)}&comment=${encodeURIComponent(comment.id)}`
-                    : "/rankd";
-
-                  return (
-                    <Link key={comment.id} to={targetUrl} style={historyItemStyle}>
-                      <strong style={{ color: "#c4b5fd" }}>
-                        {matchup ? `${matchup.showAName} vs ${matchup.showBName}` : "Rank'd matchup"}
-                      </strong>
-
-                      <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
-                        {comment.body}
-                      </p>
-
-                      <small style={{ color: "#94a3b8" }}>
-                        {new Date(comment.created_at).toLocaleString()}
-                      </small>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <p style={{ color: "#94a3b8", margin: 0 }}>
-                You have not posted any Rank'd comments yet.
-              </p>
-            )
-          ) : reviewHistory.length ? (
+        {historyLoading ? (
+          <p style={{ color: "#94a3b8", margin: 0 }}>Loading history...</p>
+        ) : activeHistoryTab === "comments" ? (
+          commentHistory.length ? (
             <div style={{ display: "grid", gap: 10 }}>
-              {reviewHistory.map((review) => {
-                const show = review.show;
-                const year = show?.first_aired?.slice?.(0, 4) || "";
-                const reviewUrl = show?.tvdb_id
-                  ? `/my-shows/${show.tvdb_id}`
-                  : show?.tmdb_id
-                    ? `/my-shows/tmdb/${show.tmdb_id}`
-                    : "/my-shows";
+              {commentHistory.map((comment) => {
+                const matchup = comment.matchup;
+                const targetUrl = matchup?.pair_key
+                  ? `/rankd?matchup=${encodeURIComponent(
+                      matchup.pair_key
+                    )}&comment=${encodeURIComponent(comment.id)}`
+                  : "/rankd";
 
                 return (
-                  <Link key={review.id} to={reviewUrl} style={historyItemStyle}>
+                  <Link key={comment.id} to={targetUrl} style={historyItemStyle}>
                     <strong style={{ color: "#c4b5fd" }}>
-                      {show?.name || "Show review"}{year ? ` (${year})` : ""}
+                      {matchup
+                        ? `${matchup.showAName} vs ${matchup.showBName}`
+                        : "Rank'd matchup"}
                     </strong>
 
-                    {review.parent_id ? <div style={historyBadgeStyle}>Reply</div> : null}
-
                     <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
-                      {review.body}
+                      {comment.body}
                     </p>
 
                     <small style={{ color: "#94a3b8" }}>
-                      {new Date(review.created_at).toLocaleString()}
+                      {new Date(comment.created_at).toLocaleString()}
                     </small>
                   </Link>
                 );
@@ -1515,37 +1034,51 @@ export default function ProfileEdit() {
             </div>
           ) : (
             <p style={{ color: "#94a3b8", margin: 0 }}>
-              You have not posted any show reviews yet.
+              You have not posted any Rank'd comments yet.
             </p>
-          )}
-        </section>
-      ) : null}
-    </div>
-  );
-}
+          )
+        ) : reviewHistory.length ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            {reviewHistory.map((review) => {
+              const show = review.show;
+              const year = show?.first_aired?.slice?.(0, 4) || "";
+              const reviewUrl = show?.tvdb_id
+                ? `/my-shows/${show.tvdb_id}`
+                : show?.tmdb_id
+                  ? `/my-shows/tmdb/${show.tmdb_id}`
+                  : "/my-shows";
 
-function ProfileActions({ saving, handleLogout, isMobile }) {
-  return (
-    <div
-      className="profile-edit-actions"
-      style={{
-        display: "flex",
-        gap: 12,
-        flexWrap: "wrap",
-        flexDirection: isMobile ? "column" : "row",
-      }}
-    >
-      <button type="submit" disabled={saving} style={primaryButtonStyle}>
-        {saving ? "Saving..." : "Save Profile"}
-      </button>
+              return (
+                <Link
+                  key={review.id}
+                  to={reviewUrl}
+                  style={historyItemStyle}
+                >
+                  <strong style={{ color: "#c4b5fd" }}>
+                    {show?.name || "Show review"}{year ? ` (${year})` : ""}
+                  </strong>
 
-      <Link to="/dashboard" style={secondaryLinkStyle}>
-        Cancel
-      </Link>
+                  {review.parent_id ? (
+                    <div style={historyBadgeStyle}>Reply</div>
+                  ) : null}
 
-      <button type="button" onClick={handleLogout} disabled={saving} style={dangerButtonStyle}>
-        Logout
-      </button>
+                  <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
+                    {review.body}
+                  </p>
+
+                  <small style={{ color: "#94a3b8" }}>
+                    {new Date(review.created_at).toLocaleString()}
+                  </small>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{ color: "#94a3b8", margin: 0 }}>
+            You have not posted any show reviews yet.
+          </p>
+        )}
+      </section>
     </div>
   );
 }
@@ -1592,6 +1125,7 @@ const secondaryLinkStyle = {
   textDecoration: "none",
 };
 
+
 const historyItemStyle = {
   display: "block",
   padding: 14,
@@ -1613,20 +1147,6 @@ const historyBadgeStyle = {
   fontSize: 12,
   fontWeight: 800,
 };
-
-
-function mainTabStyle(isActive) {
-  return {
-    padding: "11px 10px",
-    borderRadius: 999,
-    border: isActive ? "1px solid #818cf8" : "1px solid #334155",
-    background: isActive ? "#4f46e5" : "#182235",
-    color: "#f8fafc",
-    fontWeight: 800,
-    cursor: "pointer",
-    fontSize: 14,
-  };
-}
 
 function historyTabStyle(isActive) {
   return {

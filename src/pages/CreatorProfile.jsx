@@ -33,70 +33,6 @@ function showHref(show) {
   return `/show/${show.id}`;
 }
 
-function formatPostType(value) {
-  const labels = {
-    post: "Post",
-    hot_take: "Hot take",
-    recommendation: "Recommendation",
-    tonights_pick: "Tonight's pick",
-    watchlist_advice: "Watchlist advice",
-  };
-
-  return labels[value] || "Post";
-}
-
-function isYouTubeEmbed(url) {
-  return Boolean(url && url.includes("youtube.com/embed/"));
-}
-
-function isTikTokEmbed(url) {
-  return Boolean(url && url.includes("tiktok.com/embed"));
-}
-
-function VideoEmbed({ post }) {
-  const embedUrl = post?.video_embed_url;
-  const originalUrl = post?.video_url || embedUrl;
-
-  if (!embedUrl && !originalUrl) return null;
-
-  if (isYouTubeEmbed(embedUrl)) {
-    return (
-      <div className="creator-video creator-video-youtube">
-        <iframe
-          src={embedUrl}
-          title={post?.title || "YouTube video"}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-        />
-      </div>
-    );
-  }
-
-  if (isTikTokEmbed(embedUrl)) {
-    return (
-      <div className="creator-video creator-video-tiktok">
-        <iframe
-          src={embedUrl}
-          title={post?.title || "TikTok video"}
-          allow="encrypted-media; fullscreen; picture-in-picture"
-          allowFullScreen
-        />
-      </div>
-    );
-  }
-
-  return (
-    <a
-      href={originalUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="creator-video-link"
-    >
-      Watch video
-    </a>
-  );
-}
-
 export default function CreatorProfile() {
   const { username } = useParams();
 
@@ -107,7 +43,7 @@ export default function CreatorProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [reviews, setReviews] = useState([]);
-  const [posts, setPosts] = useState([]);
+  const [topShows, setTopShows] = useState([]);
   const [error, setError] = useState("");
 
   const isOwnProfile = useMemo(() => {
@@ -128,18 +64,7 @@ export default function CreatorProfile() {
 
       const { data: profileRow, error: profileError } = await supabase
         .from("profiles")
-        .select(`
-          id,
-          username,
-          full_name,
-          display_name,
-          avatar_url,
-          cover_url,
-          bio,
-          creator_tagline,
-          creator_niche,
-          creator_bio
-        `)
+        .select("id, username, full_name, display_name, avatar_url, cover_url, tagline, bio")
         .eq("username", cleanUsername)
         .maybeSingle();
 
@@ -170,29 +95,6 @@ export default function CreatorProfile() {
       setFollowersCount(followerCount || 0);
       setIsFollowing(Boolean(followingRow));
 
-      const { data: postRows, error: postsError } = await supabase
-        .from("creator_posts")
-        .select(`
-          id,
-          user_id,
-          title,
-          body,
-          post_type,
-          visibility,
-          video_url,
-          video_provider,
-          video_embed_url,
-          created_at,
-          updated_at
-        `)
-        .eq("user_id", profileRow.id)
-        .eq("visibility", "public")
-        .order("created_at", { ascending: false })
-        .limit(40);
-
-      if (postsError) throw postsError;
-      setPosts(postRows || []);
-
       const { data: reviewRows, error: reviewsError } = await supabase
         .from("show_reviews")
         .select(`
@@ -216,6 +118,26 @@ export default function CreatorProfile() {
 
       if (reviewsError) throw reviewsError;
       setReviews(reviewRows || []);
+
+      const { data: rankedRows } = await supabase
+        .from("rankd_user_show_ratings")
+        .select(`
+          show_id,
+          rating,
+          ladder_position,
+          shows:show_id (
+            id,
+            name,
+            tmdb_id,
+            poster_url,
+            backdrop_url
+          )
+        `)
+        .eq("user_id", profileRow.id)
+        .order("ladder_position", { ascending: true })
+        .limit(5);
+
+      setTopShows(rankedRows || []);
     } catch (err) {
       console.error("Failed loading creator profile:", err);
       setError(err.message || "Failed loading creator profile.");
@@ -264,31 +186,17 @@ export default function CreatorProfile() {
   }
 
   if (loading) {
-    return (
-      <main className="creator-page">
-        <p className="creator-muted">Loading creator...</p>
-      </main>
-    );
+    return <main className="creator-page"><p className="creator-muted">Loading creator...</p></main>;
   }
 
   if (error && !profile) {
-    return (
-      <main className="creator-page">
-        <p className="creator-error">{error}</p>
-      </main>
-    );
+    return <main className="creator-page"><p className="creator-error">{error}</p></main>;
   }
 
   const displayName = getName(profile);
   const handle = profile?.username ? `@${profile.username}` : "";
   const avatarUrl = profile?.avatar_url || "";
-  const coverUrl = profile?.cover_url || "";
-  const tagline =
-    profile?.creator_tagline ||
-    profile?.creator_niche ||
-    profile?.bio ||
-    "Follow my TV reviews, posts and recommendations.";
-  const creatorBio = profile?.creator_bio || profile?.bio || "";
+  const coverUrl = profile?.cover_url || topShows?.[0]?.shows?.backdrop_url || topShows?.[0]?.shows?.poster_url || "";
 
   return (
     <main className="creator-page">
@@ -307,16 +215,13 @@ export default function CreatorProfile() {
 
           <h1>{displayName}</h1>
           {handle ? <p className="creator-handle">{handle}</p> : null}
-          <p className="creator-tagline">{tagline}</p>
-          {profile?.creator_niche ? (
-            <p className="creator-niche-pill">{profile.creator_niche}</p>
-          ) : null}
+          <p className="creator-tagline">
+            {profile?.tagline || profile?.bio || "Follow my TV reviews, rankings and recommendations."}
+          </p>
 
           <div className="creator-actions">
             {isOwnProfile ? (
-              <Link to="/profile/edit" className="creator-btn creator-btn-secondary">
-                Edit profile
-              </Link>
+              <Link to="/profile/edit" className="creator-btn creator-btn-secondary">Edit profile</Link>
             ) : (
               <button
                 type="button"
@@ -343,56 +248,45 @@ export default function CreatorProfile() {
           <span>Followers</span>
         </div>
         <div>
-          <strong>{posts.length}</strong>
-          <span>Posts</span>
-        </div>
-        <div>
           <strong>{reviews.length}</strong>
           <span>Reviews</span>
         </div>
+        <div>
+          <strong>{topShows.length}</strong>
+          <span>Top shows</span>
+        </div>
       </section>
-
-      {creatorBio ? (
-        <section className="creator-card">
-          <div className="creator-section-head">
-            <h2>About</h2>
-          </div>
-          <p className="creator-copy">{creatorBio}</p>
-        </section>
-      ) : null}
 
       <section className="creator-card">
         <div className="creator-section-head">
-          <h2>Creator feed</h2>
-          {isOwnProfile ? (
-            <Link to="/profile/edit" className="creator-small-link">
-              Create post
-            </Link>
-          ) : null}
+          <h2>Why follow?</h2>
+        </div>
+        <p className="creator-copy">
+          Follow for free to see {displayName}'s reviews and activity in your Following feed. Paid interaction will come next: private chats, recommendation requests and member-only polls.
+        </p>
+      </section>
+
+      <section className="creator-card">
+        <div className="creator-section-head">
+          <h2>Start here</h2>
         </div>
 
-        {posts.length ? (
-          <div className="creator-post-list">
-            {posts.map((post) => (
-              <article key={post.id} className="creator-post-card">
-                <div className="creator-post-meta">
-                  <span>{formatPostType(post.post_type)}</span>
-                  <span>{formatDate(post.created_at)}</span>
-                </div>
-
-                {post.title ? <h3>{post.title}</h3> : null}
-                <p>{post.body}</p>
-
-                <VideoEmbed post={post} />
-              </article>
+        {topShows.length ? (
+          <div className="creator-top-list">
+            {topShows.map((item, index) => (
+              <Link key={`${item.show_id}-${index}`} to={showHref(item.shows)} className="creator-top-show">
+                <span className="creator-rank">#{index + 1}</span>
+                {item.shows?.poster_url ? (
+                  <img src={item.shows.poster_url} alt="" />
+                ) : (
+                  <div className="creator-mini-poster">?</div>
+                )}
+                <span>{item.shows?.name || "Untitled show"}</span>
+              </Link>
             ))}
           </div>
         ) : (
-          <p className="creator-muted">
-            {isOwnProfile
-              ? "You have not posted yet. Tap Create post to share your first update."
-              : "This creator has not posted yet."}
-          </p>
+          <p className="creator-muted">No ranked shows yet.</p>
         )}
       </section>
 
