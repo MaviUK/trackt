@@ -471,13 +471,12 @@ export default function ReviewThread({
 
     try {
       const { error: updateError } = await supabase
-        .from(config.reviewTable)
-        .update({
-          body: trimmed,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", reviewId)
-        .eq("user_id", currentUserId);
+  .from(config.reviewTable)
+  .update({
+    body: trimmed,
+    updated_at: new Date().toISOString(),
+  })
+  .eq("id", reviewId);
 
       if (updateError) throw updateError;
 
