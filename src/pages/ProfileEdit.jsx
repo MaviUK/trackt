@@ -300,11 +300,16 @@ instagram_url: "",
             gender,
             country,
             bio,
-            instagram_url,
-            x_url,
-            tiktok_url,
-            youtube_url,
-            website_url
+            bio,
+cover_url,
+creator_tagline,
+creator_niche,
+creator_bio,
+instagram_url,
+x_url,
+tiktok_url,
+youtube_url,
+website_url
           `)
           .eq("id", user.id)
           .maybeSingle();
@@ -908,11 +913,28 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
         placeholder="Image URL for your creator page cover"
         style={inputStyle}
       />
-      {form.username ? (
+    </div>
+
+<div>
+  <label style={labelStyle}>Creator bio</label>
+  <textarea
+    value={form.creator_bio}
+    onChange={(e) => updateField("creator_bio", e.target.value)}
+    placeholder="Tell followers why they should follow your TV taste..."
+    rows={5}
+    style={{
+      ...inputStyle,
+      resize: "vertical",
+      minHeight: 120,
+    }}
+  />
+</div>
+
+{form.username ? (
   <Link
     to={`/u/${encodeURIComponent(form.username.trim())}`}
     style={{
-      marginTop: 12,
+      marginTop: 4,
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
@@ -929,12 +951,11 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
     View Creator Page
   </Link>
 ) : (
-  <p style={{ marginTop: 12, color: "#94a3b8", fontSize: 13 }}>
+  <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
     Set a username to preview your creator page.
   </p>
 )}
-    </div>
-
+    
     <div>
       <label style={labelStyle}>Creator tagline</label>
       <input
