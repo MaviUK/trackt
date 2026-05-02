@@ -2012,7 +2012,7 @@ const burgrTouchRef = useRef({
                                     {savingThisEpisode
                                       ? "Saving..."
                                       : hasMyEpisodeRating
-                                      ? `Rate ${myEpisodeRating}%`
+                                      ? `${myEpisodeRating}%`
                                       : "Rate"}
                                   </button>
 
