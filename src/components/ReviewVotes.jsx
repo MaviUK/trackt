@@ -37,7 +37,7 @@ export default function ReviewVotes({
         if (error) throw error;
       }
 
-      await onChanged?.();
+      await onChanged?.(nextVote, previousVote);
     } catch (err) {
       console.error("Failed saving vote:", err);
       alert(err.message || "Failed saving vote");
