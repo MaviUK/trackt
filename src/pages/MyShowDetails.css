@@ -1872,6 +1872,7 @@
   gap: 10px;
   margin: 8px 0 0 4px;
   width: calc(100% - 4px);
+  min-width: 0;
 }
 
 .msd-review-action {
@@ -1881,34 +1882,28 @@
   font-weight: 800;
   cursor: pointer;
   padding: 0;
+  white-space: nowrap;
 }
 
 .msd-review-action:hover {
   color: #ddd6fe;
 }
 
-.msd-review-reply-action {
+.msd-review-action-right {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
   text-align: right;
 }
 
-
-.msd-review-replies-toggle-row {
-  margin-top: 10px;
-  padding-left: 4px;
+.msd-review-reply-action {
+  text-align: right;
 }
 
 .msd-review-replies-toggle {
-  border: none;
-  background: transparent;
-  color: #c4b5fd;
-  font-weight: 800;
-  cursor: pointer;
-  padding: 0;
-}
-
-.msd-review-replies-toggle:hover {
-  color: #ddd6fe;
+  flex: 0 0 auto;
 }
 
 .msd-review-replies {

@@ -213,28 +213,46 @@ function ReviewItem({
             }
           />
 
-          {canEdit ? (
+          {hasReplies ? (
             <button
               type="button"
-              className="msd-review-action"
-              onClick={() => {
-                setEditBody(hasReplies ? "" : review.body || "");
-                setEditing((prev) => !prev);
-              }}
+              className="msd-review-action msd-review-replies-toggle"
+              onClick={() => setShowReplies((prev) => !prev)}
             >
-              {editModeLabel}
+              {showReplies
+                ? `Hide ${review.replies.length} ${
+                    review.replies.length === 1 ? "reply" : "replies"
+                  }`
+                : `View ${review.replies.length} ${
+                    review.replies.length === 1 ? "reply" : "replies"
+                  }`}
             </button>
           ) : null}
 
-          {canReply ? (
-            <button
-              type="button"
-              className="msd-review-action msd-review-reply-action"
-              onClick={() => setReplyOpen((prev) => !prev)}
-            >
-              Reply
-            </button>
-          ) : null}
+          <div className="msd-review-action-right">
+            {canEdit ? (
+              <button
+                type="button"
+                className="msd-review-action"
+                onClick={() => {
+                  setEditBody(hasReplies ? "" : review.body || "");
+                  setEditing((prev) => !prev);
+                }}
+              >
+                {editModeLabel}
+              </button>
+            ) : null}
+
+            {canReply ? (
+              <button
+                type="button"
+                className="msd-review-action msd-review-reply-action"
+                onClick={() => setReplyOpen((prev) => !prev)}
+              >
+                Reply
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {replyOpen && canReply ? (
@@ -276,23 +294,6 @@ function ReviewItem({
           </form>
         ) : null}
 
-        {hasReplies ? (
-          <div className="msd-review-replies-toggle-row">
-            <button
-              type="button"
-              className="msd-review-replies-toggle"
-              onClick={() => setShowReplies((prev) => !prev)}
-            >
-              {showReplies
-                ? `Hide ${review.replies.length} ${
-                    review.replies.length === 1 ? "reply" : "replies"
-                  }`
-                : `View ${review.replies.length} ${
-                    review.replies.length === 1 ? "reply" : "replies"
-                  }`}
-            </button>
-          </div>
-        ) : null}
 
         {hasReplies && showReplies ? (
           <div className="msd-review-replies">
