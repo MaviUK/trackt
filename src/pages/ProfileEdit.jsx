@@ -216,6 +216,7 @@ export default function ProfileEdit() {
   const [commentHistory, setCommentHistory] = useState([]);
   const [reviewHistory, setReviewHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
   const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
   const [postType, setPostType] = useState("post");
@@ -547,7 +548,7 @@ export default function ProfileEdit() {
   }
 
   async function handleCreatePost(event) {
-    event.preventDefault();
+    event?.preventDefault?.();
 
     if (!postBody.trim()) {
       setError("Post body is required.");
@@ -694,340 +695,429 @@ export default function ProfileEdit() {
     <div className="page profile-edit-page">
       <div className="page-header profile-edit-header" style={{ marginBottom: isMobile ? 18 : 24 }}>
         <h1>Edit Profile</h1>
-        <p>Update your photo, name, bio, socials, and creator page.</p>
+        <p>Update your profile, creator page, posts, and history.</p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 8,
+            marginTop: 14,
+          }}
+        >
+          <button type="button" onClick={() => setActiveTab("profile")} style={mainTabStyle(activeTab === "profile")}>
+            Profile
+          </button>
+          <button type="button" onClick={() => setActiveTab("creator")} style={mainTabStyle(activeTab === "creator")}>
+            Creator
+          </button>
+          <button type="button" onClick={() => setActiveTab("history")} style={mainTabStyle(activeTab === "history")}>
+            History
+          </button>
+        </div>
       </div>
 
-      <div
-        className="profile-edit-card"
-        style={{
-          maxWidth: 860,
-          background: "#0f172a",
-          border: "1px solid rgba(148,163,184,0.15)",
-          borderRadius: 20,
-          padding: isMobile ? 16 : 24,
-        }}
-      >
-        {error ? (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 12,
-              background: "rgba(239,68,68,0.12)",
-              color: "#fecaca",
-              border: "1px solid rgba(239,68,68,0.25)",
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
+      {error ? (
+        <div
+          style={{
+            maxWidth: 860,
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 12,
+            background: "rgba(239,68,68,0.12)",
+            color: "#fecaca",
+            border: "1px solid rgba(239,68,68,0.25)",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
-        {message ? (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 12,
-              background: "rgba(34,197,94,0.12)",
-              color: "#bbf7d0",
-              border: "1px solid rgba(34,197,94,0.25)",
-            }}
-          >
-            {message}
-          </div>
-        ) : null}
+      {message ? (
+        <div
+          style={{
+            maxWidth: 860,
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 12,
+            background: "rgba(34,197,94,0.12)",
+            color: "#bbf7d0",
+            border: "1px solid rgba(34,197,94,0.25)",
+          }}
+        >
+          {message}
+        </div>
+      ) : null}
 
-        <form onSubmit={handleSubmit} className="profile-edit-form">
-          <div
-            className="profile-edit-top-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
-              gap: isMobile ? 16 : 24,
-              alignItems: "start",
-              marginBottom: 24,
-            }}
-          >
-            <div className="profile-edit-avatar-column">
-              {previewAvatarUrl ? (
-                <>
+      {activeTab === "profile" ? (
+        <div
+          className="profile-edit-card"
+          style={{
+            maxWidth: 860,
+            background: "#0f172a",
+            border: "1px solid rgba(148,163,184,0.15)",
+            borderRadius: 20,
+            padding: isMobile ? 16 : 24,
+          }}
+        >
+          <form onSubmit={handleSubmit} className="profile-edit-form">
+            <div
+              className="profile-edit-top-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "220px 1fr",
+                gap: isMobile ? 16 : 24,
+                alignItems: "start",
+                marginBottom: 24,
+              }}
+            >
+              <div className="profile-edit-avatar-column">
+                {previewAvatarUrl ? (
+                  <>
+                    <div
+                      ref={previewRef}
+                      onPointerDown={handlePointerDown}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={endPointerDrag}
+                      onPointerCancel={endPointerDrag}
+                      onWheel={handleWheel}
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      className="profile-edit-avatar-preview"
+                      style={{
+                        width: isMobile ? 180 : 200,
+                        height: isMobile ? 180 : 200,
+                        borderRadius: "999px",
+                        overflow: "hidden",
+                        position: "relative",
+                        cursor: isDragging ? "grabbing" : "grab",
+                        userSelect: "none",
+                        touchAction: "none",
+                        border: "1px solid rgba(148,163,184,0.25)",
+                        backgroundColor: "#e5e7eb",
+                        backgroundImage:
+                          "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+                        backgroundSize: "20px 20px",
+                        backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+                      }}
+                    >
+                      <img
+                        src={previewAvatarUrl}
+                        alt="Profile preview"
+                        draggable={false}
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          transform: `translate(calc(-50% + ${form.avatar_x}px), calc(-50% + ${form.avatar_y}px)) scale(${form.avatar_zoom})`,
+                          transformOrigin: "center",
+                          display: "block",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+
+                    <div className="profile-edit-avatar-help" style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
+                      Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
+                    </div>
+                  </>
+                ) : (
                   <div
-                    ref={previewRef}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={endPointerDrag}
-                    onPointerCancel={endPointerDrag}
-                    onWheel={handleWheel}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    className="profile-edit-avatar-preview"
+                    className="profile-edit-avatar-placeholder"
                     style={{
                       width: isMobile ? 180 : 200,
                       height: isMobile ? 180 : 200,
                       borderRadius: "999px",
-                      overflow: "hidden",
-                      position: "relative",
-                      cursor: isDragging ? "grabbing" : "grab",
-                      userSelect: "none",
-                      touchAction: "none",
-                      border: "1px solid rgba(148,163,184,0.25)",
-                      backgroundColor: "#e5e7eb",
-                      backgroundImage:
-                        "linear-gradient(45deg, #d1d5db 25%, transparent 25%), linear-gradient(-45deg, #d1d5db 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d1d5db 75%), linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
-                      backgroundSize: "20px 20px",
-                      backgroundPosition:
-                        "0 0, 0 10px, 10px -10px, -10px 0px",
+                      background: "#1e293b",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 64,
+                      fontWeight: 800,
+                      color: "#fff",
                     }}
                   >
-                    <img
-                      src={previewAvatarUrl}
-                      alt="Profile preview"
-                      draggable={false}
-                      style={{
-                        position: "absolute",
-                        top: "50%",
-                        left: "50%",
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        transform: `translate(calc(-50% + ${form.avatar_x}px), calc(-50% + ${form.avatar_y}px)) scale(${form.avatar_zoom})`,
-                        transformOrigin: "center",
-                        display: "block",
-                        pointerEvents: "none",
-                      }}
-                    />
+                    {(form.username || form.full_name || "U").charAt(0).toUpperCase()}
                   </div>
+                )}
+              </div>
 
-                  <div className="profile-edit-avatar-help" style={{ marginTop: 10, color: "#94a3b8", fontSize: 13 }}>
-                    Drag to move. On mobile pinch with two fingers to zoom. On desktop use mouse wheel.
-                  </div>
-                </>
-              ) : (
-                <div
-                  className="profile-edit-avatar-placeholder"
-                  style={{
-                    width: isMobile ? 180 : 200,
-                    height: isMobile ? 180 : 200,
-                    borderRadius: "999px",
-                    background: "#1e293b",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 64,
-                    fontWeight: 800,
-                    color: "#fff",
-                  }}
-                >
-                  {(form.username || form.full_name || "U")
-                    .charAt(0)
-                    .toUpperCase()}
+              <div className="profile-edit-image-controls">
+                <label style={{ display: "block", fontWeight: 700, marginBottom: 8, color: "#f8fafc" }}>
+                  Profile image
+                </label>
+
+                <input
+                  className="profile-edit-file-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  disabled={saving}
+                  style={{ color: "#cbd5e1" }}
+                />
+
+                <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
+                  PNG, JPG, WEBP supported.
                 </div>
-              )}
-            </div>
-
-            <div className="profile-edit-image-controls">
-              <label
-                style={{
-                  display: "block",
-                  fontWeight: 700,
-                  marginBottom: 8,
-                  color: "#f8fafc",
-                }}
-              >
-                Profile image
-              </label>
-
-              <input
-                className="profile-edit-file-input"
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                disabled={saving}
-                style={{ color: "#cbd5e1" }}
-              />
-
-              <div style={{ marginTop: 8, color: "#94a3b8", fontSize: 14 }}>
-                PNG, JPG, WEBP supported.
               </div>
             </div>
-          </div>
 
-          <div
-            className="profile-edit-fields-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Username</label>
-              <input
-                type="text"
-                value={form.username}
-                onChange={(e) => updateField("username", e.target.value)}
-                placeholder="Unique username"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Display name</label>
-              <input
-                type="text"
-                value={form.full_name}
-                onChange={(e) => updateField("full_name", e.target.value)}
-                placeholder="Your name"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Date of birth</label>
-              <input
-                type="date"
-                value={form.dob}
-                onChange={(e) => updateField("dob", e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Gender</label>
-              <input
-                type="text"
-                value={form.gender}
-                onChange={(e) => updateField("gender", e.target.value)}
-                placeholder="Gender"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Country</label>
-              <input
-                type="text"
-                value={form.country}
-                onChange={(e) => updateField("country", e.target.value)}
-                placeholder="Country"
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Bio</label>
-            <textarea
-              value={form.bio}
-              onChange={(e) => updateField("bio", e.target.value)}
-              placeholder="Tell people a little about yourself..."
-              rows={5}
+            <div
+              className="profile-edit-fields-grid"
               style={{
-                ...inputStyle,
-                resize: "vertical",
-                minHeight: 120,
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                gap: 16,
+                marginBottom: 16,
               }}
-            />
-          </div>
-
-          <div
-            style={{
-              marginBottom: 20,
-              padding: 16,
-              borderRadius: 18,
-              border: "1px solid rgba(99,102,241,0.25)",
-              background: "rgba(99,102,241,0.08)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
-              Creator Profile
-            </h2>
-
-            <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
-              These details appear on your public creator page.
-            </p>
-
-            <div style={{ display: "grid", gap: 16 }}>
+            >
               <div>
-                <label style={labelStyle}>Cover image URL</label>
+                <label style={labelStyle}>Username</label>
                 <input
                   type="text"
-                  value={form.cover_url}
-                  onChange={(e) => updateField("cover_url", e.target.value)}
-                  placeholder="Image URL for your creator page cover"
+                  value={form.username}
+                  onChange={(e) => updateField("username", e.target.value)}
+                  placeholder="Unique username"
                   style={inputStyle}
                 />
               </div>
 
               <div>
-                <label style={labelStyle}>Creator tagline</label>
+                <label style={labelStyle}>Display name</label>
                 <input
                   type="text"
-                  value={form.creator_tagline}
-                  onChange={(e) => updateField("creator_tagline", e.target.value)}
-                  placeholder="Crime dramas, hidden gems & brutal finales"
+                  value={form.full_name}
+                  onChange={(e) => updateField("full_name", e.target.value)}
+                  placeholder="Your name"
                   style={inputStyle}
                 />
               </div>
 
               <div>
-                <label style={labelStyle}>Creator niche</label>
+                <label style={labelStyle}>Date of birth</label>
                 <input
-                  type="text"
-                  value={form.creator_niche}
-                  onChange={(e) => updateField("creator_niche", e.target.value)}
-                  placeholder="Crime dramas / thrillers / hidden gems"
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => updateField("dob", e.target.value)}
                   style={inputStyle}
                 />
               </div>
 
               <div>
-                <label style={labelStyle}>Creator bio</label>
-                <textarea
-                  value={form.creator_bio}
-                  onChange={(e) => updateField("creator_bio", e.target.value)}
-                  placeholder="Tell followers why they should follow your TV taste..."
-                  rows={5}
-                  style={{
-                    ...inputStyle,
-                    resize: "vertical",
-                    minHeight: 120,
-                  }}
+                <label style={labelStyle}>Gender</label>
+                <input
+                  type="text"
+                  value={form.gender}
+                  onChange={(e) => updateField("gender", e.target.value)}
+                  placeholder="Gender"
+                  style={inputStyle}
                 />
               </div>
 
-              {form.username ? (
-                <Link
-                  to={`/u/${encodeURIComponent(form.username.trim())}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #6366f1",
-                    background: "#4f46e5",
-                    color: "#fff",
-                    fontWeight: 700,
-                    textDecoration: "none",
-                    fontSize: 14,
-                  }}
-                >
-                  View Creator Page
-                </Link>
-              ) : (
-                <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
-                  Set a username to preview your creator page.
-                </p>
-              )}
+              <div>
+                <label style={labelStyle}>Country</label>
+                <input
+                  type="text"
+                  value={form.country}
+                  onChange={(e) => updateField("country", e.target.value)}
+                  placeholder="Country"
+                  style={inputStyle}
+                />
+              </div>
             </div>
-          </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Bio</label>
+              <textarea
+                value={form.bio}
+                onChange={(e) => updateField("bio", e.target.value)}
+                placeholder="Tell people a little about yourself..."
+                rows={5}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
+              />
+            </div>
+
+            <div
+              className="profile-edit-socials-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                gap: 16,
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <label style={labelStyle}>Instagram</label>
+                <input
+                  type="text"
+                  value={form.instagram_url}
+                  onChange={(e) => updateField("instagram_url", e.target.value)}
+                  placeholder="instagram.com/yourname"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>X / Twitter</label>
+                <input
+                  type="text"
+                  value={form.x_url}
+                  onChange={(e) => updateField("x_url", e.target.value)}
+                  placeholder="x.com/yourname"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>TikTok</label>
+                <input
+                  type="text"
+                  value={form.tiktok_url}
+                  onChange={(e) => updateField("tiktok_url", e.target.value)}
+                  placeholder="tiktok.com/@yourname"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>YouTube</label>
+                <input
+                  type="text"
+                  value={form.youtube_url}
+                  onChange={(e) => updateField("youtube_url", e.target.value)}
+                  placeholder="youtube.com/@yourname"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Website</label>
+                <input
+                  type="text"
+                  value={form.website_url}
+                  onChange={(e) => updateField("website_url", e.target.value)}
+                  placeholder="yourwebsite.com"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <ProfileActions saving={saving} handleLogout={handleLogout} isMobile={isMobile} />
+          </form>
+        </div>
+      ) : null}
+
+      {activeTab === "creator" ? (
+        <div
+          className="profile-edit-card"
+          style={{
+            maxWidth: 860,
+            background: "#0f172a",
+            border: "1px solid rgba(148,163,184,0.15)",
+            borderRadius: 20,
+            padding: isMobile ? 16 : 24,
+          }}
+        >
+          <form onSubmit={handleSubmit} className="profile-edit-form">
+            <div
+              style={{
+                marginBottom: 20,
+                padding: 16,
+                borderRadius: 18,
+                border: "1px solid rgba(99,102,241,0.25)",
+                background: "rgba(99,102,241,0.08)",
+              }}
+            >
+              <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
+                Creator Profile
+              </h2>
+
+              <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
+                These details appear on your public creator page.
+              </p>
+
+              <div style={{ display: "grid", gap: 16 }}>
+                <div>
+                  <label style={labelStyle}>Cover image URL</label>
+                  <input
+                    type="text"
+                    value={form.cover_url}
+                    onChange={(e) => updateField("cover_url", e.target.value)}
+                    placeholder="Image URL for your creator page cover"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Creator tagline</label>
+                  <input
+                    type="text"
+                    value={form.creator_tagline}
+                    onChange={(e) => updateField("creator_tagline", e.target.value)}
+                    placeholder="Crime dramas, hidden gems & brutal finales"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Creator niche</label>
+                  <input
+                    type="text"
+                    value={form.creator_niche}
+                    onChange={(e) => updateField("creator_niche", e.target.value)}
+                    placeholder="Crime dramas / thrillers / hidden gems"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Creator bio</label>
+                  <textarea
+                    value={form.creator_bio}
+                    onChange={(e) => updateField("creator_bio", e.target.value)}
+                    placeholder="Tell followers why they should follow your TV taste..."
+                    rows={5}
+                    style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
+                  />
+                </div>
+
+                {form.username ? (
+                  <Link
+                    to={`/u/${encodeURIComponent(form.username.trim())}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      border: "1px solid #6366f1",
+                      background: "#4f46e5",
+                      color: "#fff",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      fontSize: 14,
+                    }}
+                  >
+                    View Creator Page
+                  </Link>
+                ) : (
+                  <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
+                    Set a username to preview your creator page.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <ProfileActions saving={saving} handleLogout={handleLogout} isMobile={isMobile} />
+          </form>
 
           <section
             style={{
-              marginBottom: 20,
+              marginTop: 20,
               padding: 16,
               borderRadius: 18,
               border: "1px solid rgba(148,163,184,0.15)",
@@ -1042,7 +1132,7 @@ export default function ProfileEdit() {
               Share a post with people who follow your creator page.
             </p>
 
-            <form onSubmit={handleCreatePost} style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gap: 12 }}>
               <select
                 value={postType}
                 onChange={(e) => setPostType(e.target.value)}
@@ -1068,181 +1158,113 @@ export default function ProfileEdit() {
                 onChange={(e) => setPostBody(e.target.value)}
                 placeholder="What do you want to share?"
                 rows={5}
-                style={{
-                  ...inputStyle,
-                  resize: "vertical",
-                  minHeight: 120,
-                }}
+                style={{ ...inputStyle, resize: "vertical", minHeight: 120 }}
               />
 
-              <button type="submit" disabled={posting} style={primaryButtonStyle}>
+              <button type="button" onClick={handleCreatePost} disabled={posting} style={primaryButtonStyle}>
                 {posting ? "Publishing..." : "Publish Post"}
               </button>
-            </form>
+            </div>
           </section>
+        </div>
+      ) : null}
 
-          <div
-            className="profile-edit-socials-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-              gap: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div>
-              <label style={labelStyle}>Instagram</label>
-              <input
-                type="text"
-                value={form.instagram_url}
-                onChange={(e) => updateField("instagram_url", e.target.value)}
-                placeholder="instagram.com/yourname"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>X / Twitter</label>
-              <input
-                type="text"
-                value={form.x_url}
-                onChange={(e) => updateField("x_url", e.target.value)}
-                placeholder="x.com/yourname"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>TikTok</label>
-              <input
-                type="text"
-                value={form.tiktok_url}
-                onChange={(e) => updateField("tiktok_url", e.target.value)}
-                placeholder="tiktok.com/@yourname"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>YouTube</label>
-              <input
-                type="text"
-                value={form.youtube_url}
-                onChange={(e) => updateField("youtube_url", e.target.value)}
-                placeholder="youtube.com/@yourname"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Website</label>
-              <input
-                type="text"
-                value={form.website_url}
-                onChange={(e) => updateField("website_url", e.target.value)}
-                placeholder="yourwebsite.com"
-                style={inputStyle}
-              />
-            </div>
+      {activeTab === "history" ? (
+        <section
+          className="profile-comment-history-card"
+          style={{
+            maxWidth: 860,
+            padding: isMobile ? 16 : 24,
+            borderRadius: 20,
+            border: "1px solid rgba(148,163,184,0.15)",
+            background: "#0f172a",
+          }}
+        >
+          <div style={{ marginBottom: 14 }}>
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
+              Profile History
+            </h2>
+            <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
+              View your Rank'd comments and show reviews in separate tabs.
+            </p>
           </div>
 
-          <div className="profile-edit-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <button
-              type="submit"
-              disabled={saving}
-              style={primaryButtonStyle}
+              type="button"
+              onClick={() => setActiveHistoryTab("comments")}
+              style={historyTabStyle(activeHistoryTab === "comments")}
             >
-              {saving ? "Saving..." : "Save Profile"}
+              Comments ({commentHistory.length})
             </button>
-
-            <Link to="/dashboard" style={secondaryLinkStyle}>
-              Cancel
-            </Link>
 
             <button
               type="button"
-              onClick={handleLogout}
-              disabled={saving}
-              style={dangerButtonStyle}
+              onClick={() => setActiveHistoryTab("reviews")}
+              style={historyTabStyle(activeHistoryTab === "reviews")}
             >
-              Logout
+              Reviews ({reviewHistory.length})
             </button>
           </div>
-        </form>
-      </div>
 
-      <section
-        className="profile-comment-history-card"
-        style={{
-          maxWidth: 860,
-          marginTop: 24,
-          padding: isMobile ? 16 : 24,
-          borderRadius: 20,
-          border: "1px solid rgba(148,163,184,0.15)",
-          background: "#0f172a",
-        }}
-      >
-        <div style={{ marginBottom: 14 }}>
-          <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 22 }}>
-            Profile History
-          </h2>
-          <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>
-            View your Rank'd comments and show reviews in separate tabs.
-          </p>
-        </div>
+          {historyLoading ? (
+            <p style={{ color: "#94a3b8", margin: 0 }}>Loading history...</p>
+          ) : activeHistoryTab === "comments" ? (
+            commentHistory.length ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                {commentHistory.map((comment) => {
+                  const matchup = comment.matchup;
+                  const targetUrl = matchup?.pair_key
+                    ? `/rankd?matchup=${encodeURIComponent(matchup.pair_key)}&comment=${encodeURIComponent(comment.id)}`
+                    : "/rankd";
 
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setActiveHistoryTab("comments")}
-            style={historyTabStyle(activeHistoryTab === "comments")}
-          >
-            Comments ({commentHistory.length})
-          </button>
+                  return (
+                    <Link key={comment.id} to={targetUrl} style={historyItemStyle}>
+                      <strong style={{ color: "#c4b5fd" }}>
+                        {matchup ? `${matchup.showAName} vs ${matchup.showBName}` : "Rank'd matchup"}
+                      </strong>
 
-          <button
-            type="button"
-            onClick={() => setActiveHistoryTab("reviews")}
-            style={historyTabStyle(activeHistoryTab === "reviews")}
-          >
-            Reviews ({reviewHistory.length})
-          </button>
-        </div>
+                      <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
+                        {comment.body}
+                      </p>
 
-        {historyLoading ? (
-          <p style={{ color: "#94a3b8", margin: 0 }}>Loading history...</p>
-        ) : activeHistoryTab === "comments" ? (
-          commentHistory.length ? (
+                      <small style={{ color: "#94a3b8" }}>
+                        {new Date(comment.created_at).toLocaleString()}
+                      </small>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ color: "#94a3b8", margin: 0 }}>
+                You have not posted any Rank'd comments yet.
+              </p>
+            )
+          ) : reviewHistory.length ? (
             <div style={{ display: "grid", gap: 10 }}>
-              {commentHistory.map((comment) => {
-                const matchup = comment.matchup;
-                const targetUrl = matchup?.pair_key
-                  ? `/rankd?matchup=${encodeURIComponent(
-                      matchup.pair_key
-                    )}&comment=${encodeURIComponent(comment.id)}`
-                  : "/rankd";
+              {reviewHistory.map((review) => {
+                const show = review.show;
+                const year = show?.first_aired?.slice?.(0, 4) || "";
+                const reviewUrl = show?.tvdb_id
+                  ? `/my-shows/${show.tvdb_id}`
+                  : show?.tmdb_id
+                    ? `/my-shows/tmdb/${show.tmdb_id}`
+                    : "/my-shows";
 
                 return (
-                  <Link key={comment.id} to={targetUrl} style={historyItemStyle}>
+                  <Link key={review.id} to={reviewUrl} style={historyItemStyle}>
                     <strong style={{ color: "#c4b5fd" }}>
-                      {matchup
-                        ? `${matchup.showAName} vs ${matchup.showBName}`
-                        : "Rank'd matchup"}
+                      {show?.name || "Show review"}{year ? ` (${year})` : ""}
                     </strong>
 
+                    {review.parent_id ? <div style={historyBadgeStyle}>Reply</div> : null}
+
                     <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
-                      {comment.body}
+                      {review.body}
                     </p>
 
                     <small style={{ color: "#94a3b8" }}>
-                      {new Date(comment.created_at).toLocaleString()}
+                      {new Date(review.created_at).toLocaleString()}
                     </small>
                   </Link>
                 );
@@ -1250,51 +1272,37 @@ export default function ProfileEdit() {
             </div>
           ) : (
             <p style={{ color: "#94a3b8", margin: 0 }}>
-              You have not posted any Rank'd comments yet.
+              You have not posted any show reviews yet.
             </p>
-          )
-        ) : reviewHistory.length ? (
-          <div style={{ display: "grid", gap: 10 }}>
-            {reviewHistory.map((review) => {
-              const show = review.show;
-              const year = show?.first_aired?.slice?.(0, 4) || "";
-              const reviewUrl = show?.tvdb_id
-                ? `/my-shows/${show.tvdb_id}`
-                : show?.tmdb_id
-                  ? `/my-shows/tmdb/${show.tmdb_id}`
-                  : "/my-shows";
+          )}
+        </section>
+      ) : null}
+    </div>
+  );
+}
 
-              return (
-                <Link
-                  key={review.id}
-                  to={reviewUrl}
-                  style={historyItemStyle}
-                >
-                  <strong style={{ color: "#c4b5fd" }}>
-                    {show?.name || "Show review"}{year ? ` (${year})` : ""}
-                  </strong>
+function ProfileActions({ saving, handleLogout, isMobile }) {
+  return (
+    <div
+      className="profile-edit-actions"
+      style={{
+        display: "flex",
+        gap: 12,
+        flexWrap: "wrap",
+        flexDirection: isMobile ? "column" : "row",
+      }}
+    >
+      <button type="submit" disabled={saving} style={primaryButtonStyle}>
+        {saving ? "Saving..." : "Save Profile"}
+      </button>
 
-                  {review.parent_id ? (
-                    <div style={historyBadgeStyle}>Reply</div>
-                  ) : null}
+      <Link to="/dashboard" style={secondaryLinkStyle}>
+        Cancel
+      </Link>
 
-                  <p style={{ margin: "8px 0 0", color: "#e2e8f0" }}>
-                    {review.body}
-                  </p>
-
-                  <small style={{ color: "#94a3b8" }}>
-                    {new Date(review.created_at).toLocaleString()}
-                  </small>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <p style={{ color: "#94a3b8", margin: 0 }}>
-            You have not posted any show reviews yet.
-          </p>
-        )}
-      </section>
+      <button type="button" onClick={handleLogout} disabled={saving} style={dangerButtonStyle}>
+        Logout
+      </button>
     </div>
   );
 }
@@ -1362,6 +1370,20 @@ const historyBadgeStyle = {
   fontSize: 12,
   fontWeight: 800,
 };
+
+
+function mainTabStyle(isActive) {
+  return {
+    padding: "11px 10px",
+    borderRadius: 999,
+    border: isActive ? "1px solid #818cf8" : "1px solid #334155",
+    background: isActive ? "#4f46e5" : "#182235",
+    color: "#f8fafc",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: 14,
+  };
+}
 
 function historyTabStyle(isActive) {
   return {
