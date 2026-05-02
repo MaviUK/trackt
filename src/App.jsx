@@ -9,6 +9,8 @@ import {
 } from "react-router-dom";
 import "./index.css";
 import ProfileEdit from "./pages/ProfileEdit";
+import CreatorProfile from "./pages/CreatorProfile";
+import FollowingFeed from "./pages/FollowingFeed";
 
 import Search from "./pages/Search";
 import Login from "./pages/Login";
@@ -211,6 +213,13 @@ function DesktopNav({ session, profile }) {
           </NavLink>
 
           <NavLink
+            to="/following"
+            className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
+          >
+            Following
+          </NavLink>
+
+          <NavLink
             to="/search"
             className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}
           >
@@ -287,6 +296,18 @@ function MobileBottomNav({ session }) {
       </NavLink>
 
       <NavLink
+        to="/following"
+        className={({ isActive }) =>
+          `mobile-nav-item${isActive ? " active" : ""}`
+        }
+      >
+        <span className="mobile-nav-icon">
+          <ShowsIcon />
+        </span>
+        <span className="mobile-nav-label">Follow</span>
+      </NavLink>
+
+      <NavLink
         to="/search"
         className={({ isActive }) =>
           `mobile-nav-item${isActive ? " active" : ""}`
@@ -322,17 +343,6 @@ function MobileBottomNav({ session }) {
         <span className="mobile-nav-label">Rank</span>
       </NavLink>
 
-      <NavLink
-        to="/calendar"
-        className={({ isActive }) =>
-          `mobile-nav-item${isActive ? " active" : ""}`
-        }
-      >
-        <span className="mobile-nav-icon">
-          <CalendarIcon />
-        </span>
-        <span className="mobile-nav-label">Cal</span>
-      </NavLink>
     </nav>
   );
 }
@@ -434,6 +444,24 @@ function AppLayout() {
       <Routes>
         <Route path="/" element={<AuthRedirect session={session} />} />
         <Route path="/login" element={<LoginRoute session={session} />} />
+
+        <Route
+          path="/following"
+          element={
+            <ProtectedRoute session={session}>
+              <FollowingFeed />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/u/:username"
+          element={
+            <ProtectedRoute session={session}>
+              <CreatorProfile />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/search"
