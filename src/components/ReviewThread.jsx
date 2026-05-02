@@ -173,18 +173,18 @@ function ReviewItem({
           )}
         </div>
 
-        <div className="msd-review-actions">
-          <ReviewVotes
-            tableName={config.voteTable}
-            idColumn={config.voteIdColumn}
-            itemId={review.id}
-            currentUserId={currentUserId}
-            upCount={review.up_count || 0}
-            downCount={review.down_count || 0}
-            myVote={review.my_vote ?? null}
-            onChanged={onVoteChanged}
-          />
-
+       <ReviewVotes
+  tableName={config.voteTable}
+  idColumn={config.voteIdColumn}
+  itemId={review.id}
+  currentUserId={currentUserId}
+  upCount={review.up_count || 0}
+  downCount={review.down_count || 0}
+  myVote={review.my_vote ?? null}
+  onChanged={(nextVote, previousVote) =>
+    onVoteChanged(review.id, nextVote, previousVote)
+  }
+/>
           {canEdit ? (
             <button
               type="button"
@@ -531,6 +531,30 @@ export default function ReviewThread({
     }
   }
 
+function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
+  setReviews((prev) =>
+    prev.map((review) => {
+      if (String(review.id) !== String(reviewId)) return review;
+
+      let up = Number(review.up_count || 0);
+      let down = Number(review.down_count || 0);
+
+      if (previousVote === 1) up -= 1;
+      if (previousVote === -1) down -= 1;
+
+      if (nextVote === 1) up += 1;
+      if (nextVote === -1) down += 1;
+
+      return {
+        ...review,
+        up_count: Math.max(0, up),
+        down_count: Math.max(0, down),
+        my_vote: nextVote,
+      };
+    })
+  );
+}
+  
   return (
     <section className={config.sectionClass || "msd-reviews-section"}>
       <h2 className={config.headingClass || "msd-section-title"}>{heading}</h2>
@@ -579,7 +603,7 @@ export default function ReviewThread({
               onEdit={handleEditReview}
               savingReplyId={savingReplyId}
               savingEditId={savingEditId}
-              onVoteChanged={loadReviews}
+              onVoteChanged={handleLocalVoteChanged}
             />
           ))}
         </div>
