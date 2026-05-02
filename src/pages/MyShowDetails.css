@@ -2281,3 +2281,19 @@
     font-size: 0.86rem;
   }
 }
+
+.msd-review-username {
+  color: #f8fafc;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.msd-review-username:hover {
+  color: #c4b5fd;
+}
+
+.msd-review-handle {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 700;
+}

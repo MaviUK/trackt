@@ -17,12 +17,8 @@ function formatDateTime(value) {
   });
 }
 
-function getDisplayName(profile, fallbackUserId) {
-  return (
-    profile?.username ||
-    profile?.full_name ||
-    (fallbackUserId ? `User ${String(fallbackUserId).slice(0, 6)}` : "User")
-  );
+function getDisplayName(profile) {
+  return profile?.full_name || profile?.username || "User";
 }
 
 function formatRating(value) {
@@ -70,8 +66,10 @@ function ReviewItem({
   const [editBody, setEditBody] = useState(review.body || "");
 
   const profile = review.profile || {};
-  const displayName = getDisplayName(profile, review.user_id);
+  const displayName = getDisplayName(profile);
   const avatarUrl = profile.avatar_url || "";
+  const username = profile.username || "";
+  const profileUrl = username ? `/u/${encodeURIComponent(username)}` : "";
   const ratingLabel = formatRating(review.user_rating);
 
   const isOwnReview =
@@ -124,7 +122,17 @@ function ReviewItem({
             )}
 
             <div className="msd-review-user-line">
-              <strong className="msd-review-username">{displayName}</strong>
+              {profileUrl ? (
+                <a href={profileUrl} className="msd-review-username">
+                  {displayName}
+                </a>
+              ) : (
+                <strong className="msd-review-username">{displayName}</strong>
+              )}
+
+              {username && displayName !== username ? (
+                <span className="msd-review-handle">@{username}</span>
+              ) : null}
 
               {ratingLabel ? (
                 <span className="msd-review-rating">{ratingLabel}</span>
@@ -308,7 +316,7 @@ export default function ReviewThread({
       if (userIds.length) {
         const { data: profiles, error: profileError } = await supabase
           .from("profiles")
-          .select("id, username, full_name, avatar_url")
+.select("id, username, full_name, avatar_url")
           .in("id", userIds);
 
         if (profileError) throw profileError;
