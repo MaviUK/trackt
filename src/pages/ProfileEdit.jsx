@@ -908,6 +908,31 @@ instagram_url: normalizeUrl(form.instagram_url) || null,
         placeholder="Image URL for your creator page cover"
         style={inputStyle}
       />
+      {form.username ? (
+  <Link
+    to={`/u/${encodeURIComponent(form.username.trim())}`}
+    style={{
+      marginTop: 12,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "10px 14px",
+      borderRadius: 12,
+      border: "1px solid #6366f1",
+      background: "#4f46e5",
+      color: "#fff",
+      fontWeight: 700,
+      textDecoration: "none",
+      fontSize: 14,
+    }}
+  >
+    View Creator Page
+  </Link>
+) : (
+  <p style={{ marginTop: 12, color: "#94a3b8", fontSize: 13 }}>
+    Set a username to preview your creator page.
+  </p>
+)}
     </div>
 
     <div>
