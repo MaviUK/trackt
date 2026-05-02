@@ -13,38 +13,44 @@ export default function ReviewVotes({
 }) {
   const [saving, setSaving] = useState(false);
 
-  async function vote(value) {
-    if (!currentUserId || !itemId || saving) return;
-    setSaving(true);
+ async function vote(value) {
+  if (!currentUserId || !itemId || saving) return;
 
-    try {
-      if (myVote === value) {
-        const { error } = await supabase
-          .from(tableName)
-          .delete()
-          .eq(idColumn, itemId)
-          .eq("user_id", currentUserId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from(tableName).upsert(
-          {
-            [idColumn]: itemId,
-            user_id: currentUserId,
-            vote: value,
-          },
-          { onConflict: `${idColumn},user_id` }
-        );
-        if (error) throw error;
-      }
+  const previousVote = myVote;
+  const nextVote = previousVote === value ? null : value;
 
-      await onChanged?.(nextVote, previousVote);
-    } catch (err) {
-      console.error("Failed saving vote:", err);
-      alert(err.message || "Failed saving vote");
-    } finally {
-      setSaving(false);
+  setSaving(true);
+
+  try {
+    if (nextVote === null) {
+      const { error } = await supabase
+        .from(tableName)
+        .delete()
+        .eq(idColumn, itemId)
+        .eq("user_id", currentUserId);
+
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from(tableName).upsert(
+        {
+          [idColumn]: itemId,
+          user_id: currentUserId,
+          vote: nextVote,
+        },
+        { onConflict: `${idColumn},user_id` }
+      );
+
+      if (error) throw error;
     }
+
+    onChanged?.(nextVote, previousVote);
+  } catch (err) {
+    console.error("Failed saving vote:", err);
+    alert(err.message || "Failed saving vote");
+  } finally {
+    setSaving(false);
   }
+}
 
   return (
     <div className="msd-vote-actions" aria-label="Vote actions">
