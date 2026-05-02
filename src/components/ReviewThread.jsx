@@ -78,7 +78,7 @@ function ReviewItem({
   const canReply = currentUserId && !isOwnReview;
   const hasReplies = Array.isArray(review.replies) && review.replies.length > 0;
   const canEdit = isOwnReview;
-  const editModeLabel = hasReplies ? "Add to this" : "Edit";
+  const editModeLabel = hasReplies ? "Edit" : "Edit";
 
   const isSavingReply = savingReplyId === review.id;
   const isSavingEdit = savingEditId === review.id;
