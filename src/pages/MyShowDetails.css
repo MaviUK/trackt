@@ -2346,3 +2346,54 @@
   font-size: 0.8rem;
   font-weight: 700;
 }
+
+/* Review thread: edit beside date and full reply thread expansion */
+.msd-review-head-right {
+  margin-left: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.msd-review-header-action {
+  border: 0 !important;
+  background: transparent !important;
+  color: #c4b5fd !important;
+  font: inherit !important;
+  font-weight: 800 !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+.msd-review-header-action:hover {
+  color: #ddd6fe !important;
+}
+
+.msd-review-head {
+  justify-content: flex-start !important;
+  width: 100% !important;
+}
+
+.msd-review-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.msd-review-replies-toggle {
+  margin-left: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .msd-review-head-right {
+    margin-left: auto !important;
+  }
+
+  .msd-review-header-action {
+    font-size: 13px !important;
+  }
+}
