@@ -13,6 +13,81 @@ function normalizeUrl(value) {
   return `https://${trimmed}`;
 }
 
+
+function getYouTubeVideoId(urlValue) {
+  try {
+    const url = new URL(normalizeUrl(urlValue));
+    const host = url.hostname.replace(/^www\./, "");
+
+    if (host === "youtu.be") {
+      return url.pathname.split("/").filter(Boolean)[0] || "";
+    }
+
+    if (host.endsWith("youtube.com")) {
+      if (url.pathname.startsWith("/shorts/")) {
+        return url.pathname.split("/").filter(Boolean)[1] || "";
+      }
+
+      if (url.pathname.startsWith("/embed/")) {
+        return url.pathname.split("/").filter(Boolean)[1] || "";
+      }
+
+      return url.searchParams.get("v") || "";
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function getTikTokVideoId(urlValue) {
+  try {
+    const url = new URL(normalizeUrl(urlValue));
+    const host = url.hostname.replace(/^www\./, "");
+
+    if (!host.endsWith("tiktok.com")) return "";
+
+    const parts = url.pathname.split("/").filter(Boolean);
+    const videoIndex = parts.indexOf("video");
+
+    if (videoIndex >= 0 && parts[videoIndex + 1]) {
+      return parts[videoIndex + 1];
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function getVideoEmbedInfo(urlValue) {
+  const cleanedUrl = normalizeUrl(urlValue);
+  if (!cleanedUrl) return null;
+
+  const youtubeId = getYouTubeVideoId(cleanedUrl);
+  if (youtubeId) {
+    return {
+      provider: "youtube",
+      url: cleanedUrl,
+      embedUrl: `https://www.youtube.com/embed/${youtubeId}`,
+      label: "YouTube video",
+    };
+  }
+
+  const tiktokId = getTikTokVideoId(cleanedUrl);
+  if (tiktokId) {
+    return {
+      provider: "tiktok",
+      url: cleanedUrl,
+      embedUrl: `https://www.tiktok.com/embed/v2/${tiktokId}`,
+      label: "TikTok video",
+    };
+  }
+
+  return null;
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -220,6 +295,7 @@ export default function ProfileEdit() {
   const [postTitle, setPostTitle] = useState("");
   const [postBody, setPostBody] = useState("");
   const [postType, setPostType] = useState("post");
+  const [postVideoUrl, setPostVideoUrl] = useState("");
   const [posting, setPosting] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
@@ -254,6 +330,10 @@ export default function ProfileEdit() {
   const previewAvatarUrl = useMemo(() => {
     return selectedAvatarDataUrl || existingAvatarUrl || "";
   }, [selectedAvatarDataUrl, existingAvatarUrl]);
+
+  const postVideoPreview = useMemo(() => {
+    return getVideoEmbedInfo(postVideoUrl);
+  }, [postVideoUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -568,6 +648,12 @@ export default function ProfileEdit() {
       if (userError) throw userError;
       if (!user) throw new Error("You must be logged in.");
 
+      const videoInfo = getVideoEmbedInfo(postVideoUrl);
+
+      if (postVideoUrl.trim() && !videoInfo) {
+        throw new Error("Please enter a valid YouTube or TikTok video link.");
+      }
+
       const { error: postError } = await supabase
         .from("creator_posts")
         .insert({
@@ -576,6 +662,9 @@ export default function ProfileEdit() {
           body: postBody.trim(),
           post_type: postType,
           visibility: "public",
+          video_url: videoInfo?.url || null,
+          video_provider: videoInfo?.provider || null,
+          video_embed_url: videoInfo?.embedUrl || null,
         });
 
       if (postError) throw postError;
@@ -583,6 +672,7 @@ export default function ProfileEdit() {
       setPostTitle("");
       setPostBody("");
       setPostType("post");
+      setPostVideoUrl("");
       setMessage("Creator post published.");
     } catch (err) {
       console.error("Failed creating creator post:", err);
@@ -1152,6 +1242,44 @@ export default function ProfileEdit() {
                 placeholder="Optional title"
                 style={inputStyle}
               />
+
+              <input
+                type="text"
+                value={postVideoUrl}
+                onChange={(e) => setPostVideoUrl(e.target.value)}
+                placeholder="Optional YouTube or TikTok video link"
+                style={inputStyle}
+              />
+
+              {postVideoUrl.trim() ? (
+                postVideoPreview ? (
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      border: "1px solid rgba(148,163,184,0.18)",
+                      background: "#020617",
+                    }}
+                  >
+                    <iframe
+                      title={postVideoPreview.label}
+                      src={postVideoPreview.embedUrl}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        aspectRatio: postVideoPreview.provider === "tiktok" ? "9 / 16" : "16 / 9",
+                        border: "none",
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, color: "#fecaca", fontSize: 13 }}>
+                    Paste a valid YouTube or TikTok video URL.
+                  </p>
+                )
+              ) : null}
 
               <textarea
                 value={postBody}
