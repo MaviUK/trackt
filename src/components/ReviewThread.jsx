@@ -4,8 +4,10 @@ import ReviewVotes from "./ReviewVotes";
 
 function formatDateTime(value) {
   if (!value) return "";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
+
   return date.toLocaleString(undefined, {
     day: "numeric",
     month: "short",
@@ -31,15 +33,21 @@ function formatRating(value) {
 
 function buildTree(rows) {
   const byId = new Map();
-  (rows || []).forEach((row) =>
-    byId.set(String(row.id), { ...row, replies: [] })
-  );
+
+  (rows || []).forEach((row) => {
+    byId.set(String(row.id), { ...row, replies: [] });
+  });
 
   const roots = [];
+
   byId.forEach((row) => {
     const parentId = row.parent_id ? String(row.parent_id) : "";
-    if (parentId && byId.has(parentId)) byId.get(parentId).replies.push(row);
-    else roots.push(row);
+
+    if (parentId && byId.has(parentId)) {
+      byId.get(parentId).replies.push(row);
+    } else {
+      roots.push(row);
+    }
   });
 
   return roots;
@@ -66,7 +74,9 @@ function ReviewItem({
   const avatarUrl = profile.avatar_url || "";
   const ratingLabel = formatRating(review.user_rating);
 
-  const isOwnReview = currentUserId && String(review.user_id) === String(currentUserId);
+  const isOwnReview =
+    currentUserId && String(review.user_id) === String(currentUserId);
+
   const canReply = currentUserId && !isOwnReview;
   const canEdit = isOwnReview;
 
@@ -80,6 +90,7 @@ function ReviewItem({
     if (!trimmed || !canReply) return;
 
     const ok = await onReply(review.id, trimmed);
+
     if (ok) {
       setReplyBody("");
       setReplyOpen(false);
@@ -93,6 +104,7 @@ function ReviewItem({
     if (!trimmed || !canEdit) return;
 
     const ok = await onEdit(review.id, trimmed);
+
     if (ok) {
       setEditing(false);
     }
@@ -113,6 +125,7 @@ function ReviewItem({
 
             <div className="msd-review-user-line">
               <strong className="msd-review-username">{displayName}</strong>
+
               {ratingLabel ? (
                 <span className="msd-review-rating">{ratingLabel}</span>
               ) : null}
@@ -133,6 +146,8 @@ function ReviewItem({
               />
 
               <div className="msd-review-form-actions">
+                <span>{editBody.trim().length}/2000</span>
+
                 <button
                   type="button"
                   className="msd-btn msd-btn-secondary"
@@ -466,24 +481,49 @@ export default function ReviewThread({
 
     if (!currentUserId || !reviewId || !trimmed) return false;
 
+    const previousReviews = reviews;
+    const now = new Date().toISOString();
+
     setSavingEditId(reviewId);
     setError("");
 
+    setReviews((prev) =>
+      prev.map((review) =>
+        String(review.id) === String(reviewId) &&
+        String(review.user_id) === String(currentUserId)
+          ? {
+              ...review,
+              body: trimmed,
+              updated_at: now,
+            }
+          : review
+      )
+    );
+
     try {
-      const { error: updateError } = await supabase
-  .from(config.reviewTable)
-  .update({
-    body: trimmed,
-    updated_at: new Date().toISOString(),
-  })
-  .eq("id", reviewId);
+      const { data, error: updateError } = await supabase
+        .from(config.reviewTable)
+        .update({
+          body: trimmed,
+          updated_at: now,
+        })
+        .eq("id", reviewId)
+        .eq("user_id", currentUserId)
+        .select("id, body, updated_at");
 
       if (updateError) throw updateError;
+
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Supabase did not update the review. Check the UPDATE policy for this review table."
+        );
+      }
 
       await loadReviews();
       return true;
     } catch (err) {
       console.error("Failed editing review:", err);
+      setReviews(previousReviews);
       setError(err.message || "Failed editing review");
       return false;
     } finally {
