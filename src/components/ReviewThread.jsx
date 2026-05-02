@@ -158,24 +158,24 @@ function ReviewItem({
               ) : null}
             </div>
 
-            <div className="msd-review-head-right">
-              <span className="msd-review-date">
-                {formatDateTime(review.created_at)}
-              </span>
+           <div className="msd-review-meta-row">
+  <span className="msd-review-date">
+    {formatDateTime(review.created_at)}
+  </span>
 
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="msd-review-header-action"
-                  onClick={() => {
-                    setEditBody(hasReplies ? "" : review.body || "");
-                    setEditing((prev) => !prev);
-                  }}
-                >
-                  {editModeLabel}
-                </button>
-              ) : null}
-            </div>
+  {canEdit ? (
+    <button
+      type="button"
+      className="msd-review-header-action"
+      onClick={() => {
+        setEditBody(hasReplies ? "" : review.body || "");
+        setEditing((prev) => !prev);
+      }}
+    >
+      {editModeLabel}
+    </button>
+  ) : null}
+</div>
           </div>
 
           {editing ? (
