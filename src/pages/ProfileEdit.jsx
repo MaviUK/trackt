@@ -358,6 +358,8 @@ export default function ProfileEdit() {
   const [postBody, setPostBody] = useState("");
   const [postType, setPostType] = useState("post");
   const [postVideoUrl, setPostVideoUrl] = useState("");
+  const [selectedPostImageFile, setSelectedPostImageFile] = useState(null);
+  const [postImagePreviewUrl, setPostImagePreviewUrl] = useState("");
   const [posting, setPosting] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
@@ -724,11 +726,73 @@ export default function ProfileEdit() {
     if (insertError) throw insertError;
   }
 
+  function handlePostImageSelect(event) {
+    const file = event.target.files?.[0] || null;
+    setSelectedPostImageFile(file);
+    setError("");
+    setMessage("");
+
+    if (!file) {
+      setPostImagePreviewUrl("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPostImagePreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return previewUrl;
+    });
+  }
+
+  function clearPostImage() {
+    setSelectedPostImageFile(null);
+    setPostImagePreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+      return "";
+    });
+  }
+
+  async function uploadCreatorPostImage(userId, file) {
+    if (!file) return null;
+
+    const safeExtension = (file.name.split(".").pop() || "jpg")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "jpg";
+    const filePath = `${userId}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${safeExtension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("creator-posts")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from("creator-posts")
+      .getPublicUrl(filePath);
+
+    return data?.publicUrl || null;
+  }
+
   async function handleCreatePost(event) {
     event?.preventDefault?.();
 
-    if (!postBody.trim()) {
-      setError("Post body is required.");
+    const hasTitle = Boolean(postTitle.trim());
+    const hasBody = Boolean(postBody.trim());
+    const hasVideo = Boolean(postVideoUrl.trim());
+    const hasImage = Boolean(selectedPostImageFile);
+
+    if (!hasTitle && !hasBody && !hasVideo && !hasImage) {
+      setError("Add some text, an image, or a video before publishing.");
+      return;
+    }
+
+    if (hasVideo && hasImage) {
+      setError("Choose either a video or an image for this post, not both.");
       return;
     }
 
@@ -745,31 +809,34 @@ export default function ProfileEdit() {
       if (userError) throw userError;
       if (!user) throw new Error("You must be logged in.");
 
-      const videoInfo = postVideoUrl.trim()
-        ? await resolveTikTokEmbedInfo(postVideoUrl)
-        : null;
+      const videoInfo = hasVideo ? await resolveTikTokEmbedInfo(postVideoUrl) : null;
 
-      if (postVideoUrl.trim() && !videoInfo) {
+      if (hasVideo && !videoInfo) {
         throw new Error("Please enter a valid YouTube or TikTok link.");
       }
 
-      if (postVideoUrl.trim() && !videoInfo?.canEmbed) {
+      if (hasVideo && !videoInfo?.canEmbed) {
         throw new Error(
           "This TikTok link could not be embedded. Open the TikTok link, tap Share, copy the full video link, and try again."
         );
       }
+
+      const imageUrl = hasImage
+        ? await uploadCreatorPostImage(user.id, selectedPostImageFile)
+        : null;
 
       const { error: postError } = await supabase
         .from("creator_posts")
         .insert({
           user_id: user.id,
           title: postTitle.trim() || null,
-          body: postBody.trim(),
+          body: postBody.trim() || null,
           post_type: postType,
           visibility: "public",
           video_url: videoInfo?.url || null,
           video_provider: videoInfo?.provider || null,
           video_embed_url: videoInfo?.embedUrl || null,
+          image_url: imageUrl,
         });
 
       if (postError) throw postError;
@@ -778,6 +845,7 @@ export default function ProfileEdit() {
       setPostBody("");
       setPostType("post");
       setPostVideoUrl("");
+      clearPostImage();
       setMessage("Creator post published.");
     } catch (err) {
       console.error("Failed creating creator post:", err);
@@ -1395,6 +1463,54 @@ export default function ProfileEdit() {
                   </p>
                 )
               ) : null}
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <label style={labelStyle}>Optional image for non-video posts</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePostImageSelect}
+                  disabled={posting || Boolean(postVideoUrl.trim())}
+                  style={{ color: "#cbd5e1" }}
+                />
+                {postVideoUrl.trim() ? (
+                  <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>
+                    Remove the video link if you want to attach an image instead.
+                  </p>
+                ) : null}
+                {postImagePreviewUrl ? (
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      border: "1px solid rgba(148,163,184,0.18)",
+                      background: "#020617",
+                    }}
+                  >
+                    <img
+                      src={postImagePreviewUrl}
+                      alt="Post preview"
+                      style={{ display: "block", width: "100%", maxHeight: 360, objectFit: "cover" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={clearPostImage}
+                      disabled={posting}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: "none",
+                        background: "rgba(239,68,68,0.18)",
+                        color: "#fecaca",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                ) : null}
+              </div>
 
               <textarea
                 value={postBody}

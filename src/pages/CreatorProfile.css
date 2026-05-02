@@ -394,219 +394,29 @@
   text-decoration: none;
 }
 
-.creator-post-body {
-  margin-top: 12px !important;
-}
-
-.creator-post-comments {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.creator-comments-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-  color: #f8fafc;
-  font-size: 14px;
-}
-
-.creator-comments-head span {
-  min-width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(124, 58, 237, 0.2);
-  color: #ddd6fe;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.creator-comment-form,
-.creator-reply-form {
-  display: grid;
-  gap: 8px;
-}
-
-.creator-comment-form textarea,
-.creator-reply-form textarea {
+.creator-post-image {
+  display: block;
   width: 100%;
-  resize: vertical;
-  min-height: 58px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
-  font-size: 14px;
-  line-height: 1.35;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.creator-comment-form textarea:focus,
-.creator-reply-form textarea:focus {
-  border-color: rgba(167, 139, 250, 0.62);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
-}
-
-.creator-comment-form button,
-.creator-reply-form button {
-  min-height: 38px;
-  border: 0;
-  border-radius: 999px;
-  padding: 0 14px;
-  justify-self: end;
-  background: #f8fafc;
-  color: #111827;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.creator-comment-form button:disabled,
-.creator-reply-form button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.creator-comment-login {
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.055);
-  color: #cbd5e1;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.creator-comments-list {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.creator-comment-thread {
-  display: grid;
-  gap: 8px;
-}
-
-.creator-comment {
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 9px;
-  align-items: start;
-}
-
-.creator-comment-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
+  max-height: 460px;
   object-fit: cover;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 12px 0 0;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #020617;
 }
 
-.creator-comment-avatar-fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 950;
-  background: linear-gradient(135deg, #7c3aed, #db2777);
-}
-
-.creator-comment-main {
-  min-width: 0;
-}
-
-.creator-comment-bubble {
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: rgba(2, 6, 23, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.075);
-}
-
-.creator-comment-byline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.creator-comment-byline strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #f8fafc;
-  font-size: 13px;
-}
-
-.creator-comment-byline span {
-  flex: 0 0 auto;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.creator-comment-bubble p {
-  margin: 0;
-  color: #dbeafe;
-  font-size: 13px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-
-.creator-reply-toggle {
-  margin-top: 5px;
-  border: 0;
-  background: transparent;
-  color: #c4b5fd;
-  font-size: 12px;
+.creator-delete-post-btn {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
   font-weight: 900;
   cursor: pointer;
-  padding: 0 2px;
 }
 
-.creator-reply-form {
-  margin-top: 8px;
-}
-
-.creator-reply-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.creator-reply-form .creator-reply-cancel {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.creator-replies-list {
-  display: grid;
-  gap: 8px;
-  margin-left: 42px;
-}
-
-.creator-comment-reply {
-  grid-template-columns: 28px 1fr;
-}
-
-.creator-comment-reply .creator-comment-avatar {
-  width: 28px;
-  height: 28px;
-}
-
-.creator-no-comments {
-  margin-top: 10px;
+.creator-delete-post-btn:hover {
+  background: rgba(153, 27, 27, 0.48);
 }
