@@ -235,7 +235,11 @@ export default function ProfileEdit() {
     gender: "",
     country: "",
     bio: "",
-    instagram_url: "",
+cover_url: "",
+creator_tagline: "",
+creator_niche: "",
+creator_bio: "",
+instagram_url: "",
     x_url: "",
     tiktok_url: "",
     youtube_url: "",
@@ -320,7 +324,11 @@ export default function ProfileEdit() {
             gender: data.gender || "",
             country: data.country || "",
             bio: data.bio || "",
-            instagram_url: data.instagram_url || "",
+cover_url: data.cover_url || "",
+creator_tagline: data.creator_tagline || "",
+creator_niche: data.creator_niche || "",
+creator_bio: data.creator_bio || "",
+instagram_url: data.instagram_url || "",
             x_url: data.x_url || "",
             tiktok_url: data.tiktok_url || "",
             youtube_url: data.youtube_url || "",
@@ -550,6 +558,10 @@ export default function ProfileEdit() {
       const cleanedFullName = form.full_name.trim();
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
+      const cleanedCoverUrl = normalizeUrl(form.cover_url);
+const cleanedCreatorTagline = form.creator_tagline.trim();
+const cleanedCreatorNiche = form.creator_niche.trim();
+const cleanedCreatorBio = form.creator_bio.trim();
 
       let avatarUrlToSave = existingAvatarUrl || null;
 
@@ -573,7 +585,11 @@ export default function ProfileEdit() {
         gender: form.gender.trim() || null,
         country: cleanedCountry || null,
         bio: cleanedBio || null,
-        instagram_url: normalizeUrl(form.instagram_url) || null,
+cover_url: cleanedCoverUrl || null,
+creator_tagline: cleanedCreatorTagline || null,
+creator_niche: cleanedCreatorNiche || null,
+creator_bio: cleanedCreatorBio || null,
+instagram_url: normalizeUrl(form.instagram_url) || null,
         x_url: normalizeUrl(form.x_url) || null,
         tiktok_url: normalizeUrl(form.tiktok_url) || null,
         youtube_url: normalizeUrl(form.youtube_url) || null,
@@ -865,6 +881,74 @@ export default function ProfileEdit() {
             />
           </div>
 
+<div
+  style={{
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(99,102,241,0.25)",
+    background: "rgba(99,102,241,0.08)",
+  }}
+>
+  <h2 style={{ margin: "0 0 6px", color: "#f8fafc", fontSize: 20 }}>
+    Creator Profile
+  </h2>
+
+  <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: 14 }}>
+    These details appear on your public creator page.
+  </p>
+
+  <div style={{ display: "grid", gap: 16 }}>
+    <div>
+      <label style={labelStyle}>Cover image URL</label>
+      <input
+        type="text"
+        value={form.cover_url}
+        onChange={(e) => updateField("cover_url", e.target.value)}
+        placeholder="Image URL for your creator page cover"
+        style={inputStyle}
+      />
+    </div>
+
+    <div>
+      <label style={labelStyle}>Creator tagline</label>
+      <input
+        type="text"
+        value={form.creator_tagline}
+        onChange={(e) => updateField("creator_tagline", e.target.value)}
+        placeholder="Crime dramas, hidden gems & brutal finales"
+        style={inputStyle}
+      />
+    </div>
+
+    <div>
+      <label style={labelStyle}>Creator niche</label>
+      <input
+        type="text"
+        value={form.creator_niche}
+        onChange={(e) => updateField("creator_niche", e.target.value)}
+        placeholder="Crime dramas / thrillers / hidden gems"
+        style={inputStyle}
+      />
+    </div>
+
+    <div>
+      <label style={labelStyle}>Creator bio</label>
+      <textarea
+        value={form.creator_bio}
+        onChange={(e) => updateField("creator_bio", e.target.value)}
+        placeholder="Tell followers why they should follow your TV taste..."
+        rows={5}
+        style={{
+          ...inputStyle,
+          resize: "vertical",
+          minHeight: 120,
+        }}
+      />
+    </div>
+  </div>
+</div>
+          
           <div
             className="profile-edit-socials-grid"
             style={{
