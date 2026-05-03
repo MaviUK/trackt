@@ -140,42 +140,44 @@ function ReviewItem({
               </div>
             )}
 
-            <div className="msd-review-user-line">
-              {profileUrl ? (
-                <a href={profileUrl} className="msd-review-username">
-                  {displayName}
-                </a>
-              ) : (
-                <strong className="msd-review-username">{displayName}</strong>
-              )}
+            <div className="msd-review-head-content">
+              <div className="msd-review-user-line">
+                {profileUrl ? (
+                  <a href={profileUrl} className="msd-review-username">
+                    {displayName}
+                  </a>
+                ) : (
+                  <strong className="msd-review-username">{displayName}</strong>
+                )}
 
-              {username && displayName !== username ? (
-                <span className="msd-review-handle">@{username}</span>
-              ) : null}
+                {ratingLabel ? (
+                  <span className="msd-review-rating">{ratingLabel}</span>
+                ) : null}
 
-              {ratingLabel ? (
-                <span className="msd-review-rating">{ratingLabel}</span>
-              ) : null}
+                {username && displayName !== username ? (
+                  <span className="msd-review-handle">@{username}</span>
+                ) : null}
+              </div>
+
+              <div className="msd-review-meta-row">
+                <span className="msd-review-date">
+                  {formatDateTime(review.created_at)}
+                </span>
+
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="msd-review-header-action"
+                    onClick={() => {
+                      setEditBody(hasReplies ? "" : review.body || "");
+                      setEditing((prev) => !prev);
+                    }}
+                  >
+                    {editModeLabel}
+                  </button>
+                ) : null}
+              </div>
             </div>
-
-           <div className="msd-review-meta-row">
-  <span className="msd-review-date">
-    {formatDateTime(review.created_at)}
-  </span>
-
-  {canEdit ? (
-    <button
-      type="button"
-      className="msd-review-header-action"
-      onClick={() => {
-        setEditBody(hasReplies ? "" : review.body || "");
-        setEditing((prev) => !prev);
-      }}
-    >
-      {editModeLabel}
-    </button>
-  ) : null}
-</div>
           </div>
 
           {editing ? (
@@ -224,22 +226,24 @@ function ReviewItem({
           ) : (
             <p className="msd-review-text">{review.body}</p>
           )}
+
+          <div className="msd-review-card-votes">
+            <ReviewVotes
+              tableName={config.voteTable}
+              idColumn={config.voteIdColumn}
+              itemId={review.id}
+              currentUserId={currentUserId}
+              upCount={review.up_count || 0}
+              downCount={review.down_count || 0}
+              myVote={review.my_vote ?? null}
+              onChanged={(nextVote, previousVote) =>
+                onVoteChanged(review.id, nextVote, previousVote)
+              }
+            />
+          </div>
         </div>
 
-               <div className="msd-review-actions">
-          <ReviewVotes
-            tableName={config.voteTable}
-            idColumn={config.voteIdColumn}
-            itemId={review.id}
-            currentUserId={currentUserId}
-            upCount={review.up_count || 0}
-            downCount={review.down_count || 0}
-            myVote={review.my_vote ?? null}
-            onChanged={(nextVote, previousVote) =>
-              onVoteChanged(review.id, nextVote, previousVote)
-            }
-          />
-
+        <div className="msd-review-actions">
           {hasReplies && !forceShowReplies ? (
             <button
               type="button"
