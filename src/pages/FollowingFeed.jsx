@@ -150,70 +150,89 @@ export default function FollowingFeed() {
         return;
       }
 
-      const [{ data: postRows, error: postsError }, { data: reviewRows, error: reviewsError }] =
-        await Promise.all([
-          supabase
-            .from("creator_posts")
-            .select(`
-              id,
-              user_id,
-              title,
-              body,
-              post_type,
-              visibility,
-              video_url,
-              video_provider,
-              video_embed_url,
-              image_url,
-              created_at,
-              updated_at,
-              profiles:user_id (
-                id,
-                username,
-                full_name,
-                display_name,
-                avatar_url
-              )
-            `)
-            .in("user_id", followingIds)
-            .eq("visibility", "public")
-            .order("created_at", { ascending: false })
-            .limit(40),
+      const [
+        { data: postRows, error: postsError },
+        { data: reviewRows, error: reviewsError },
+      ] = await Promise.all([
+        supabase
+          .from("creator_posts")
+          .select(`
+            id,
+            user_id,
+            title,
+            body,
+            post_type,
+            visibility,
+            video_url,
+            video_provider,
+            video_embed_url,
+            image_url,
+            created_at,
+            updated_at
+          `)
+          .in("user_id", followingIds)
+          .eq("visibility", "public")
+          .order("created_at", { ascending: false })
+          .limit(40),
 
-          supabase
-            .from("show_reviews")
-            .select(`
+        supabase
+          .from("show_reviews")
+          .select(`
+            id,
+            user_id,
+            show_id,
+            body,
+            created_at,
+            profiles:user_id (
               id,
-              user_id,
-              show_id,
-              body,
-              created_at,
-              profiles:user_id (
-                id,
-                username,
-                full_name,
-                display_name,
-                avatar_url
-              ),
-              shows:show_id (
-                id,
-                name,
-                tmdb_id,
-                first_aired,
-                poster_url,
-                backdrop_url
-              )
-            `)
-            .in("user_id", followingIds)
-            .is("parent_id", null)
-            .order("created_at", { ascending: false })
-            .limit(40),
-        ]);
+              username,
+              full_name,
+              display_name,
+              avatar_url
+            ),
+            shows:show_id (
+              id,
+              name,
+              tmdb_id,
+              first_aired,
+              poster_url,
+              backdrop_url
+            )
+          `)
+          .in("user_id", followingIds)
+          .is("parent_id", null)
+          .order("created_at", { ascending: false })
+          .limit(40),
+      ]);
 
       if (postsError) throw postsError;
       if (reviewsError) throw reviewsError;
 
-      setPosts(postRows || []);
+      const postUserIds = Array.from(
+        new Set((postRows || []).map((post) => post.user_id).filter(Boolean))
+      );
+
+      let profileMap = new Map();
+
+      if (postUserIds.length) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, username, full_name, display_name, avatar_url")
+          .in("id", postUserIds);
+
+        if (profilesError) throw profilesError;
+
+        profileMap = new Map(
+          (profiles || []).map((profile) => [String(profile.id), profile])
+        );
+      }
+
+      const postsWithProfiles = (postRows || []).map((post) => ({
+        ...post,
+        profiles: profileMap.get(String(post.user_id)) || null,
+      }));
+
+      setPosts(postsWithProfiles);
       setReviews(reviewRows || []);
     } catch (err) {
       console.error("Failed loading following feed:", err);
