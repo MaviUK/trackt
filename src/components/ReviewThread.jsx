@@ -140,44 +140,42 @@ function ReviewItem({
               </div>
             )}
 
-            <div className="msd-review-head-main">
-              <div className="msd-review-user-line">
-                {profileUrl ? (
-                  <a href={profileUrl} className="msd-review-username">
-                    {displayName}
-                  </a>
-                ) : (
-                  <strong className="msd-review-username">{displayName}</strong>
-                )}
+            <div className="msd-review-user-line">
+              {profileUrl ? (
+                <a href={profileUrl} className="msd-review-username">
+                  {displayName}
+                </a>
+              ) : (
+                <strong className="msd-review-username">{displayName}</strong>
+              )}
 
-                {username && displayName !== username ? (
-                  <span className="msd-review-handle">@{username}</span>
-                ) : null}
+              {username && displayName !== username ? (
+                <span className="msd-review-handle">@{username}</span>
+              ) : null}
 
-                {ratingLabel ? (
-                  <span className="msd-review-rating">{ratingLabel}</span>
-                ) : null}
-              </div>
-
-              <div className="msd-review-meta-row">
-                <span className="msd-review-date">
-                  {formatDateTime(review.created_at)}
-                </span>
-
-                {canEdit ? (
-                  <button
-                    type="button"
-                    className="msd-review-header-action"
-                    onClick={() => {
-                      setEditBody(hasReplies ? "" : review.body || "");
-                      setEditing((prev) => !prev);
-                    }}
-                  >
-                    {editModeLabel}
-                  </button>
-                ) : null}
-              </div>
+              {ratingLabel ? (
+                <span className="msd-review-rating">{ratingLabel}</span>
+              ) : null}
             </div>
+
+           <div className="msd-review-meta-row">
+  <span className="msd-review-date">
+    {formatDateTime(review.created_at)}
+  </span>
+
+  {canEdit ? (
+    <button
+      type="button"
+      className="msd-review-header-action"
+      onClick={() => {
+        setEditBody(hasReplies ? "" : review.body || "");
+        setEditing((prev) => !prev);
+      }}
+    >
+      {editModeLabel}
+    </button>
+  ) : null}
+</div>
           </div>
 
           {editing ? (
@@ -228,7 +226,7 @@ function ReviewItem({
           )}
         </div>
 
-        <div className="msd-review-actions">
+               <div className="msd-review-actions">
           <ReviewVotes
             tableName={config.voteTable}
             idColumn={config.voteIdColumn}
@@ -310,6 +308,7 @@ function ReviewItem({
           </form>
         ) : null}
 
+
         {hasReplies && effectiveShowReplies ? (
           <div className="msd-review-replies">
             {review.replies.map((reply) => (
@@ -375,7 +374,7 @@ export default function ReviewThread({
       if (userIds.length) {
         const { data: profiles, error: profileError } = await supabase
           .from("profiles")
-          .select("id, username, full_name, avatar_url")
+.select("id, username, full_name, avatar_url")
           .in("id", userIds);
 
         if (profileError) throw profileError;
@@ -456,7 +455,6 @@ export default function ReviewThread({
   useEffect(() => {
     setBody("");
     loadReviews();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId, currentUserId]);
 
   const reviewTree = useMemo(() => buildTree(reviews), [reviews]);
@@ -620,30 +618,30 @@ ${trimmed}`.trim()
     }
   }
 
-  function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
-    setReviews((prev) =>
-      prev.map((review) => {
-        if (String(review.id) !== String(reviewId)) return review;
+function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
+  setReviews((prev) =>
+    prev.map((review) => {
+      if (String(review.id) !== String(reviewId)) return review;
 
-        let up = Number(review.up_count || 0);
-        let down = Number(review.down_count || 0);
+      let up = Number(review.up_count || 0);
+      let down = Number(review.down_count || 0);
 
-        if (previousVote === 1) up -= 1;
-        if (previousVote === -1) down -= 1;
+      if (previousVote === 1) up -= 1;
+      if (previousVote === -1) down -= 1;
 
-        if (nextVote === 1) up += 1;
-        if (nextVote === -1) down += 1;
+      if (nextVote === 1) up += 1;
+      if (nextVote === -1) down += 1;
 
-        return {
-          ...review,
-          up_count: Math.max(0, up),
-          down_count: Math.max(0, down),
-          my_vote: nextVote,
-        };
-      })
-    );
-  }
-
+      return {
+        ...review,
+        up_count: Math.max(0, up),
+        down_count: Math.max(0, down),
+        my_vote: nextVote,
+      };
+    })
+  );
+}
+  
   return (
     <section className={config.sectionClass || "msd-reviews-section"}>
       <h2 className={config.headingClass || "msd-section-title"}>{heading}</h2>
