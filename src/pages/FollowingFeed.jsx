@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./FollowingFeed.css";
@@ -14,7 +14,12 @@ function formatDate(value) {
 }
 
 function getCreatorName(profile) {
-  return profile?.display_name || profile?.full_name || profile?.username || "Someone";
+  return (
+    profile?.display_name ||
+    profile?.full_name ||
+    profile?.username ||
+    "Someone"
+  );
 }
 
 function creatorHref(profile) {
@@ -27,11 +32,91 @@ function showHref(show) {
   return `/show/${show.id}`;
 }
 
+function formatPostType(value) {
+  const labels = {
+    post: "Post",
+    hot_take: "Hot take",
+    recommendation: "Recommendation",
+    tonights_pick: "Tonight's pick",
+    watchlist_advice: "Watchlist advice",
+  };
+
+  return labels[value] || "Post";
+}
+
+function isYouTubeEmbed(url) {
+  return Boolean(url && url.includes("youtube.com/embed/"));
+}
+
+function isTikTokEmbed(url) {
+  return Boolean(url && url.includes("tiktok.com/embed"));
+}
+
+function VideoEmbed({ post }) {
+  const embedUrl = post?.video_embed_url;
+  const originalUrl = post?.video_url || embedUrl;
+
+  if (!embedUrl && !originalUrl) return null;
+
+  if (isYouTubeEmbed(embedUrl)) {
+    return (
+      <div className="following-video following-video-youtube">
+        <iframe
+          src={embedUrl}
+          title={post?.title || "YouTube video"}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  if (isTikTokEmbed(embedUrl)) {
+    return (
+      <div className="following-video following-video-tiktok">
+        <iframe
+          src={embedUrl}
+          title={post?.title || "TikTok video"}
+          allow="encrypted-media; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={originalUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="following-video-link"
+    >
+      Watch video
+    </a>
+  );
+}
+
 export default function FollowingFeed() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [error, setError] = useState("");
+
+  const feedItems = useMemo(() => {
+    return [
+      ...posts.map((post) => ({
+        type: "post",
+        created_at: post.created_at,
+        data: post,
+      })),
+      ...reviews.map((review) => ({
+        type: "review",
+        created_at: review.created_at,
+        data: review,
+      })),
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [posts, reviews]);
 
   async function loadFeed() {
     setLoading(true);
@@ -44,6 +129,7 @@ export default function FollowingFeed() {
 
       if (!user?.id) {
         setReviews([]);
+        setPosts([]);
         return;
       }
 
@@ -54,48 +140,86 @@ export default function FollowingFeed() {
 
       if (followsError) throw followsError;
 
-      const followingIds = (follows || []).map((row) => row.following_id).filter(Boolean);
+      const followingIds = (follows || [])
+        .map((row) => row.following_id)
+        .filter(Boolean);
 
       if (!followingIds.length) {
         setReviews([]);
+        setPosts([]);
         return;
       }
 
-      const { data: reviewRows, error: reviewsError } = await supabase
-        .from("show_reviews")
-        .select(`
-          id,
-          user_id,
-          show_id,
-          body,
-          created_at,
-          profiles:user_id (
-            id,
-            username,
-            full_name,
-            display_name,
-            avatar_url
-          ),
-          shows:show_id (
-            id,
-            name,
-            tmdb_id,
-            first_aired,
-            poster_url,
-            backdrop_url
-          )
-        `)
-        .in("user_id", followingIds)
-        .is("parent_id", null)
-        .order("created_at", { ascending: false })
-        .limit(40);
+      const [{ data: postRows, error: postsError }, { data: reviewRows, error: reviewsError }] =
+        await Promise.all([
+          supabase
+            .from("creator_posts")
+            .select(`
+              id,
+              user_id,
+              title,
+              body,
+              post_type,
+              visibility,
+              video_url,
+              video_provider,
+              video_embed_url,
+              image_url,
+              created_at,
+              updated_at,
+              profiles:user_id (
+                id,
+                username,
+                full_name,
+                display_name,
+                avatar_url
+              )
+            `)
+            .in("user_id", followingIds)
+            .eq("visibility", "public")
+            .order("created_at", { ascending: false })
+            .limit(40),
 
+          supabase
+            .from("show_reviews")
+            .select(`
+              id,
+              user_id,
+              show_id,
+              body,
+              created_at,
+              profiles:user_id (
+                id,
+                username,
+                full_name,
+                display_name,
+                avatar_url
+              ),
+              shows:show_id (
+                id,
+                name,
+                tmdb_id,
+                first_aired,
+                poster_url,
+                backdrop_url
+              )
+            `)
+            .in("user_id", followingIds)
+            .is("parent_id", null)
+            .order("created_at", { ascending: false })
+            .limit(40),
+        ]);
+
+      if (postsError) throw postsError;
       if (reviewsError) throw reviewsError;
+
+      setPosts(postRows || []);
       setReviews(reviewRows || []);
     } catch (err) {
       console.error("Failed loading following feed:", err);
       setError(err.message || "Failed loading feed.");
       setReviews([]);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -109,24 +233,89 @@ export default function FollowingFeed() {
     <main className="following-page">
       <header className="following-header">
         <h1>Following</h1>
-        <p>Reviews and activity from the creators you follow.</p>
+        <p>Posts, reviews and activity from the creators you follow.</p>
       </header>
 
       {error ? <p className="following-error">{error}</p> : null}
 
       {loading ? (
         <p className="following-muted">Loading feed...</p>
-      ) : reviews.length ? (
+      ) : feedItems.length ? (
         <section className="following-feed-list">
-          {reviews.map((review) => {
+          {feedItems.map((item) => {
+            if (item.type === "post") {
+              const post = item.data;
+              const creator = post.profiles;
+              const creatorName = getCreatorName(creator);
+              const avatarUrl = creator?.avatar_url || "";
+
+              return (
+                <article key={`post-${post.id}`} className="following-card">
+                  <Link
+                    to={creatorHref(creator)}
+                    className="following-creator-line"
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        className="following-avatar"
+                      />
+                    ) : (
+                      <div className="following-avatar following-avatar-fallback">
+                        {creatorName.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div>
+                      <strong>{creatorName}</strong>
+                      <span>
+                        posted {formatPostType(post.post_type).toLowerCase()} ·{" "}
+                        {formatDate(post.created_at)}
+                      </span>
+                    </div>
+                  </Link>
+
+                  <VideoEmbed post={post} />
+
+                  {!post.video_embed_url && post.image_url ? (
+                    <img
+                      src={post.image_url}
+                      alt=""
+                      className="following-post-image"
+                    />
+                  ) : null}
+
+                  {post.title ? (
+                    <h2 className="following-post-title">{post.title}</h2>
+                  ) : null}
+
+                  {post.body ? (
+                    <p className="following-review-text">{post.body}</p>
+                  ) : null}
+
+                  <Link
+                    to={creatorHref(creator)}
+                    className="following-view-profile"
+                  >
+                    View creator page
+                  </Link>
+                </article>
+              );
+            }
+
+            const review = item.data;
             const creator = review.profiles;
             const show = review.shows;
             const creatorName = getCreatorName(creator);
             const avatarUrl = creator?.avatar_url || "";
 
             return (
-              <article key={review.id} className="following-card">
-                <Link to={creatorHref(creator)} className="following-creator-line">
+              <article key={`review-${review.id}`} className="following-card">
+                <Link
+                  to={creatorHref(creator)}
+                  className="following-creator-line"
+                >
                   {avatarUrl ? (
                     <img src={avatarUrl} alt="" className="following-avatar" />
                   ) : (
@@ -134,9 +323,13 @@ export default function FollowingFeed() {
                       {creatorName.slice(0, 1).toUpperCase()}
                     </div>
                   )}
+
                   <div>
                     <strong>{creatorName}</strong>
-                    <span>reviewed {show?.name || "a show"} · {formatDate(review.created_at)}</span>
+                    <span>
+                      reviewed {show?.name || "a show"} ·{" "}
+                      {formatDate(review.created_at)}
+                    </span>
                   </div>
                 </Link>
 
@@ -146,9 +339,12 @@ export default function FollowingFeed() {
                   ) : (
                     <div className="following-poster-fallback">?</div>
                   )}
+
                   <div>
                     <strong>{show?.name || "Untitled show"}</strong>
-                    {show?.first_aired ? <span>{String(show.first_aired).slice(0, 4)}</span> : null}
+                    {show?.first_aired ? (
+                      <span>{String(show.first_aired).slice(0, 4)}</span>
+                    ) : null}
                   </div>
                 </Link>
 
@@ -160,8 +356,13 @@ export default function FollowingFeed() {
       ) : (
         <section className="following-empty">
           <h2>No creator activity yet</h2>
-          <p>Follow creators to build your free feed. Their reviews will appear here.</p>
-          <Link to="/search" className="following-empty-btn">Find shows and reviewers</Link>
+          <p>
+            Follow creators to build your free feed. Their posts and reviews
+            will appear here.
+          </p>
+          <Link to="/search" className="following-empty-btn">
+            Find shows and reviewers
+          </Link>
         </section>
       )}
     </main>
