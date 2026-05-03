@@ -2467,3 +2467,93 @@
     margin-top: 10px;
   }
 }
+
+/* Final review header layout: avatar, name, rating and date on one left row; edit on right */
+.msd-review-head {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  margin-bottom: 12px !important;
+}
+
+.msd-review-head-left {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.msd-review-user-line {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+}
+
+.msd-review-username,
+.msd-review-rating,
+.msd-review-date,
+.msd-review-handle {
+  flex: 0 0 auto !important;
+}
+
+.msd-review-date {
+  margin-left: 2px !important;
+  color: #94a3b8 !important;
+  opacity: 0.72 !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.msd-review-header-action {
+  margin-left: auto !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  color: #c4b5fd !important;
+  font-weight: 900 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+.msd-review-card-votes {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  margin-top: 14px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.14) !important;
+}
+
+.msd-review-actions {
+  margin-top: 8px !important;
+  margin-left: 4px !important;
+}
+
+@media (max-width: 640px) {
+  .msd-review-head {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .msd-review-head-left {
+    gap: 8px !important;
+  }
+
+  .msd-review-user-line {
+    gap: 6px !important;
+  }
+
+  .msd-review-date {
+    font-size: 12px !important;
+  }
+}

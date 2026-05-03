@@ -91,7 +91,6 @@ function ReviewItem({
   const allRepliesCount = countAllReplies(review);
   const effectiveShowReplies = forceShowReplies || showReplies;
   const canEdit = isOwnReview;
-  const editModeLabel = hasReplies ? "Add to this" : "Edit";
 
   const isSavingReply = savingReplyId === review.id;
   const isSavingEdit = savingEditId === review.id;
@@ -132,15 +131,15 @@ function ReviewItem({
       <div className="msd-review-body-wrap">
         <div className="msd-review-card">
           <div className="msd-review-head">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="msd-review-avatar" />
-            ) : (
-              <div className="msd-review-avatar msd-review-avatar-fallback">
-                {displayName.slice(0, 1).toUpperCase()}
-              </div>
-            )}
+            <div className="msd-review-head-left">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="msd-review-avatar" />
+              ) : (
+                <div className="msd-review-avatar msd-review-avatar-fallback">
+                  {displayName.slice(0, 1).toUpperCase()}
+                </div>
+              )}
 
-            <div className="msd-review-head-content">
               <div className="msd-review-user-line">
                 {profileUrl ? (
                   <a href={profileUrl} className="msd-review-username">
@@ -157,27 +156,25 @@ function ReviewItem({
                 {username && displayName !== username ? (
                   <span className="msd-review-handle">@{username}</span>
                 ) : null}
-              </div>
 
-              <div className="msd-review-meta-row">
                 <span className="msd-review-date">
                   {formatDateTime(review.created_at)}
                 </span>
-
-                {canEdit ? (
-                  <button
-                    type="button"
-                    className="msd-review-header-action"
-                    onClick={() => {
-                      setEditBody(hasReplies ? "" : review.body || "");
-                      setEditing((prev) => !prev);
-                    }}
-                  >
-                    {editModeLabel}
-                  </button>
-                ) : null}
               </div>
             </div>
+
+            {canEdit ? (
+              <button
+                type="button"
+                className="msd-review-header-action"
+                onClick={() => {
+                  setEditBody(hasReplies ? "" : review.body || "");
+                  setEditing((prev) => !prev);
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
           </div>
 
           {editing ? (
