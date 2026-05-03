@@ -1,0 +1,79 @@
+/* Review layout patch: date left, edit/add right */
+.msd-review-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+
+.msd-review-head-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.msd-review-user-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.msd-review-meta-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.msd-review-date {
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  margin-right: auto !important;
+}
+
+.msd-review-header-action {
+  margin-left: auto !important;
+  flex: 0 0 auto !important;
+  background: transparent !important;
+  border: none !important;
+  color: #c4b5fd !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  padding: 4px 0 !important;
+  white-space: nowrap !important;
+}
+
+.msd-review-header-action:hover {
+  color: #ddd6fe !important;
+}
+
+@media (max-width: 640px) {
+  .msd-review-head {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+  }
+
+  .msd-review-avatar {
+    width: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+  }
+
+  .msd-review-meta-row {
+    margin-top: 2px !important;
+  }
+
+  .msd-review-date,
+  .msd-review-header-action {
+    font-size: 12px !important;
+  }
+}
