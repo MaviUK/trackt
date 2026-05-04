@@ -182,22 +182,7 @@ export default function FollowingFeed() {
             user_id,
             show_id,
             body,
-            created_at,
-            profiles:user_id (
-              id,
-              username,
-              full_name,
-              display_name,
-              avatar_url
-            ),
-            shows:show_id (
-              id,
-              name,
-              tmdb_id,
-              first_aired,
-              poster_url,
-              backdrop_url
-            )
+            created_at
           `)
           .in("user_id", followingIds)
           .is("parent_id", null)
@@ -208,17 +193,20 @@ export default function FollowingFeed() {
       if (postsError) throw postsError;
       if (reviewsError) throw reviewsError;
 
-      const postUserIds = Array.from(
-        new Set((postRows || []).map((post) => post.user_id).filter(Boolean))
+      const allUserIds = Array.from(
+        new Set([
+          ...(postRows || []).map((post) => post.user_id),
+          ...(reviewRows || []).map((review) => review.user_id),
+        ].filter(Boolean))
       );
 
       let profileMap = new Map();
 
-      if (postUserIds.length) {
+      if (allUserIds.length) {
         const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, username, full_name, display_name, avatar_url")
-          .in("id", postUserIds);
+          .in("id", allUserIds);
 
         if (profilesError) throw profilesError;
 
@@ -227,13 +215,38 @@ export default function FollowingFeed() {
         );
       }
 
+      const showIds = Array.from(
+        new Set((reviewRows || []).map((review) => review.show_id).filter(Boolean))
+      );
+
+      let showMap = new Map();
+
+      if (showIds.length) {
+        const { data: shows, error: showsError } = await supabase
+          .from("shows")
+          .select("id, name, tmdb_id, first_aired, poster_url, backdrop_url")
+          .in("id", showIds);
+
+        if (showsError) throw showsError;
+
+        showMap = new Map(
+          (shows || []).map((show) => [String(show.id), show])
+        );
+      }
+
       const postsWithProfiles = (postRows || []).map((post) => ({
         ...post,
         profiles: profileMap.get(String(post.user_id)) || null,
       }));
 
+      const reviewsWithProfilesAndShows = (reviewRows || []).map((review) => ({
+        ...review,
+        profiles: profileMap.get(String(review.user_id)) || null,
+        shows: showMap.get(String(review.show_id)) || null,
+      }));
+
       setPosts(postsWithProfiles);
-      setReviews(reviewRows || []);
+      setReviews(reviewsWithProfilesAndShows);
     } catch (err) {
       console.error("Failed loading following feed:", err);
       setError(err.message || "Failed loading feed.");
