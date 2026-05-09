@@ -103,9 +103,15 @@ export default function CreatorProfile() {
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+
+  const [monetization, setMonetization] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
   const [error, setError] = useState("");
@@ -114,6 +120,25 @@ export default function CreatorProfile() {
     if (!currentUser?.id || !profile?.id) return false;
     return String(currentUser.id) === String(profile.id);
   }, [currentUser?.id, profile?.id]);
+
+  const isSubscribed = useMemo(() => {
+    if (!subscription) return false;
+
+    const validStatus = ["active", "trialing"].includes(subscription.status);
+    const validPeriod =
+      !subscription.current_period_end ||
+      new Date(subscription.current_period_end) > new Date();
+
+    return validStatus && validPeriod;
+  }, [subscription]);
+
+  const canSubscribe = useMemo(() => {
+    return Boolean(
+      !isOwnProfile &&
+        monetization?.subscriptions_enabled &&
+        monetization?.stripe_onboarding_complete
+    );
+  }, [isOwnProfile, monetization]);
 
   async function loadCreatorProfile() {
     setLoading(true);
@@ -144,6 +169,7 @@ export default function CreatorProfile() {
         .maybeSingle();
 
       if (profileError) throw profileError;
+
       if (!profileRow) {
         setProfile(null);
         setError("Creator profile not found.");
@@ -152,11 +178,17 @@ export default function CreatorProfile() {
 
       setProfile(profileRow);
 
-      const [{ count: followerCount }, { data: followingRow }] = await Promise.all([
+      const [
+        { count: followerCount },
+        { data: followingRow },
+        { data: monetizationRow, error: monetizationError },
+        { data: subscriptionRow, error: subscriptionError },
+      ] = await Promise.all([
         supabase
           .from("user_follows")
           .select("follower_id", { count: "exact", head: true })
           .eq("following_id", profileRow.id),
+
         user?.id
           ? supabase
               .from("user_follows")
@@ -165,10 +197,35 @@ export default function CreatorProfile() {
               .eq("following_id", profileRow.id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
+
+        supabase
+          .from("creator_monetization")
+          .select("*")
+          .eq("user_id", profileRow.id)
+          .maybeSingle(),
+
+        user?.id && user.id !== profileRow.id
+          ? supabase
+              .from("creator_subscriptions")
+              .select("*")
+              .eq("creator_id", profileRow.id)
+              .eq("subscriber_id", user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]);
+
+      if (monetizationError) {
+        console.error("Monetization fetch error:", monetizationError);
+      }
+
+      if (subscriptionError) {
+        console.error("Subscription fetch error:", subscriptionError);
+      }
 
       setFollowersCount(followerCount || 0);
       setIsFollowing(Boolean(followingRow));
+      setMonetization(monetizationRow || null);
+      setSubscription(subscriptionRow || null);
 
       const { data: postRows, error: postsError } = await supabase
         .from("creator_posts")
@@ -187,7 +244,6 @@ export default function CreatorProfile() {
           updated_at
         `)
         .eq("user_id", profileRow.id)
-        .eq("visibility", "public")
         .order("created_at", { ascending: false })
         .limit(40);
 
@@ -222,12 +278,29 @@ export default function CreatorProfile() {
       setError(err.message || "Failed loading creator profile.");
     } finally {
       setLoading(false);
+      setSubscriptionLoading(false);
     }
   }
 
   useEffect(() => {
     loadCreatorProfile();
   }, [username]);
+
+  async function handleSubscribe() {
+    if (!currentUser?.id) {
+      setError("Please sign in to subscribe.");
+      return;
+    }
+
+    if (!profile?.id || !canSubscribe) return;
+
+    console.log("Subscribe clicked", {
+      creatorId: profile.id,
+      subscriberId: currentUser.id,
+    });
+
+    setError("Stripe checkout is the next step.");
+  }
 
   async function handleDeletePost(postId) {
     if (!currentUser?.id || !profile?.id || !isOwnProfile) return;
@@ -246,7 +319,9 @@ export default function CreatorProfile() {
 
       if (deleteError) throw deleteError;
 
-      setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postId));
+      setPosts((currentPosts) =>
+        currentPosts.filter((post) => post.id !== postId)
+      );
     } catch (err) {
       console.error("Failed deleting creator post:", err);
       setError(err.message || "Could not delete post.");
@@ -268,15 +343,19 @@ export default function CreatorProfile() {
           .eq("following_id", profile.id);
 
         if (deleteError) throw deleteError;
+
         setIsFollowing(false);
         setFollowersCount((count) => Math.max(0, count - 1));
       } else {
-        const { error: insertError } = await supabase.from("user_follows").insert({
-          follower_id: currentUser.id,
-          following_id: profile.id,
-        });
+        const { error: insertError } = await supabase
+          .from("user_follows")
+          .insert({
+            follower_id: currentUser.id,
+            following_id: profile.id,
+          });
 
         if (insertError) throw insertError;
+
         setIsFollowing(true);
         setFollowersCount((count) => count + 1);
       }
@@ -327,12 +406,15 @@ export default function CreatorProfile() {
           {avatarUrl ? (
             <img src={avatarUrl} alt={displayName} className="creator-avatar" />
           ) : (
-            <div className="creator-avatar creator-avatar-fallback">{getInitial(profile)}</div>
+            <div className="creator-avatar creator-avatar-fallback">
+              {getInitial(profile)}
+            </div>
           )}
 
           <h1>{displayName}</h1>
           {handle ? <p className="creator-handle">{handle}</p> : null}
           <p className="creator-tagline">{tagline}</p>
+
           {profile?.creator_niche ? (
             <p className="creator-niche-pill">{profile.creator_niche}</p>
           ) : null}
@@ -345,7 +427,9 @@ export default function CreatorProfile() {
             ) : (
               <button
                 type="button"
-                className={`creator-btn ${isFollowing ? "creator-btn-secondary" : "creator-btn-primary"}`}
+                className={`creator-btn ${
+                  isFollowing ? "creator-btn-secondary" : "creator-btn-primary"
+                }`}
                 onClick={toggleFollow}
                 disabled={followLoading}
               >
@@ -353,9 +437,35 @@ export default function CreatorProfile() {
               </button>
             )}
 
-            <button type="button" className="creator-btn creator-btn-locked" disabled>
-              Subscribe soon
-            </button>
+            {!isOwnProfile ? (
+              isSubscribed ? (
+                <button
+                  type="button"
+                  className="creator-btn creator-btn-secondary"
+                  disabled
+                >
+                  Subscribed
+                </button>
+              ) : canSubscribe ? (
+                <button
+                  type="button"
+                  className="creator-btn creator-btn-primary"
+                  onClick={handleSubscribe}
+                  disabled={subscriptionLoading}
+                >
+                  Subscribe £
+                  {(monetization.monthly_price_pence / 100).toFixed(2)}/month
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="creator-btn creator-btn-locked"
+                  disabled
+                >
+                  Subscribe soon
+                </button>
+              )
+            ) : null}
           </div>
         </div>
       </section>
@@ -403,6 +513,9 @@ export default function CreatorProfile() {
                 <div className="creator-post-meta">
                   <span>{formatPostType(post.post_type)}</span>
                   <span>{formatDate(post.created_at)}</span>
+                  {post.visibility === "subscribers" ? (
+                    <span>Subscribers only</span>
+                  ) : null}
                 </div>
 
                 <VideoEmbed post={post} />
