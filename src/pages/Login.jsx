@@ -148,40 +148,11 @@ export default function Login() {
       </header>
 
       <main className="login-shell">
-        <section className="login-hero-card">
-          <div className="login-copy">
-            <p className="login-kicker">Your TV tracking home</p>
-            <h1>Track, rate and rank every show you watch.</h1>
-            <p className="login-intro">
-              Build your watchlist, keep episodes organised by progress,
-              rate shows with Burgr scores, compare your favourites in Rank'd,
-              and see what is ready to watch next.
-            </p>
-
-            <div className="login-feature-grid" aria-label="Website features">
-              <div className="login-feature-card">
-                <strong>My Shows</strong>
-                <span>Sort shows into Watchlist, In Progress and Completed.</span>
-              </div>
-              <div className="login-feature-card">
-                <strong>Rank'd</strong>
-                <span>Build your personal TV ladder through head-to-head votes.</span>
-              </div>
-              <div className="login-feature-card">
-                <strong>Episodes</strong>
-                <span>Mark episodes watched and rate them as you go.</span>
-              </div>
-              <div className="login-feature-card">
-                <strong>Calendar</strong>
-                <span>See what is airing next from the shows you follow.</span>
-              </div>
-            </div>
-          </div>
-
+        <section className="login-login-section" aria-label="Login">
           <form className="login-form-card" onSubmit={login}>
             <div>
               <p className="login-form-kicker">Magic link login</p>
-              <h2>Sign in with email</h2>
+              <h1>Sign in with email</h1>
               <p>
                 No password needed. We will send a secure login link straight
                 to your inbox.
@@ -250,6 +221,35 @@ export default function Login() {
                 </article>
               );
             })}
+          </div>
+        </section>
+
+        <section className="login-copy login-home-section" aria-label="Your TV tracking home">
+          <p className="login-kicker">Your TV tracking home</p>
+          <h2>Track, rate and rank every show you watch.</h2>
+          <p className="login-intro">
+            Build your watchlist, keep episodes organised by progress,
+            rate shows with Burgr scores, compare your favourites in Rank'd,
+            and see what is ready to watch next.
+          </p>
+
+          <div className="login-feature-grid" aria-label="Website features">
+            <div className="login-feature-card">
+              <strong>My Shows</strong>
+              <span>Sort shows into Watchlist, In Progress and Completed.</span>
+            </div>
+            <div className="login-feature-card">
+              <strong>Rank'd</strong>
+              <span>Build your personal TV ladder through head-to-head votes.</span>
+            </div>
+            <div className="login-feature-card">
+              <strong>Episodes</strong>
+              <span>Mark episodes watched and rate them as you go.</span>
+            </div>
+            <div className="login-feature-card">
+              <strong>Calendar</strong>
+              <span>See what is airing next from the shows you follow.</span>
+            </div>
           </div>
         </section>
       </main>
