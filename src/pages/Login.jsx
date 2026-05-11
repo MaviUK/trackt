@@ -150,14 +150,6 @@ export default function Login() {
       <main className="login-shell">
         <section className="login-login-section" aria-label="Login">
           <form className="login-form-card" onSubmit={login}>
-            <div>
-              <p className="login-form-kicker">Magic link login</p>
-              <h1>Sign in with email</h1>
-              <p>
-                No password needed. We will send a secure login link straight
-                to your inbox.
-              </p>
-            </div>
 
             {sent ? (
               <div className="login-success" role="status">
@@ -188,7 +180,6 @@ export default function Login() {
         <section className="login-trending-section" aria-label="Trending shows">
           <div className="login-section-head">
             <div>
-              <p className="login-kicker">Trending this week</p>
               <h2>Discover what people are watching</h2>
             </div>
             {trendingLoading ? (
@@ -225,7 +216,6 @@ export default function Login() {
         </section>
 
         <section className="login-copy login-home-section" aria-label="Your TV tracking home">
-          <p className="login-kicker">Your TV tracking home</p>
           <h2>Track, rate and rank every show you watch.</h2>
           <p className="login-intro">
             Build your watchlist, keep episodes organised by progress,
