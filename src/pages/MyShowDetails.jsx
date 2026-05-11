@@ -1595,9 +1595,17 @@ const burgrTouchRef = useRef({
                 <h1 className="msd-title">{show.show_name}</h1>
                 {show.first_aired ? (
                   <>
-                    <div className="msd-mobile-year">
-                      {new Date(show.first_aired).getFullYear()}
-                    </div>
+                    <div className="msd-mobile-meta-row">
+  <span className="msd-mobile-year">
+    {new Date(show.first_aired).getFullYear()}
+  </span>
+
+  {show.original_language ? (
+    <span className="msd-mobile-language">
+      {show.original_language.toUpperCase()}
+    </span>
+  ) : null}
+</div>
                     <div className="msd-mobile-first-aired">
                       First aired: {formatDate(show.first_aired)}
                     </div>
