@@ -573,21 +573,9 @@ export default function Rankd() {
               (ep) => Number(ep.season_number ?? 0) !== 0
             );
 
-            const seasonOneEpisodes = allShowEpisodes.filter(
-              (ep) => Number(ep.season_number ?? 0) === 1
-            );
-
             const watchedMainCount = mainEpisodes.filter((ep) =>
               watchedEpisodeIds.has(String(ep.id))
             ).length;
-
-            const watchedSeasonOneCount = seasonOneEpisodes.filter((ep) =>
-              watchedEpisodeIds.has(String(ep.id))
-            ).length;
-
-            const hasWatchedWholeFirstSeason =
-              seasonOneEpisodes.length > 0 &&
-              watchedSeasonOneCount === seasonOneEpisodes.length;
 
             const ranking = rankingMap.get(String(show.show_id));
 
@@ -595,14 +583,12 @@ export default function Rankd() {
               ...show,
               totalMainEpisodes: mainEpisodes.length,
               watchedMainCount,
-              hasWatchedWholeFirstSeason,
               ladder_position: ranking?.ladder_position ?? null,
               rank_wins: ranking?.wins ?? 0,
               rank_losses: ranking?.losses ?? 0,
               rank_comparisons: ranking?.comparisons ?? 0,
             };
           })
-          .filter((show) => show.hasWatchedWholeFirstSeason)
           .sort(sortByLadder)
           .map((show, index) => ({
             ...show,
