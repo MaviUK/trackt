@@ -2556,3 +2556,18 @@
   .msd-review-date {
     font-size: 12px !important;
   }
+
+.msd-mobile-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.msd-mobile-language {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
