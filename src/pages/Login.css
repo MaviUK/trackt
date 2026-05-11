@@ -175,28 +175,44 @@
   border: 0;
   border-radius: 16px;
   padding: 14px 18px;
+
   background: linear-gradient(
     90deg,
-    #ff6b00 0%,
-    #ff8c00 20%,
-    #ffb300 45%,
-    #ffd54f 60%,
-    #ff8c00 82%,
-    #ff6b00 100%
+    #ff0000 0%,
+    #ff5a00 12%,
+    #ff9a00 24%,
+    #ffd500 36%,
+    #b7ff00 48%,
+    #4dff00 60%,
+    #00d9ff 72%,
+    #0066ff 84%,
+    #7a00ff 100%
   );
+
   color: #fff;
   font-weight: 900;
   cursor: pointer;
+
   box-shadow:
-    0 0 18px rgba(255, 140, 0, 0.35),
-    0 14px 28px rgba(255, 107, 0, 0.24);
+    0 0 18px rgba(255, 140, 0, 0.25),
+    0 14px 28px rgba(0, 0, 0, 0.28);
+
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .login-form-card button:hover {
   transform: translateY(-1px);
+
   box-shadow:
-    0 0 24px rgba(255, 179, 0, 0.45),
-    0 16px 32px rgba(255, 107, 0, 0.3);
+    0 0 26px rgba(255, 255, 255, 0.12),
+    0 18px 36px rgba(0, 0, 0, 0.34);
+}
+
+.login-form-card button:active {
+  transform: scale(0.985);
 }
 
 .login-error {
