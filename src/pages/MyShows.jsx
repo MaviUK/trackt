@@ -56,6 +56,22 @@ function getPreferredShowName(showRow) {
   );
 }
 
+function getCategoryFlags(watchStatus) {
+  const statusValue = String(watchStatus || "").toLowerCase();
+  const isArchived = statusValue === "archived";
+
+  return {
+    isArchived,
+    isWatchlist: statusValue === "watchlist" && !isArchived,
+    isCompleted: statusValue === "completed" && !isArchived,
+    isInProgress:
+      !isArchived &&
+      (statusValue === "watching" ||
+        statusValue === "in_progress" ||
+        statusValue === "inprogress"),
+  };
+}
+
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
@@ -198,12 +214,30 @@ export default function MyShows() {
         first_aired: row.shows.first_aired || null,
       }));
 
+      const basicShows = normalizedUserShows.map((userShow) => {
+        const categoryFlags = getCategoryFlags(userShow.watch_status);
+
+        return {
+          ...userShow,
+          nextEpisodeDate: null,
+          daysToNextEpisode: null,
+          watchedMainCount: 0,
+          totalMainEpisodes: 0,
+          status: null,
+          ...categoryFlags,
+          isAiring: false,
+          isAiringSoon: false,
+        };
+      });
+
+      setShows(basicShows);
+      setLoading(false);
+
       const showIds = normalizedUserShows
         .map((show) => show.show_id)
         .filter(Boolean);
 
       if (!showIds.length) {
-        setShows([]);
         return;
       }
 
@@ -270,16 +304,9 @@ export default function MyShows() {
           statusEpisodes
         );
 
-        const isArchived = userShow.watch_status === "archived";
-        const isWatchlist = watchedMainCount === 0 && !isArchived;
-        const isCompleted =
-          totalMainEpisodes > 0 &&
-          watchedMainCount >= totalMainEpisodes &&
-          !isArchived;
-        const isInProgress =
-          watchedMainCount > 0 &&
-          watchedMainCount < totalMainEpisodes &&
-          !isArchived;
+        const categoryFlags = getCategoryFlags(userShow.watch_status);
+        const { isArchived, isWatchlist, isCompleted, isInProgress } =
+          categoryFlags;
 
         const isAiring = !!nextEpisodeDate && !isArchived;
         const isAiringSoon =
