@@ -158,7 +158,7 @@ export default function Login() {
             ) : (
               <>
                 <label className="login-label" htmlFor="login-email">
-                  Email address
+                  Login
                 </label>
                 <input
                   id="login-email"
