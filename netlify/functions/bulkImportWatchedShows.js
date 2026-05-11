@@ -9,13 +9,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function fetchJson(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`TMDB request failed: ${res.status}`);
+
+  if (!res.ok) {
+    throw new Error(`TMDB request failed: ${res.status}`);
+  }
+
   return res.json();
 }
 
 async function searchShow(title) {
   const data = await fetchJson(
-    `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}`
+    `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
+      title
+    )}`
   );
 
   return data.results?.[0] || null;
@@ -57,7 +63,7 @@ async function addShowToUser(userId, showId) {
     const { error } = await supabase
       .from("user_shows_new")
       .update({
-        watch_status: "completed",
+        watch_status: "watchlist",
         archived_at: null,
         updated_at: new Date().toISOString(),
       })
@@ -70,32 +76,10 @@ async function addShowToUser(userId, showId) {
   const { error } = await supabase.from("user_shows_new").insert({
     user_id: userId,
     show_id: showId,
-    watch_status: "completed",
+    watch_status: "watchlist",
     added_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
-
-  if (error) throw error;
-}
-
-async function markEpisodeWatched(userId, episode) {
-  const { data: existing, error: findError } = await supabase
-    .from("watched_episodes")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("episode_id", episode.id)
-    .maybeSingle();
-
-  if (findError) throw findError;
-  if (existing) return;
-
-  const { error } = await supabase.from("watched_episodes").insert({
-    user_id: userId,
-    episode_id: episode.id,
-    watched_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    tvdb_episode_id: episode.tvdb_id || null,
   });
 
   if (error) throw error;
@@ -279,41 +263,36 @@ exports.handler = async (event) => {
             if (epFindError) throw epFindError;
 
             if (!existingEpisode) {
-              const { data: insertedEpisode, error: epInsertError } =
-                await supabase
-                  .from("episodes")
-                  .insert({
-                    show_id: showId,
-                    season_id: existingSeason.id,
-                    season_type: "official",
-                    season_number: seasonNumber,
-                    episode_number: episodeNumber,
-                    name: ep.name || `Episode ${episodeNumber}`,
-                    overview: ep.overview || "",
-                    aired_date: ep.air_date || null,
-                    aired_at: ep.air_date || null,
-                    image_url: ep.still_path
-                      ? `https://image.tmdb.org/t/p/w500${ep.still_path}`
-                      : null,
-                    is_special: false,
-                    external_ids: {
-                      tmdb_id: ep.id,
-                    },
-                    tmdb_vote_average: ep.vote_average || null,
-                    tmdb_vote_count: ep.vote_count || null,
-                    tmdb_still_path: ep.still_path || null,
-                    last_synced_at: new Date().toISOString(),
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  })
-                  .select()
-                  .single();
+              const { error: epInsertError } = await supabase
+                .from("episodes")
+                .insert({
+                  show_id: showId,
+                  season_id: existingSeason.id,
+                  season_type: "official",
+                  season_number: seasonNumber,
+                  episode_number: episodeNumber,
+                  name: ep.name || `Episode ${episodeNumber}`,
+                  overview: ep.overview || "",
+                  aired_date: ep.air_date || null,
+                  aired_at: ep.air_date || null,
+                  image_url: ep.still_path
+                    ? `https://image.tmdb.org/t/p/w500${ep.still_path}`
+                    : null,
+                  is_special: false,
+                  external_ids: {
+                    tmdb_id: ep.id,
+                  },
+                  tmdb_vote_average: ep.vote_average || null,
+                  tmdb_vote_count: ep.vote_count || null,
+                  tmdb_still_path: ep.still_path || null,
+                  last_synced_at: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
 
               if (epInsertError) throw epInsertError;
-              existingEpisode = insertedEpisode;
             }
 
-            await markEpisodeWatched(user.id, existingEpisode);
             importedEpisodes += 1;
           }
         }
@@ -324,7 +303,7 @@ exports.handler = async (event) => {
           matched_name: fullShow.name,
           tmdb_id: tmdbShow.id,
           tvdb_id: tvdbId,
-          episodes_marked_watched: importedEpisodes,
+          episodes_imported: importedEpisodes,
         });
       } catch (err) {
         results.push({
