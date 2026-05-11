@@ -56,22 +56,6 @@ function getPreferredShowName(showRow) {
   );
 }
 
-function getCategoryFlags(watchStatus) {
-  const statusValue = String(watchStatus || "").toLowerCase();
-  const isArchived = statusValue === "archived";
-
-  return {
-    isArchived,
-    isWatchlist: statusValue === "watchlist" && !isArchived,
-    isCompleted: statusValue === "completed" && !isArchived,
-    isInProgress:
-      !isArchived &&
-      (statusValue === "watching" ||
-        statusValue === "in_progress" ||
-        statusValue === "inprogress"),
-  };
-}
-
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
@@ -214,30 +198,12 @@ export default function MyShows() {
         first_aired: row.shows.first_aired || null,
       }));
 
-      const basicShows = normalizedUserShows.map((userShow) => {
-        const categoryFlags = getCategoryFlags(userShow.watch_status);
-
-        return {
-          ...userShow,
-          nextEpisodeDate: null,
-          daysToNextEpisode: null,
-          watchedMainCount: 0,
-          totalMainEpisodes: 0,
-          status: null,
-          ...categoryFlags,
-          isAiring: false,
-          isAiringSoon: false,
-        };
-      });
-
-      setShows(basicShows);
-      setLoading(false);
-
       const showIds = normalizedUserShows
         .map((show) => show.show_id)
         .filter(Boolean);
 
       if (!showIds.length) {
+        setShows([]);
         return;
       }
 
@@ -304,9 +270,33 @@ export default function MyShows() {
           statusEpisodes
         );
 
-        const categoryFlags = getCategoryFlags(userShow.watch_status);
-        const { isArchived, isWatchlist, isCompleted, isInProgress } =
-          categoryFlags;
+        const statusValue = String(userShow.watch_status || "").toLowerCase();
+        const isArchived = statusValue === "archived";
+
+        const computedCompleted =
+          totalMainEpisodes > 0 && watchedMainCount >= totalMainEpisodes;
+        const computedInProgress =
+          watchedMainCount > 0 && !computedCompleted;
+
+        const isCompleted =
+          !isArchived && (statusValue === "completed" || computedCompleted);
+        const isInProgress =
+          !isArchived &&
+          !isCompleted &&
+          (statusValue === "watching" ||
+            statusValue === "in_progress" ||
+            statusValue === "inprogress" ||
+            computedInProgress);
+        const isWatchlist =
+          !isArchived &&
+          !isCompleted &&
+          !isInProgress &&
+          (statusValue === "watchlist" || watchedMainCount === 0);
+
+        let resolvedWatchStatus = "watchlist";
+        if (isArchived) resolvedWatchStatus = "archived";
+        else if (isCompleted) resolvedWatchStatus = "completed";
+        else if (isInProgress) resolvedWatchStatus = "watching";
 
         const isAiring = !!nextEpisodeDate && !isArchived;
         const isAiringSoon =
@@ -328,10 +318,34 @@ export default function MyShows() {
           isInProgress,
           isAiring,
           isAiringSoon,
+          resolvedWatchStatus,
         };
       });
 
       setShows(updatedShows);
+
+      const statusUpdates = updatedShows
+        .filter((show) => {
+          if (!show.show_id || !show.resolvedWatchStatus) return false;
+          if (show.resolvedWatchStatus === "archived") return false;
+          return show.watch_status !== show.resolvedWatchStatus;
+        })
+        .map((show) =>
+          supabase
+            .from("user_shows_new")
+            .update({
+              watch_status: show.resolvedWatchStatus,
+              archived_at: null,
+            })
+            .eq("user_id", user.id)
+            .eq("show_id", show.show_id)
+        );
+
+      if (statusUpdates.length) {
+        Promise.allSettled(statusUpdates).catch((statusError) => {
+          console.error("Failed syncing show statuses:", statusError);
+        });
+      }
     } catch (error) {
       console.error("LOAD SHOWS FAILED:", error);
       setShows([]);
