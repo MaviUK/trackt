@@ -1601,10 +1601,16 @@ const burgrTouchRef = useRef({
   </span>
 
   {show.original_language ? (
-    <span className="msd-mobile-language">
-      {show.original_language.toUpperCase()}
-    </span>
-  ) : null}
+  <span className="msd-mobile-language">
+    (
+    {
+      new Intl.DisplayNames(["en"], {
+        type: "language",
+      }).of(show.original_language)
+    }
+    )
+  </span>
+) : null}
 </div>
                     <div className="msd-mobile-first-aired">
                       First aired: {formatDate(show.first_aired)}
