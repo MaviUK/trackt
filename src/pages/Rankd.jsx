@@ -508,7 +508,10 @@ export default function Rankd() {
         if (userShowsError) throw userShowsError;
 
         const normalizedShows = (userShows || [])
-          .filter((row) => String(row.watch_status || "").toLowerCase() !== "watchlist")
+          .filter((row) => {
+  const status = String(row.watch_status || "").toLowerCase();
+  return status === "completed" || status === "watching";
+})
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows?.tvdb_id,
@@ -941,6 +944,7 @@ nextRankFocus = {
       if (!user) throw new Error("You must be logged in to comment.");
 
       const { showAId, showBId, pairKey } = getOrderedPair(
+        
         currentPair[0].show_id,
         currentPair[1].show_id
       );
@@ -1025,26 +1029,46 @@ nextRankFocus = {
     );
   }
 
-  if (eligibleShows.length < 2) {
-    return (
-      <div className="page rankd-page">
-        <div className="page-shell">
-          <div className="page-header">
-            <h1>Rank'd</h1>
-            <p>Swipe your favourite shows against each other to build your personal ranking.</p>
-          </div>
+ if (eligibleShows.length < 2) {
+  return (
+    <div className="page rankd-page">
+      <div className="page-shell">
+        <div className="page-header">
+          <h1>Rank'd</h1>
+          <p>Swipe your favourite shows against each other to build your personal ranking.</p>
+        </div>
 
-          <div className="section-card rankd-empty-card">
-            <p>You need at least 2 shows with watched episodes before Rank'd can start.</p>
-            <p>Shows with 0 watched episodes are excluded automatically.</p>
-            <Link to="/my-shows" className="top-tab active">
-              Go to My Shows
-            </Link>
-          </div>
+        <div className="section-card rankd-empty-card">
+          <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
+          <p>Watchlist shows are excluded automatically.</p>
+          <Link to="/my-shows" className="top-tab active">
+            Go to My Shows
+          </Link>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+if (currentPair.length < 2) {
+  return (
+    <div className="page rankd-page">
+      <div className="page-shell">
+        <div className="page-header">
+          <h1>Rank'd</h1>
+          <p>Preparing your first matchup...</p>
+        </div>
+
+        {error ? (
+          <div className="section-card rankd-error-card">
+            <strong>Something went wrong</strong>
+            <span>{error}</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
   const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
   const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
