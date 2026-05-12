@@ -37,8 +37,9 @@ function chunkArray(items, size) {
   return chunks;
 }
 
-function createWatchedLookup(rows) {
+function createWatchedLookup(rows, assumeAllWatched = false) {
   return {
+    assumeAllWatched,
     byEpisodeId: new Set(
       (rows || [])
         .map((row) => row?.episode_id)
@@ -50,6 +51,7 @@ function createWatchedLookup(rows) {
 
 function isEpisodeWatched(ep, watchedLookup) {
   if (!ep?.id) return false;
+  if (watchedLookup?.assumeAllWatched) return true;
   return watchedLookup.byEpisodeId.has(String(ep.id));
 }
 
@@ -287,8 +289,8 @@ const burgrTouchRef = useRef({
   );
 
   const watchedLookup = useMemo(
-    () => createWatchedLookup(watchedRows),
-    [watchedRows]
+    () => createWatchedLookup(watchedRows, show?.watch_status === "completed"),
+    [watchedRows, show?.watch_status]
   );
 
   const myEpisodeRatings = useMemo(
@@ -990,12 +992,16 @@ const burgrTouchRef = useRef({
       if (show.watch_status === "archived") return;
       if (savingShowAction) return;
 
-      let desiredStatus = "watchlist";
+      let desiredStatus = show.watch_status || "watchlist";
 
       if (stats.total > 0 && stats.watched >= stats.total) {
         desiredStatus = "completed";
       } else if (stats.watched > 0) {
         desiredStatus = "watching";
+      } else if (show.watch_status === "completed") {
+        return;
+      } else {
+        desiredStatus = "watchlist";
       }
 
       if (show.watch_status === desiredStatus) return;
