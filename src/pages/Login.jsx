@@ -1,67 +1,21 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
 import BurgrsBanner from "../components/BurgrsBanner";
 import { supabase } from "../lib/supabase";
 import "./Login.css";
 
 const fallbackTrendingShows = [
-  {
-    id: "fallback-1",
-    name: "Track your favourites",
-    image: null,
-    year: "Watchlist",
-  },
-  {
-    id: "fallback-2",
-    name: "Rank every show",
-    image: null,
-    year: "Rank'd",
-  },
-  {
-    id: "fallback-3",
-    name: "Rate episodes",
-    image: null,
-    year: "Burgr",
-  },
-  {
-    id: "fallback-4",
-    name: "See what's next",
-    image: null,
-    year: "Calendar",
-  },
+  { id: "fallback-1", name: "Track your favourites", image: null, year: "Watchlist" },
+  { id: "fallback-2", name: "Rank every show", image: null, year: "Rank'd" },
+  { id: "fallback-3", name: "Rate episodes", image: null, year: "Burgr" },
+  { id: "fallback-4", name: "See what's next", image: null, year: "Calendar" },
 ];
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
-  const [session, setSession] = useState(undefined);
   const [trendingShows, setTrendingShows] = useState([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (mounted) {
-        setSession(data.session ?? null);
-      }
-    };
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +23,7 @@ export default function Login() {
     async function loadTrendingShows() {
       try {
         setTrendingLoading(true);
+
         const response = await fetch("/.netlify/functions/getTrendingShows");
         const payload = await response.json();
 
@@ -129,14 +84,6 @@ export default function Login() {
     setSent(true);
   };
 
-  if (session === undefined) {
-    return null;
-  }
-
-  if (session) {
-    return <Navigate to="/" replace />;
-  }
-
   const displayTrendingShows = trendingShows.length
     ? trendingShows
     : fallbackTrendingShows;
@@ -150,7 +97,6 @@ export default function Login() {
       <main className="login-shell">
         <section className="login-login-section" aria-label="Login">
           <form className="login-form-card" onSubmit={login}>
-
             {sent ? (
               <div className="login-success" role="status">
                 Check your email for the login link.
@@ -160,6 +106,7 @@ export default function Login() {
                 <label className="login-label" htmlFor="login-email">
                   Login
                 </label>
+
                 <input
                   id="login-email"
                   type="email"
@@ -182,6 +129,7 @@ export default function Login() {
             <div>
               <h2>Discover what people are watching</h2>
             </div>
+
             {trendingLoading ? (
               <span className="login-muted">Loading...</span>
             ) : null}
@@ -205,6 +153,7 @@ export default function Login() {
                       {showName.charAt(0)}
                     </div>
                   )}
+
                   <div className="login-trending-overlay">
                     <strong>{showName}</strong>
                     {show?.year ? <span>{show.year}</span> : null}
@@ -215,8 +164,12 @@ export default function Login() {
           </div>
         </section>
 
-        <section className="login-copy login-home-section" aria-label="Your TV tracking home">
+        <section
+          className="login-copy login-home-section"
+          aria-label="Your TV tracking home"
+        >
           <h2>Track, rate and rank every show you watch.</h2>
+
           <p className="login-intro">
             Build your watchlist, keep episodes organised by progress,
             rate shows with Burgr scores, compare your favourites in Rank'd,
@@ -228,14 +181,17 @@ export default function Login() {
               <strong>My Shows</strong>
               <span>Sort shows into Watchlist, In Progress and Completed.</span>
             </div>
+
             <div className="login-feature-card">
               <strong>Rank'd</strong>
               <span>Build your personal TV ladder through head-to-head votes.</span>
             </div>
+
             <div className="login-feature-card">
               <strong>Episodes</strong>
               <span>Mark episodes watched and rate them as you go.</span>
             </div>
+
             <div className="login-feature-card">
               <strong>Calendar</strong>
               <span>See what is airing next from the shows you follow.</span>
