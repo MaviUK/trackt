@@ -583,11 +583,11 @@ setLastPairKey(
   }, []);
 
   useEffect(() => {
-    loadCurrentMatchup(currentPair).catch((matchupError) => {
-      console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
-      setError(matchupError.message || "Failed to load this matchup.");
-    });
-  }, [currentPairKey, matchupMap]);
+  loadCurrentMatchup(currentPair).catch((matchupError) => {
+    console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
+    setError(matchupError.message || "Failed to load this matchup.");
+  });
+}, [currentPairKey]);
 
   useEffect(() => {
     async function openNotificationMatchup() {
