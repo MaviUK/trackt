@@ -5,7 +5,7 @@ import "./Rankd.css";
 
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
-
+const MAX_COMMENT_DEPTH = 10;
 
 function sortByLadder(a, b) {
   const aUnrated = (a.rank_comparisons || 0) === 0;
@@ -48,28 +48,6 @@ function applyLadderWin(shows, winnerId, loserId) {
     ...show,
     ladder_position: index + 1,
   }));
-}
-
-function isFocusSettled(items, focus) {
-  if (!focus) return false;
-
-  const sorted = [...items].sort(sortByLadder);
-  const focusIndex = sorted.findIndex(
-    (show) => String(show.show_id) === String(focus.showId)
-  );
-
-  if (focusIndex === -1) return false;
-
-  const above = sorted[focusIndex - 1];
-  const below = sorted[focusIndex + 1];
-
-  const lostToAbove =
-    !above || (focus.lostToIds || []).includes(String(above.show_id));
-
-  const beatBelow =
-    !below || (focus.beatenIds || []).includes(String(below.show_id));
-
-  return lostToAbove && beatBelow;
 }
 
 function getFocusedPair(items, focusShowId, focus = null) {
@@ -224,10 +202,20 @@ function buildCommentTree(comments) {
   });
 
   byId.forEach((comment) => {
-    if (comment.parent_comment_id && byId.has(String(comment.parent_comment_id))) {
-      byId.get(String(comment.parent_comment_id)).replies.push(comment);
-    } else {
+    const commentId = String(comment.id);
+    const parentId = comment.parent_comment_id
+      ? String(comment.parent_comment_id)
+      : null;
+
+    if (!parentId || parentId === commentId || !byId.has(parentId)) {
       roots.push(comment);
+      return;
+    }
+
+    const parent = byId.get(parentId);
+
+    if (!parent.replies.some((reply) => String(reply.id) === commentId)) {
+      parent.replies.push(comment);
     }
   });
 
@@ -319,8 +307,20 @@ function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
   );
 }
 
-function CommentItem({ comment, currentUserId, onReply }) {
+function CommentItem({ comment, currentUserId, onReply, depth = 0, visitedIds = new Set() }) {
   const author = comment.profile?.username || comment.profile?.full_name || "Rank'd user";
+  const commentId = String(comment.id);
+
+  if (depth > MAX_COMMENT_DEPTH || visitedIds.has(commentId)) {
+    return null;
+  }
+
+  const nextVisitedIds = new Set(visitedIds);
+  nextVisitedIds.add(commentId);
+
+  const safeReplies = (comment.replies || []).filter(
+    (reply) => String(reply.id) !== commentId && !nextVisitedIds.has(String(reply.id))
+  );
 
   return (
     <div className="rankd-comment-item" id={`comment-${comment.id}`}>
@@ -337,14 +337,16 @@ function CommentItem({ comment, currentUserId, onReply }) {
         </button>
       ) : null}
 
-      {comment.replies?.length ? (
+      {safeReplies.length ? (
         <div className="rankd-comment-replies">
-          {comment.replies.map((reply) => (
+          {safeReplies.map((reply) => (
             <CommentItem
               key={reply.id}
               comment={reply}
               currentUserId={currentUserId}
               onReply={onReply}
+              depth={depth + 1}
+              visitedIds={nextVisitedIds}
             />
           ))}
         </div>
@@ -509,9 +511,9 @@ export default function Rankd() {
 
         const normalizedShows = (userShows || [])
           .filter((row) => {
-  const status = String(row.watch_status || "").toLowerCase();
-  return status === "completed" || status === "watching";
-})
+            const status = String(row.watch_status || "").toLowerCase();
+            return status === "completed" || status === "watching";
+          })
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows?.tvdb_id,
@@ -521,54 +523,54 @@ export default function Rankd() {
 
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
-if (showIds.length < 2) {
-  setEligibleShows([]);
-  setCurrentPair([]);
-  return;
-}
+        if (showIds.length < 2) {
+          setEligibleShows([]);
+          setCurrentPair([]);
+          return;
+        }
 
-const { data: rankingData, error: rankingError } = await supabase
-  .from("user_show_rankings")
-  .select("show_id, ladder_position, wins, losses, comparisons")
-  .eq("user_id", user.id);
+        const { data: rankingData, error: rankingError } = await supabase
+          .from("user_show_rankings")
+          .select("show_id, ladder_position, wins, losses, comparisons")
+          .eq("user_id", user.id);
 
-if (rankingError) throw rankingError;
+        if (rankingError) throw rankingError;
 
-const rankingMap = new Map(
-  (rankingData || []).map((row) => [String(row.show_id), row])
-);
+        const rankingMap = new Map(
+          (rankingData || []).map((row) => [String(row.show_id), row])
+        );
 
-const withProgress = normalizedShows
-  .map((show) => {
-    const ranking = rankingMap.get(String(show.show_id));
+        const withProgress = normalizedShows
+          .map((show) => {
+            const ranking = rankingMap.get(String(show.show_id));
 
-    return {
-      ...show,
-      totalMainEpisodes: 1,
-      watchedMainCount: 1,
-      ladder_position: ranking?.ladder_position ?? null,
-      rank_wins: ranking?.wins ?? 0,
-      rank_losses: ranking?.losses ?? 0,
-      rank_comparisons: ranking?.comparisons ?? 0,
-    };
-  })
-  .sort(sortByLadder)
-  .map((show, index) => ({
-    ...show,
-    ladder_position: show.ladder_position ?? index + 1,
-  }));
+            return {
+              ...show,
+              totalMainEpisodes: 1,
+              watchedMainCount: 1,
+              ladder_position: ranking?.ladder_position ?? null,
+              rank_wins: ranking?.wins ?? 0,
+              rank_losses: ranking?.losses ?? 0,
+              rank_comparisons: ranking?.comparisons ?? 0,
+            };
+          })
+          .sort(sortByLadder)
+          .map((show, index) => ({
+            ...show,
+            ladder_position: show.ladder_position ?? index + 1,
+          }));
 
-setMatchupMap(new Map());
-setEligibleShows(withProgress);
+        setMatchupMap(new Map());
+        setEligibleShows(withProgress);
 
-const firstPair = getFairPair(withProgress, new Map());
+        const firstPair = getFairPair(withProgress, new Map());
 
-setCurrentPair(firstPair);
-setLastPairKey(
-  firstPair.length === 2
-    ? makePairKey(firstPair[0].show_id, firstPair[1].show_id)
-    : ""
-);
+        setCurrentPair(firstPair);
+        setLastPairKey(
+          firstPair.length === 2
+            ? makePairKey(firstPair[0].show_id, firstPair[1].show_id)
+            : ""
+        );
 
         await loadNotifications(user.id);
       } catch (loadError) {
@@ -583,11 +585,11 @@ setLastPairKey(
   }, []);
 
   useEffect(() => {
-  loadCurrentMatchup(currentPair).catch((matchupError) => {
-    console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
-    setError(matchupError.message || "Failed to load this matchup.");
-  });
-}, [currentPairKey]);
+    loadCurrentMatchup(currentPair).catch((matchupError) => {
+      console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
+      setError(matchupError.message || "Failed to load this matchup.");
+    });
+  }, [currentPairKey]);
 
   useEffect(() => {
     async function openNotificationMatchup() {
@@ -724,35 +726,35 @@ setLastPairKey(
     setPendingCommentId(null);
   }, [pendingCommentId, comments]);
 
-function startFocusedRanking(show) {
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth",
-  });
+  function startFocusedRanking(show) {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
 
-  const sorted = [...eligibleShows].sort(sortByLadder);
+    const sorted = [...eligibleShows].sort(sortByLadder);
 
-  const newFocus = {
-    showId: show.show_id,
-    showName: show.show_name,
-    roundsDone: 0,
-    testedIds: [],
-    lowerBound: 0,
-    upperBound: sorted.length - 1,
-    lastOpponentId: null,
-  };
+    const newFocus = {
+      showId: show.show_id,
+      showName: show.show_name,
+      roundsDone: 0,
+      testedIds: [],
+      lowerBound: 0,
+      upperBound: sorted.length - 1,
+      lastOpponentId: null,
+    };
 
-  const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
+    const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
 
-  if (nextPair.length !== 2) return;
+    if (nextPair.length !== 2) return;
 
-  setRankFocus(newFocus);
-  setCurrentPair(nextPair);
-  setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
-  setShowComments(false);
-  setCommentText("");
-  setReplyTo(null);
-}
+    setRankFocus(newFocus);
+    setCurrentPair(nextPair);
+    setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
+    setShowComments(false);
+    setCommentText("");
+    setReplyTo(null);
+  }
 
   async function handleChoice(winnerShowId) {
     if (saving || currentPair.length !== 2) return;
@@ -807,6 +809,7 @@ function startFocusedRanking(show) {
       });
 
       let nextRankFocus = rankFocus;
+      let nextPair = [];
 
       if (rankFocus) {
         const focusWon = String(winner.show_id) === String(rankFocus.showId);
@@ -814,51 +817,47 @@ function startFocusedRanking(show) {
         const nextRoundsDone = (rankFocus.roundsDone || 0) + 1;
 
         const sortedAfterVote = [...updatedLadder].sort(sortByLadder);
-const opponentIndex = sortedAfterVote.findIndex(
-  (show) => String(show.show_id) === String(opponent.show_id)
-);
+        const opponentIndex = sortedAfterVote.findIndex(
+          (show) => String(show.show_id) === String(opponent.show_id)
+        );
 
-nextRankFocus = {
-  ...rankFocus,
-  roundsDone: nextRoundsDone,
-  testedIds: [
-    ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
-  ],
-  lastOpponentId: String(opponent.show_id),
-
-  // If focus won, it belongs above that opponent.
-  // If focus lost, it belongs below that opponent.
-  lowerBound: focusWon
-    ? rankFocus.lowerBound ?? 0
-    : Math.max(rankFocus.lowerBound ?? 0, opponentIndex + 1),
-
-  upperBound: focusWon
-    ? Math.min(rankFocus.upperBound ?? sortedAfterVote.length - 1, opponentIndex - 1)
-    : rankFocus.upperBound ?? sortedAfterVote.length - 1,
-};
+        nextRankFocus = {
+          ...rankFocus,
+          roundsDone: nextRoundsDone,
+          testedIds: [
+            ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
+          ],
+          lastOpponentId: String(opponent.show_id),
+          lowerBound: focusWon
+            ? rankFocus.lowerBound ?? 0
+            : Math.max(rankFocus.lowerBound ?? 0, opponentIndex + 1),
+          upperBound: focusWon
+            ? Math.min(rankFocus.upperBound ?? sortedAfterVote.length - 1, opponentIndex - 1)
+            : rankFocus.upperBound ?? sortedAfterVote.length - 1,
+        };
 
         if (nextRankFocus.upperBound < nextRankFocus.lowerBound) {
-  nextRankFocus = null;
-  setRankFocus(null);
-} else {
-  const nextFocusedPair = getFocusedPair(
-    updatedLadder,
-    nextRankFocus.showId,
-    nextRankFocus
-  );
+          nextRankFocus = null;
+          setRankFocus(null);
+        } else {
+          nextPair = getFocusedPair(
+            updatedLadder,
+            nextRankFocus.showId,
+            nextRankFocus
+          );
 
-  if (nextFocusedPair.length !== 2) {
-    nextRankFocus = null;
-    setRankFocus(null);
-  } else {
-    setRankFocus(nextRankFocus);
-  }
-}
+          if (nextPair.length !== 2) {
+            nextRankFocus = null;
+            setRankFocus(null);
+          } else {
+            setRankFocus(nextRankFocus);
+          }
+        }
       }
 
-      const nextPair = nextRankFocus
-  ? getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus)
-  : getFairPair(updatedLadder, matchupMap, currentPairKey);
+      if (!nextRankFocus) {
+        nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+      }
 
       setEligibleShows(updatedLadder);
       setCurrentPair(nextPair);
@@ -944,7 +943,6 @@ nextRankFocus = {
       if (!user) throw new Error("You must be logged in to comment.");
 
       const { showAId, showBId, pairKey } = getOrderedPair(
-        
         currentPair[0].show_id,
         currentPair[1].show_id
       );
@@ -1029,46 +1027,53 @@ nextRankFocus = {
     );
   }
 
- if (eligibleShows.length < 2) {
-  return (
-    <div className="page rankd-page">
-      <div className="page-shell">
-        <div className="page-header">
-          <h1>Rank'd</h1>
-          <p>Swipe your favourite shows against each other to build your personal ranking.</p>
-        </div>
-
-        <div className="section-card rankd-empty-card">
-          <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
-          <p>Watchlist shows are excluded automatically.</p>
-          <Link to="/my-shows" className="top-tab active">
-            Go to My Shows
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-if (currentPair.length < 2) {
-  return (
-    <div className="page rankd-page">
-      <div className="page-shell">
-        <div className="page-header">
-          <h1>Rank'd</h1>
-          <p>Preparing your first matchup...</p>
-        </div>
-
-        {error ? (
-          <div className="section-card rankd-error-card">
-            <strong>Something went wrong</strong>
-            <span>{error}</span>
+  if (eligibleShows.length < 2) {
+    return (
+      <div className="page rankd-page">
+        <div className="page-shell">
+          <div className="page-header">
+            <h1>Rank'd</h1>
+            <p>Swipe your favourite shows against each other to build your personal ranking.</p>
           </div>
-        ) : null}
+
+          {error ? (
+            <div className="section-card rankd-error-card">
+              <strong>Something went wrong</strong>
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          <div className="section-card rankd-empty-card">
+            <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
+            <p>Watchlist shows are excluded automatically.</p>
+            <Link to="/my-shows" className="top-tab active">
+              Go to My Shows
+            </Link>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
+  if (currentPair.length < 2) {
+    return (
+      <div className="page rankd-page">
+        <div className="page-shell">
+          <div className="page-header">
+            <h1>Rank'd</h1>
+            <p>Preparing your first matchup...</p>
+          </div>
+
+          {error ? (
+            <div className="section-card rankd-error-card">
+              <strong>Something went wrong</strong>
+              <span>{error}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
   const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
@@ -1081,12 +1086,12 @@ if (currentPair.length < 2) {
         <div className="rankd-matchup-number">
           {rankFocus ? (
             <>
-              Finding place for {rankFocus.showName} — round{" "}
-{(rankFocus.roundsDone || 0) + 1}
+              Finding place for {rankFocus.showName} — round {" "}
+              {(rankFocus.roundsDone || 0) + 1}
             </>
           ) : (
             <>
-              Matchup #
+              Matchup #{" "}
               {Math.floor(
                 leaderboard.reduce(
                   (total, show) => total + (show.rank_comparisons || 0),
