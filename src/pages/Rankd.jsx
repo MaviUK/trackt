@@ -116,58 +116,60 @@ function shuffle(items) {
 function getFairPair(items, matchupMap, previousPairKey = "") {
   if (items.length < 2) return [];
 
-  const pairs = [];
+  function pickPair(allowPreviousPair = false) {
+    let bestPair = null;
+    let bestTimesMatched = Infinity;
+    let bestLastMatchedAt = null;
+    let tieCount = 0;
 
-  for (let i = 0; i < items.length; i += 1) {
-    for (let j = i + 1; j < items.length; j += 1) {
-      const pairKey = makePairKey(items[i].show_id, items[j].show_id);
-      const stats = matchupMap.get(pairKey);
+    for (let i = 0; i < items.length; i += 1) {
+      for (let j = i + 1; j < items.length; j += 1) {
+        const first = items[i];
+        const second = items[j];
+        const pairKey = makePairKey(first.show_id, second.show_id);
 
-      pairs.push({
-        first: items[i],
-        second: items[j],
-        pairKey,
-        timesMatched: stats?.times_matched ?? 0,
-        lastMatchedAt: stats?.updated_at || stats?.created_at || "",
-      });
+        if (!allowPreviousPair && pairKey === previousPairKey) {
+          continue;
+        }
+
+        const stats = matchupMap.get(pairKey);
+        const timesMatched = stats?.times_matched ?? 0;
+        const lastMatchedAt = stats?.updated_at || stats?.created_at || "";
+
+        const isBetter =
+          timesMatched < bestTimesMatched ||
+          (timesMatched === bestTimesMatched &&
+            (!bestLastMatchedAt || !lastMatchedAt || lastMatchedAt < bestLastMatchedAt));
+
+        const isTie =
+          timesMatched === bestTimesMatched &&
+          (lastMatchedAt || "") === (bestLastMatchedAt || "");
+
+        if (isBetter) {
+          bestPair = { first, second, pairKey };
+          bestTimesMatched = timesMatched;
+          bestLastMatchedAt = lastMatchedAt;
+          tieCount = 1;
+        } else if (isTie) {
+          tieCount += 1;
+
+          if (Math.random() < 1 / tieCount) {
+            bestPair = { first, second, pairKey };
+          }
+        }
+      }
     }
+
+    return bestPair;
   }
 
-  const usablePairs = pairs.filter((pair) => pair.pairKey !== previousPairKey);
-  const pool = usablePairs.length ? usablePairs : pairs;
-  const lowestCount = Math.min(...pool.map((pair) => pair.timesMatched));
-  const leastUsed = pool.filter((pair) => pair.timesMatched === lowestCount);
+  const chosen = pickPair(false) || pickPair(true);
 
-  const oldestDate = leastUsed
-    .map((pair) => pair.lastMatchedAt)
-    .filter(Boolean)
-    .sort()[0];
-
-  const oldestLeastUsed = oldestDate
-    ? leastUsed.filter((pair) => !pair.lastMatchedAt || pair.lastMatchedAt === oldestDate)
-    : leastUsed;
-
-  const chosen = shuffle(oldestLeastUsed)[0] || shuffle(leastUsed)[0] || pool[0];
+  if (!chosen) return [];
 
   return Math.random() > 0.5
     ? [chosen.first, chosen.second]
     : [chosen.second, chosen.first];
-}
-
-function getWinCount(stats, showId) {
-  if (!stats) return 0;
-
-  return String(stats.show_a_id) === String(showId)
-    ? Number(stats.show_a_wins || 0)
-    : Number(stats.show_b_wins || 0);
-}
-
-function getWinPercent(stats, showId) {
-  const total = Number(stats?.times_matched || 0);
-  if (!total) return 0;
-
-  const wins = getWinCount(stats, showId);
-  return Math.round((wins / total) * 100);
 }
 
 async function hydrateComments(rows) {
