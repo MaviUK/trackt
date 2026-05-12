@@ -518,92 +518,54 @@ export default function Rankd() {
 
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
-        if (!showIds.length) {
-          setEligibleShows([]);
-          setCurrentPair([]);
-          return;
-        }
+if (showIds.length < 2) {
+  setEligibleShows([]);
+  setCurrentPair([]);
+  return;
+}
 
-        const [watchedRows, allEpisodes, rankingRows, matchupRows] = await Promise.all([
-          fetchAllWatchedEpisodeRows(user.id),
-          fetchEpisodesForShowIds(showIds),
-          supabase
-            .from("user_show_rankings")
-            .select("show_id, ladder_position, wins, losses, comparisons")
-            .eq("user_id", user.id),
-          supabase
-            .from("rankd_matchups")
-            .select("*")
-            .or(showIds.map((id) => `show_a_id.eq.${id},show_b_id.eq.${id}`).join(",")),
-        ]);
+const { data: rankingData, error: rankingError } = await supabase
+  .from("user_show_rankings")
+  .select("show_id, ladder_position, wins, losses, comparisons")
+  .eq("user_id", user.id);
 
-        if (rankingRows.error) throw rankingRows.error;
-        if (matchupRows.error) throw matchupRows.error;
+if (rankingError) throw rankingError;
 
-        const watchedEpisodeIds = new Set(
-          (watchedRows || [])
-            .map((row) => row.episode_id)
-            .filter(Boolean)
-            .map(String)
-        );
+const rankingMap = new Map(
+  (rankingData || []).map((row) => [String(row.show_id), row])
+);
 
-        const rankingMap = new Map(
-          (rankingRows.data || []).map((row) => [String(row.show_id), row])
-        );
+const withProgress = normalizedShows
+  .map((show) => {
+    const ranking = rankingMap.get(String(show.show_id));
 
-        const nextMatchupMap = new Map(
-          (matchupRows.data || []).map((row) => [row.pair_key, row])
-        );
+    return {
+      ...show,
+      totalMainEpisodes: 1,
+      watchedMainCount: 1,
+      ladder_position: ranking?.ladder_position ?? null,
+      rank_wins: ranking?.wins ?? 0,
+      rank_losses: ranking?.losses ?? 0,
+      rank_comparisons: ranking?.comparisons ?? 0,
+    };
+  })
+  .sort(sortByLadder)
+  .map((show, index) => ({
+    ...show,
+    ladder_position: show.ladder_position ?? index + 1,
+  }));
 
-        setMatchupMap(nextMatchupMap);
+setMatchupMap(new Map());
+setEligibleShows(withProgress);
 
-        const episodesByShowId = {};
+const firstPair = getFairPair(withProgress, new Map());
 
-        for (const ep of allEpisodes || []) {
-          const key = String(ep.show_id);
-          if (!episodesByShowId[key]) episodesByShowId[key] = [];
-          episodesByShowId[key].push(ep);
-        }
-
-        const withProgress = normalizedShows
-          .map((show) => {
-            const allShowEpisodes = episodesByShowId[String(show.show_id)] || [];
-
-            const mainEpisodes = allShowEpisodes.filter(
-              (ep) => Number(ep.season_number ?? 0) !== 0
-            );
-
-            const watchedMainCount = mainEpisodes.filter((ep) =>
-              watchedEpisodeIds.has(String(ep.id))
-            ).length;
-
-            const ranking = rankingMap.get(String(show.show_id));
-
-            return {
-              ...show,
-              totalMainEpisodes: mainEpisodes.length,
-              watchedMainCount,
-              ladder_position: ranking?.ladder_position ?? null,
-              rank_wins: ranking?.wins ?? 0,
-              rank_losses: ranking?.losses ?? 0,
-              rank_comparisons: ranking?.comparisons ?? 0,
-            };
-          })
-          .sort(sortByLadder)
-          .map((show, index) => ({
-            ...show,
-            ladder_position: show.ladder_position ?? index + 1,
-          }));
-
-        setEligibleShows(withProgress);
-
-        const firstPair = getFairPair(withProgress, nextMatchupMap);
-        setCurrentPair(firstPair);
-        setLastPairKey(
-          firstPair.length === 2
-            ? makePairKey(firstPair[0].show_id, firstPair[1].show_id)
-            : ""
-        );
+setCurrentPair(firstPair);
+setLastPairKey(
+  firstPair.length === 2
+    ? makePairKey(firstPair[0].show_id, firstPair[1].show_id)
+    : ""
+);
 
         await loadNotifications(user.id);
       } catch (loadError) {
