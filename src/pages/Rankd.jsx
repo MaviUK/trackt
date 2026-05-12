@@ -455,10 +455,15 @@ export default function Rankd() {
         if (userShowsError) throw userShowsError;
 
         const normalizedShows = (userShows || [])
-          .filter((row) => {
-            const status = String(row.watch_status || "").toLowerCase();
-            return status === "completed" || status === "watching";
-          })
+         .filter((row) => {
+  const status = String(row.watch_status || "").toLowerCase();
+
+  return (
+    status !== "watchlist" &&
+    status !== "archived" &&
+    status !== "not_added"
+  );
+})
           .map((row) => ({
             show_id: row.show_id,
             tvdb_id: row.shows?.tvdb_id,
