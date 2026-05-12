@@ -92,14 +92,6 @@ function getFocusedPair(items, focusShowId, focus = null) {
     : [opponent, focusShow];
 }
 
-function chunkArray(items, size) {
-  const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function makePairKey(firstId, secondId) {
   return [firstId, secondId].map(String).sort().join(":");
 }
@@ -107,10 +99,6 @@ function makePairKey(firstId, secondId) {
 function getOrderedPair(firstId, secondId) {
   const [showAId, showBId] = [firstId, secondId].map(String).sort();
   return { showAId, showBId, pairKey: `${showAId}:${showBId}` };
-}
-
-function shuffle(items) {
-  return [...items].sort(() => Math.random() - 0.5);
 }
 
 function getFairPair(items, matchupMap, previousPairKey = "") {
@@ -172,6 +160,22 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
     : [chosen.second, chosen.first];
 }
 
+function getWinCount(stats, showId) {
+  if (!stats) return 0;
+
+  return String(stats.show_a_id) === String(showId)
+    ? Number(stats.show_a_wins || 0)
+    : Number(stats.show_b_wins || 0);
+}
+
+function getWinPercent(stats, showId) {
+  const total = Number(stats?.times_matched || 0);
+  if (!total) return 0;
+
+  const wins = getWinCount(stats, showId);
+  return Math.round((wins / total) * 100);
+}
+
 async function hydrateComments(rows) {
   const comments = rows || [];
   const userIds = Array.from(
@@ -222,67 +226,6 @@ function buildCommentTree(comments) {
   });
 
   return roots;
-}
-
-async function fetchAllWatchedEpisodeRows(userId) {
-  const pageSize = 1000;
-  let from = 0;
-  let done = false;
-  const allRows = [];
-
-  while (!done) {
-    const to = from + pageSize - 1;
-
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
-      .range(from, to);
-
-    if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-    done = rows.length < pageSize;
-    from += pageSize;
-  }
-
-  return allRows;
-}
-
-async function fetchEpisodesForShowIds(showIds) {
-  if (!showIds.length) return [];
-
-  const batches = chunkArray(showIds, 4);
-  const allEpisodes = [];
-  const pageSize = 1000;
-
-  for (const batch of batches) {
-    let from = 0;
-    let done = false;
-
-    while (!done) {
-      const to = from + pageSize - 1;
-
-      const { data, error } = await supabase
-        .from("episodes")
-        .select("id, show_id, season_number, episode_number")
-        .in("show_id", batch)
-        .order("show_id", { ascending: true })
-        .order("season_number", { ascending: true })
-        .order("episode_number", { ascending: true })
-        .range(from, to);
-
-      if (error) throw error;
-
-      const rows = data || [];
-      allEpisodes.push(...rows);
-      done = rows.length < pageSize;
-      from += pageSize;
-    }
-  }
-
-  return allEpisodes;
 }
 
 function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
