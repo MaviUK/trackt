@@ -167,49 +167,6 @@ function pickEnglishOverview(showDetails) {
   return null;
 }
 
-
-function extractTmdbEnglishTranslationValue(translations, key) {
-  const items = Array.isArray(translations?.translations)
-    ? translations.translations
-    : [];
-
-  const preferredLanguages = ["en", "eng"];
-
-  for (const language of preferredLanguages) {
-    const match = items.find((item) => {
-      const iso1 = String(item?.iso_639_1 || "").toLowerCase();
-      const iso2 = String(item?.iso_639_2 || "").toLowerCase();
-      const englishName = String(item?.english_name || "").toLowerCase();
-      return iso1 === language || iso2 === language || englishName === "english";
-    });
-
-    const value = match?.data?.[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
-}
-
-function pickEpisodeEnglishName(tmdbEpisode, fallbackName) {
-  return (
-    cleanText(extractTmdbEnglishTranslationValue(tmdbEpisode?.translations, "name")) ||
-    cleanText(tmdbEpisode?.name) ||
-    cleanText(fallbackName) ||
-    null
-  );
-}
-
-function pickEpisodeEnglishOverview(tmdbEpisode, fallbackOverview) {
-  return (
-    cleanText(extractTmdbEnglishTranslationValue(tmdbEpisode?.translations, "overview")) ||
-    cleanText(tmdbEpisode?.overview) ||
-    cleanText(fallbackOverview) ||
-    null
-  );
-}
-
 function buildShowPayload(showDetails) {
   const tvdbId = normalizeNumber(showDetails.tvdb_id || null);
   const tmdbId = normalizeNumber(showDetails.tmdb_id || null);
@@ -491,9 +448,7 @@ async function fetchTmdbEpisodeDetails(tmdbId, seasonNumber, episodeNumber) {
       seasonNumber
     )}/episode/${encodeURIComponent(
       episodeNumber
-    )}?api_key=${encodeURIComponent(
-      process.env.TMDB_API_KEY
-    )}&language=en-GB&append_to_response=translations`,
+    )}?api_key=${encodeURIComponent(process.env.TMDB_API_KEY)}`,
     45000
   );
 }
@@ -521,8 +476,8 @@ async function enrichEpisodesWithTmdb(showTmdbId, episodes) {
 
         return {
           ...ep,
-          name: pickEpisodeEnglishName(tmdbEpisode, ep.name),
-          overview: pickEpisodeEnglishOverview(tmdbEpisode, ep.overview),
+          name: tmdbEpisode?.name ?? ep.name,
+          overview: tmdbEpisode?.overview ?? ep.overview,
           aired_date:
             normalizeDate(tmdbEpisode?.air_date) ??
             ep.aired_date ??

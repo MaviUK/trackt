@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import BurgrsBanner from "../components/BurgrsBanner";
 import { supabase } from "../lib/supabase";
 import "./Login.css";
@@ -11,6 +12,12 @@ const fallbackTrendingShows = [
 ];
 
 export default function Login() {
+  const location = useLocation();
+  const redirectTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("redirect") || "/";
+  }, [location.search]);
+
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +79,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}${redirectTo}`,
       },
     });
 

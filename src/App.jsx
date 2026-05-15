@@ -356,16 +356,28 @@ function AuthRedirect({ session }) {
 }
 
 function ProtectedRoute({ session, children }) {
+  const location = useLocation();
+
   if (!session) {
-    return <Navigate to="/login" replace />;
+    const redirectTo = `${location.pathname}${location.search}`;
+    return (
+      <Navigate
+        to={`/login?redirect=${encodeURIComponent(redirectTo)}`}
+        replace
+      />
+    );
   }
 
   return children;
 }
 
 function LoginRoute({ session }) {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const redirectTo = params.get("redirect") || "/";
+
   if (session) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <Login />;
@@ -546,6 +558,15 @@ function AppLayout() {
 
         <Route
           path="/rankd"
+          element={
+            <ProtectedRoute session={session}>
+              <Rankd />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/rankd/share/:slug"
           element={
             <ProtectedRoute session={session}>
               <Rankd />

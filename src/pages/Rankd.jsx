@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./Rankd.css";
 
@@ -160,6 +160,76 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
     : [chosen.second, chosen.first];
 }
 
+
+function slugify(value) {
+  return String(value || "show")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 70) || "matchup";
+}
+
+function makeShareSlug(firstName, secondName) {
+  const base = `${slugify(firstName)}-vs-${slugify(secondName)}`;
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `${base}-${suffix}`;
+}
+
+function normalizeShowRow(show, fallbackPosition = null) {
+  return {
+    show_id: show.id || show.show_id,
+    tvdb_id: show.tvdb_id,
+    show_name: show.name || show.show_name || "Unknown title",
+    poster_url: show.poster_url || null,
+    totalMainEpisodes: 1,
+    watchedMainCount: 1,
+    ladder_position: fallbackPosition,
+    rank_wins: 0,
+    rank_losses: 0,
+    rank_comparisons: 0,
+  };
+}
+
+async function addSharedShowsAsCompleted(userId, showIds) {
+  const uniqueShowIds = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
+  if (!userId || uniqueShowIds.length < 2) return;
+
+  const now = new Date().toISOString();
+
+  const { error: userShowsError } = await supabase.from("user_shows_new").upsert(
+    uniqueShowIds.map((showId) => ({
+      user_id: userId,
+      show_id: showId,
+      watch_status: "completed",
+      updated_at: now,
+    })),
+    { onConflict: "user_id,show_id" }
+  );
+
+  if (userShowsError) throw userShowsError;
+
+  const { data: episodes, error: episodesError } = await supabase
+    .from("episodes")
+    .select("id")
+    .in("show_id", uniqueShowIds);
+
+  if (episodesError) throw episodesError;
+
+  const watchedPayload = (episodes || []).map((episode) => ({
+    user_id: userId,
+    episode_id: episode.id,
+    watched_at: now,
+  }));
+
+  if (!watchedPayload.length) return;
+
+  const { error: watchedError } = await supabase
+    .from("watched_episodes")
+    .upsert(watchedPayload, { onConflict: "user_id,episode_id" });
+
+  if (watchedError) throw watchedError;
+}
+
 function getWinCount(stats, showId) {
   if (!stats) return 0;
 
@@ -301,6 +371,7 @@ function CommentItem({ comment, currentUserId, onReply, depth = 0, visitedIds = 
 }
 
 export default function Rankd() {
+  const { slug: sharedSlug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -318,6 +389,8 @@ export default function Rankd() {
   const [pendingCommentId, setPendingCommentId] = useState(null);
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
+  const [shareStatus, setShareStatus] = useState("");
+  const [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
 
   const touchStartX = useRef(null);
   const battleRef = useRef(null);
@@ -443,6 +516,33 @@ export default function Rankd() {
 
         setUserId(user.id);
 
+        let sharedMatchup = null;
+        let sharedShowIds = [];
+
+        if (sharedSlug) {
+          const { data: sharedData, error: sharedError } = await supabase
+            .from("rankd_matchups")
+            .select(`
+              *,
+              show_a:show_a_id(id, tvdb_id, name, poster_url),
+              show_b:show_b_id(id, tvdb_id, name, poster_url)
+            `)
+            .eq("share_slug", sharedSlug)
+            .eq("is_shareable", true)
+            .maybeSingle();
+
+          if (sharedError) throw sharedError;
+          if (!sharedData?.id) throw new Error("This shared Rank'd matchup could not be found.");
+
+          sharedMatchup = sharedData;
+          sharedShowIds = [sharedData.show_a_id, sharedData.show_b_id];
+          setSharedMatchupTitle(
+            `${sharedData.show_a?.name || "Show A"} vs ${sharedData.show_b?.name || "Show B"}`
+          );
+
+          await addSharedShowsAsCompleted(user.id, sharedShowIds);
+        }
+
         const { data: userShows, error: userShowsError } = await supabase
           .from("user_shows_new")
           .select(`
@@ -454,22 +554,30 @@ export default function Rankd() {
 
         if (userShowsError) throw userShowsError;
 
-        const normalizedShows = (userShows || [])
-         .filter((row) => {
-  const status = String(row.watch_status || "").toLowerCase();
+        const normalizedShowsMap = new Map();
 
-  return (
-    status !== "watchlist" &&
-    status !== "archived" &&
-    status !== "not_added"
-  );
-})
-          .map((row) => ({
-            show_id: row.show_id,
-            tvdb_id: row.shows?.tvdb_id,
-            show_name: row.shows?.name || "Unknown title",
-            poster_url: row.shows?.poster_url || null,
-          }));
+        (userShows || [])
+          .filter((row) => {
+            const status = String(row.watch_status || "").toLowerCase();
+            return status === "completed" || status === "watching";
+          })
+          .forEach((row) => {
+            normalizedShowsMap.set(String(row.show_id), {
+              show_id: row.show_id,
+              tvdb_id: row.shows?.tvdb_id,
+              show_name: row.shows?.name || "Unknown title",
+              poster_url: row.shows?.poster_url || null,
+            });
+          });
+
+        if (sharedMatchup?.show_a) {
+          normalizedShowsMap.set(String(sharedMatchup.show_a.id), normalizeShowRow(sharedMatchup.show_a));
+        }
+        if (sharedMatchup?.show_b) {
+          normalizedShowsMap.set(String(sharedMatchup.show_b.id), normalizeShowRow(sharedMatchup.show_b));
+        }
+
+        const normalizedShows = Array.from(normalizedShowsMap.values());
 
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
@@ -513,7 +621,18 @@ export default function Rankd() {
         setMatchupMap(new Map());
         setEligibleShows(withProgress);
 
-        const firstPair = getFairPair(withProgress, new Map());
+        let firstPair = getFairPair(withProgress, new Map());
+
+        if (sharedMatchup) {
+          const sharedPair = sharedShowIds
+            .map((id) => withProgress.find((show) => String(show.show_id) === String(id)))
+            .filter(Boolean);
+
+          if (sharedPair.length === 2) {
+            firstPair = sharedPair;
+            setShowComments(true);
+          }
+        }
 
         setCurrentPair(firstPair);
         setLastPairKey(
@@ -532,7 +651,7 @@ export default function Rankd() {
     }
 
     loadRankd();
-  }, []);
+  }, [sharedSlug]);
 
   useEffect(() => {
     loadCurrentMatchup(currentPair).catch((matchupError) => {
@@ -874,6 +993,89 @@ export default function Rankd() {
     }
   }
 
+  async function handleShareMatchup() {
+    if (currentPair.length !== 2 || saving) return;
+
+    try {
+      setSaving(true);
+      setShareStatus("");
+      setError("");
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) throw new Error("You must be logged in to share a matchup.");
+
+      const { showAId, showBId, pairKey } = getOrderedPair(
+        currentPair[0].show_id,
+        currentPair[1].show_id
+      );
+
+      const { data: existing, error: existingError } = await supabase
+        .from("rankd_matchups")
+        .select("id, share_slug")
+        .eq("pair_key", pairKey)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      let slug = existing?.share_slug;
+
+      if (!existing?.id) {
+        slug = makeShareSlug(currentPair[0].show_name, currentPair[1].show_name);
+
+        const { error: insertError } = await supabase.from("rankd_matchups").insert({
+          show_a_id: showAId,
+          show_b_id: showBId,
+          pair_key: pairKey,
+          share_slug: slug,
+          is_shareable: true,
+          created_by: user.id,
+        });
+
+        if (insertError) throw insertError;
+      } else if (!slug) {
+        slug = makeShareSlug(currentPair[0].show_name, currentPair[1].show_name);
+
+        const { error: updateError } = await supabase
+          .from("rankd_matchups")
+          .update({
+            share_slug: slug,
+            is_shareable: true,
+            created_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: enableError } = await supabase
+          .from("rankd_matchups")
+          .update({ is_shareable: true })
+          .eq("id", existing.id);
+
+        if (enableError) throw enableError;
+      }
+
+      const shareUrl = `${window.location.origin}/rankd/share/${slug}`;
+
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareStatus("Share link copied.");
+      } catch {
+        setShareStatus(shareUrl);
+      }
+    } catch (shareError) {
+      console.error("RANKD SHARE FAILED:", shareError);
+      setError(shareError.message || "Failed to create share link.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleAddComment(event) {
     event.preventDefault();
 
@@ -986,7 +1188,14 @@ export default function Rankd() {
             <p>Swipe your favourite shows against each other to build your personal ranking.</p>
           </div>
 
-          {error ? (
+          {sharedSlug && sharedMatchupTitle ? (
+          <div className="section-card rankd-share-card">
+            <strong>Shared TikTok matchup</strong>
+            <span>{sharedMatchupTitle}</span>
+          </div>
+        ) : null}
+
+        {error ? (
             <div className="section-card rankd-error-card">
               <strong>Something went wrong</strong>
               <span>{error}</span>
@@ -1121,7 +1330,18 @@ export default function Rankd() {
                 >
                   {showComments ? "Hide all comments" : `View all comments (${comments.length})`}
                 </button>
+
+                <button
+                  type="button"
+                  className="rankd-outline-button"
+                  onClick={handleShareMatchup}
+                  disabled={saving}
+                >
+                  Share matchup
+                </button>
               </div>
+
+              {shareStatus ? <p className="rankd-muted">{shareStatus}</p> : null}
 
               <textarea
                 value={commentText}
