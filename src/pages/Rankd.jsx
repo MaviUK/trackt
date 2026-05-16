@@ -1063,10 +1063,27 @@ useEffect(() => {
       }
 
       setMatchupMap(updatedMatchupMap);
-    } catch (saveChoiceError) {
-      console.error("RANKD SAVE FAILED:", saveChoiceError);
-      setError(saveChoiceError.message || "Failed to save your Rank'd vote.");
-    } finally {
+   } catch (saveChoiceError) {
+  console.error("RANKD SAVE FAILED:", saveChoiceError);
+
+  const errorMessage = String(
+    saveChoiceError?.message || ""
+  ).toLowerCase();
+
+  if (
+    errorMessage.includes("2 minutes") ||
+    errorMessage.includes("once every") ||
+    errorMessage.includes("blocked")
+  ) {
+    setError(
+      "You’ve already voted on this matchup recently. Try again in a couple of minutes."
+    );
+  } else {
+    setError(
+      saveChoiceError.message || "Failed to save your Rank'd vote."
+    );
+  }
+} finally {
       setSaving(false);
     }
   }
