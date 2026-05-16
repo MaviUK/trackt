@@ -1530,11 +1530,8 @@ export default function Rankd() {
                   </button>
                 </Link>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      {showLoginModal ? (
+
+              {showLoginModal ? (
   <LoginModal
     onClose={() => {
       setShowLoginModal(false);
@@ -1542,6 +1539,11 @@ export default function Rankd() {
     }}
   />
 ) : null}
+              
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
