@@ -425,7 +425,8 @@ export default function Rankd() {
   const [userId, setUserId] = useState(null);
   const [shareStatus, setShareStatus] = useState("");
   const [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
-const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const touchStartX = useRef(null);
   const battleRef = useRef(null);
@@ -541,10 +542,11 @@ const [showLoginModal, setShowLoginModal] = useState(false);
     setNotifications(data || []);
   }
 
-    async function loadRankd() {
+  async function loadRankd() {
       try {
         setLoading(true);
         setError("");
+        setNotice("");
         setShareStatus("");
         setSharedMatchupTitle("");
 
@@ -907,6 +909,7 @@ useEffect(() => {
     try {
       setSaving(true);
       setError("");
+      setNotice("");
 
       const user = await getOptionalUser();
 
@@ -1004,15 +1007,15 @@ if (
   nextPair.length === 2 &&
   makePairKey(nextPair[0].show_id, nextPair[1].show_id) === currentPairKey
 ) {
-  setError(
-    "You’ve already voted on this matchup. Add more watched shows to continue ranking."
+  setNotice(
+    "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
   );
   return;
 }
 
       if (!nextPair.length) {
-  setError(
-    "No more matchups available right now. Come back later after more shows or votes are added."
+  setNotice(
+    "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
   );
 
   return;
@@ -1195,6 +1198,7 @@ if (
     try {
       setSaving(true);
       setError("");
+      setNotice("");
 
       const user = await getOptionalUser();
 
@@ -1380,6 +1384,13 @@ if (
           <div className="section-card rankd-error-card">
             <strong>Something went wrong</strong>
             <span>{error}</span>
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div className="section-card rankd-notice-card">
+            <strong>You Have Already Voted on this Matchup!</strong>
+            <span>Add more watched shows to continue ranking.</span>
           </div>
         ) : null}
 
