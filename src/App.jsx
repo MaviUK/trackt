@@ -24,6 +24,7 @@ import Rankd from "./pages/Rankd";
 import BurgrsBanner from "./components/BurgrsBanner";
 import { supabase } from "./lib/supabase";
 
+
 function HomeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -565,14 +566,7 @@ function AppLayout() {
           }
         />
 
-        <Route
-          path="/rankd/share/:slug"
-          element={
-            <ProtectedRoute session={session}>
-              <Rankd />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/rankd/share/:slug" element={<Rankd />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
