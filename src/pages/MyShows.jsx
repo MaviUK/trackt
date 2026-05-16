@@ -6,9 +6,34 @@ import { getShowStatus } from "../lib/showStatus";
 
 const MY_SHOWS_CACHE_PREFIX = "trackt_my_shows_cache_v1";
 const MY_SHOWS_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
+const MY_SHOWS_LAST_CACHE_KEY = `${MY_SHOWS_CACHE_PREFIX}:last`;
 
 function getMyShowsCacheKey(userId) {
   return `${MY_SHOWS_CACHE_PREFIX}:${userId}`;
+}
+
+function readLastMyShowsCache() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const lastKey = window.localStorage.getItem(MY_SHOWS_LAST_CACHE_KEY);
+    if (!lastKey) return null;
+
+    const raw = window.localStorage.getItem(lastKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !Array.isArray(parsed?.shows)) return null;
+
+    if (Date.now() - Number(parsed.savedAt) > MY_SHOWS_CACHE_DURATION) {
+      return null;
+    }
+
+    return parsed.shows;
+  } catch (error) {
+    console.warn("Failed reading last My Shows cache:", error);
+    return null;
+  }
 }
 
 function readMyShowsCache(userId) {
@@ -36,13 +61,16 @@ function writeMyShowsCache(userId, shows) {
   if (typeof window === "undefined" || !userId) return;
 
   try {
+    const cacheKey = getMyShowsCacheKey(userId);
+
     window.localStorage.setItem(
-      getMyShowsCacheKey(userId),
+      cacheKey,
       JSON.stringify({
         savedAt: Date.now(),
         shows,
       })
     );
+    window.localStorage.setItem(MY_SHOWS_LAST_CACHE_KEY, cacheKey);
   } catch (error) {
     console.warn("Failed writing My Shows cache:", error);
   }
@@ -201,12 +229,21 @@ export default function MyShows() {
     try {
       setLoading(true);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const instantCachedShows = readLastMyShowsCache();
+      if (Array.isArray(instantCachedShows)) {
+        hasCachedShows = true;
+        setShows(instantCachedShows);
+        setLoading(false);
+      }
 
-      if (userError) throw userError;
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+
+      const user = session?.user || null;
 
       if (!user) {
         setShows([]);
@@ -219,6 +256,7 @@ export default function MyShows() {
       if (hasCachedShows) {
         setShows(cachedShows);
         setLoading(false);
+        return;
       }
 
       const { data: userShows, error: userShowsError } = await supabase
@@ -259,6 +297,7 @@ export default function MyShows() {
 
       if (!showIds.length) {
         setShows([]);
+        writeMyShowsCache(user.id, []);
         return;
       }
 

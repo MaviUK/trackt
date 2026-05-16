@@ -8,9 +8,34 @@ import "./Dashboard.css";
 const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v1";
 const DASHBOARD_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
+const DASHBOARD_LAST_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:last`;
 
 function getDashboardCacheKey(userId) {
   return userId ? `${DASHBOARD_CACHE_PREFIX}:${userId}` : DASHBOARD_PUBLIC_CACHE_KEY;
+}
+
+function readLastDashboardCache() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const lastKey = window.localStorage.getItem(DASHBOARD_LAST_CACHE_KEY);
+    if (!lastKey) return null;
+
+    const raw = window.localStorage.getItem(lastKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !parsed?.data) return null;
+
+    if (Date.now() - Number(parsed.savedAt) > DASHBOARD_CACHE_DURATION) {
+      return null;
+    }
+
+    return parsed.data;
+  } catch (error) {
+    console.warn("Failed reading last dashboard cache:", error);
+    return null;
+  }
 }
 
 function readDashboardCache(userId) {
@@ -38,13 +63,16 @@ function writeDashboardCache(userId, data) {
   if (typeof window === "undefined") return;
 
   try {
+    const cacheKey = getDashboardCacheKey(userId);
+
     window.localStorage.setItem(
-      getDashboardCacheKey(userId),
+      cacheKey,
       JSON.stringify({
         savedAt: Date.now(),
         data,
       })
     );
+    window.localStorage.setItem(DASHBOARD_LAST_CACHE_KEY, cacheKey);
   } catch (error) {
     console.warn("Failed writing dashboard cache:", error);
   }
@@ -411,9 +439,26 @@ export default function Dashboard() {
       let hasDashboardCache = false;
 
       try {
+        const instantDashboardCache = readLastDashboardCache();
+        hasDashboardCache = applyDashboardCache(instantDashboardCache, {
+          setProfile,
+          setShows,
+          setWatchedEpisodeIds,
+          setEpisodesByShow,
+          setUpcomingItems,
+          setTrendingShows,
+          setPremieringSoonShows,
+        });
+
+        if (hasDashboardCache) {
+          setLoading(false);
+        }
+
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const user = session?.user || null;
 
         if (!user) {
           const cachedPublicDashboard = readDashboardCache(null);
