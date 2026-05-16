@@ -3,53 +3,38 @@ import { supabase } from "../lib/supabase";
 import "./LoginModal.css";
 
 export default function LoginModal({ onClose }) {
-  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   async function handleSubmit(event) {
-  event.preventDefault();
+    event.preventDefault();
 
-  try {
-    setLoading(true);
-    setMessage("");
+    try {
+      setLoading(true);
+      setMessage("");
 
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const redirectTo = window.location.href;
+
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
+        options: {
+          emailRedirectTo: redirectTo,
+          shouldCreateUser: true,
+        },
       });
 
       if (error) throw error;
 
-      const { error: loginError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      if (loginError) throw loginError;
-
-      onClose?.();
-    } else {
-      const { error } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      if (error) throw error;
-
-      onClose?.();
+      setMessage(
+        "Check your email. Tap the login link and you’ll return to this matchup."
+      );
+    } catch (error) {
+      setMessage(error.message || "Could not send login email.");
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    setMessage(error.message || "Authentication failed.");
-  } finally {
-    setLoading(false);
   }
-}
 
   return (
     <div className="login-modal-overlay">
@@ -62,51 +47,30 @@ export default function LoginModal({ onClose }) {
           ×
         </button>
 
-        <h2>{mode === "signup" ? "Create account" : "Sign in"}</h2>
+        <h2>Sign in to vote</h2>
+
+        <p className="login-modal-intro">
+          Enter your email and we’ll send you a secure login link. You’ll come
+          straight back to this matchup.
+        </p>
 
         <form onSubmit={handleSubmit} className="login-modal-form">
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Email address"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
           />
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-
           <button type="submit" disabled={loading}>
-            {loading
-              ? "Please wait..."
-              : mode === "signup"
-              ? "Create account"
-              : "Sign in"}
+            {loading ? "Sending..." : "Email me a login link"}
           </button>
         </form>
 
         {message ? (
           <p className="login-modal-message">{message}</p>
         ) : null}
-
-        <button
-          type="button"
-          className="login-modal-switch"
-          onClick={() =>
-            setMode((value) =>
-              value === "login" ? "signup" : "login"
-            )
-          }
-        >
-          {mode === "login"
-            ? "Need an account? Sign up"
-            : "Already have an account? Sign in"}
-        </button>
       </div>
     </div>
   );
