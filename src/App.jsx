@@ -199,7 +199,10 @@ function UserProfileLink({ session, profile, className = "top-profile-link" }) {
 }
 
 function DesktopNav({ session, profile }) {
-  if (!session) return null;
+  const location = useLocation();
+  const isSharedRankdPage = location.pathname.startsWith("/rankd/share/");
+
+  if (!session && !isSharedRankdPage) return null;
 
   return (
     <div className="nav-wrap desktop-nav">
