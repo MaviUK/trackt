@@ -1536,3 +1536,21 @@ textarea:focus {
     height: var(--mobile-top-banner-height);
   }
 }
+
+
+/* Final mobile page spacing fixes: content must sit below the fixed BURGRS banner. */
+@media (max-width: 640px) {
+  .page {
+    padding-top: calc(var(--mobile-top-banner-height) + 20px + env(safe-area-inset-top)) !important;
+  }
+
+  .dashboard-page,
+  .my-shows-page {
+    padding-top: calc(var(--mobile-top-banner-height) + 18px + env(safe-area-inset-top)) !important;
+  }
+
+  .my-shows-page {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}

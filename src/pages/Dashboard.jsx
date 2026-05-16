@@ -846,14 +846,14 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="page">
+      <div className="page dashboard-page">
         <p>Loading dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="page">
+    <div className="page dashboard-page">
       <section className="trending-section">
         <div className="card-header trending-header">
           <h2>Trending Shows</h2>

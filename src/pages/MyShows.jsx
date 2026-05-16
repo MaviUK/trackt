@@ -512,14 +512,14 @@ export default function MyShows() {
 
   if (loading) {
     return (
-      <div className="page">
+      <div className="page my-shows-page">
         <p>Loading your saved shows...</p>
       </div>
     );
   }
 
   return (
-    <div className="page">
+    <div className="page my-shows-page">
       <div
         style={{
           display: "flex",
