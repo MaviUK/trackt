@@ -836,20 +836,6 @@ export default function ProfileEdit() {
               marginBottom: 16,
             }}
           >
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Email address</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                placeholder="you@example.com"
-                style={inputStyle}
-              />
-              <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 13 }}>
-                This is the email you use to sign in. If you change it, Supabase may send a confirmation email.
-              </p>
-            </div>
-
             <div>
               <label style={labelStyle}>Username</label>
               <input
@@ -921,6 +907,20 @@ export default function ProfileEdit() {
           </div>
 
           <div
+            style={{
+              margin: "20px 0 12px",
+              paddingTop: 4,
+            }}
+          >
+            <h2 style={{ margin: 0, color: "#f8fafc", fontSize: 20 }}>
+              Contact & Social Links
+            </h2>
+            <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 14 }}>
+              Manage your sign-in email and public profile links.
+            </p>
+          </div>
+
+          <div
             className="profile-edit-socials-grid"
             style={{
               display: "grid",
@@ -929,6 +929,20 @@ export default function ProfileEdit() {
               marginBottom: 20,
             }}
           >
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Email address</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => updateField("email", e.target.value)}
+                placeholder="you@example.com"
+                style={inputStyle}
+              />
+              <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 13 }}>
+                This is the email you use to sign in. If you change it, Supabase may send a confirmation email.
+              </p>
+            </div>
+
             <div>
               <label style={labelStyle}>Instagram</label>
               <input
