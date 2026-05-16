@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./Rankd.css";
 
@@ -116,9 +122,7 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
         const second = items[j];
         const pairKey = makePairKey(first.show_id, second.show_id);
 
-        if (!allowPreviousPair && pairKey === previousPairKey) {
-          continue;
-        }
+        if (!allowPreviousPair && pairKey === previousPairKey) continue;
 
         const stats = matchupMap.get(pairKey);
         const timesMatched = stats?.times_matched ?? 0;
@@ -127,7 +131,9 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
         const isBetter =
           timesMatched < bestTimesMatched ||
           (timesMatched === bestTimesMatched &&
-            (!bestLastMatchedAt || !lastMatchedAt || lastMatchedAt < bestLastMatchedAt));
+            (!bestLastMatchedAt ||
+              !lastMatchedAt ||
+              lastMatchedAt < bestLastMatchedAt));
 
         const isTie =
           timesMatched === bestTimesMatched &&
@@ -140,10 +146,7 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
           tieCount = 1;
         } else if (isTie) {
           tieCount += 1;
-
-          if (Math.random() < 1 / tieCount) {
-            bestPair = { first, second, pairKey };
-          }
+          if (Math.random() < 1 / tieCount) bestPair = { first, second, pairKey };
         }
       }
     }
@@ -152,7 +155,6 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
   }
 
   const chosen = pickPair(false) || pickPair(true);
-
   if (!chosen) return [];
 
   return Math.random() > 0.5
@@ -160,13 +162,14 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
     : [chosen.second, chosen.first];
 }
 
-
 function slugify(value) {
-  return String(value || "show")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 70) || "matchup";
+  return (
+    String(value || "show")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 70) || "matchup"
+  );
 }
 
 function makeShareSlug(firstName, secondName) {
@@ -191,7 +194,10 @@ function normalizeShowRow(show, fallbackPosition = null) {
 }
 
 async function addSharedShowsAsCompleted(userId, showIds) {
-  const uniqueShowIds = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
+  const uniqueShowIds = Array.from(
+    new Set((showIds || []).filter(Boolean).map(String))
+  );
+
   if (!userId || uniqueShowIds.length < 2) return;
 
   const now = new Date().toISOString();
@@ -298,7 +304,7 @@ function buildCommentTree(comments) {
   return roots;
 }
 
-function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
+function RankCard({ show, onChoose, onTouchStart, onTouchEnd, disabledLabel }) {
   return (
     <button
       type="button"
@@ -311,24 +317,33 @@ function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
     >
       <div className="rankd-poster-frame">
         {show.poster_url ? (
-          <img src={show.poster_url} alt={show.show_name} className="rankd-poster-image" />
+          <img
+            src={show.poster_url}
+            alt={show.show_name}
+            className="rankd-poster-image"
+          />
         ) : (
           <div className="rankd-poster-placeholder">{show.show_name}</div>
         )}
       </div>
 
       <strong className="rankd-card-title">{show.show_name}</strong>
+      {disabledLabel ? <span className="rankd-muted">{disabledLabel}</span> : null}
     </button>
   );
 }
 
-function CommentItem({ comment, currentUserId, onReply, depth = 0, visitedIds = new Set() }) {
+function CommentItem({
+  comment,
+  currentUserId,
+  onReply,
+  depth = 0,
+  visitedIds = new Set(),
+}) {
   const author = comment.profile?.username || comment.profile?.full_name || "Rank'd user";
   const commentId = String(comment.id);
 
-  if (depth > MAX_COMMENT_DEPTH || visitedIds.has(commentId)) {
-    return null;
-  }
+  if (depth > MAX_COMMENT_DEPTH || visitedIds.has(commentId)) return null;
 
   const nextVisitedIds = new Set(visitedIds);
   nextVisitedIds.add(commentId);
@@ -372,7 +387,10 @@ function CommentItem({ comment, currentUserId, onReply, depth = 0, visitedIds = 
 
 export default function Rankd() {
   const { slug: sharedSlug } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [eligibleShows, setEligibleShows] = useState([]);
@@ -395,6 +413,9 @@ export default function Rankd() {
   const touchStartX = useRef(null);
   const battleRef = useRef(null);
 
+  const isSharedPage = Boolean(sharedSlug);
+  const isLoggedIn = Boolean(userId);
+
   const currentPairKey =
     currentPair.length === 2
       ? makePairKey(currentPair[0].show_id, currentPair[1].show_id)
@@ -405,6 +426,14 @@ export default function Rankd() {
   const leaderboard = useMemo(() => {
     return [...eligibleShows].sort(sortByLadder);
   }, [eligibleShows]);
+
+  function loginRedirectPath() {
+    return `${location.pathname}${location.search || ""}`;
+  }
+
+  function goToLogin() {
+    navigate(`/login?redirect=${encodeURIComponent(loginRedirectPath())}`);
+  }
 
   function scrollToComment(commentId) {
     if (!commentId) return;
@@ -500,6 +529,8 @@ export default function Rankd() {
       try {
         setLoading(true);
         setError("");
+        setShareStatus("");
+        setSharedMatchupTitle("");
 
         const {
           data: { user },
@@ -508,13 +539,7 @@ export default function Rankd() {
 
         if (userError) throw userError;
 
-        if (!user) {
-          setEligibleShows([]);
-          setCurrentPair([]);
-          return;
-        }
-
-        setUserId(user.id);
+        setUserId(user?.id || null);
 
         let sharedMatchup = null;
         let sharedShowIds = [];
@@ -532,49 +557,71 @@ export default function Rankd() {
             .maybeSingle();
 
           if (sharedError) throw sharedError;
-          if (!sharedData?.id) throw new Error("This shared Rank'd matchup could not be found.");
+          if (!sharedData?.id) {
+            throw new Error("This shared Rank'd matchup could not be found.");
+          }
 
           sharedMatchup = sharedData;
           sharedShowIds = [sharedData.show_a_id, sharedData.show_b_id];
+
           setSharedMatchupTitle(
-            `${sharedData.show_a?.name || "Show A"} vs ${sharedData.show_b?.name || "Show B"}`
+            `${sharedData.show_a?.name || "Show A"} vs ${
+              sharedData.show_b?.name || "Show B"
+            }`
           );
 
-          await addSharedShowsAsCompleted(user.id, sharedShowIds);
+          if (user?.id) {
+            await addSharedShowsAsCompleted(user.id, sharedShowIds);
+          }
         }
 
-        const { data: userShows, error: userShowsError } = await supabase
-          .from("user_shows_new")
-          .select(`
-            show_id,
-            watch_status,
-            shows!inner(id, tvdb_id, name, poster_url)
-          `)
-          .eq("user_id", user.id);
-
-        if (userShowsError) throw userShowsError;
+        if (!user?.id && !sharedMatchup) {
+          setEligibleShows([]);
+          setCurrentPair([]);
+          return;
+        }
 
         const normalizedShowsMap = new Map();
 
-        (userShows || [])
-          .filter((row) => {
-            const status = String(row.watch_status || "").toLowerCase();
-            return status === "completed" || status === "watching";
-          })
-          .forEach((row) => {
-            normalizedShowsMap.set(String(row.show_id), {
-              show_id: row.show_id,
-              tvdb_id: row.shows?.tvdb_id,
-              show_name: row.shows?.name || "Unknown title",
-              poster_url: row.shows?.poster_url || null,
+        if (user?.id) {
+          const { data: userShows, error: userShowsError } = await supabase
+            .from("user_shows_new")
+            .select(`
+              show_id,
+              watch_status,
+              shows!inner(id, tvdb_id, name, poster_url)
+            `)
+            .eq("user_id", user.id);
+
+          if (userShowsError) throw userShowsError;
+
+          (userShows || [])
+            .filter((row) => {
+              const status = String(row.watch_status || "").toLowerCase();
+              return status === "completed" || status === "watching";
+            })
+            .forEach((row) => {
+              normalizedShowsMap.set(String(row.show_id), {
+                show_id: row.show_id,
+                tvdb_id: row.shows?.tvdb_id,
+                show_name: row.shows?.name || "Unknown title",
+                poster_url: row.shows?.poster_url || null,
+              });
             });
-          });
+        }
 
         if (sharedMatchup?.show_a) {
-          normalizedShowsMap.set(String(sharedMatchup.show_a.id), normalizeShowRow(sharedMatchup.show_a));
+          normalizedShowsMap.set(
+            String(sharedMatchup.show_a.id),
+            normalizeShowRow(sharedMatchup.show_a)
+          );
         }
+
         if (sharedMatchup?.show_b) {
-          normalizedShowsMap.set(String(sharedMatchup.show_b.id), normalizeShowRow(sharedMatchup.show_b));
+          normalizedShowsMap.set(
+            String(sharedMatchup.show_b.id),
+            normalizeShowRow(sharedMatchup.show_b)
+          );
         }
 
         const normalizedShows = Array.from(normalizedShowsMap.values());
@@ -587,16 +634,20 @@ export default function Rankd() {
           return;
         }
 
-        const { data: rankingData, error: rankingError } = await supabase
-          .from("user_show_rankings")
-          .select("show_id, ladder_position, wins, losses, comparisons")
-          .eq("user_id", user.id);
+        let rankingMap = new Map();
 
-        if (rankingError) throw rankingError;
+        if (user?.id) {
+          const { data: rankingData, error: rankingError } = await supabase
+            .from("user_show_rankings")
+            .select("show_id, ladder_position, wins, losses, comparisons")
+            .eq("user_id", user.id);
 
-        const rankingMap = new Map(
-          (rankingData || []).map((row) => [String(row.show_id), row])
-        );
+          if (rankingError) throw rankingError;
+
+          rankingMap = new Map(
+            (rankingData || []).map((row) => [String(row.show_id), row])
+          );
+        }
 
         const withProgress = normalizedShows
           .map((show) => {
@@ -625,7 +676,9 @@ export default function Rankd() {
 
         if (sharedMatchup) {
           const sharedPair = sharedShowIds
-            .map((id) => withProgress.find((show) => String(show.show_id) === String(id)))
+            .map((id) =>
+              withProgress.find((show) => String(show.show_id) === String(id))
+            )
             .filter(Boolean);
 
           if (sharedPair.length === 2) {
@@ -641,7 +694,11 @@ export default function Rankd() {
             : ""
         );
 
-        await loadNotifications(user.id);
+        if (user?.id) {
+          await loadNotifications(user.id);
+        } else {
+          setNotifications([]);
+        }
       } catch (loadError) {
         console.error("RANKD LOAD FAILED:", loadError);
         setError(loadError.message || "Failed to load Rank'd.");
@@ -665,7 +722,10 @@ export default function Rankd() {
       const notificationId = searchParams.get("notification");
       if (!notificationId || !notifications.length) return;
 
-      const notification = notifications.find((item) => String(item.id) === String(notificationId));
+      const notification = notifications.find(
+        (item) => String(item.id) === String(notificationId)
+      );
+
       if (!notification?.rankd_matchups?.pair_key) return;
 
       const pairKey = notification.rankd_matchups.pair_key;
@@ -688,22 +748,19 @@ export default function Rankd() {
 
         pair = showIds
           .map((id) => {
-            const existing = eligibleShows.find((show) => String(show.show_id) === String(id));
+            const existing = eligibleShows.find(
+              (show) => String(show.show_id) === String(id)
+            );
+
             if (existing) return existing;
 
-            const fetched = (missingShows || []).find((show) => String(show.id) === String(id));
+            const fetched = (missingShows || []).find(
+              (show) => String(show.id) === String(id)
+            );
+
             if (!fetched) return null;
 
-            return {
-              show_id: fetched.id,
-              tvdb_id: fetched.tvdb_id,
-              show_name: fetched.name || "Unknown title",
-              poster_url: fetched.poster_url || null,
-              ladder_position: null,
-              rank_wins: 0,
-              rank_losses: 0,
-              rank_comparisons: 0,
-            };
+            return normalizeShowRow(fetched);
           })
           .filter(Boolean);
       }
@@ -754,22 +811,19 @@ export default function Rankd() {
 
         pair = showIds
           .map((id) => {
-            const existing = eligibleShows.find((show) => String(show.show_id) === String(id));
+            const existing = eligibleShows.find(
+              (show) => String(show.show_id) === String(id)
+            );
+
             if (existing) return existing;
 
-            const fetched = (missingShows || []).find((show) => String(show.id) === String(id));
+            const fetched = (missingShows || []).find(
+              (show) => String(show.id) === String(id)
+            );
+
             if (!fetched) return null;
 
-            return {
-              show_id: fetched.id,
-              tvdb_id: fetched.tvdb_id,
-              show_name: fetched.name || "Unknown title",
-              poster_url: fetched.poster_url || null,
-              ladder_position: null,
-              rank_wins: 0,
-              rank_losses: 0,
-              rank_comparisons: 0,
-            };
+            return normalizeShowRow(fetched);
           })
           .filter(Boolean);
       }
@@ -796,6 +850,11 @@ export default function Rankd() {
   }, [pendingCommentId, comments]);
 
   function startFocusedRanking(show) {
+    if (!isLoggedIn) {
+      goToLogin();
+      return;
+    }
+
     window.scrollTo({
       top: 0,
       behavior: "smooth",
@@ -844,7 +903,15 @@ export default function Rankd() {
       } = await supabase.auth.getUser();
 
       if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in to use Rank'd.");
+
+      if (!user?.id) {
+        goToLogin();
+        return;
+      }
+
+      if (isSharedPage) {
+        await addSharedShowsAsCompleted(user.id, [winner.show_id, loser.show_id]);
+      }
 
       const ladderReadyShows = [...eligibleShows]
         .sort(sortByLadder)
@@ -901,7 +968,10 @@ export default function Rankd() {
             ? rankFocus.lowerBound ?? 0
             : Math.max(rankFocus.lowerBound ?? 0, opponentIndex + 1),
           upperBound: focusWon
-            ? Math.min(rankFocus.upperBound ?? sortedAfterVote.length - 1, opponentIndex - 1)
+            ? Math.min(
+                rankFocus.upperBound ?? sortedAfterVote.length - 1,
+                opponentIndex - 1
+              )
             : rankFocus.upperBound ?? sortedAfterVote.length - 1,
         };
 
@@ -909,11 +979,7 @@ export default function Rankd() {
           nextRankFocus = null;
           setRankFocus(null);
         } else {
-          nextPair = getFocusedPair(
-            updatedLadder,
-            nextRankFocus.showId,
-            nextRankFocus
-          );
+          nextPair = getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus);
 
           if (nextPair.length !== 2) {
             nextRankFocus = null;
@@ -925,7 +991,9 @@ export default function Rankd() {
       }
 
       if (!nextRankFocus) {
-        nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+        nextPair = isSharedPage
+          ? currentPair
+          : getFairPair(updatedLadder, matchupMap, currentPairKey);
       }
 
       setEligibleShows(updatedLadder);
@@ -938,7 +1006,10 @@ export default function Rankd() {
 
       setCommentText("");
       setReplyTo(null);
-      setShowComments(false);
+
+      if (!isSharedPage) {
+        setShowComments(false);
+      }
 
       const now = new Date().toISOString();
 
@@ -982,6 +1053,7 @@ export default function Rankd() {
 
       if (nextMatchupRow?.pair_key) {
         updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
+        setMatchupStats(nextMatchupRow);
       }
 
       setMatchupMap(updatedMatchupMap);
@@ -1007,7 +1079,11 @@ export default function Rankd() {
       } = await supabase.auth.getUser();
 
       if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in to share a matchup.");
+
+      if (!user?.id) {
+        goToLogin();
+        return;
+      }
 
       const { showAId, showBId, pairKey } = getOrderedPair(
         currentPair[0].show_id,
@@ -1092,7 +1168,18 @@ export default function Rankd() {
       } = await supabase.auth.getUser();
 
       if (userError) throw userError;
-      if (!user) throw new Error("You must be logged in to comment.");
+
+      if (!user?.id) {
+        goToLogin();
+        return;
+      }
+
+      if (isSharedPage) {
+        await addSharedShowsAsCompleted(user.id, [
+          currentPair[0].show_id,
+          currentPair[1].show_id,
+        ]);
+      }
 
       const { showAId, showBId, pairKey } = getOrderedPair(
         currentPair[0].show_id,
@@ -1118,7 +1205,9 @@ export default function Rankd() {
         .maybeSingle();
 
       if (matchupReloadError) throw matchupReloadError;
-      if (!freshMatchup?.id) throw new Error("Comment saved, but matchup could not be reloaded.");
+      if (!freshMatchup?.id) {
+        throw new Error("Comment saved, but matchup could not be reloaded.");
+      }
 
       const updatedMatchupMap = new Map(matchupMap);
       updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
@@ -1189,13 +1278,13 @@ export default function Rankd() {
           </div>
 
           {sharedSlug && sharedMatchupTitle ? (
-          <div className="section-card rankd-share-card">
-            <strong>Shared TikTok matchup</strong>
-            <span>{sharedMatchupTitle}</span>
-          </div>
-        ) : null}
+            <div className="section-card rankd-share-card">
+              <strong>Shared TikTok matchup</strong>
+              <span>{sharedMatchupTitle}</span>
+            </div>
+          ) : null}
 
-        {error ? (
+          {error ? (
             <div className="section-card rankd-error-card">
               <strong>Something went wrong</strong>
               <span>{error}</span>
@@ -1243,9 +1332,11 @@ export default function Rankd() {
     <div className="page rankd-page">
       <div className="page-shell">
         <div className="rankd-matchup-number">
-          {rankFocus ? (
+          {isSharedPage ? (
+            <>Shared Rank'd matchup</>
+          ) : rankFocus ? (
             <>
-              Finding place for {rankFocus.showName} — round {" "}
+              Finding place for {rankFocus.showName} — round{" "}
               {(rankFocus.roundsDone || 0) + 1}
             </>
           ) : (
@@ -1260,6 +1351,13 @@ export default function Rankd() {
             </>
           )}
         </div>
+
+        {isSharedPage && !isLoggedIn ? (
+          <div className="section-card rankd-share-card">
+            <strong>{sharedMatchupTitle || "Shared matchup"}</strong>
+            <span>You can view this matchup now. Sign in to vote and we’ll add both shows as completed.</span>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="section-card rankd-error-card">
@@ -1276,6 +1374,7 @@ export default function Rankd() {
                 onChoose={() => handleChoice(currentPair[0].show_id)}
                 onTouchStart={buildTouchStartHandler()}
                 onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
               />
 
               <div className="rankd-battle-vs">VS</div>
@@ -1285,6 +1384,7 @@ export default function Rankd() {
                 onChoose={() => handleChoice(currentPair[1].show_id)}
                 onTouchStart={buildTouchStartHandler()}
                 onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
               />
             </div>
 
@@ -1337,7 +1437,7 @@ export default function Rankd() {
                   onClick={handleShareMatchup}
                   disabled={saving}
                 >
-                  Share matchup
+                  {isLoggedIn ? "Share matchup" : "Sign in to share"}
                 </button>
               </div>
 
@@ -1346,12 +1446,16 @@ export default function Rankd() {
               <textarea
                 value={commentText}
                 onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Write a brief comment about this matchup..."
+                placeholder={
+                  isLoggedIn
+                    ? "Write a brief comment about this matchup..."
+                    : "Sign in to comment on this matchup..."
+                }
                 rows={3}
               />
 
               <button type="submit" disabled={saving || !commentText.trim()}>
-                {replyTo ? "Post reply" : "Post comment"}
+                {!isLoggedIn ? "Sign in to comment" : replyTo ? "Post reply" : "Post comment"}
               </button>
             </form>
 
@@ -1375,6 +1479,11 @@ export default function Rankd() {
                       comment={comment}
                       currentUserId={userId}
                       onReply={(selected) => {
+                        if (!isLoggedIn) {
+                          goToLogin();
+                          return;
+                        }
+
                         setReplyTo(selected);
                         setCommentText("");
                       }}
@@ -1390,8 +1499,12 @@ export default function Rankd() {
           <div className="section-card rankd-leaderboard-card">
             <div className="rankd-leaderboard-header">
               <div>
-                <h2>Your Top Shows</h2>
-                <p>Your personal ladder from Rank'd decisions.</p>
+                <h2>{isLoggedIn ? "Your Top Shows" : "This Matchup"}</h2>
+                <p>
+                  {isLoggedIn
+                    ? "Your personal ladder from Rank'd decisions."
+                    : "Sign in to add these shows and build your personal ladder."}
+                </p>
               </div>
               <div>{leaderboard.length} shows</div>
             </div>
@@ -1400,8 +1513,11 @@ export default function Rankd() {
               {leaderboard.map((show, index) => (
                 <Link
                   key={show.show_id}
-                  to={`/my-shows/${show.tvdb_id}`}
+                  to={isLoggedIn ? `/my-shows/${show.tvdb_id}` : "#"}
                   className="rankd-leaderboard-row"
+                  onClick={(event) => {
+                    if (!isLoggedIn) event.preventDefault();
+                  }}
                 >
                   <div className="rankd-leaderboard-poster">
                     {show.poster_url ? (
@@ -1426,7 +1542,7 @@ export default function Rankd() {
                       startFocusedRanking(show);
                     }}
                   >
-                    Rank
+                    {isLoggedIn ? "Rank" : "Sign in"}
                   </button>
                 </Link>
               ))}
