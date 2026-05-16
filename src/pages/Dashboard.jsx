@@ -85,6 +85,7 @@ function writeDashboardCache(userId, data) {
 function makeEmptyDashboardView() {
   return {
     savedShows: [],
+    databaseShows: [],
     trendingShows: [],
     premieringSoonShows: [],
     stats: {
@@ -256,22 +257,79 @@ async function fetchTrendingShows() {
   return (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
 }
 
-async function fetchPremieringSoonShows(existingTmdbIds = []) {
+async function fetchPremieringSoonShows() {
   const response = await fetch("/.netlify/functions/getPremieringSoonShows");
   const payload = await response.json();
 
   if (!response.ok) throw new Error(payload?.message || "Failed to load premiering soon shows");
 
-  const existingSet = new Set((existingTmdbIds || []).map((id) => String(id)).filter(Boolean));
-
   return (payload?.shows || [])
-    .filter((show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id)))
+    .filter((show) => show?.tmdb_id)
     .filter((show) => isDateWithinNextDays(getShowPremiereDate(show), 10))
     .sort((a, b) => {
       const aDate = getShowPremiereDate(a) || "9999-12-31";
       const bDate = getShowPremiereDate(b) || "9999-12-31";
       return aDate.localeCompare(bDate);
     });
+}
+
+function getExternalShowIds(externalShows = []) {
+  const tmdbIds = new Set();
+  const tvdbIds = new Set();
+
+  for (const show of externalShows || []) {
+    const tmdbId = show?.tmdb_id ?? show?.tmdbId ?? show?.id ?? null;
+    const tvdbId = show?.tvdb_id ?? show?.tvdbId ?? show?.resolved_tvdb_id ?? null;
+
+    if (tmdbId) tmdbIds.add(String(tmdbId));
+    if (tvdbId) tvdbIds.add(String(tvdbId));
+  }
+
+  return {
+    tmdbIds: Array.from(tmdbIds),
+    tvdbIds: Array.from(tvdbIds),
+  };
+}
+
+async function fetchDatabaseShowMatches(externalShows = []) {
+  const { tmdbIds, tvdbIds } = getExternalShowIds(externalShows);
+
+  if (!tmdbIds.length && !tvdbIds.length) return [];
+
+  const results = [];
+  const seen = new Set();
+
+  async function addRows(queryPromise) {
+    const { data, error } = await queryPromise;
+    if (error) throw error;
+
+    for (const row of data || []) {
+      const key = row.id || row.tvdb_id || row.tmdb_id;
+      if (!key || seen.has(String(key))) continue;
+      seen.add(String(key));
+      results.push(row);
+    }
+  }
+
+  if (tmdbIds.length) {
+    await addRows(
+      supabase
+        .from("shows")
+        .select("id, tvdb_id, tmdb_id, name, poster_url")
+        .in("tmdb_id", tmdbIds)
+    );
+  }
+
+  if (tvdbIds.length) {
+    await addRows(
+      supabase
+        .from("shows")
+        .select("id, tvdb_id, tmdb_id, name, poster_url")
+        .in("tvdb_id", tvdbIds)
+    );
+  }
+
+  return results;
 }
 
 function findSavedShowMatch(show, savedShows) {
@@ -291,11 +349,33 @@ function findSavedShowMatch(show, savedShows) {
   );
 }
 
-function getExternalShowLink(show, savedShows) {
+function findDatabaseShowMatch(show, databaseShows) {
+  if (!show || !Array.isArray(databaseShows)) return null;
+
+  const showTmdbId = show?.tmdb_id ?? show?.tmdbId ?? show?.id ?? null;
+  const showTvdbId = show?.tvdb_id ?? show?.tvdbId ?? show?.resolved_tvdb_id ?? null;
+
+  return (
+    databaseShows.find((databaseShow) => {
+      const databaseTmdbId = databaseShow?.tmdb_id ?? null;
+      const databaseTvdbId = databaseShow?.tvdb_id ?? null;
+      if (showTmdbId && databaseTmdbId && String(showTmdbId) === String(databaseTmdbId)) return true;
+      if (showTvdbId && databaseTvdbId && String(showTvdbId) === String(databaseTvdbId)) return true;
+      return false;
+    }) || null
+  );
+}
+
+function getExternalShowLink(show, savedShows, databaseShows) {
   const savedShow = findSavedShowMatch(show, savedShows);
 
   if (savedShow?.tvdb_id) return `/my-shows/${savedShow.tvdb_id}`;
   if (savedShow?.tmdb_id) return `/my-shows/tmdb/${savedShow.tmdb_id}`;
+
+  const databaseShow = findDatabaseShowMatch(show, databaseShows);
+
+  if (databaseShow?.tvdb_id) return `/show/${databaseShow.tvdb_id}`;
+  if (databaseShow?.tmdb_id) return `/show/tmdb/${databaseShow.tmdb_id}`;
 
   const tvdbId = show?.tvdb_id ?? show?.tvdbId ?? show?.resolved_tvdb_id ?? null;
   const tmdbId = show?.tmdb_id ?? show?.tmdbId ?? show?.id ?? null;
@@ -445,8 +525,8 @@ function DashboardEpisodeItem({ show, episode, dateLabel = "Airs", dateValue }) 
   );
 }
 
-function ExternalShowCard({ show, savedShows }) {
-  const linkTarget = getExternalShowLink(show, savedShows);
+function ExternalShowCard({ show, savedShows, databaseShows }) {
+  const linkTarget = getExternalShowLink(show, savedShows, databaseShows);
   const showName = show?.name || show?.title || "Unknown show";
   const imageSrc =
     show?.image ||
@@ -532,11 +612,20 @@ export default function Dashboard() {
 
           const [trending, premieringSoon] = await Promise.all([
             fetchTrendingShows(),
-            fetchPremieringSoonShows([]),
+            fetchPremieringSoonShows(),
           ]);
+
+          const databaseShows = await fetchDatabaseShowMatches([
+            ...trending,
+            ...premieringSoon,
+          ]).catch((error) => {
+            console.error("Error matching public dashboard shows:", error);
+            return [];
+          });
 
           const publicView = {
             savedShows: [],
+            databaseShows,
             trendingShows: trending,
             premieringSoonShows: premieringSoon,
             stats: makeEmptyDashboardView().stats,
@@ -596,7 +685,6 @@ export default function Dashboard() {
           first_aired: row.shows.first_aired || null,
         }));
 
-        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id).filter(Boolean);
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
         const [watchedRows, allEpisodes, trending, premieringSoon] = await Promise.all([
@@ -606,11 +694,19 @@ export default function Dashboard() {
             console.error("Error loading trending shows:", error);
             return [];
           }),
-          fetchPremieringSoonShows(existingTmdbIds).catch((error) => {
+          fetchPremieringSoonShows().catch((error) => {
             console.error("Error loading premiering soon shows:", error);
             return [];
           }),
         ]);
+
+        const databaseShows = await fetchDatabaseShowMatches([
+          ...trending,
+          ...premieringSoon,
+        ]).catch((error) => {
+          console.error("Error matching dashboard shows:", error);
+          return [];
+        });
 
         const freshDashboardView = {
           savedShows: normalizedShows.map((show) => ({
@@ -621,6 +717,7 @@ export default function Dashboard() {
             poster_url: show.poster_url,
             watch_status: show.watch_status,
           })),
+          databaseShows,
           trendingShows: trending,
           premieringSoonShows: premieringSoon,
           stats: buildDashboardStats(normalizedShows, allEpisodes, watchedRows),
@@ -644,6 +741,7 @@ export default function Dashboard() {
   }, []);
 
   const savedShows = dashboardView.savedShows || [];
+  const databaseShows = dashboardView.databaseShows || [];
   const trendingShows = dashboardView.trendingShows || [];
   const premieringSoonShows = dashboardView.premieringSoonShows || [];
   const dashboardData = dashboardView.stats || makeEmptyDashboardView().stats;
@@ -672,6 +770,7 @@ export default function Dashboard() {
                 key={`trending-${show.tmdb_id || show.tvdb_id || show.id}`}
                 show={show}
                 savedShows={savedShows}
+                databaseShows={databaseShows}
               />
             ))}
           </div>
@@ -692,6 +791,7 @@ export default function Dashboard() {
                 key={`premiering-${show.tmdb_id || show.tvdb_id || show.id}`}
                 show={show}
                 savedShows={savedShows}
+                databaseShows={databaseShows}
               />
             ))}
           </div>
