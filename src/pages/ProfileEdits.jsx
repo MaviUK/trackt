@@ -242,6 +242,7 @@ export default function ProfileEdit() {
   const [existingAvatarUrl, setExistingAvatarUrl] = useState("");
 
   const [form, setForm] = useState({
+    email: "",
     username: "",
     full_name: "",
     avatar_zoom: 1,
@@ -302,6 +303,7 @@ export default function ProfileEdit() {
           .from("profiles")
           .select(`
             id,
+            email,
             username,
             full_name,
             avatar_url,
@@ -327,6 +329,7 @@ export default function ProfileEdit() {
           setExistingAvatarUrl(data.avatar_url || "");
 
           setForm({
+            email: data.email || user.email || "",
             username: data.username || "",
             full_name: data.full_name || "",
             avatar_zoom: Number(data.avatar_zoom ?? 1),
@@ -342,6 +345,11 @@ export default function ProfileEdit() {
             youtube_url: data.youtube_url || "",
             website_url: data.website_url || "",
           });
+        } else {
+          setForm((prev) => ({
+            ...prev,
+            email: user.email || "",
+          }));
         }
 
         setHistoryLoading(true);
@@ -562,10 +570,23 @@ export default function ProfileEdit() {
       if (userError) throw userError;
       if (!user) throw new Error("You must be logged in.");
 
+      const cleanedEmail = form.email.trim();
       const cleanedUsername = form.username.trim();
       const cleanedFullName = form.full_name.trim();
       const cleanedCountry = form.country.trim();
       const cleanedBio = form.bio.trim();
+
+      if (cleanedEmail && cleanedEmail !== user.email) {
+        const { error: emailUpdateError } = await supabase.auth.updateUser({
+          email: cleanedEmail,
+        });
+
+        if (emailUpdateError) throw emailUpdateError;
+
+        setMessage(
+          "Profile saved. Check your new email address to confirm the email change."
+        );
+      }
 
       let avatarUrlToSave = existingAvatarUrl || null;
 
@@ -579,6 +600,7 @@ export default function ProfileEdit() {
       }
 
       const payload = {
+        email: cleanedEmail || null,
         username: cleanedUsername || null,
         full_name: cleanedFullName || null,
         avatar_url: avatarUrlToSave,
@@ -601,7 +623,10 @@ export default function ProfileEdit() {
 
       setExistingAvatarUrl(avatarUrlToSave || "");
       setSelectedAvatarDataUrl("");
-      setMessage("Profile updated.");
+
+      if (!cleanedEmail || cleanedEmail === user.email) {
+        setMessage("Profile updated.");
+      }
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
@@ -811,6 +836,20 @@ export default function ProfileEdit() {
               marginBottom: 16,
             }}
           >
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Email address</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => updateField("email", e.target.value)}
+                placeholder="you@example.com"
+                style={inputStyle}
+              />
+              <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 13 }}>
+                This is the email you use to sign in. If you change it, Supabase may send a confirmation email.
+              </p>
+            </div>
+
             <div>
               <label style={labelStyle}>Username</label>
               <input
