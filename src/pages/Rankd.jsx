@@ -424,7 +424,7 @@ export default function Rankd() {
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
   const [shareStatus, setShareStatus] = useState("");
-  cconst [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
+  const [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
 const [showLoginModal, setShowLoginModal] = useState(false);
 
   const touchStartX = useRef(null);
