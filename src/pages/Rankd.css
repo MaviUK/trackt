@@ -393,8 +393,8 @@
 }
 
 @media (max-width: 760px) {
-  .page-shell:has(.rankd-page) {
-    padding-top: 0px !important;
+  .rankd-page {
+    margin-top: -90px;
     padding-bottom: 0px;
   }
   }
