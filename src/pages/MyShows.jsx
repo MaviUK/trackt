@@ -525,9 +525,9 @@ export default function MyShows() {
           display: "flex",
           gap: 8,
           flexWrap: "wrap",
-          marginTop: 18,
+          marginTop: 0,
           marginBottom: 10,
-          paddingTop:10,
+          paddingTop: 0,
         }}
       >
         {filters.map(([value, icon, label]) => (

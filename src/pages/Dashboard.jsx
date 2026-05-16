@@ -424,18 +424,29 @@ function StatCard({ label, value, to = null }) {
 }
 
 export default function Dashboard() {
-  const [profile, setProfile] = useState(null);
-  const [shows, setShows] = useState([]);
-  const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(new Set());
-  const [episodesByShow, setEpisodesByShow] = useState({});
-  const [upcomingItems, setUpcomingItems] = useState([]);
-  const [trendingShows, setTrendingShows] = useState([]);
-  const [premieringSoonShows, setPremieringSoonShows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const initialDashboardCache = useMemo(() => readLastDashboardCache(), []);
+
+  const [profile, setProfile] = useState(() => initialDashboardCache?.data?.profile || null);
+  const [shows, setShows] = useState(() => initialDashboardCache?.data?.shows || []);
+  const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(
+    () => new Set(initialDashboardCache?.data?.watchedEpisodeIds || [])
+  );
+  const [episodesByShow, setEpisodesByShow] = useState(
+    () => initialDashboardCache?.data?.episodesByShow || {}
+  );
+  const [upcomingItems, setUpcomingItems] = useState(
+    () => initialDashboardCache?.data?.upcomingItems || []
+  );
+  const [trendingShows, setTrendingShows] = useState(
+    () => initialDashboardCache?.data?.trendingShows || []
+  );
+  const [premieringSoonShows, setPremieringSoonShows] = useState(
+    () => initialDashboardCache?.data?.premieringSoonShows || []
+  );
+  const [loading, setLoading] = useState(() => !initialDashboardCache);
 
   useEffect(() => {
     async function loadDashboard() {
-      setLoading(true);
       let hasDashboardCache = false;
 
       try {
@@ -452,7 +463,10 @@ export default function Dashboard() {
 
         if (hasDashboardCache) {
           setLoading(false);
+          return;
         }
+
+        setLoading(true);
 
         const {
           data: { session },
@@ -840,11 +854,6 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <p>Your TV tracking at a glance.</p>
-      </div>
-
       <section className="trending-section">
         <div className="card-header trending-header">
           <h2>Trending Shows</h2>
