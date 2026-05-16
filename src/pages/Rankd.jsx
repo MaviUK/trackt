@@ -996,11 +996,9 @@ useEffect(() => {
         }
       }
 
-      if (!nextRankFocus) {
-        nextPair = isSharedPage
-          ? currentPair
-          : getFairPair(updatedLadder, matchupMap, currentPairKey);
-      }
+     if (!nextRankFocus) {
+  nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+}
 
       setEligibleShows(updatedLadder);
       setCurrentPair(nextPair);
