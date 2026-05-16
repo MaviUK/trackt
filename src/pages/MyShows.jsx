@@ -5,7 +5,7 @@ import { getShowStatus } from "../lib/showStatus";
 
 
 const MY_SHOWS_CACHE_PREFIX = "trackt_my_shows_cache_v1";
-const MY_SHOWS_CACHE_DURATION = 1000 * 60 * 10; // 10 minutes
+const MY_SHOWS_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 
 function getMyShowsCacheKey(userId) {
   return `${MY_SHOWS_CACHE_PREFIX}:${userId}`;
@@ -486,7 +486,6 @@ export default function MyShows() {
     <div className="page">
       <div className="page-header">
         <h1>My Shows</h1>
-        <p>Track your saved shows and progress.</p>
       </div>
 
       <div

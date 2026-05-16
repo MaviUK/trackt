@@ -6,7 +6,7 @@ import "./Dashboard.css";
 
 
 const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v1";
-const DASHBOARD_CACHE_DURATION = 1000 * 60 * 10; // 10 minutes
+const DASHBOARD_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
 
 function getDashboardCacheKey(userId) {
