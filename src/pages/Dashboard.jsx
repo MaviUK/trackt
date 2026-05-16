@@ -4,6 +4,70 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
 
+
+const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v1";
+const DASHBOARD_CACHE_DURATION = 1000 * 60 * 10; // 10 minutes
+const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
+
+function getDashboardCacheKey(userId) {
+  return userId ? `${DASHBOARD_CACHE_PREFIX}:${userId}` : DASHBOARD_PUBLIC_CACHE_KEY;
+}
+
+function readDashboardCache(userId) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(getDashboardCacheKey(userId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !parsed?.data) return null;
+
+    if (Date.now() - Number(parsed.savedAt) > DASHBOARD_CACHE_DURATION) {
+      return null;
+    }
+
+    return parsed.data;
+  } catch (error) {
+    console.warn("Failed reading dashboard cache:", error);
+    return null;
+  }
+}
+
+function writeDashboardCache(userId, data) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      getDashboardCacheKey(userId),
+      JSON.stringify({
+        savedAt: Date.now(),
+        data,
+      })
+    );
+  } catch (error) {
+    console.warn("Failed writing dashboard cache:", error);
+  }
+}
+
+function applyDashboardCache(cache, setters) {
+  if (!cache) return false;
+
+  setters.setProfile(cache.profile || null);
+  setters.setShows(Array.isArray(cache.shows) ? cache.shows : []);
+  setters.setWatchedEpisodeIds(
+    new Set(Array.isArray(cache.watchedEpisodeIds) ? cache.watchedEpisodeIds : [])
+  );
+  setters.setEpisodesByShow(cache.episodesByShow || {});
+  setters.setUpcomingItems(Array.isArray(cache.upcomingItems) ? cache.upcomingItems : []);
+  setters.setTrendingShows(Array.isArray(cache.trendingShows) ? cache.trendingShows : []);
+  setters.setPremieringSoonShows(
+    Array.isArray(cache.premieringSoonShows) ? cache.premieringSoonShows : []
+  );
+
+  return true;
+}
+
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -58,30 +122,6 @@ function chunkArray(items, size) {
   return chunks;
 }
 
-const DASHBOARD_CACHE_TTL = 1000 * 60 * 20;
-
-function readSessionCache(key) {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.savedAt || Date.now() - parsed.savedAt > DASHBOARD_CACHE_TTL) {
-      return null;
-    }
-    return parsed.value || null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionCache(key, value) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
-  } catch {
-    // Ignore cache write failures.
-  }
-}
-
 function normalizeDateOnly(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -114,15 +154,20 @@ function isDateWithinNextDays(dateValue, daysAhead = 10) {
   return target >= today && target <= end;
 }
 
-async function fetchUpcomingEpisodesForShowIds(showIds) {
+async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
-  const todayIso = startOfToday().toISOString().slice(0, 10);
-  const batches = chunkArray(showIds, 25);
+  const batches = chunkArray(showIds, 4);
   const allEpisodes = [];
+  const pageSize = 1000;
 
-  await Promise.all(
-    batches.map(async (batch) => {
+  for (const batch of batches) {
+    let from = 0;
+    let done = false;
+
+    while (!done) {
+      const to = from + pageSize - 1;
+
       const { data, error } = await supabase
         .from("episodes")
         .select(`
@@ -131,22 +176,36 @@ async function fetchUpcomingEpisodesForShowIds(showIds) {
           season_number,
           episode_number,
           name,
-          aired_date
+          aired_date,
+          overview,
+          image_url,
+          episode_code,
+          created_at,
+          runtime_minutes
         `)
         .in("show_id", batch)
-        .gte("aired_date", todayIso)
-        .order("aired_date", { ascending: true })
-        .limit(80);
+        .order("show_id", { ascending: true })
+        .order("season_number", { ascending: true })
+        .order("episode_number", { ascending: true })
+        .range(from, to);
 
       if (error) throw error;
-      allEpisodes.push(...(data || []));
-    })
-  );
+
+      const rows = data || [];
+      allEpisodes.push(...rows);
+
+      if (rows.length < pageSize) {
+        done = true;
+      } else {
+        from += pageSize;
+      }
+    }
+  }
 
   return allEpisodes;
 }
 
-async function fetchWatchedRuntimeRows(userId) {
+async function fetchAllWatchedEpisodeRows(userId) {
   const pageSize = 1000;
   let from = 0;
   let done = false;
@@ -157,14 +216,7 @@ async function fetchWatchedRuntimeRows(userId) {
 
     const { data, error } = await supabase
       .from("watched_episodes")
-      .select(`
-        episode_id,
-        episodes!inner(
-          show_id,
-          season_number,
-          runtime_minutes
-        )
-      `)
+      .select("episode_id")
       .eq("user_id", userId)
       .range(from, to);
 
@@ -173,43 +225,17 @@ async function fetchWatchedRuntimeRows(userId) {
     const rows = data || [];
     allRows.push(...rows);
 
-    if (rows.length < pageSize) done = true;
-    else from += pageSize;
+    if (rows.length < pageSize) {
+      done = true;
+    } else {
+      from += pageSize;
+    }
   }
 
   return allRows;
 }
 
-async function fetchEpisodeCountsForShowIds(showIds) {
-  if (!showIds.length) return {};
-
-  const batches = chunkArray(showIds, 25);
-  const counts = {};
-
-  await Promise.all(
-    batches.map(async (batch) => {
-      const { data, error } = await supabase
-        .from("episodes")
-        .select("show_id")
-        .in("show_id", batch)
-        .neq("season_number", 0);
-
-      if (error) throw error;
-
-      for (const row of data || []) {
-        counts[row.show_id] = (counts[row.show_id] || 0) + 1;
-      }
-    })
-  );
-
-  return counts;
-}
-
 async function fetchTrendingShows() {
-  const cacheKey = "dashboard:trendingShows";
-  const cached = readSessionCache(cacheKey);
-  if (cached) return cached;
-
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
@@ -217,33 +243,22 @@ async function fetchTrendingShows() {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  const shows = (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
-  writeSessionCache(cacheKey, shows);
-  return shows;
+  return (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
 }
 
 async function fetchPremieringSoonShows(existingTmdbIds = []) {
-  const cacheKey = "dashboard:premieringSoonShows";
-  const cached = readSessionCache(cacheKey);
-  let sourceShows = cached;
+  const response = await fetch("/.netlify/functions/getPremieringSoonShows");
+  const payload = await response.json();
 
-  if (!sourceShows) {
-    const response = await fetch("/.netlify/functions/getPremieringSoonShows");
-    const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload?.message || "Failed to load premiering soon shows");
-    }
-
-    sourceShows = payload?.shows || [];
-    writeSessionCache(cacheKey, sourceShows);
+  if (!response.ok) {
+    throw new Error(payload?.message || "Failed to load premiering soon shows");
   }
 
   const existingSet = new Set(
     (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
   );
 
-  return (sourceShows || [])
+  return (payload?.shows || [])
     .filter((show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id)))
     .filter((show) => isDateWithinNextDays(getShowPremiereDate(show), 10))
     .sort((a, b) => {
@@ -309,6 +324,7 @@ function DashboardEpisodeItem({
           alt={show.show_name}
           className="dashboard-poster"
           loading="lazy"
+          decoding="async"
         />
       ) : (
         <div className="dashboard-poster" />
@@ -343,6 +359,7 @@ function ExternalShowCard({ show, savedShows }) {
       alt={showName}
       className="trending-card-image"
       loading="lazy"
+      decoding="async"
     />
   ) : (
     <div className="trending-card-image trending-card-image-placeholder">?</div>
@@ -391,6 +408,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadDashboard() {
       setLoading(true);
+      let hasDashboardCache = false;
 
       try {
         const {
@@ -398,27 +416,71 @@ export default function Dashboard() {
         } = await supabase.auth.getUser();
 
         if (!user) {
-          setProfile(null);
-          setShows([]);
-          setWatchedEpisodeIds(new Set());
-          setEpisodesByShow({});
-          setUpcomingItems([]);
+          const cachedPublicDashboard = readDashboardCache(null);
+          hasDashboardCache = applyDashboardCache(cachedPublicDashboard, {
+            setProfile,
+            setShows,
+            setWatchedEpisodeIds,
+            setEpisodesByShow,
+            setUpcomingItems,
+            setTrendingShows,
+            setPremieringSoonShows,
+          });
+
+          if (hasDashboardCache) {
+            setLoading(false);
+          } else {
+            setProfile(null);
+            setShows([]);
+            setWatchedEpisodeIds(new Set());
+            setEpisodesByShow({});
+            setUpcomingItems([]);
+          }
 
           try {
             const [trending, premieringSoon] = await Promise.all([
               fetchTrendingShows(),
               fetchPremieringSoonShows([]),
             ]);
+
+            const publicCache = {
+              profile: null,
+              shows: [],
+              watchedEpisodeIds: [],
+              episodesByShow: {},
+              upcomingItems: [],
+              trendingShows: trending,
+              premieringSoonShows: premieringSoon,
+            };
+
             setTrendingShows(trending);
             setPremieringSoonShows(premieringSoon);
+            writeDashboardCache(null, publicCache);
           } catch (error) {
             console.error("Error loading external dashboard sections:", error);
-            setTrendingShows([]);
-            setPremieringSoonShows([]);
+            if (!hasDashboardCache) {
+              setTrendingShows([]);
+              setPremieringSoonShows([]);
+            }
           }
 
           setLoading(false);
           return;
+        }
+
+        const cachedDashboard = readDashboardCache(user.id);
+        hasDashboardCache = applyDashboardCache(cachedDashboard, {
+          setProfile,
+          setShows,
+          setWatchedEpisodeIds,
+          setEpisodesByShow,
+          setUpcomingItems,
+          setTrendingShows,
+          setPremieringSoonShows,
+        });
+
+        if (hasDashboardCache) {
+          setLoading(false);
         }
 
         const [profileResp, showsResp] = await Promise.all([
@@ -502,10 +564,9 @@ export default function Dashboard() {
         let collectedUpcoming = [];
 
         if (showIds.length) {
-          const [watchedRows, upcomingEpisodes, episodeCounts] = await Promise.all([
-            fetchWatchedRuntimeRows(user.id),
-            fetchUpcomingEpisodesForShowIds(showIds),
-            fetchEpisodeCountsForShowIds(showIds),
+          const [watchedRows, allEpisodes] = await Promise.all([
+            fetchAllWatchedEpisodeRows(user.id),
+            fetchEpisodesForShowIds(showIds),
           ]);
 
           watchedIds = new Set(
@@ -515,28 +576,25 @@ export default function Dashboard() {
               .map(String)
           );
 
-          for (const showId of showIds) {
-            episodesLookup[showId] = {
-              totalMainEpisodes: episodeCounts[showId] || 0,
-              watchedMainCount: 0,
-              watchedMinutes: 0,
-            };
-          }
-
-          for (const row of watchedRows || []) {
-            const ep = row.episodes;
-            if (!ep || Number(ep.season_number ?? 0) === 0) continue;
-
-            if (!episodesLookup[ep.show_id]) {
-              episodesLookup[ep.show_id] = {
-                totalMainEpisodes: episodeCounts[ep.show_id] || 0,
-                watchedMainCount: 0,
-                watchedMinutes: 0,
-              };
+          for (const row of allEpisodes || []) {
+            if (!episodesLookup[row.show_id]) {
+              episodesLookup[row.show_id] = [];
             }
 
-            episodesLookup[ep.show_id].watchedMainCount += 1;
-            episodesLookup[ep.show_id].watchedMinutes += Number(ep.runtime_minutes) || 0;
+            episodesLookup[row.show_id].push({
+              id: row.id,
+              show_id: row.show_id,
+              seasonNumber: row.season_number,
+              number: row.episode_number,
+              episodeNumber: row.episode_number,
+              name: row.name || "Untitled episode",
+              aired: row.aired_date,
+              overview: row.overview || "",
+              image: row.image_url || null,
+              episodeCode: row.episode_code || null,
+              created_at: row.created_at || null,
+              runtime_minutes: Number(row.runtime_minutes) || 0,
+            });
           }
 
           const showLookup = {};
@@ -547,7 +605,7 @@ export default function Dashboard() {
           const today = startOfToday();
           const upcomingByShow = {};
 
-          for (const row of upcomingEpisodes || []) {
+          for (const row of allEpisodes || []) {
             const show = showLookup[row.show_id];
             if (!show) continue;
             if (!row.aired_date) continue;
@@ -634,22 +692,35 @@ export default function Dashboard() {
           console.error("Error loading external dashboard sections:", error);
         }
 
-        setProfile(profileResp.data || null);
-        setShows(normalizedShows);
-        setWatchedEpisodeIds(watchedIds);
-        setEpisodesByShow(episodesLookup);
-        setUpcomingItems(collectedUpcoming);
-        setTrendingShows(trending);
-        setPremieringSoonShows(premieringSoon);
+        const freshDashboard = {
+          profile: profileResp.data || null,
+          shows: normalizedShows,
+          watchedEpisodeIds: Array.from(watchedIds),
+          episodesByShow: episodesLookup,
+          upcomingItems: collectedUpcoming,
+          trendingShows: trending,
+          premieringSoonShows: premieringSoon,
+        };
+
+        setProfile(freshDashboard.profile);
+        setShows(freshDashboard.shows);
+        setWatchedEpisodeIds(new Set(freshDashboard.watchedEpisodeIds));
+        setEpisodesByShow(freshDashboard.episodesByShow);
+        setUpcomingItems(freshDashboard.upcomingItems);
+        setTrendingShows(freshDashboard.trendingShows);
+        setPremieringSoonShows(freshDashboard.premieringSoonShows);
+        writeDashboardCache(user.id, freshDashboard);
       } catch (error) {
         console.error("Error loading dashboard:", error);
-        setProfile(null);
-        setShows([]);
-        setWatchedEpisodeIds(new Set());
-        setEpisodesByShow({});
-        setUpcomingItems([]);
-        setTrendingShows([]);
-        setPremieringSoonShows([]);
+        if (!hasDashboardCache) {
+          setProfile(null);
+          setShows([]);
+          setWatchedEpisodeIds(new Set());
+          setEpisodesByShow({});
+          setUpcomingItems([]);
+          setTrendingShows([]);
+          setPremieringSoonShows([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -665,10 +736,22 @@ export default function Dashboard() {
 
     for (const show of shows) {
       const isArchived = isArchivedStatus(show.watch_status);
-      const progress = episodesByShow[show.show_id] || {};
-      const watchedMainCount = Number(progress.watchedMainCount) || 0;
-      const totalMainEpisodes = Number(progress.totalMainEpisodes) || 0;
-      watchedMinutes += Number(progress.watchedMinutes) || 0;
+      const episodes = episodesByShow[show.show_id] || [];
+
+      const mainEpisodes = episodes.filter(
+        (ep) => Number(ep.seasonNumber ?? 0) !== 0
+      );
+
+      const watchedMainEpisodes = mainEpisodes.filter((ep) =>
+        isEpisodeWatched(ep, watchedEpisodeIds)
+      );
+
+      const watchedMainCount = watchedMainEpisodes.length;
+      const totalMainEpisodes = mainEpisodes.length;
+
+      for (const watchedEp of watchedMainEpisodes) {
+        watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
+      }
 
       const isCompleted =
         totalMainEpisodes > 0 &&
@@ -700,7 +783,7 @@ export default function Dashboard() {
       watchedMinutes,
       airingThisWeek,
     };
-  }, [shows, episodesByShow, upcomingItems]);
+  }, [shows, watchedEpisodeIds, episodesByShow, upcomingItems]);
 
   if (loading) {
     return (

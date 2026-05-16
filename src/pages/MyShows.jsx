@@ -3,6 +3,51 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getShowStatus } from "../lib/showStatus";
 
+
+const MY_SHOWS_CACHE_PREFIX = "trackt_my_shows_cache_v1";
+const MY_SHOWS_CACHE_DURATION = 1000 * 60 * 10; // 10 minutes
+
+function getMyShowsCacheKey(userId) {
+  return `${MY_SHOWS_CACHE_PREFIX}:${userId}`;
+}
+
+function readMyShowsCache(userId) {
+  if (typeof window === "undefined" || !userId) return null;
+
+  try {
+    const raw = window.localStorage.getItem(getMyShowsCacheKey(userId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || !Array.isArray(parsed?.shows)) return null;
+
+    if (Date.now() - Number(parsed.savedAt) > MY_SHOWS_CACHE_DURATION) {
+      return null;
+    }
+
+    return parsed.shows;
+  } catch (error) {
+    console.warn("Failed reading My Shows cache:", error);
+    return null;
+  }
+}
+
+function writeMyShowsCache(userId, shows) {
+  if (typeof window === "undefined" || !userId) return;
+
+  try {
+    window.localStorage.setItem(
+      getMyShowsCacheKey(userId),
+      JSON.stringify({
+        savedAt: Date.now(),
+        shows,
+      })
+    );
+  } catch (error) {
+    console.warn("Failed writing My Shows cache:", error);
+  }
+}
+
 function isAired(dateValue) {
   if (!dateValue) return false;
   const date = new Date(dateValue);
@@ -59,7 +104,7 @@ function getPreferredShowName(showRow) {
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
-  const batches = chunkArray(showIds, 25);
+  const batches = chunkArray(showIds, 4);
   const allEpisodes = [];
   const pageSize = 1000;
 
@@ -102,24 +147,32 @@ async function fetchEpisodesForShowIds(showIds) {
   return allEpisodes;
 }
 
-async function fetchWatchedEpisodeRowsForEpisodeIds(userId, episodeIds) {
-  if (!userId || !episodeIds.length) return [];
-
-  const batches = chunkArray(episodeIds, 250);
+async function fetchAllWatchedEpisodeRows(userId) {
+  const pageSize = 1000;
+  let from = 0;
+  let done = false;
   const allRows = [];
 
-  await Promise.all(
-    batches.map(async (batch) => {
-      const { data, error } = await supabase
-        .from("watched_episodes")
-        .select("episode_id")
-        .eq("user_id", userId)
-        .in("episode_id", batch);
+  while (!done) {
+    const to = from + pageSize - 1;
 
-      if (error) throw error;
-      allRows.push(...(data || []));
-    })
-  );
+    const { data, error } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", userId)
+      .range(from, to);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) {
+      done = true;
+    } else {
+      from += pageSize;
+    }
+  }
 
   return allRows;
 }
@@ -143,6 +196,8 @@ export default function MyShows() {
   }, []);
 
   async function loadShows() {
+    let hasCachedShows = false;
+
     try {
       setLoading(true);
 
@@ -156,6 +211,14 @@ export default function MyShows() {
       if (!user) {
         setShows([]);
         return;
+      }
+
+      const cachedShows = readMyShowsCache(user.id);
+      hasCachedShows = Array.isArray(cachedShows);
+
+      if (hasCachedShows) {
+        setShows(cachedShows);
+        setLoading(false);
       }
 
       const { data: userShows, error: userShowsError } = await supabase
@@ -199,16 +262,10 @@ export default function MyShows() {
         return;
       }
 
-      const allEpisodes = await fetchEpisodesForShowIds(showIds);
-
-      const relevantEpisodeIds = (allEpisodes || [])
-        .map((ep) => ep.id)
-        .filter(Boolean);
-
-      const watchedRows = await fetchWatchedEpisodeRowsForEpisodeIds(
-        user.id,
-        relevantEpisodeIds
-      );
+      const [watchedRows, allEpisodes] = await Promise.all([
+        fetchAllWatchedEpisodeRows(user.id),
+        fetchEpisodesForShowIds(showIds),
+      ]);
 
       const watchedEpisodeIds = new Set(
         (watchedRows || [])
@@ -321,6 +378,7 @@ export default function MyShows() {
       });
 
       setShows(updatedShows);
+      writeMyShowsCache(user.id, updatedShows);
 
       const statusUpdates = updatedShows
         .filter((show) => {
@@ -346,7 +404,9 @@ export default function MyShows() {
       }
     } catch (error) {
       console.error("LOAD SHOWS FAILED:", error);
-      setShows([]);
+      if (!hasCachedShows) {
+        setShows([]);
+      }
     } finally {
       setLoading(false);
     }
