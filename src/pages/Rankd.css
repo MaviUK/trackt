@@ -487,3 +487,15 @@
   align-items: center;
   gap: 12px;
 }
+
+.rankd-notice-card {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+
+.rankd-notice-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #fcd34d;
+}
