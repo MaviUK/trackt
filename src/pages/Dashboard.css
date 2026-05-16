@@ -304,7 +304,7 @@
 
 @media (max-width: 640px) {
   .dashboard-page {
-    padding: calc(var(--mobile-top-banner-height, 92px) + 20px + env(safe-area-inset-top)) 12px
+    padding: calc(var(--mobile-top-banner-height, 92px) + 10px + env(safe-area-inset-top)) 12px
       calc(var(--mobile-nav-height, 72px) + 32px + env(safe-area-inset-bottom));
   }
 
