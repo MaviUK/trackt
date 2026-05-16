@@ -426,22 +426,22 @@ function StatCard({ label, value, to = null }) {
 export default function Dashboard() {
   const initialDashboardCache = useMemo(() => readLastDashboardCache(), []);
 
-  const [profile, setProfile] = useState(() => initialDashboardCache?.data?.profile || null);
-  const [shows, setShows] = useState(() => initialDashboardCache?.data?.shows || []);
+  const [profile, setProfile] = useState(() => initialDashboardCache?.profile || null);
+  const [shows, setShows] = useState(() => initialDashboardCache?.shows || []);
   const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(
-    () => new Set(initialDashboardCache?.data?.watchedEpisodeIds || [])
+    () => new Set(initialDashboardCache?.watchedEpisodeIds || [])
   );
   const [episodesByShow, setEpisodesByShow] = useState(
-    () => initialDashboardCache?.data?.episodesByShow || {}
+    () => initialDashboardCache?.episodesByShow || {}
   );
   const [upcomingItems, setUpcomingItems] = useState(
-    () => initialDashboardCache?.data?.upcomingItems || []
+    () => initialDashboardCache?.upcomingItems || []
   );
   const [trendingShows, setTrendingShows] = useState(
-    () => initialDashboardCache?.data?.trendingShows || []
+    () => initialDashboardCache?.trendingShows || []
   );
   const [premieringSoonShows, setPremieringSoonShows] = useState(
-    () => initialDashboardCache?.data?.premieringSoonShows || []
+    () => initialDashboardCache?.premieringSoonShows || []
   );
   const [loading, setLoading] = useState(() => !initialDashboardCache);
 
