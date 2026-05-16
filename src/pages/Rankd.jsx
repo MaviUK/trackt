@@ -1000,6 +1000,16 @@ useEffect(() => {
   nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
 }
 
+if (
+  nextPair.length === 2 &&
+  makePairKey(nextPair[0].show_id, nextPair[1].show_id) === currentPairKey
+) {
+  setError(
+    "You’ve already voted on this matchup. Add more watched shows to continue ranking."
+  );
+  return;
+}
+
       if (!nextPair.length) {
   setError(
     "No more matchups available right now. Come back later after more shows or votes are added."
