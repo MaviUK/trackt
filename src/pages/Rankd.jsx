@@ -541,7 +541,6 @@ const [showLoginModal, setShowLoginModal] = useState(false);
     setNotifications(data || []);
   }
 
-  useEffect(() => {
     async function loadRankd() {
       try {
         setLoading(true);
@@ -717,10 +716,11 @@ const [showLoginModal, setShowLoginModal] = useState(false);
         setLoading(false);
       }
     }
-
-    loadRankd();
-  }, [sharedSlug]);
-
+  
+useEffect(() => {
+  loadRankd();
+}, [sharedSlug]);
+  
   useEffect(() => {
     loadCurrentMatchup(currentPair).catch((matchupError) => {
       console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
@@ -1539,9 +1539,10 @@ const [showLoginModal, setShowLoginModal] = useState(false);
                       {showLoginModal ? (
   <LoginModal
     onClose={() => {
-      setShowLoginModal(false);
-      window.location.reload();
-    }}
+  setShowLoginModal(false);
+
+  loadRankd();
+}}
   />
 ) : null}
       </div>
