@@ -13,7 +13,6 @@ import LoginModal from "../components/LoginModal";
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
-const [showLoginModal, setShowLoginModal] = useState(false);
 
 function sortByLadder(a, b) {
   const aUnrated = (a.rank_comparisons || 0) === 0;
@@ -425,7 +424,8 @@ export default function Rankd() {
   const [error, setError] = useState("");
   const [userId, setUserId] = useState(null);
   const [shareStatus, setShareStatus] = useState("");
-  const [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
+  cconst [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
+const [showLoginModal, setShowLoginModal] = useState(false);
 
   const touchStartX = useRef(null);
   const battleRef = useRef(null);
@@ -1531,7 +1531,12 @@ export default function Rankd() {
                 </Link>
               ))}
 
-              {showLoginModal ? (
+
+              
+            </div>
+          </div>
+        </div>
+                      {showLoginModal ? (
   <LoginModal
     onClose={() => {
       setShowLoginModal(false);
@@ -1539,10 +1544,6 @@ export default function Rankd() {
     }}
   />
 ) : null}
-              
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
