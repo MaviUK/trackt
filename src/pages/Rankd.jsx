@@ -1000,6 +1000,14 @@ useEffect(() => {
   nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
 }
 
+      if (!nextPair.length) {
+  setError(
+    "No more matchups available right now. Come back later after more shows or votes are added."
+  );
+
+  return;
+}
+
       setEligibleShows(updatedLadder);
       setCurrentPair(nextPair);
       setLastPairKey(
