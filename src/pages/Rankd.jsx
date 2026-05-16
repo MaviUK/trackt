@@ -1271,12 +1271,7 @@ export default function Rankd() {
             <p>Swipe your favourite shows against each other to build your personal ranking.</p>
           </div>
 
-          {sharedSlug && sharedMatchupTitle ? (
-            <div className="section-card rankd-share-card">
-              <strong>Shared TikTok matchup</strong>
-              <span>{sharedMatchupTitle}</span>
-            </div>
-          ) : null}
+          
 
           {error ? (
             <div className="section-card rankd-error-card">
@@ -1327,7 +1322,7 @@ export default function Rankd() {
       <div className="page-shell">
         <div className="rankd-matchup-number">
           {isSharedPage ? (
-            <>Shared Rank'd matchup</>
+  <>{sharedMatchupTitle}</>
           ) : rankFocus ? (
             <>
               Finding place for {rankFocus.showName} — round{" "}
@@ -1345,13 +1340,6 @@ export default function Rankd() {
             </>
           )}
         </div>
-
-        {isSharedPage && !isLoggedIn ? (
-          <div className="section-card rankd-share-card">
-            <strong>{sharedMatchupTitle || "Shared matchup"}</strong>
-            <span>You can view this matchup now. Sign in to vote and we’ll add both shows as completed.</span>
-          </div>
-        ) : null}
 
         {error ? (
           <div className="section-card rankd-error-card">
