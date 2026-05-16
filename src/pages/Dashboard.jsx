@@ -4,17 +4,27 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
 
-
-const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v1";
+const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v3_RENDERED_ONLY";
 const DASHBOARD_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
 const DASHBOARD_LAST_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:last`;
+
+let dashboardMemoryCache = null;
 
 function getDashboardCacheKey(userId) {
   return userId ? `${DASHBOARD_CACHE_PREFIX}:${userId}` : DASHBOARD_PUBLIC_CACHE_KEY;
 }
 
+function isValidCachePayload(payload) {
+  if (!payload?.savedAt || !payload?.data) return false;
+  return Date.now() - Number(payload.savedAt) < DASHBOARD_CACHE_DURATION;
+}
+
 function readLastDashboardCache() {
+  if (dashboardMemoryCache && isValidCachePayload(dashboardMemoryCache)) {
+    return dashboardMemoryCache.data;
+  }
+
   if (typeof window === "undefined") return null;
 
   try {
@@ -25,15 +35,12 @@ function readLastDashboardCache() {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
-    if (!parsed?.savedAt || !parsed?.data) return null;
+    if (!isValidCachePayload(parsed)) return null;
 
-    if (Date.now() - Number(parsed.savedAt) > DASHBOARD_CACHE_DURATION) {
-      return null;
-    }
-
+    dashboardMemoryCache = parsed;
     return parsed.data;
   } catch (error) {
-    console.warn("Failed reading last dashboard cache:", error);
+    console.warn("Failed reading dashboard cache:", error);
     return null;
   }
 }
@@ -46,12 +53,9 @@ function readDashboardCache(userId) {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
-    if (!parsed?.savedAt || !parsed?.data) return null;
+    if (!isValidCachePayload(parsed)) return null;
 
-    if (Date.now() - Number(parsed.savedAt) > DASHBOARD_CACHE_DURATION) {
-      return null;
-    }
-
+    dashboardMemoryCache = parsed;
     return parsed.data;
   } catch (error) {
     console.warn("Failed reading dashboard cache:", error);
@@ -62,38 +66,35 @@ function readDashboardCache(userId) {
 function writeDashboardCache(userId, data) {
   if (typeof window === "undefined") return;
 
+  const payload = {
+    savedAt: Date.now(),
+    data,
+  };
+
+  dashboardMemoryCache = payload;
+
   try {
     const cacheKey = getDashboardCacheKey(userId);
-
-    window.localStorage.setItem(
-      cacheKey,
-      JSON.stringify({
-        savedAt: Date.now(),
-        data,
-      })
-    );
+    window.localStorage.setItem(cacheKey, JSON.stringify(payload));
     window.localStorage.setItem(DASHBOARD_LAST_CACHE_KEY, cacheKey);
   } catch (error) {
     console.warn("Failed writing dashboard cache:", error);
   }
 }
 
-function applyDashboardCache(cache, setters) {
-  if (!cache) return false;
-
-  setters.setProfile(cache.profile || null);
-  setters.setShows(Array.isArray(cache.shows) ? cache.shows : []);
-  setters.setWatchedEpisodeIds(
-    new Set(Array.isArray(cache.watchedEpisodeIds) ? cache.watchedEpisodeIds : [])
-  );
-  setters.setEpisodesByShow(cache.episodesByShow || {});
-  setters.setUpcomingItems(Array.isArray(cache.upcomingItems) ? cache.upcomingItems : []);
-  setters.setTrendingShows(Array.isArray(cache.trendingShows) ? cache.trendingShows : []);
-  setters.setPremieringSoonShows(
-    Array.isArray(cache.premieringSoonShows) ? cache.premieringSoonShows : []
-  );
-
-  return true;
+function makeEmptyDashboardView() {
+  return {
+    savedShows: [],
+    trendingShows: [],
+    premieringSoonShows: [],
+    stats: {
+      totalShows: 0,
+      inProgressCount: 0,
+      completedCount: 0,
+      watchedMinutes: 0,
+      airingThisWeek: [],
+    },
+  };
 }
 
 function startOfToday() {
@@ -134,19 +135,15 @@ function isWatchlistStatus(value) {
 
 function formatMinutes(totalMinutes) {
   const minutes = Number(totalMinutes) || 0;
-
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
   const mins = minutes % 60;
-
   return `${days}d ${hours}h ${mins}m`;
 }
 
 function chunkArray(items, size) {
   const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
 }
 
@@ -205,10 +202,6 @@ async function fetchEpisodesForShowIds(showIds) {
           episode_number,
           name,
           aired_date,
-          overview,
-          image_url,
-          episode_code,
-          created_at,
           runtime_minutes
         `)
         .in("show_id", batch)
@@ -221,12 +214,8 @@ async function fetchEpisodesForShowIds(showIds) {
 
       const rows = data || [];
       allEpisodes.push(...rows);
-
-      if (rows.length < pageSize) {
-        done = true;
-      } else {
-        from += pageSize;
-      }
+      done = rows.length < pageSize;
+      from += pageSize;
     }
   }
 
@@ -252,12 +241,8 @@ async function fetchAllWatchedEpisodeRows(userId) {
 
     const rows = data || [];
     allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
+    done = rows.length < pageSize;
+    from += pageSize;
   }
 
   return allRows;
@@ -267,10 +252,7 @@ async function fetchTrendingShows() {
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
-  if (!response.ok) {
-    throw new Error(payload?.message || "Failed to load trending shows");
-  }
-
+  if (!response.ok) throw new Error(payload?.message || "Failed to load trending shows");
   return (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
 }
 
@@ -278,13 +260,9 @@ async function fetchPremieringSoonShows(existingTmdbIds = []) {
   const response = await fetch("/.netlify/functions/getPremieringSoonShows");
   const payload = await response.json();
 
-  if (!response.ok) {
-    throw new Error(payload?.message || "Failed to load premiering soon shows");
-  }
+  if (!response.ok) throw new Error(payload?.message || "Failed to load premiering soon shows");
 
-  const existingSet = new Set(
-    (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
-  );
+  const existingSet = new Set((existingTmdbIds || []).map((id) => String(id)).filter(Boolean));
 
   return (payload?.shows || [])
     .filter((show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id)))
@@ -306,15 +284,8 @@ function findSavedShowMatch(show, savedShows) {
     savedShows.find((saved) => {
       const savedTmdbId = saved?.tmdb_id ?? null;
       const savedTvdbId = saved?.tvdb_id ?? null;
-
-      if (showTmdbId && savedTmdbId && String(showTmdbId) === String(savedTmdbId)) {
-        return true;
-      }
-
-      if (showTvdbId && savedTvdbId && String(showTvdbId) === String(savedTvdbId)) {
-        return true;
-      }
-
+      if (showTmdbId && savedTmdbId && String(showTmdbId) === String(savedTmdbId)) return true;
+      if (showTvdbId && savedTvdbId && String(showTvdbId) === String(savedTvdbId)) return true;
       return false;
     }) || null
   );
@@ -331,21 +302,124 @@ function getExternalShowLink(show, savedShows) {
 
   if (tvdbId) return `/show/${tvdbId}`;
   if (tmdbId) return `/show/tmdb/${tmdbId}`;
-
   return null;
 }
 
-function DashboardEpisodeItem({
-  show,
-  episode,
-  dateLabel = "Airs",
-  dateValue,
-}) {
+function buildDashboardStats(normalizedShows, allEpisodes, watchedRows) {
+  const watchedEpisodeIds = new Set(
+    (watchedRows || []).map((row) => row.episode_id).filter(Boolean).map(String)
+  );
+
+  const episodesByShow = {};
+  for (const row of allEpisodes || []) {
+    if (!episodesByShow[row.show_id]) episodesByShow[row.show_id] = [];
+    episodesByShow[row.show_id].push({
+      id: row.id,
+      show_id: row.show_id,
+      seasonNumber: row.season_number,
+      number: row.episode_number,
+      episodeNumber: row.episode_number,
+      name: row.name || "Untitled episode",
+      aired: row.aired_date,
+      runtime_minutes: Number(row.runtime_minutes) || 0,
+    });
+  }
+
+  let completedCount = 0;
+  let inProgressCount = 0;
+  let watchedMinutes = 0;
+
+  for (const show of normalizedShows) {
+    const isArchived = isArchivedStatus(show.watch_status);
+    const episodes = episodesByShow[show.show_id] || [];
+    const mainEpisodes = episodes.filter((ep) => Number(ep.seasonNumber ?? 0) !== 0);
+    const watchedMainEpisodes = mainEpisodes.filter((ep) => isEpisodeWatched(ep, watchedEpisodeIds));
+
+    for (const watchedEp of watchedMainEpisodes) {
+      watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
+    }
+
+    const watchedMainCount = watchedMainEpisodes.length;
+    const totalMainEpisodes = mainEpisodes.length;
+
+    if (totalMainEpisodes > 0 && watchedMainCount >= totalMainEpisodes && !isArchived) {
+      completedCount += 1;
+    }
+
+    if (watchedMainCount > 0 && watchedMainCount < totalMainEpisodes && !isArchived) {
+      inProgressCount += 1;
+    }
+  }
+
+  const showLookup = {};
+  for (const show of normalizedShows) showLookup[show.show_id] = show;
+
+  const today = startOfToday();
+  const nextWeek = new Date(today);
+  nextWeek.setDate(today.getDate() + 7);
+  const upcomingByShow = {};
+
+  for (const row of allEpisodes || []) {
+    const show = showLookup[row.show_id];
+    if (!show || !row.aired_date) continue;
+
+    const airDate = new Date(row.aired_date);
+    if (Number.isNaN(airDate.getTime())) continue;
+
+    const airDay = new Date(airDate);
+    airDay.setHours(0, 0, 0, 0);
+    if (airDay < today || airDay >= nextWeek) continue;
+
+    if (!upcomingByShow[row.show_id]) upcomingByShow[row.show_id] = [];
+
+    upcomingByShow[row.show_id].push({
+      show: {
+        tvdb_id: String(show.tvdb_id),
+        show_name: show.show_name,
+        poster_url: show.poster_url,
+      },
+      episode: {
+        id: row.id,
+        show_id: row.show_id,
+        seasonNumber: row.season_number,
+        number: row.episode_number,
+        episodeNumber: row.episode_number,
+        name: row.name || "Untitled episode",
+        aired: row.aired_date,
+      },
+      watchStatus: show.watch_status,
+    });
+  }
+
+  const airingThisWeek = [];
+
+  Object.values(upcomingByShow).forEach((showEpisodes) => {
+    if (!showEpisodes.length) return;
+    showEpisodes.sort((a, b) => new Date(a.episode.aired) - new Date(b.episode.aired));
+
+    const firstUpcomingEpisode = showEpisodes[0];
+    const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
+
+    if (isArchivedStatus(status)) return;
+    if (isWatchlistStatus(status) && !isFirstEpisode(firstUpcomingEpisode.episode)) return;
+
+    airingThisWeek.push(...showEpisodes.map(({ show, episode }) => ({ show, episode })));
+  });
+
+  airingThisWeek.sort((a, b) => new Date(a.episode.aired) - new Date(b.episode.aired));
+
+  return {
+    totalShows: normalizedShows.length,
+    completedCount,
+    inProgressCount,
+    watchedMinutes,
+    airingThisWeek,
+  };
+}
+
+function DashboardEpisodeItem({ show, episode, dateLabel = "Airs", dateValue }) {
   return (
-    <Link
-      to={`/my-shows/${show.tvdb_id}?episode=${episode.id}`}
-      className="dashboard-item"
-    >
+    <Link to={`/my-shows/${show.tvdb_id}?episode=${episode.id}`} className="dashboard-item">
       {show.poster_url ? (
         <img
           src={show.poster_url}
@@ -393,9 +467,7 @@ function ExternalShowCard({ show, savedShows }) {
     <div className="trending-card-image trending-card-image-placeholder">?</div>
   );
 
-  if (!linkTarget) {
-    return <div className="trending-card">{cardContent}</div>;
-  }
+  if (!linkTarget) return <div className="trending-card">{cardContent}</div>;
 
   return (
     <Link to={linkTarget} className="trending-card">
@@ -424,50 +496,24 @@ function StatCard({ label, value, to = null }) {
 }
 
 export default function Dashboard() {
-  const initialDashboardCache = useMemo(() => readLastDashboardCache(), []);
-
-  const [profile, setProfile] = useState(() => initialDashboardCache?.profile || null);
-  const [shows, setShows] = useState(() => initialDashboardCache?.shows || []);
-  const [watchedEpisodeIds, setWatchedEpisodeIds] = useState(
-    () => new Set(initialDashboardCache?.watchedEpisodeIds || [])
-  );
-  const [episodesByShow, setEpisodesByShow] = useState(
-    () => initialDashboardCache?.episodesByShow || {}
-  );
-  const [upcomingItems, setUpcomingItems] = useState(
-    () => initialDashboardCache?.upcomingItems || []
-  );
-  const [trendingShows, setTrendingShows] = useState(
-    () => initialDashboardCache?.trendingShows || []
-  );
-  const [premieringSoonShows, setPremieringSoonShows] = useState(
-    () => initialDashboardCache?.premieringSoonShows || []
-  );
-  const [loading, setLoading] = useState(() => !initialDashboardCache);
+  const initialDashboardView = useMemo(() => readLastDashboardCache(), []);
+  const [dashboardView, setDashboardView] = useState(() => initialDashboardView || makeEmptyDashboardView());
+  const [loading, setLoading] = useState(() => !initialDashboardView);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadDashboard() {
-      let hasDashboardCache = false;
+      const instantCache = readLastDashboardCache();
+      if (instantCache) {
+        setDashboardView(instantCache);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
 
       try {
-        const instantDashboardCache = readLastDashboardCache();
-        hasDashboardCache = applyDashboardCache(instantDashboardCache, {
-          setProfile,
-          setShows,
-          setWatchedEpisodeIds,
-          setEpisodesByShow,
-          setUpcomingItems,
-          setTrendingShows,
-          setPremieringSoonShows,
-        });
-
-        if (hasDashboardCache) {
-          setLoading(false);
-          return;
-        }
-
-        setLoading(true);
-
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -475,127 +521,66 @@ export default function Dashboard() {
         const user = session?.user || null;
 
         if (!user) {
-          const cachedPublicDashboard = readDashboardCache(null);
-          hasDashboardCache = applyDashboardCache(cachedPublicDashboard, {
-            setProfile,
-            setShows,
-            setWatchedEpisodeIds,
-            setEpisodesByShow,
-            setUpcomingItems,
-            setTrendingShows,
-            setPremieringSoonShows,
-          });
-
-          if (hasDashboardCache) {
-            setLoading(false);
+          const cachedPublic = readDashboardCache(null);
+          if (cachedPublic) {
+            if (!cancelled) {
+              setDashboardView(cachedPublic);
+              setLoading(false);
+            }
             return;
           }
 
-          setProfile(null);
-          setShows([]);
-          setWatchedEpisodeIds(new Set());
-          setEpisodesByShow({});
-          setUpcomingItems([]);
+          const [trending, premieringSoon] = await Promise.all([
+            fetchTrendingShows(),
+            fetchPremieringSoonShows([]),
+          ]);
 
-          try {
-            const [trending, premieringSoon] = await Promise.all([
-              fetchTrendingShows(),
-              fetchPremieringSoonShows([]),
-            ]);
+          const publicView = {
+            savedShows: [],
+            trendingShows: trending,
+            premieringSoonShows: premieringSoon,
+            stats: makeEmptyDashboardView().stats,
+          };
 
-            const publicCache = {
-              profile: null,
-              shows: [],
-              watchedEpisodeIds: [],
-              episodesByShow: {},
-              upcomingItems: [],
-              trendingShows: trending,
-              premieringSoonShows: premieringSoon,
-            };
+          writeDashboardCache(null, publicView);
+          if (!cancelled) setDashboardView(publicView);
+          return;
+        }
 
-            setTrendingShows(trending);
-            setPremieringSoonShows(premieringSoon);
-            writeDashboardCache(null, publicCache);
-          } catch (error) {
-            console.error("Error loading external dashboard sections:", error);
-            setTrendingShows([]);
-            setPremieringSoonShows([]);
+        const cachedUser = readDashboardCache(user.id);
+        if (cachedUser) {
+          if (!cancelled) {
+            setDashboardView(cachedUser);
+            setLoading(false);
           }
-
-          setLoading(false);
           return;
         }
 
-        const cachedDashboard = readDashboardCache(user.id);
-        hasDashboardCache = applyDashboardCache(cachedDashboard, {
-          setProfile,
-          setShows,
-          setWatchedEpisodeIds,
-          setEpisodesByShow,
-          setUpcomingItems,
-          setTrendingShows,
-          setPremieringSoonShows,
-        });
-
-        if (hasDashboardCache) {
-          setLoading(false);
-          return;
-        }
-
-        const [profileResp, showsResp] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select(`
+        const { data: showRows, error: showsError } = await supabase
+          .from("user_shows_new")
+          .select(`
+            id,
+            user_id,
+            show_id,
+            watch_status,
+            archived_at,
+            added_at,
+            created_at,
+            shows!inner(
               id,
-              username,
-              full_name,
-              avatar_url,
-              dob,
-              gender,
-              country,
-              bio,
-              instagram_url,
-              x_url,
-              tiktok_url,
-              youtube_url,
-              website_url
-            `)
-            .eq("id", user.id)
-            .maybeSingle(),
+              tvdb_id,
+              tmdb_id,
+              name,
+              status,
+              poster_url,
+              first_aired
+            )
+          `)
+          .eq("user_id", user.id);
 
-          supabase
-            .from("user_shows_new")
-            .select(`
-              id,
-              user_id,
-              show_id,
-              watch_status,
-              archived_at,
-              added_at,
-              created_at,
-              shows!inner(
-                id,
-                tvdb_id,
-                tmdb_id,
-                name,
-                overview,
-                status,
-                poster_url,
-                first_aired
-              )
-            `)
-            .eq("user_id", user.id),
-        ]);
+        if (showsError) throw showsError;
 
-        if (profileResp.error) {
-          console.error("Error loading profile:", profileResp.error);
-        }
-
-        if (showsResp.error) {
-          throw showsResp.error;
-        }
-
-        const normalizedShows = (showsResp.data || []).map((row) => ({
+        const normalizedShows = (showRows || []).map((row) => ({
           id: row.id,
           user_id: row.user_id,
           show_id: row.show_id,
@@ -606,243 +591,62 @@ export default function Dashboard() {
           tvdb_id: row.shows.tvdb_id,
           tmdb_id: row.shows.tmdb_id,
           show_name: row.shows.name || "Unknown title",
-          overview: row.shows.overview || "",
           status: row.shows.status || null,
           poster_url: row.shows.poster_url || null,
           first_aired: row.shows.first_aired || null,
         }));
 
-        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id);
+        const existingTmdbIds = normalizedShows.map((show) => show.tmdb_id).filter(Boolean);
+        const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
-        const showIds = normalizedShows
-          .map((show) => show.show_id)
-          .filter(Boolean);
+        const [watchedRows, allEpisodes, trending, premieringSoon] = await Promise.all([
+          showIds.length ? fetchAllWatchedEpisodeRows(user.id) : Promise.resolve([]),
+          showIds.length ? fetchEpisodesForShowIds(showIds) : Promise.resolve([]),
+          fetchTrendingShows().catch((error) => {
+            console.error("Error loading trending shows:", error);
+            return [];
+          }),
+          fetchPremieringSoonShows(existingTmdbIds).catch((error) => {
+            console.error("Error loading premiering soon shows:", error);
+            return [];
+          }),
+        ]);
 
-        let watchedIds = new Set();
-        let episodesLookup = {};
-        let collectedUpcoming = [];
-
-        if (showIds.length) {
-          const [watchedRows, allEpisodes] = await Promise.all([
-            fetchAllWatchedEpisodeRows(user.id),
-            fetchEpisodesForShowIds(showIds),
-          ]);
-
-          watchedIds = new Set(
-            (watchedRows || [])
-              .map((row) => row.episode_id)
-              .filter(Boolean)
-              .map(String)
-          );
-
-          for (const row of allEpisodes || []) {
-            if (!episodesLookup[row.show_id]) {
-              episodesLookup[row.show_id] = [];
-            }
-
-            episodesLookup[row.show_id].push({
-              id: row.id,
-              show_id: row.show_id,
-              seasonNumber: row.season_number,
-              number: row.episode_number,
-              episodeNumber: row.episode_number,
-              name: row.name || "Untitled episode",
-              aired: row.aired_date,
-              overview: row.overview || "",
-              image: row.image_url || null,
-              episodeCode: row.episode_code || null,
-              created_at: row.created_at || null,
-              runtime_minutes: Number(row.runtime_minutes) || 0,
-            });
-          }
-
-          const showLookup = {};
-          for (const show of normalizedShows) {
-            showLookup[show.show_id] = show;
-          }
-
-          const today = startOfToday();
-          const upcomingByShow = {};
-
-          for (const row of allEpisodes || []) {
-            const show = showLookup[row.show_id];
-            if (!show) continue;
-            if (!row.aired_date) continue;
-
-            const airDate = new Date(row.aired_date);
-            if (Number.isNaN(airDate.getTime())) continue;
-
-            const airDay = new Date(airDate);
-            airDay.setHours(0, 0, 0, 0);
-
-            if (airDay < today) continue;
-
-            if (!upcomingByShow[row.show_id]) {
-              upcomingByShow[row.show_id] = [];
-            }
-
-            upcomingByShow[row.show_id].push({
-              id: row.id,
-              show_id: row.show_id,
-              showTvdbId: String(show.tvdb_id),
-              showName: show.show_name,
-              posterUrl: show.poster_url,
-              watchStatus: show.watch_status,
-              seasonNumber: row.season_number,
-              episodeNumber: row.episode_number,
-              name: row.name || "Untitled episode",
-              aired: row.aired_date,
-            });
-          }
-
-          Object.values(upcomingByShow).forEach((showEpisodes) => {
-            if (!showEpisodes.length) return;
-
-            showEpisodes.sort((a, b) => new Date(a.aired) - new Date(b.aired));
-
-            const firstUpcomingEpisode = showEpisodes[0];
-            const status = normalizeStatus(firstUpcomingEpisode.watchStatus);
-
-            if (isArchivedStatus(status)) {
-              return;
-            }
-
-            if (
-              isWatchlistStatus(status) &&
-              !isFirstEpisode(firstUpcomingEpisode)
-            ) {
-              return;
-            }
-
-            collectedUpcoming.push(
-              ...showEpisodes.map((ep) => ({
-                show: {
-                  tvdb_id: ep.showTvdbId,
-                  show_name: ep.showName,
-                  poster_url: ep.posterUrl,
-                },
-                episode: {
-                  id: ep.id,
-                  show_id: ep.show_id,
-                  seasonNumber: ep.seasonNumber,
-                  number: ep.episodeNumber,
-                  episodeNumber: ep.episodeNumber,
-                  name: ep.name,
-                  aired: ep.aired,
-                },
-              }))
-            );
-          });
-
-          collectedUpcoming.sort(
-            (a, b) => new Date(a.episode.aired) - new Date(b.episode.aired)
-          );
-        }
-
-        let trending = [];
-        let premieringSoon = [];
-
-        try {
-          [trending, premieringSoon] = await Promise.all([
-            fetchTrendingShows(),
-            fetchPremieringSoonShows(existingTmdbIds),
-          ]);
-        } catch (error) {
-          console.error("Error loading external dashboard sections:", error);
-        }
-
-        const freshDashboard = {
-          profile: profileResp.data || null,
-          shows: normalizedShows,
-          watchedEpisodeIds: Array.from(watchedIds),
-          episodesByShow: episodesLookup,
-          upcomingItems: collectedUpcoming,
+        const freshDashboardView = {
+          savedShows: normalizedShows.map((show) => ({
+            show_id: show.show_id,
+            tvdb_id: show.tvdb_id,
+            tmdb_id: show.tmdb_id,
+            show_name: show.show_name,
+            poster_url: show.poster_url,
+            watch_status: show.watch_status,
+          })),
           trendingShows: trending,
           premieringSoonShows: premieringSoon,
+          stats: buildDashboardStats(normalizedShows, allEpisodes, watchedRows),
         };
 
-        setProfile(freshDashboard.profile);
-        setShows(freshDashboard.shows);
-        setWatchedEpisodeIds(new Set(freshDashboard.watchedEpisodeIds));
-        setEpisodesByShow(freshDashboard.episodesByShow);
-        setUpcomingItems(freshDashboard.upcomingItems);
-        setTrendingShows(freshDashboard.trendingShows);
-        setPremieringSoonShows(freshDashboard.premieringSoonShows);
-        writeDashboardCache(user.id, freshDashboard);
+        writeDashboardCache(user.id, freshDashboardView);
+        if (!cancelled) setDashboardView(freshDashboardView);
       } catch (error) {
         console.error("Error loading dashboard:", error);
-        if (!hasDashboardCache) {
-          setProfile(null);
-          setShows([]);
-          setWatchedEpisodeIds(new Set());
-          setEpisodesByShow({});
-          setUpcomingItems([]);
-          setTrendingShows([]);
-          setPremieringSoonShows([]);
-        }
+        if (!cancelled) setDashboardView(makeEmptyDashboardView());
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const dashboardData = useMemo(() => {
-    let completedCount = 0;
-    let inProgressCount = 0;
-    let watchedMinutes = 0;
-
-    for (const show of shows) {
-      const isArchived = isArchivedStatus(show.watch_status);
-      const episodes = episodesByShow[show.show_id] || [];
-
-      const mainEpisodes = episodes.filter(
-        (ep) => Number(ep.seasonNumber ?? 0) !== 0
-      );
-
-      const watchedMainEpisodes = mainEpisodes.filter((ep) =>
-        isEpisodeWatched(ep, watchedEpisodeIds)
-      );
-
-      const watchedMainCount = watchedMainEpisodes.length;
-      const totalMainEpisodes = mainEpisodes.length;
-
-      for (const watchedEp of watchedMainEpisodes) {
-        watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
-      }
-
-      const isCompleted =
-        totalMainEpisodes > 0 &&
-        watchedMainCount >= totalMainEpisodes &&
-        !isArchived;
-
-      const isInProgress =
-        watchedMainCount > 0 &&
-        watchedMainCount < totalMainEpisodes &&
-        !isArchived;
-
-      if (isCompleted) completedCount += 1;
-      if (isInProgress) inProgressCount += 1;
-    }
-
-    const today = startOfToday();
-    const end = new Date(today);
-    end.setDate(today.getDate() + 7);
-
-    const airingThisWeek = upcomingItems.filter((item) => {
-      const d = new Date(item.episode.aired);
-      return d >= today && d < end;
-    });
-
-    return {
-      totalShows: shows.length,
-      completedCount,
-      inProgressCount,
-      watchedMinutes,
-      airingThisWeek,
-    };
-  }, [shows, watchedEpisodeIds, episodesByShow, upcomingItems]);
+  const savedShows = dashboardView.savedShows || [];
+  const trendingShows = dashboardView.trendingShows || [];
+  const premieringSoonShows = dashboardView.premieringSoonShows || [];
+  const dashboardData = dashboardView.stats || makeEmptyDashboardView().stats;
 
   if (loading) {
     return (
@@ -867,7 +671,7 @@ export default function Dashboard() {
               <ExternalShowCard
                 key={`trending-${show.tmdb_id || show.tvdb_id || show.id}`}
                 show={show}
-                savedShows={shows}
+                savedShows={savedShows}
               />
             ))}
           </div>
@@ -887,7 +691,7 @@ export default function Dashboard() {
               <ExternalShowCard
                 key={`premiering-${show.tmdb_id || show.tvdb_id || show.id}`}
                 show={show}
-                savedShows={shows}
+                savedShows={savedShows}
               />
             ))}
           </div>
@@ -896,23 +700,10 @@ export default function Dashboard() {
 
       <div className="stats-scroll-row stats-scroll-row-with-gap">
         <div className="stats-grid stats-grid-scroll">
-          <StatCard
-            label="Total Shows"
-            value={dashboardData.totalShows}
-            to="/my-shows"
-          />
-          <StatCard
-            label="In Progress"
-            value={dashboardData.inProgressCount}
-          />
-          <StatCard
-            label="Completed"
-            value={dashboardData.completedCount}
-          />
-          <StatCard
-            label="Time Watched"
-            value={formatMinutes(dashboardData.watchedMinutes)}
-          />
+          <StatCard label="Total Shows" value={dashboardData.totalShows} to="/my-shows" />
+          <StatCard label="In Progress" value={dashboardData.inProgressCount} />
+          <StatCard label="Completed" value={dashboardData.completedCount} />
+          <StatCard label="Time Watched" value={formatMinutes(dashboardData.watchedMinutes)} />
         </div>
       </div>
 
