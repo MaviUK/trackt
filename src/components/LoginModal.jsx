@@ -10,37 +10,46 @@ export default function LoginModal({ onClose }) {
   const [message, setMessage] = useState("");
 
   async function handleSubmit(event) {
-    event.preventDefault();
+  event.preventDefault();
 
-    try {
-      setLoading(true);
-      setMessage("");
+  try {
+    setLoading(true);
+    setMessage("");
 
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      const { error: loginError } =
+        await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (error) throw error;
+      if (loginError) throw loginError;
 
-        setMessage("Account created. You are now signed in.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
+      onClose?.();
+    } else {
+      const { error } =
+        await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        onClose?.();
-      }
-    } catch (error) {
-      setMessage(error.message || "Authentication failed.");
-    } finally {
-      setLoading(false);
+      onClose?.();
     }
+  } catch (error) {
+    setMessage(error.message || "Authentication failed.");
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div className="login-modal-overlay">
