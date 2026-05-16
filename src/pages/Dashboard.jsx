@@ -429,13 +429,14 @@ export default function Dashboard() {
 
           if (hasDashboardCache) {
             setLoading(false);
-          } else {
-            setProfile(null);
-            setShows([]);
-            setWatchedEpisodeIds(new Set());
-            setEpisodesByShow({});
-            setUpcomingItems([]);
+            return;
           }
+
+          setProfile(null);
+          setShows([]);
+          setWatchedEpisodeIds(new Set());
+          setEpisodesByShow({});
+          setUpcomingItems([]);
 
           try {
             const [trending, premieringSoon] = await Promise.all([
@@ -458,10 +459,8 @@ export default function Dashboard() {
             writeDashboardCache(null, publicCache);
           } catch (error) {
             console.error("Error loading external dashboard sections:", error);
-            if (!hasDashboardCache) {
-              setTrendingShows([]);
-              setPremieringSoonShows([]);
-            }
+            setTrendingShows([]);
+            setPremieringSoonShows([]);
           }
 
           setLoading(false);
@@ -481,6 +480,7 @@ export default function Dashboard() {
 
         if (hasDashboardCache) {
           setLoading(false);
+          return;
         }
 
         const [profileResp, showsResp] = await Promise.all([

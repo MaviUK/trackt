@@ -474,20 +474,13 @@ export default function MyShows() {
   if (loading) {
     return (
       <div className="page">
-        <div className="page-header">
-          <h1>My Shows</h1>
-          <p>Loading your saved shows...</p>
-        </div>
+        <p>Loading your saved shows...</p>
       </div>
     );
   }
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>My Shows</h1>
-      </div>
-
       <div
         style={{
           display: "flex",
