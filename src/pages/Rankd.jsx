@@ -193,6 +193,21 @@ function normalizeShowRow(show, fallbackPosition = null) {
   };
 }
 
+async function getOptionalUser() {
+  const { data, error } = await supabase.auth.getUser();
+
+  const message = String(error?.message || "").toLowerCase();
+  const isMissingSession =
+    message.includes("auth session missing") ||
+    message.includes("session missing");
+
+  if (error && !isMissingSession) {
+    throw error;
+  }
+
+  return data?.user || null;
+}
+
 async function addSharedShowsAsCompleted(userId, showIds) {
   const uniqueShowIds = Array.from(
     new Set((showIds || []).filter(Boolean).map(String))
@@ -532,12 +547,7 @@ export default function Rankd() {
         setShareStatus("");
         setSharedMatchupTitle("");
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError) throw userError;
+        const user = await getOptionalUser();
 
         setUserId(user?.id || null);
 
@@ -625,7 +635,6 @@ export default function Rankd() {
         }
 
         const normalizedShows = Array.from(normalizedShowsMap.values());
-
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
         if (showIds.length < 2) {
@@ -897,12 +906,7 @@ export default function Rankd() {
       setSaving(true);
       setError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
+      const user = await getOptionalUser();
 
       if (!user?.id) {
         goToLogin();
@@ -1073,12 +1077,7 @@ export default function Rankd() {
       setShareStatus("");
       setError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
+      const user = await getOptionalUser();
 
       if (!user?.id) {
         goToLogin();
@@ -1162,12 +1161,7 @@ export default function Rankd() {
       setSaving(true);
       setError("");
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
+      const user = await getOptionalUser();
 
       if (!user?.id) {
         goToLogin();
