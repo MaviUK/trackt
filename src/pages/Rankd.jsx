@@ -13,6 +13,16 @@ import LoginModal from "../components/LoginModal";
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
+const RECENT_MATCHUP_SHOW_LIMIT = 6;
+const MATCHUP_FETCH_CHUNK_SIZE = 75;
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
 
 function sortByLadder(a, b) {
   const aUnrated = (a.rank_comparisons || 0) === 0;
@@ -108,14 +118,13 @@ function getOrderedPair(firstId, secondId) {
   return { showAId, showBId, pairKey: `${showAId}:${showBId}` };
 }
 
-function getFairPair(items, matchupMap, previousPairKey = "") {
+function getFairPair(items, matchupMap, previousPairKey = "", recentShowIds = []) {
   if (items.length < 2) return [];
 
-  function pickPair(allowPreviousPair = false) {
-    let bestPair = null;
-    let bestTimesMatched = Infinity;
-    let bestLastMatchedAt = null;
-    let tieCount = 0;
+  const recentSet = new Set((recentShowIds || []).map(String));
+
+  function buildCandidates({ allowPreviousPair = false, allowRecentShows = false }) {
+    const candidates = [];
 
     for (let i = 0; i < items.length; i += 1) {
       for (let j = i + 1; j < items.length; j += 1) {
@@ -125,37 +134,59 @@ function getFairPair(items, matchupMap, previousPairKey = "") {
 
         if (!allowPreviousPair && pairKey === previousPairKey) continue;
 
+        const firstWasRecent = recentSet.has(String(first.show_id));
+        const secondWasRecent = recentSet.has(String(second.show_id));
+
+        if (!allowRecentShows && (firstWasRecent || secondWasRecent)) continue;
+
         const stats = matchupMap.get(pairKey);
-        const timesMatched = stats?.times_matched ?? 0;
+        const timesMatched = Number(stats?.times_matched || 0);
         const lastMatchedAt = stats?.updated_at || stats?.created_at || "";
+        const combinedComparisons =
+          Number(first.rank_comparisons || 0) + Number(second.rank_comparisons || 0);
 
-        const isBetter =
-          timesMatched < bestTimesMatched ||
-          (timesMatched === bestTimesMatched &&
-            (!bestLastMatchedAt ||
-              !lastMatchedAt ||
-              lastMatchedAt < bestLastMatchedAt));
-
-        const isTie =
-          timesMatched === bestTimesMatched &&
-          (lastMatchedAt || "") === (bestLastMatchedAt || "");
-
-        if (isBetter) {
-          bestPair = { first, second, pairKey };
-          bestTimesMatched = timesMatched;
-          bestLastMatchedAt = lastMatchedAt;
-          tieCount = 1;
-        } else if (isTie) {
-          tieCount += 1;
-          if (Math.random() < 1 / tieCount) bestPair = { first, second, pairKey };
-        }
+        candidates.push({
+          first,
+          second,
+          pairKey,
+          timesMatched,
+          lastMatchedAt,
+          combinedComparisons,
+        });
       }
     }
 
-    return bestPair;
+    return candidates;
   }
 
-  const chosen = pickPair(false) || pickPair(true);
+  function chooseFrom(candidates) {
+    if (!candidates.length) return null;
+
+    const sorted = [...candidates].sort((a, b) => {
+      if (a.timesMatched !== b.timesMatched) return a.timesMatched - b.timesMatched;
+      if (a.combinedComparisons !== b.combinedComparisons) {
+        return a.combinedComparisons - b.combinedComparisons;
+      }
+      return (a.lastMatchedAt || "").localeCompare(b.lastMatchedAt || "");
+    });
+
+    const bestTimesMatched = sorted[0].timesMatched;
+    const bestCombinedComparisons = sorted[0].combinedComparisons;
+
+    const bestPool = sorted.filter(
+      (candidate) =>
+        candidate.timesMatched === bestTimesMatched &&
+        candidate.combinedComparisons === bestCombinedComparisons
+    );
+
+    return bestPool[Math.floor(Math.random() * bestPool.length)];
+  }
+
+  const chosen =
+    chooseFrom(buildCandidates({ allowPreviousPair: false, allowRecentShows: false })) ||
+    chooseFrom(buildCandidates({ allowPreviousPair: false, allowRecentShows: true })) ||
+    chooseFrom(buildCandidates({ allowPreviousPair: true, allowRecentShows: true }));
+
   if (!chosen) return [];
 
   return Math.random() > 0.5
@@ -430,6 +461,7 @@ export default function Rankd() {
 
   const touchStartX = useRef(null);
   const battleRef = useRef(null);
+  const recentRankdShowIds = useRef([]);
 
   const isSharedPage = Boolean(sharedSlug);
   const isLoggedIn = Boolean(userId);
@@ -681,10 +713,37 @@ export default function Rankd() {
             ladder_position: show.ladder_position ?? index + 1,
           }));
 
-        setMatchupMap(new Map());
+        let loadedMatchupMap = new Map();
+
+        if (showIds.length) {
+          const matchupRows = [];
+          const showIdChunks = chunkArray(showIds, MATCHUP_FETCH_CHUNK_SIZE);
+
+          for (const chunk of showIdChunks) {
+            const { data: rows, error: matchupLoadError } = await supabase
+              .from("rankd_matchups")
+              .select("*")
+              .in("show_a_id", chunk)
+              .in("show_b_id", showIds);
+
+            if (matchupLoadError) throw matchupLoadError;
+            matchupRows.push(...(rows || []));
+          }
+
+          loadedMatchupMap = new Map(
+            matchupRows.map((row) => [String(row.pair_key), row])
+          );
+        }
+
+        setMatchupMap(loadedMatchupMap);
         setEligibleShows(withProgress);
 
-        let firstPair = getFairPair(withProgress, new Map());
+        let firstPair = getFairPair(
+          withProgress,
+          loadedMatchupMap,
+          lastPairKey,
+          recentRankdShowIds.current
+        );
 
         if (sharedMatchup) {
           const sharedPair = sharedShowIds
@@ -1000,7 +1059,20 @@ useEffect(() => {
       }
 
      if (!nextRankFocus) {
-  nextPair = getFairPair(updatedLadder, matchupMap, currentPairKey);
+  const nextMatchupMap = new Map(matchupMap);
+  nextMatchupMap.set(currentPairKey, {
+    ...(nextMatchupMap.get(currentPairKey) || {}),
+    pair_key: currentPairKey,
+    times_matched: Number(nextMatchupMap.get(currentPairKey)?.times_matched || 0) + 1,
+    updated_at: new Date().toISOString(),
+  });
+
+  nextPair = getFairPair(
+    updatedLadder,
+    nextMatchupMap,
+    currentPairKey,
+    recentRankdShowIds.current
+  );
 }
 
 if (
@@ -1020,6 +1092,14 @@ if (
 
   return;
 }
+
+      recentRankdShowIds.current = [
+        String(winner.show_id),
+        String(loser.show_id),
+        ...recentRankdShowIds.current,
+      ]
+        .filter((showId, index, list) => list.indexOf(showId) === index)
+        .slice(0, Math.min(RECENT_MATCHUP_SHOW_LIMIT, Math.max(2, updatedLadder.length - 2)));
 
       setEligibleShows(updatedLadder);
       setCurrentPair(nextPair);
