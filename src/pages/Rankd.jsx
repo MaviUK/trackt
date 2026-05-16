@@ -8,10 +8,12 @@ import {
 } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./Rankd.css";
+import LoginModal from "../components/LoginModal";
 
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
+const [showLoginModal, setShowLoginModal] = useState(false);
 
 function sortByLadder(a, b) {
   const aUnrated = (a.rank_comparisons || 0) === 0;
@@ -447,8 +449,8 @@ export default function Rankd() {
   }
 
   function goToLogin() {
-    navigate(`/login?redirect=${encodeURIComponent(loginRedirectPath())}`);
-  }
+  setShowLoginModal(true);
+}
 
   function scrollToComment(commentId) {
     if (!commentId) return;
@@ -1532,6 +1534,14 @@ export default function Rankd() {
           </div>
         </div>
       </div>
+      {showLoginModal ? (
+  <LoginModal
+    onClose={() => {
+      setShowLoginModal(false);
+      window.location.reload();
+    }}
+  />
+) : null}
     </div>
   );
 }
