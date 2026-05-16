@@ -1320,24 +1320,26 @@ export default function Rankd() {
   return (
     <div className="page rankd-page">
       <div className="page-shell">
-        <div className="rankd-matchup-number">
-  {isSharedPage ? null : rankFocus ? (
-    <>
-      Finding place for {rankFocus.showName} — round{" "}
-      {(rankFocus.roundsDone || 0) + 1}
-    </>
-  ) : (
-    <>
-      Matchup #{" "}
-      {Math.floor(
-        leaderboard.reduce(
-          (total, show) => total + (show.rank_comparisons || 0),
-          0
-        ) / 2
-      ) + 1}
-    </>
-  )}
-</div>
+        {!isSharedPage ? (
+  <div className="rankd-matchup-number">
+    {rankFocus ? (
+      <>
+        Finding place for {rankFocus.showName} — round{" "}
+        {(rankFocus.roundsDone || 0) + 1}
+      </>
+    ) : (
+      <>
+        Matchup #{" "}
+        {Math.floor(
+          leaderboard.reduce(
+            (total, show) => total + (show.rank_comparisons || 0),
+            0
+          ) / 2
+        ) + 1}
+      </>
+    )}
+  </div>
+) : null}
           ) : rankFocus ? (
             <>
               Finding place for {rankFocus.showName} — round{" "}
