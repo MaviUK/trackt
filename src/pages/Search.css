@@ -177,7 +177,7 @@
 
 @media (max-width: 768px) {
   .search-shell {
-    padding-top: 100px;
+    padding-top: 24px;
   }
 
   .search-result-banner-inner {
@@ -199,6 +199,10 @@
 
   .search-page-button {
     min-width: 96px;
+  }
+
+  .search-bar-wrap {
+    margin-top: 0;
   }
 }
 
