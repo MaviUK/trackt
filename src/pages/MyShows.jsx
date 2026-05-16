@@ -59,7 +59,7 @@ function getPreferredShowName(showRow) {
 async function fetchEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
-  const batches = chunkArray(showIds, 4);
+  const batches = chunkArray(showIds, 25);
   const allEpisodes = [];
   const pageSize = 1000;
 
@@ -102,32 +102,24 @@ async function fetchEpisodesForShowIds(showIds) {
   return allEpisodes;
 }
 
-async function fetchAllWatchedEpisodeRows(userId) {
-  const pageSize = 1000;
-  let from = 0;
-  let done = false;
+async function fetchWatchedEpisodeRowsForEpisodeIds(userId, episodeIds) {
+  if (!userId || !episodeIds.length) return [];
+
+  const batches = chunkArray(episodeIds, 250);
   const allRows = [];
 
-  while (!done) {
-    const to = from + pageSize - 1;
+  await Promise.all(
+    batches.map(async (batch) => {
+      const { data, error } = await supabase
+        .from("watched_episodes")
+        .select("episode_id")
+        .eq("user_id", userId)
+        .in("episode_id", batch);
 
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
-      .range(from, to);
-
-    if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
-  }
+      if (error) throw error;
+      allRows.push(...(data || []));
+    })
+  );
 
   return allRows;
 }
@@ -176,7 +168,19 @@ export default function MyShows() {
           archived_at,
           added_at,
           created_at,
-          shows!inner(*)
+          shows!inner(
+            id,
+            tvdb_id,
+            tmdb_id,
+            name,
+            english_name,
+            name_eng,
+            english_title,
+            overview,
+            status,
+            poster_url,
+            first_aired
+          )
         `)
         .eq("user_id", user.id);
 
@@ -207,10 +211,16 @@ export default function MyShows() {
         return;
       }
 
-      const [watchedRows, allEpisodes] = await Promise.all([
-        fetchAllWatchedEpisodeRows(user.id),
-        fetchEpisodesForShowIds(showIds),
-      ]);
+      const allEpisodes = await fetchEpisodesForShowIds(showIds);
+
+      const relevantEpisodeIds = (allEpisodes || [])
+        .map((ep) => ep.id)
+        .filter(Boolean);
+
+      const watchedRows = await fetchWatchedEpisodeRowsForEpisodeIds(
+        user.id,
+        relevantEpisodeIds
+      );
 
       const watchedEpisodeIds = new Set(
         (watchedRows || [])
@@ -531,6 +541,8 @@ export default function MyShows() {
                   <img
                     src={show.poster_url}
                     alt={show.show_name}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: "100%",
                       aspectRatio: "2 / 3",

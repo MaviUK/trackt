@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -8,19 +8,18 @@ import {
   Navigate,
 } from "react-router-dom";
 import "./index.css";
-import ProfileEdit from "./pages/ProfileEdit";
-import CreatorProfile from "./pages/CreatorProfile";
-import FollowingFeed from "./pages/FollowingFeed";
-
-import Search from "./pages/Search";
-import Login from "./pages/Login";
-import ShowDetails from "./pages/ShowDetails";
-import MyShows from "./pages/MyShows";
-import MyShowDetails from "./pages/MyShowDetails";
-import Dashboard from "./pages/Dashboard";
-import CalendarPage from "./pages/CalendarPage";
-import ActorPage from "./pages/ActorPage";
-import Rankd from "./pages/Rankd";
+const ProfileEdit = lazy(() => import("./pages/ProfileEdit"));
+const CreatorProfile = lazy(() => import("./pages/CreatorProfile"));
+const FollowingFeed = lazy(() => import("./pages/FollowingFeed"));
+const Search = lazy(() => import("./pages/Search"));
+const Login = lazy(() => import("./pages/Login"));
+const ShowDetails = lazy(() => import("./pages/ShowDetails"));
+const MyShows = lazy(() => import("./pages/MyShows"));
+const MyShowDetails = lazy(() => import("./pages/MyShowDetails"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const ActorPage = lazy(() => import("./pages/ActorPage"));
+const Rankd = lazy(() => import("./pages/Rankd"));
 import BurgrsBanner from "./components/BurgrsBanner";
 import { supabase } from "./lib/supabase";
 
@@ -459,7 +458,8 @@ function AppLayout() {
       <DesktopNav session={session} profile={profile} />
       <MobileTopBanner session={session} profile={profile} />
 
-      <Routes>
+      <Suspense fallback={<div className="page"><p>Loading...</p></div>}>
+        <Routes>
         <Route path="/" element={<AuthRedirect session={session} />} />
         <Route path="/login" element={<LoginRoute session={session} />} />
 
@@ -574,7 +574,8 @@ function AppLayout() {
         <Route path="/rankd/share/:slug" element={<Rankd />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
 
       <MobileBottomNav session={session} />
     </>

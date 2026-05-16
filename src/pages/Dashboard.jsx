@@ -58,6 +58,30 @@ function chunkArray(items, size) {
   return chunks;
 }
 
+const DASHBOARD_CACHE_TTL = 1000 * 60 * 20;
+
+function readSessionCache(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > DASHBOARD_CACHE_TTL) {
+      return null;
+    }
+    return parsed.value || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionCache(key, value) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), value }));
+  } catch {
+    // Ignore cache write failures.
+  }
+}
+
 function normalizeDateOnly(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -90,20 +114,15 @@ function isDateWithinNextDays(dateValue, daysAhead = 10) {
   return target >= today && target <= end;
 }
 
-async function fetchEpisodesForShowIds(showIds) {
+async function fetchUpcomingEpisodesForShowIds(showIds) {
   if (!showIds.length) return [];
 
-  const batches = chunkArray(showIds, 4);
+  const todayIso = startOfToday().toISOString().slice(0, 10);
+  const batches = chunkArray(showIds, 25);
   const allEpisodes = [];
-  const pageSize = 1000;
 
-  for (const batch of batches) {
-    let from = 0;
-    let done = false;
-
-    while (!done) {
-      const to = from + pageSize - 1;
-
+  await Promise.all(
+    batches.map(async (batch) => {
       const { data, error } = await supabase
         .from("episodes")
         .select(`
@@ -112,36 +131,22 @@ async function fetchEpisodesForShowIds(showIds) {
           season_number,
           episode_number,
           name,
-          aired_date,
-          overview,
-          image_url,
-          episode_code,
-          created_at,
-          runtime_minutes
+          aired_date
         `)
         .in("show_id", batch)
-        .order("show_id", { ascending: true })
-        .order("season_number", { ascending: true })
-        .order("episode_number", { ascending: true })
-        .range(from, to);
+        .gte("aired_date", todayIso)
+        .order("aired_date", { ascending: true })
+        .limit(80);
 
       if (error) throw error;
-
-      const rows = data || [];
-      allEpisodes.push(...rows);
-
-      if (rows.length < pageSize) {
-        done = true;
-      } else {
-        from += pageSize;
-      }
-    }
-  }
+      allEpisodes.push(...(data || []));
+    })
+  );
 
   return allEpisodes;
 }
 
-async function fetchAllWatchedEpisodeRows(userId) {
+async function fetchWatchedRuntimeRows(userId) {
   const pageSize = 1000;
   let from = 0;
   let done = false;
@@ -152,7 +157,14 @@ async function fetchAllWatchedEpisodeRows(userId) {
 
     const { data, error } = await supabase
       .from("watched_episodes")
-      .select("episode_id")
+      .select(`
+        episode_id,
+        episodes!inner(
+          show_id,
+          season_number,
+          runtime_minutes
+        )
+      `)
       .eq("user_id", userId)
       .range(from, to);
 
@@ -161,17 +173,43 @@ async function fetchAllWatchedEpisodeRows(userId) {
     const rows = data || [];
     allRows.push(...rows);
 
-    if (rows.length < pageSize) {
-      done = true;
-    } else {
-      from += pageSize;
-    }
+    if (rows.length < pageSize) done = true;
+    else from += pageSize;
   }
 
   return allRows;
 }
 
+async function fetchEpisodeCountsForShowIds(showIds) {
+  if (!showIds.length) return {};
+
+  const batches = chunkArray(showIds, 25);
+  const counts = {};
+
+  await Promise.all(
+    batches.map(async (batch) => {
+      const { data, error } = await supabase
+        .from("episodes")
+        .select("show_id")
+        .in("show_id", batch)
+        .neq("season_number", 0);
+
+      if (error) throw error;
+
+      for (const row of data || []) {
+        counts[row.show_id] = (counts[row.show_id] || 0) + 1;
+      }
+    })
+  );
+
+  return counts;
+}
+
 async function fetchTrendingShows() {
+  const cacheKey = "dashboard:trendingShows";
+  const cached = readSessionCache(cacheKey);
+  if (cached) return cached;
+
   const response = await fetch("/.netlify/functions/getTrendingShows");
   const payload = await response.json();
 
@@ -179,22 +217,33 @@ async function fetchTrendingShows() {
     throw new Error(payload?.message || "Failed to load trending shows");
   }
 
-  return (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
+  const shows = (payload?.shows || []).filter((show) => show?.tmdb_id || show?.tvdb_id);
+  writeSessionCache(cacheKey, shows);
+  return shows;
 }
 
 async function fetchPremieringSoonShows(existingTmdbIds = []) {
-  const response = await fetch("/.netlify/functions/getPremieringSoonShows");
-  const payload = await response.json();
+  const cacheKey = "dashboard:premieringSoonShows";
+  const cached = readSessionCache(cacheKey);
+  let sourceShows = cached;
 
-  if (!response.ok) {
-    throw new Error(payload?.message || "Failed to load premiering soon shows");
+  if (!sourceShows) {
+    const response = await fetch("/.netlify/functions/getPremieringSoonShows");
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.message || "Failed to load premiering soon shows");
+    }
+
+    sourceShows = payload?.shows || [];
+    writeSessionCache(cacheKey, sourceShows);
   }
 
   const existingSet = new Set(
     (existingTmdbIds || []).map((id) => String(id)).filter(Boolean)
   );
 
-  return (payload?.shows || [])
+  return (sourceShows || [])
     .filter((show) => show?.tmdb_id && !existingSet.has(String(show.tmdb_id)))
     .filter((show) => isDateWithinNextDays(getShowPremiereDate(show), 10))
     .sort((a, b) => {
@@ -259,6 +308,7 @@ function DashboardEpisodeItem({
           src={show.poster_url}
           alt={show.show_name}
           className="dashboard-poster"
+          loading="lazy"
         />
       ) : (
         <div className="dashboard-poster" />
@@ -452,9 +502,10 @@ export default function Dashboard() {
         let collectedUpcoming = [];
 
         if (showIds.length) {
-          const [watchedRows, allEpisodes] = await Promise.all([
-            fetchAllWatchedEpisodeRows(user.id),
-            fetchEpisodesForShowIds(showIds),
+          const [watchedRows, upcomingEpisodes, episodeCounts] = await Promise.all([
+            fetchWatchedRuntimeRows(user.id),
+            fetchUpcomingEpisodesForShowIds(showIds),
+            fetchEpisodeCountsForShowIds(showIds),
           ]);
 
           watchedIds = new Set(
@@ -464,25 +515,28 @@ export default function Dashboard() {
               .map(String)
           );
 
-          for (const row of allEpisodes || []) {
-            if (!episodesLookup[row.show_id]) {
-              episodesLookup[row.show_id] = [];
+          for (const showId of showIds) {
+            episodesLookup[showId] = {
+              totalMainEpisodes: episodeCounts[showId] || 0,
+              watchedMainCount: 0,
+              watchedMinutes: 0,
+            };
+          }
+
+          for (const row of watchedRows || []) {
+            const ep = row.episodes;
+            if (!ep || Number(ep.season_number ?? 0) === 0) continue;
+
+            if (!episodesLookup[ep.show_id]) {
+              episodesLookup[ep.show_id] = {
+                totalMainEpisodes: episodeCounts[ep.show_id] || 0,
+                watchedMainCount: 0,
+                watchedMinutes: 0,
+              };
             }
 
-            episodesLookup[row.show_id].push({
-              id: row.id,
-              show_id: row.show_id,
-              seasonNumber: row.season_number,
-              number: row.episode_number,
-              episodeNumber: row.episode_number,
-              name: row.name || "Untitled episode",
-              aired: row.aired_date,
-              overview: row.overview || "",
-              image: row.image_url || null,
-              episodeCode: row.episode_code || null,
-              created_at: row.created_at || null,
-              runtime_minutes: Number(row.runtime_minutes) || 0,
-            });
+            episodesLookup[ep.show_id].watchedMainCount += 1;
+            episodesLookup[ep.show_id].watchedMinutes += Number(ep.runtime_minutes) || 0;
           }
 
           const showLookup = {};
@@ -493,7 +547,7 @@ export default function Dashboard() {
           const today = startOfToday();
           const upcomingByShow = {};
 
-          for (const row of allEpisodes || []) {
+          for (const row of upcomingEpisodes || []) {
             const show = showLookup[row.show_id];
             if (!show) continue;
             if (!row.aired_date) continue;
@@ -611,22 +665,10 @@ export default function Dashboard() {
 
     for (const show of shows) {
       const isArchived = isArchivedStatus(show.watch_status);
-      const episodes = episodesByShow[show.show_id] || [];
-
-      const mainEpisodes = episodes.filter(
-        (ep) => Number(ep.seasonNumber ?? 0) !== 0
-      );
-
-      const watchedMainEpisodes = mainEpisodes.filter((ep) =>
-        isEpisodeWatched(ep, watchedEpisodeIds)
-      );
-
-      const watchedMainCount = watchedMainEpisodes.length;
-      const totalMainEpisodes = mainEpisodes.length;
-
-      for (const watchedEp of watchedMainEpisodes) {
-        watchedMinutes += Number(watchedEp.runtime_minutes) || 0;
-      }
+      const progress = episodesByShow[show.show_id] || {};
+      const watchedMainCount = Number(progress.watchedMainCount) || 0;
+      const totalMainEpisodes = Number(progress.totalMainEpisodes) || 0;
+      watchedMinutes += Number(progress.watchedMinutes) || 0;
 
       const isCompleted =
         totalMainEpisodes > 0 &&
@@ -658,7 +700,7 @@ export default function Dashboard() {
       watchedMinutes,
       airingThisWeek,
     };
-  }, [shows, watchedEpisodeIds, episodesByShow, upcomingItems]);
+  }, [shows, episodesByShow, upcomingItems]);
 
   if (loading) {
     return (
