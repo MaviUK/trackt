@@ -261,9 +261,11 @@ function DesktopNav({ session, profile }) {
 function MobileTopBanner({ session, profile }) {
   const location = useLocation();
 
-  if (!session || location.pathname === "/login") {
-    return null;
-  }
+  const isSharedRankdPage = location.pathname.startsWith("/rankd/share/");
+
+if ((!session && !isSharedRankdPage) || location.pathname === "/login") {
+  return null;
+}
 
   return (
     <div className="mobile-top-banner-wrap">
