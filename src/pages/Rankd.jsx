@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-// Rankd REAL stats fix: displays saved rankd_matchups stats for the active pair and ignores stale stats from previous pairs.
+// Rankd completed-season eligibility fix: only shows with at least one fully watched season can enter Rankd.
 import {
   Link,
   useLocation,
@@ -118,6 +118,73 @@ function makePairKey(firstId, secondId) {
 function getOrderedPair(firstId, secondId) {
   const [showAId, showBId] = [firstId, secondId].map(String).sort();
   return { showAId, showBId, pairKey: `${showAId}:${showBId}` };
+}
+
+
+async function getShowsWithCompletedSeason(userId, showIds) {
+  const uniqueShowIds = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
+  if (!userId || uniqueShowIds.length === 0) return new Set();
+
+  const episodeRows = [];
+
+  for (const chunk of chunkArray(uniqueShowIds, MATCHUP_FETCH_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from("episodes")
+      .select("id, show_id, season_id, season_number, episode_number, is_special")
+      .in("show_id", chunk)
+      .gt("season_number", 0)
+      .eq("is_special", false);
+
+    if (error) throw error;
+    episodeRows.push(...(data || []));
+  }
+
+  if (episodeRows.length === 0) return new Set();
+
+  const episodeIds = episodeRows.map((episode) => episode.id).filter(Boolean);
+  const watchedEpisodeIds = new Set();
+
+  for (const chunk of chunkArray(episodeIds, MATCHUP_FETCH_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from("watched_episodes")
+      .select("episode_id")
+      .eq("user_id", userId)
+      .in("episode_id", chunk);
+
+    if (error) throw error;
+    (data || []).forEach((row) => {
+      if (row.episode_id) watchedEpisodeIds.add(String(row.episode_id));
+    });
+  }
+
+  const seasonProgress = new Map();
+
+  episodeRows.forEach((episode) => {
+    const seasonKey = episode.season_id
+      ? String(episode.season_id)
+      : `${episode.show_id}:season:${episode.season_number}`;
+
+    const current = seasonProgress.get(seasonKey) || {
+      showId: String(episode.show_id),
+      total: 0,
+      watched: 0,
+    };
+
+    current.total += 1;
+    if (watchedEpisodeIds.has(String(episode.id))) current.watched += 1;
+
+    seasonProgress.set(seasonKey, current);
+  });
+
+  const eligibleShowIds = new Set();
+
+  seasonProgress.forEach((season) => {
+    if (season.total > 0 && season.watched >= season.total) {
+      eligibleShowIds.add(season.showId);
+    }
+  });
+
+  return eligibleShowIds;
 }
 
 function getRecentShowLimit(showCount) {
@@ -847,7 +914,23 @@ export default function Rankd() {
           );
         }
 
-        const normalizedShows = Array.from(normalizedShowsMap.values());
+        const allNormalizedShows = Array.from(normalizedShowsMap.values());
+        const allShowIds = allNormalizedShows.map((show) => show.show_id).filter(Boolean);
+
+        let completedSeasonShowIds = new Set();
+
+        if (user?.id) {
+          completedSeasonShowIds = await getShowsWithCompletedSeason(user.id, allShowIds);
+        }
+
+        sharedShowIds.forEach((showId) => {
+          if (showId) completedSeasonShowIds.add(String(showId));
+        });
+
+        const normalizedShows = allNormalizedShows.filter((show) =>
+          completedSeasonShowIds.has(String(show.show_id))
+        );
+
         const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
 
         if (showIds.length < 2) {
@@ -1629,8 +1712,8 @@ if (
           ) : null}
 
           <div className="section-card rankd-empty-card">
-            <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
-            <p>Watchlist shows are excluded automatically.</p>
+            <p>You need at least 2 shows with one fully watched season before Rank'd can start.</p>
+            <p>Shows are excluded until at least one full season has been watched.</p>
             <Link to="/my-shows" className="top-tab active">
               Go to My Shows
             </Link>
