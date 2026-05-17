@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-// Rankd strong no-repeat matchup fix: hard-blocks recently used shows when there are enough alternatives.
+// Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
   Link,
   useLocation,
@@ -201,6 +201,46 @@ function getRecentShowLimit(showCount) {
   );
 }
 
+function makeRecentShowsStorageKey(userId) {
+  return `rankd_recent_shows_v2:${userId || "guest"}`;
+}
+
+function getUniqueRecentShowIds(showIds, limit) {
+  const seen = new Set();
+  const clean = [];
+
+  (showIds || []).forEach((showId) => {
+    const id = String(showId || "");
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    clean.push(id);
+  });
+
+  return clean.slice(0, limit);
+}
+
+function readRecentShowsFromSession(userId, limit) {
+  try {
+    const raw = window.sessionStorage.getItem(makeRecentShowsStorageKey(userId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return getUniqueRecentShowIds(Array.isArray(parsed) ? parsed : [], limit);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentShowsToSession(userId, showIds, limit) {
+  try {
+    window.sessionStorage.setItem(
+      makeRecentShowsStorageKey(userId),
+      JSON.stringify(getUniqueRecentShowIds(showIds, limit))
+    );
+  } catch {
+    // Session storage can be unavailable in private browsing. Rankd still works
+    // with the in-memory cooldown.
+  }
+}
+
 function getFairPair(
   items,
   matchupMap,
@@ -210,10 +250,20 @@ function getFairPair(
 ) {
   if (items.length < 2) return [];
 
-  const recentShowList = (recentShowIds || []).filter(Boolean).map(String);
+  const cooldownLimit = getRecentShowLimit(items.length);
+  const recentShowList = getUniqueRecentShowIds(recentShowIds, cooldownLimit);
   const recentShowSet = new Set(recentShowList);
+
+  // Hard rule: when there are at least two completely fresh shows available,
+  // only choose from those fresh shows. This prevents a title from reappearing
+  // a few votes later when the user has a large library.
+  const freshItems = items.filter((item) => !recentShowSet.has(String(item.show_id)));
+  if (freshItems.length >= 2) {
+    return getFairPair(freshItems, matchupMap, previousPairKey, [], recentPairKeys);
+  }
+
   const lastMatchShowSet = new Set(recentShowList.slice(0, 2));
-  const veryRecentShowSet = new Set(recentShowList.slice(0, 6));
+  const veryRecentShowSet = new Set(recentShowList.slice(0, 10));
   const recentPairSet = new Set((recentPairKeys || []).filter(Boolean).map(String));
   const recentShowFrequency = recentShowList.reduce((map, showId) => {
     map.set(showId, (map.get(showId) || 0) + 1);
@@ -1023,11 +1073,19 @@ export default function Rankd() {
           })
           .slice(0, Math.ceil(getRecentShowLimit(withProgress.length) / 2));
 
-        recentRankdShowIds.current = sortedRecentMatchups
+        const recentShowLimit = getRecentShowLimit(withProgress.length);
+        const sessionRecentShowIds = readRecentShowsFromSession(user?.id, recentShowLimit);
+        const dbRecentShowIds = sortedRecentMatchups
           .flatMap((row) => [row.show_a_id, row.show_b_id])
           .filter(Boolean)
-          .map(String)
-          .slice(0, getRecentShowLimit(withProgress.length));
+          .map(String);
+
+        recentRankdShowIds.current = getUniqueRecentShowIds(
+          [...sessionRecentShowIds, ...dbRecentShowIds],
+          recentShowLimit
+        );
+
+        writeRecentShowsToSession(user?.id, recentRankdShowIds.current, recentShowLimit);
 
         recentRankdPairKeys.current = [...loadedMatchupMap.values()]
           .sort((a, b) => {
@@ -1339,10 +1397,16 @@ useEffect(() => {
   });
 
   const currentShowIds = currentPair.map((show) => String(show.show_id));
-  const recentPlusCurrent = [
-    ...currentShowIds,
-    ...recentRankdShowIds.current,
-  ].slice(0, getRecentShowLimit(updatedLadder.length));
+  const recentShowLimit = getRecentShowLimit(updatedLadder.length);
+  const sessionRecentShowIds = readRecentShowsFromSession(user?.id, recentShowLimit);
+  const recentPlusCurrent = getUniqueRecentShowIds(
+    [
+      ...currentShowIds,
+      ...sessionRecentShowIds,
+      ...recentRankdShowIds.current,
+    ],
+    recentShowLimit
+  );
 
   nextPair = getFairPair(
     updatedLadder,
@@ -1371,12 +1435,18 @@ if (
   return;
 }
 
-      recentRankdShowIds.current = [
-        ...nextPair.map((show) => String(show.show_id)),
-        String(winner.show_id),
-        String(loser.show_id),
-        ...recentRankdShowIds.current,
-      ].slice(0, getRecentShowLimit(updatedLadder.length));
+      const nextRecentShowIds = getUniqueRecentShowIds(
+        [
+          ...nextPair.map((show) => String(show.show_id)),
+          String(winner.show_id),
+          String(loser.show_id),
+          ...recentRankdShowIds.current,
+        ],
+        getRecentShowLimit(updatedLadder.length)
+      );
+
+      recentRankdShowIds.current = nextRecentShowIds;
+      writeRecentShowsToSession(user?.id, nextRecentShowIds, getRecentShowLimit(updatedLadder.length));
 
       recentRankdPairKeys.current = [
         makePairKey(nextPair[0].show_id, nextPair[1].show_id),
