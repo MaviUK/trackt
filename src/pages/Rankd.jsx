@@ -798,15 +798,24 @@ export default function Rankd() {
           const matchupRows = [];
           const showIdChunks = chunkArray(showIds, MATCHUP_FETCH_CHUNK_SIZE);
 
-          for (const chunk of showIdChunks) {
-            const { data: rows, error: matchupLoadError } = await supabase
-              .from("rankd_matchups")
-              .select("*")
-              .in("show_a_id", chunk)
-              .in("show_b_id", showIds);
+          // Supabase turns .in() filters into URL query params.
+          // Users with a lot of shows can hit a 400 Bad Request if we put
+          // every show id into one request, so chunk BOTH sides of the lookup.
+          for (const showAChunk of showIdChunks) {
+            for (const showBChunk of showIdChunks) {
+              const { data: rows, error: matchupLoadError } = await supabase
+                .from("rankd_matchups")
+                .select("*")
+                .in("show_a_id", showAChunk)
+                .in("show_b_id", showBChunk);
 
-            if (matchupLoadError) throw matchupLoadError;
-            matchupRows.push(...(rows || []));
+              if (matchupLoadError) {
+                console.error("RANKD MATCHUP HISTORY LOAD FAILED:", matchupLoadError);
+                continue;
+              }
+
+              matchupRows.push(...(rows || []));
+            }
           }
 
           loadedMatchupMap = new Map(
