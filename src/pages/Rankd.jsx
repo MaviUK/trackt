@@ -377,6 +377,55 @@ function getWinPercent(stats, showId) {
   return Math.round((wins / total) * 100);
 }
 
+
+function aggregateMatchupRows(rows, firstShowId, secondShowId) {
+  const uniqueRows = Array.from(
+    new Map((rows || []).filter(Boolean).map((row) => [String(row.id || row.pair_key), row])).values()
+  );
+
+  if (!uniqueRows.length) return null;
+
+  const firstId = String(firstShowId);
+  const secondId = String(secondShowId);
+  const newestRow = [...uniqueRows].sort((a, b) => {
+    const aDate = a?.updated_at || a?.created_at || "";
+    const bDate = b?.updated_at || b?.created_at || "";
+    return bDate.localeCompare(aDate);
+  })[0];
+
+  let firstWins = 0;
+  let secondWins = 0;
+  let timesMatched = 0;
+
+  uniqueRows.forEach((row) => {
+    const showAId = String(row.show_a_id || "");
+    const showBId = String(row.show_b_id || "");
+    const showAWins = Number(row.show_a_wins || 0);
+    const showBWins = Number(row.show_b_wins || 0);
+
+    if (showAId === firstId) firstWins += showAWins;
+    if (showBId === firstId) firstWins += showBWins;
+    if (showAId === secondId) secondWins += showAWins;
+    if (showBId === secondId) secondWins += showBWins;
+
+    timesMatched += Number(row.times_matched || 0);
+  });
+
+  const winTotal = firstWins + secondWins;
+
+  return {
+    ...newestRow,
+    id: newestRow?.id,
+    pair_key: makePairKey(firstId, secondId),
+    show_a_id: firstId,
+    show_b_id: secondId,
+    show_a_wins: firstWins,
+    show_b_wins: secondWins,
+    times_matched: Math.max(timesMatched, winTotal),
+    related_matchup_ids: uniqueRows.map((row) => row.id).filter(Boolean),
+  };
+}
+
 async function hydrateComments(rows) {
   const comments = rows || [];
   const userIds = Array.from(
@@ -587,32 +636,52 @@ export default function Rankd() {
       return;
     }
 
-    const pairKey = makePairKey(pair[0].show_id, pair[1].show_id);
-    let stats = matchupMap.get(pairKey);
+    const firstId = String(pair[0].show_id);
+    const secondId = String(pair[1].show_id);
+    const pairKey = makePairKey(firstId, secondId);
+    const directPairKey = `${firstId}:${secondId}`;
+    const reversePairKey = `${secondId}:${firstId}`;
+    const possiblePairKeys = Array.from(new Set([pairKey, directPairKey, reversePairKey]));
 
-    if (!stats?.id) {
-      const { data: fetchedMatchup, error: fetchMatchupError } = await supabase
-        .from("rankd_matchups")
-        .select("*")
-        .eq("pair_key", pairKey)
-        .maybeSingle();
+    const cachedRows = possiblePairKeys
+      .map((key) => matchupMap.get(key))
+      .filter(Boolean);
 
-      if (fetchMatchupError) throw fetchMatchupError;
+    const { data: keyRows, error: keyRowsError } = await supabase
+      .from("rankd_matchups")
+      .select("*")
+      .in("pair_key", possiblePairKeys);
 
-      if (fetchedMatchup?.id) {
-        stats = fetchedMatchup;
+    if (keyRowsError) throw keyRowsError;
 
-        setMatchupMap((prev) => {
-          const next = new Map(prev);
-          next.set(fetchedMatchup.pair_key, fetchedMatchup);
-          return next;
-        });
-      }
-    }
+    const { data: idRows, error: idRowsError } = await supabase
+      .from("rankd_matchups")
+      .select("*")
+      .or(
+        `and(show_a_id.eq.${firstId},show_b_id.eq.${secondId}),and(show_a_id.eq.${secondId},show_b_id.eq.${firstId})`
+      );
+
+    if (idRowsError) throw idRowsError;
+
+    const matchingRows = [...cachedRows, ...(keyRows || []), ...(idRows || [])];
+    const stats = aggregateMatchupRows(matchingRows, firstId, secondId);
 
     setMatchupStats(stats || null);
 
-    if (!stats?.id) {
+    if (stats?.related_matchup_ids?.length) {
+      setMatchupMap((prev) => {
+        const next = new Map(prev);
+        next.set(pairKey, stats);
+        matchingRows.forEach((row) => {
+          if (row?.pair_key) next.set(String(row.pair_key), row);
+        });
+        return next;
+      });
+    }
+
+    const matchupIds = stats?.related_matchup_ids || [];
+
+    if (!matchupIds.length) {
       setComments([]);
       return;
     }
@@ -620,7 +689,7 @@ export default function Rankd() {
     const { data, error: commentsError } = await supabase
       .from("rankd_matchup_comments")
       .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-      .eq("matchup_id", stats.id)
+      .in("matchup_id", matchupIds)
       .order("created_at", { ascending: true });
 
     if (commentsError) throw commentsError;
