@@ -1,4 +1,4 @@
-// Rankd focused placement fix
+// Rankd focused stop fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -1409,6 +1409,7 @@ useEffect(() => {
 
       let nextRankFocus = null;
       let nextPair = [];
+      let focusedPlacementComplete = false;
 
       const nextMatchupMap = new Map(matchupMap);
       nextMatchupMap.set(currentPairKey, {
@@ -1470,13 +1471,14 @@ useEffect(() => {
         if (nextPair.length === 2) {
           setRankFocus(nextRankFocus);
         } else {
+          focusedPlacementComplete = true;
           nextRankFocus = null;
           setRankFocus(null);
           setNotice(`${rankFocus.showName || "This show"} has found its Rank'd spot.`);
         }
       }
 
-      if (!nextRankFocus) {
+      if (!nextRankFocus && !focusedPlacementComplete) {
         const currentShowIds = currentPair.map((show) => String(show.show_id));
         const recentShowLimit = getRecentShowLimit(updatedLadder.length);
         const sessionRecentShowIds = readRecentShowsFromSession(
@@ -1501,54 +1503,55 @@ useEffect(() => {
         );
       }
 
-if (
-  nextPair.length === 2 &&
-  makePairKey(nextPair[0].show_id, nextPair[1].show_id) === currentPairKey
-) {
-  setNotice(
-    "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
-  );
-  return;
-}
+      if (!focusedPlacementComplete) {
+        if (
+          nextPair.length === 2 &&
+          makePairKey(nextPair[0].show_id, nextPair[1].show_id) === currentPairKey
+        ) {
+          setNotice(
+            "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
+          );
+          return;
+        }
 
-      if (!nextPair.length) {
-  setNotice(
-    "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
-  );
+        if (!nextPair.length) {
+          setNotice(
+            "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
+          );
+          return;
+        }
 
-  return;
-}
+        const nextRecentShowIds = getUniqueRecentShowIds(
+          [
+            ...nextPair.map((show) => String(show.show_id)),
+            String(winner.show_id),
+            String(loser.show_id),
+            ...recentRankdShowIds.current,
+          ],
+          getRecentShowLimit(updatedLadder.length)
+        );
 
-      const nextRecentShowIds = getUniqueRecentShowIds(
-        [
-          ...nextPair.map((show) => String(show.show_id)),
-          String(winner.show_id),
-          String(loser.show_id),
-          ...recentRankdShowIds.current,
-        ],
-        getRecentShowLimit(updatedLadder.length)
-      );
+        recentRankdShowIds.current = nextRecentShowIds;
+        writeRecentShowsToSession(
+          user?.id,
+          nextRecentShowIds,
+          getRecentShowLimit(updatedLadder.length)
+        );
 
-      recentRankdShowIds.current = nextRecentShowIds;
-      writeRecentShowsToSession(user?.id, nextRecentShowIds, getRecentShowLimit(updatedLadder.length));
+        recentRankdPairKeys.current = [
+          makePairKey(nextPair[0].show_id, nextPair[1].show_id),
+          currentPairKey,
+          ...recentRankdPairKeys.current,
+        ]
+          .filter(Boolean)
+          .filter((pairKey, index, list) => list.indexOf(pairKey) === index)
+          .slice(0, RECENT_MATCHUP_PAIR_LIMIT);
 
-      recentRankdPairKeys.current = [
-        makePairKey(nextPair[0].show_id, nextPair[1].show_id),
-        currentPairKey,
-        ...recentRankdPairKeys.current,
-      ]
-        .filter(Boolean)
-        .filter((pairKey, index, list) => list.indexOf(pairKey) === index)
-        .slice(0, RECENT_MATCHUP_PAIR_LIMIT);
+        setCurrentPair(nextPair);
+        setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
+      }
 
       setEligibleShows(updatedLadder);
-      setCurrentPair(nextPair);
-      setLastPairKey(
-        nextPair.length === 2
-          ? makePairKey(nextPair[0].show_id, nextPair[1].show_id)
-          : ""
-      );
-
       setCommentText("");
       setReplyTo(null);
 
