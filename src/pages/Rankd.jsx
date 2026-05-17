@@ -1,4 +1,4 @@
-// Rankd individual rank focus fix
+// Rankd focused placement fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -17,7 +17,7 @@ const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
 const RECENT_MATCHUP_SHOW_LIMIT = 80;
 const RECENT_MATCHUP_PAIR_LIMIT = 150;
-const FOCUSED_RANKING_ROUND_LIMIT = 8;
+const FOCUSED_RANKING_ROUND_LIMIT = 12;
 const MATCHUP_FETCH_CHUNK_SIZE = 75;
 
 function chunkArray(items, size) {
@@ -73,37 +73,43 @@ function applyLadderWin(shows, winnerId, loserId) {
 
 function getFocusedPair(items, focusShowId, focus = null) {
   const sorted = [...items].sort(sortByLadder);
-
-  const focusIndex = sorted.findIndex(
+  const focusShow = sorted.find(
     (show) => String(show.show_id) === String(focusShowId)
   );
 
-  if (focusIndex === -1) return [];
+  if (!focusShow) return [];
 
-  const focusShow = sorted[focusIndex];
+  const opponents = sorted.filter(
+    (show) => String(show.show_id) !== String(focusShowId)
+  );
+
+  if (opponents.length === 0) return [];
+
   const testedIds = new Set((focus?.testedIds || []).map(String));
+  const lowerBound = Math.max(0, Number(focus?.lowerBound ?? 0));
+  const upperBound = Math.min(
+    opponents.length - 1,
+    Number(focus?.upperBound ?? opponents.length - 1)
+  );
 
-  const lowerBound = focus?.lowerBound ?? 0;
-  const upperBound = focus?.upperBound ?? sorted.length - 1;
+  // If the search window has closed, the show has found its place.
+  if (lowerBound > upperBound) return [];
 
   let targetIndex = Math.floor((lowerBound + upperBound) / 2);
+  let opponent = opponents[targetIndex];
 
-  if (targetIndex === focusIndex) {
-    targetIndex = focusIndex > lowerBound ? focusIndex - 1 : focusIndex + 1;
+  // Prefer an untested show inside the remaining search window.
+  if (!opponent || testedIds.has(String(opponent.show_id))) {
+    opponent = opponents.find((show, index) => {
+      if (index < lowerBound || index > upperBound) return false;
+      return !testedIds.has(String(show.show_id));
+    });
   }
 
-  let opponent = sorted[targetIndex];
-
-  if (
-    !opponent ||
-    String(opponent.show_id) === String(focusShowId) ||
-    testedIds.has(String(opponent.show_id))
-  ) {
-    opponent = sorted.find((show, index) => {
-      if (String(show.show_id) === String(focusShowId)) return false;
-      if (testedIds.has(String(show.show_id))) return false;
-      return index >= lowerBound && index <= upperBound;
-    });
+  // If every show inside the window was already tested, allow the midpoint again.
+  // This prevents the focused ranking flow from getting stuck.
+  if (!opponent) {
+    opponent = opponents[targetIndex];
   }
 
   if (!opponent) return [];
@@ -111,6 +117,16 @@ function getFocusedPair(items, focusShowId, focus = null) {
   return Math.random() > 0.5
     ? [focusShow, opponent]
     : [opponent, focusShow];
+}
+
+function getFocusedOpponentIndex(items, focusShowId, opponentShowId) {
+  const opponents = [...items]
+    .sort(sortByLadder)
+    .filter((show) => String(show.show_id) !== String(focusShowId));
+
+  return opponents.findIndex(
+    (show) => String(show.show_id) === String(opponentShowId)
+  );
 }
 
 function makePairKey(firstId, secondId) {
@@ -1408,19 +1424,46 @@ useEffect(() => {
         const opponent = currentPair.find(
           (show) => String(show.show_id) !== focusedShowId
         );
+        const opponentId = opponent?.show_id || null;
+        const opponentIndex = opponentId
+          ? getFocusedOpponentIndex(ladderReadyShows, focusedShowId, opponentId)
+          : -1;
+        const focusedWon = String(winner.show_id) === focusedShowId;
+        const previousLowerBound = Number(rankFocus.lowerBound ?? 0);
+        const previousUpperBound = Number(
+          rankFocus.upperBound ?? Math.max(0, ladderReadyShows.length - 2)
+        );
+        let lowerBound = previousLowerBound;
+        let upperBound = previousUpperBound;
+
+        if (opponentIndex >= 0) {
+          if (focusedWon) {
+            // Focused show belongs above this opponent, so only test higher-ranked shows next.
+            upperBound = Math.min(previousUpperBound, opponentIndex - 1);
+          } else {
+            // Focused show belongs below this opponent, so only test lower-ranked shows next.
+            lowerBound = Math.max(previousLowerBound, opponentIndex + 1);
+          }
+        }
+
         const testedIds = [
           ...(rankFocus.testedIds || []),
-          opponent?.show_id,
+          opponentId,
         ].filter(Boolean);
 
         nextRankFocus = {
           ...rankFocus,
           roundsDone: Number(rankFocus.roundsDone || 0) + 1,
           testedIds,
-          lastOpponentId: opponent?.show_id || null,
+          lowerBound,
+          upperBound,
+          lastOpponentId: opponentId,
         };
 
-        if (nextRankFocus.roundsDone < FOCUSED_RANKING_ROUND_LIMIT) {
+        if (
+          lowerBound <= upperBound &&
+          nextRankFocus.roundsDone < FOCUSED_RANKING_ROUND_LIMIT
+        ) {
           nextPair = getFocusedPair(updatedLadder, focusedShowId, nextRankFocus);
         }
 
@@ -1429,6 +1472,7 @@ useEffect(() => {
         } else {
           nextRankFocus = null;
           setRankFocus(null);
+          setNotice(`${rankFocus.showName || "This show"} has found its Rank'd spot.`);
         }
       }
 
