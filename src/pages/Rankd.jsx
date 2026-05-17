@@ -1,4 +1,4 @@
-// Rankd focused stop fix
+// Rankd share pair_key fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -1666,7 +1666,6 @@ useEffect(() => {
         const { error: insertError } = await supabase.from("rankd_matchups").insert({
           show_a_id: showAId,
           show_b_id: showBId,
-          pair_key: pairKey,
           share_slug: slug,
           is_shareable: true,
           created_by: user.id,
