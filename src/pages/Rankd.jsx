@@ -1,4 +1,4 @@
-// Rankd stack-safe hard cooldown fix
+// Rankd completed-status OR completed-season eligibility fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -932,6 +932,7 @@ export default function Rankd() {
         }
 
         const normalizedShowsMap = new Map();
+        const completedStatusShowIds = new Set();
 
         if (user?.id) {
           const { data: userShows, error: userShowsError } = await supabase
@@ -951,7 +952,14 @@ export default function Rankd() {
               return status === "completed" || status === "watching";
             })
             .forEach((row) => {
-              normalizedShowsMap.set(String(row.show_id), {
+              const showId = String(row.show_id);
+              const status = String(row.watch_status || "").toLowerCase();
+
+              if (status === "completed") {
+                completedStatusShowIds.add(showId);
+              }
+
+              normalizedShowsMap.set(showId, {
                 show_id: row.show_id,
                 tvdb_id: row.shows?.tvdb_id,
                 show_name: row.shows?.name || "Unknown title",
@@ -982,6 +990,11 @@ export default function Rankd() {
         if (user?.id) {
           completedSeasonShowIds = await getShowsWithCompletedSeason(user.id, allShowIds);
         }
+
+        // A show is allowed in Rankd when either:
+        // 1) the user has marked the whole show as completed, or
+        // 2) the user is still watching it but has fully watched at least one season.
+        completedStatusShowIds.forEach((showId) => completedSeasonShowIds.add(showId));
 
         sharedShowIds.forEach((showId) => {
           if (showId) completedSeasonShowIds.add(String(showId));
@@ -1756,8 +1769,8 @@ if (
           ) : null}
 
           <div className="section-card rankd-empty-card">
-            <p>You need at least 2 shows with one fully watched season before Rank'd can start.</p>
-            <p>Shows are excluded until at least one full season has been watched.</p>
+            <p>You need at least 2 eligible shows before Rank'd can start.</p>
+            <p>Completed shows count automatically. Watching shows are included once at least one full season has been watched.</p>
             <Link to="/my-shows" className="top-tab active">
               Go to My Shows
             </Link>
