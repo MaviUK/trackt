@@ -370,7 +370,11 @@ function getWinCount(stats, showId) {
 }
 
 function getWinPercent(stats, showId) {
-  const total = Number(stats?.times_matched || 0);
+  const totalFromMatches = Number(stats?.times_matched || 0);
+  const totalFromWins =
+    Number(stats?.show_a_wins || 0) + Number(stats?.show_b_wins || 0);
+  const total = Math.max(totalFromMatches, totalFromWins);
+
   if (!total) return 0;
 
   const wins = getWinCount(stats, showId);
@@ -1356,8 +1360,15 @@ if (
       const updatedMatchupMap = new Map(matchupMap);
 
       if (nextMatchupRow?.pair_key) {
+        const aggregatedStats = aggregateMatchupRows(
+          [nextMatchupRow],
+          currentPair[0].show_id,
+          currentPair[1].show_id
+        );
+
         updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
-        setMatchupStats(nextMatchupRow);
+        updatedMatchupMap.set(currentPairKey, aggregatedStats || nextMatchupRow);
+        setMatchupStats(aggregatedStats || nextMatchupRow);
       }
 
       setMatchupMap(updatedMatchupMap);
@@ -1522,9 +1533,16 @@ if (
       }
 
       const updatedMatchupMap = new Map(matchupMap);
+      const freshStats = aggregateMatchupRows(
+        [freshMatchup],
+        currentPair[0].show_id,
+        currentPair[1].show_id
+      );
+
       updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
+      updatedMatchupMap.set(pairKey, freshStats || freshMatchup);
       setMatchupMap(updatedMatchupMap);
-      setMatchupStats(freshMatchup);
+      setMatchupStats(freshStats || freshMatchup);
 
       const { data: freshComments, error: freshCommentsError } = await supabase
         .from("rankd_matchup_comments")
