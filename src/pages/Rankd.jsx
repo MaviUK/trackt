@@ -1,4 +1,4 @@
-// Rankd completed-status OR completed-season eligibility fix
+// Rankd individual rank focus fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -17,6 +17,7 @@ const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
 const RECENT_MATCHUP_SHOW_LIMIT = 80;
 const RECENT_MATCHUP_PAIR_LIMIT = 150;
+const FOCUSED_RANKING_ROUND_LIMIT = 8;
 const MATCHUP_FETCH_CHUNK_SIZE = 75;
 
 function chunkArray(items, size) {
@@ -1393,42 +1394,68 @@ useEffect(() => {
       let nextRankFocus = null;
       let nextPair = [];
 
-      // Do not keep forcing the same focus show into several matchups in a row.
-      // The ladder still updates from the vote, but the next matchup goes back
-      // through the fair picker so recently used shows are cooled down.
-      if (rankFocus) {
-        setRankFocus(null);
+      const nextMatchupMap = new Map(matchupMap);
+      nextMatchupMap.set(currentPairKey, {
+        ...(nextMatchupMap.get(currentPairKey) || {}),
+        pair_key: currentPairKey,
+        times_matched:
+          Number(nextMatchupMap.get(currentPairKey)?.times_matched || 0) + 1,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (rankFocus?.showId) {
+        const focusedShowId = String(rankFocus.showId);
+        const opponent = currentPair.find(
+          (show) => String(show.show_id) !== focusedShowId
+        );
+        const testedIds = [
+          ...(rankFocus.testedIds || []),
+          opponent?.show_id,
+        ].filter(Boolean);
+
+        nextRankFocus = {
+          ...rankFocus,
+          roundsDone: Number(rankFocus.roundsDone || 0) + 1,
+          testedIds,
+          lastOpponentId: opponent?.show_id || null,
+        };
+
+        if (nextRankFocus.roundsDone < FOCUSED_RANKING_ROUND_LIMIT) {
+          nextPair = getFocusedPair(updatedLadder, focusedShowId, nextRankFocus);
+        }
+
+        if (nextPair.length === 2) {
+          setRankFocus(nextRankFocus);
+        } else {
+          nextRankFocus = null;
+          setRankFocus(null);
+        }
       }
 
-     if (!nextRankFocus) {
-  const nextMatchupMap = new Map(matchupMap);
-  nextMatchupMap.set(currentPairKey, {
-    ...(nextMatchupMap.get(currentPairKey) || {}),
-    pair_key: currentPairKey,
-    times_matched: Number(nextMatchupMap.get(currentPairKey)?.times_matched || 0) + 1,
-    updated_at: new Date().toISOString(),
-  });
+      if (!nextRankFocus) {
+        const currentShowIds = currentPair.map((show) => String(show.show_id));
+        const recentShowLimit = getRecentShowLimit(updatedLadder.length);
+        const sessionRecentShowIds = readRecentShowsFromSession(
+          user?.id,
+          recentShowLimit
+        );
+        const recentPlusCurrent = getUniqueRecentShowIds(
+          [
+            ...currentShowIds,
+            ...sessionRecentShowIds,
+            ...recentRankdShowIds.current,
+          ],
+          recentShowLimit
+        );
 
-  const currentShowIds = currentPair.map((show) => String(show.show_id));
-  const recentShowLimit = getRecentShowLimit(updatedLadder.length);
-  const sessionRecentShowIds = readRecentShowsFromSession(user?.id, recentShowLimit);
-  const recentPlusCurrent = getUniqueRecentShowIds(
-    [
-      ...currentShowIds,
-      ...sessionRecentShowIds,
-      ...recentRankdShowIds.current,
-    ],
-    recentShowLimit
-  );
-
-  nextPair = getFairPair(
-    updatedLadder,
-    nextMatchupMap,
-    currentPairKey,
-    recentPlusCurrent,
-    [currentPairKey, ...recentRankdPairKeys.current]
-  );
-}
+        nextPair = getFairPair(
+          updatedLadder,
+          nextMatchupMap,
+          currentPairKey,
+          recentPlusCurrent,
+          [currentPairKey, ...recentRankdPairKeys.current]
+        );
+      }
 
 if (
   nextPair.length === 2 &&
