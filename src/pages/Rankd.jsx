@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-// Rankd completed-season eligibility fix: only shows with at least one fully watched season can enter Rankd.
+// Rankd strong no-repeat matchup fix: hard-blocks recently used shows when there are enough alternatives.
 import {
   Link,
   useLocation,
@@ -14,7 +14,7 @@ import LoginModal from "../components/LoginModal";
 const DEFAULT_LADDER_POSITION = 999999;
 const SWIPE_THRESHOLD = 70;
 const MAX_COMMENT_DEPTH = 10;
-const RECENT_MATCHUP_SHOW_LIMIT = 30;
+const RECENT_MATCHUP_SHOW_LIMIT = 80;
 const RECENT_MATCHUP_PAIR_LIMIT = 150;
 const MATCHUP_FETCH_CHUNK_SIZE = 75;
 
@@ -191,9 +191,13 @@ function getRecentShowLimit(showCount) {
   if (showCount <= 4) return 2;
   if (showCount <= 8) return 4;
   if (showCount <= 16) return Math.max(4, showCount - 2);
+
+  // With a large library, keep a much longer show cooldown.
+  // Example: 132 eligible shows => remember 66 recent show slots, so the same
+  // show should not reappear after only a few votes.
   return Math.min(
     RECENT_MATCHUP_SHOW_LIMIT,
-    Math.max(8, Math.floor(showCount * 0.75))
+    Math.max(12, Math.floor(showCount * 0.5))
   );
 }
 
@@ -273,21 +277,27 @@ function getFairPair(
     if (!pool.length) return null;
 
     const sorted = [...pool].sort((a, b) => {
+      // Most important: do not keep showing the same individual shows.
+      // This must come before timesMatched, otherwise a never-seen pair that
+      // includes a recently shown title can beat an older pair with two fresh titles.
       if (a.usesLastMatchShow !== b.usesLastMatchShow) return a.usesLastMatchShow ? 1 : -1;
-      if (a.isRecentPair !== b.isRecentPair) return a.isRecentPair ? 1 : -1;
-      if (a.timesMatched !== b.timesMatched) return a.timesMatched - b.timesMatched;
+      if (a.usesVeryRecentShow !== b.usesVeryRecentShow) return a.usesVeryRecentShow ? 1 : -1;
       if (a.recentShowCount !== b.recentShowCount) return a.recentShowCount - b.recentShowCount;
       if (a.recentAppearancePenalty !== b.recentAppearancePenalty) {
         return a.recentAppearancePenalty - b.recentAppearancePenalty;
       }
       if (a.recencyPenalty !== b.recencyPenalty) return a.recencyPenalty - b.recencyPenalty;
+      if (a.isRecentPair !== b.isRecentPair) return a.isRecentPair ? 1 : -1;
+      if (a.timesMatched !== b.timesMatched) return a.timesMatched - b.timesMatched;
       if (a.combinedComparisons !== b.combinedComparisons) {
         return a.combinedComparisons - b.combinedComparisons;
       }
       return (a.lastMatchedAt || "").localeCompare(b.lastMatchedAt || "");
     });
 
-    const poolSize = Math.min(sorted.length, Math.max(4, Math.ceil(sorted.length * 0.25)));
+    // Keep randomness, but only among the very best candidates. A 25% pool is
+    // too wide when the user has 100+ shows and can let recent shows leak back in.
+    const poolSize = Math.min(sorted.length, Math.max(3, Math.ceil(sorted.length * 0.08)));
     const bestPool = sorted.slice(0, poolSize);
     return bestPool[Math.floor(Math.random() * bestPool.length)];
   }
@@ -1309,50 +1319,14 @@ useEffect(() => {
         return show;
       });
 
-      let nextRankFocus = rankFocus;
+      let nextRankFocus = null;
       let nextPair = [];
 
+      // Do not keep forcing the same focus show into several matchups in a row.
+      // The ladder still updates from the vote, but the next matchup goes back
+      // through the fair picker so recently used shows are cooled down.
       if (rankFocus) {
-        const focusWon = String(winner.show_id) === String(rankFocus.showId);
-        const opponent = focusWon ? loser : winner;
-        const nextRoundsDone = (rankFocus.roundsDone || 0) + 1;
-
-        const sortedAfterVote = [...updatedLadder].sort(sortByLadder);
-        const opponentIndex = sortedAfterVote.findIndex(
-          (show) => String(show.show_id) === String(opponent.show_id)
-        );
-
-        nextRankFocus = {
-          ...rankFocus,
-          roundsDone: nextRoundsDone,
-          testedIds: [
-            ...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)]),
-          ],
-          lastOpponentId: String(opponent.show_id),
-          lowerBound: focusWon
-            ? rankFocus.lowerBound ?? 0
-            : Math.max(rankFocus.lowerBound ?? 0, opponentIndex + 1),
-          upperBound: focusWon
-            ? Math.min(
-                rankFocus.upperBound ?? sortedAfterVote.length - 1,
-                opponentIndex - 1
-              )
-            : rankFocus.upperBound ?? sortedAfterVote.length - 1,
-        };
-
-        if (nextRankFocus.upperBound < nextRankFocus.lowerBound) {
-          nextRankFocus = null;
-          setRankFocus(null);
-        } else {
-          nextPair = getFocusedPair(updatedLadder, nextRankFocus.showId, nextRankFocus);
-
-          if (nextPair.length !== 2) {
-            nextRankFocus = null;
-            setRankFocus(null);
-          } else {
-            setRankFocus(nextRankFocus);
-          }
-        }
+        setRankFocus(null);
       }
 
      if (!nextRankFocus) {
