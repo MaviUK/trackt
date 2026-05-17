@@ -399,6 +399,72 @@ function LoginRoute({ session }) {
   return <Login />;
 }
 
+function MobileOnlyScreen() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(circle at top, rgba(124, 58, 237, 0.18), transparent 34%), #020617",
+        color: "#ffffff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        padding: "28px",
+        textAlign: "center",
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "420px",
+          padding: "28px 22px",
+          borderRadius: "28px",
+          background: "rgba(15, 23, 42, 0.92)",
+          border: "1px solid rgba(148, 163, 184, 0.22)",
+          boxShadow: "0 24px 80px rgba(0, 0, 0, 0.45)",
+        }}
+      >
+        <h1
+          style={{
+            margin: "0 0 12px",
+            fontSize: "34px",
+            lineHeight: 1,
+            letterSpacing: "-0.04em",
+          }}
+        >
+          BURGRS is mobile only
+        </h1>
+
+        <p
+          style={{
+            margin: "0",
+            color: "#cbd5e1",
+            fontSize: "17px",
+            lineHeight: 1.5,
+          }}
+        >
+          Please open BURGRS on your phone to continue.
+        </p>
+
+        <p
+          style={{
+            margin: "18px 0 0",
+            color: "#94a3b8",
+            fontSize: "14px",
+            lineHeight: 1.45,
+          }}
+        >
+          Desktop and tablet-width screens are disabled for now.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function AppLayout() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
@@ -593,6 +659,28 @@ function AppLayout() {
 }
 
 function App() {
+  const [isMobileWidth, setIsMobileWidth] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth <= 768;
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobileWidth(window.innerWidth <= 768);
+    }
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  if (!isMobileWidth) {
+    return <MobileOnlyScreen />;
+  }
+
   return (
     <BrowserRouter>
       <AppLayout />
