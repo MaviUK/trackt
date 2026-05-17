@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+// Rankd REAL stats fix: displays saved rankd_matchups stats for the active pair and ignores stale stats from previous pairs.
 import {
   Link,
   useLocation,
@@ -381,6 +382,28 @@ function getWinPercent(stats, showId) {
   return Math.round((wins / total) * 100);
 }
 
+function statsBelongToPair(stats, firstShowId, secondShowId) {
+  if (!stats || !firstShowId || !secondShowId) return false;
+  return makePairKey(stats.show_a_id, stats.show_b_id) === makePairKey(firstShowId, secondShowId);
+}
+
+function getCachedStatsForPair(matchupMap, firstShowId, secondShowId) {
+  if (!matchupMap || !firstShowId || !secondShowId) return null;
+
+  const firstId = String(firstShowId);
+  const secondId = String(secondShowId);
+  const canonicalKey = makePairKey(firstId, secondId);
+  const directKey = `${firstId}:${secondId}`;
+  const reverseKey = `${secondId}:${firstId}`;
+
+  const rows = [
+    matchupMap.get(canonicalKey),
+    matchupMap.get(directKey),
+    matchupMap.get(reverseKey),
+  ].filter(Boolean);
+
+  return aggregateMatchupRows(rows, firstId, secondId);
+}
 
 function aggregateMatchupRows(rows, firstShowId, secondShowId) {
   const uniqueRows = Array.from(
@@ -650,6 +673,9 @@ export default function Rankd() {
     const cachedRows = possiblePairKeys
       .map((key) => matchupMap.get(key))
       .filter(Boolean);
+
+    const cachedStats = aggregateMatchupRows(cachedRows, firstId, secondId);
+    setMatchupStats(cachedStats || null);
 
     const { data: keyRows, error: keyRowsError } = await supabase
       .from("rankd_matchups")
@@ -1360,15 +1386,8 @@ if (
       const updatedMatchupMap = new Map(matchupMap);
 
       if (nextMatchupRow?.pair_key) {
-        const aggregatedStats = aggregateMatchupRows(
-          [nextMatchupRow],
-          currentPair[0].show_id,
-          currentPair[1].show_id
-        );
-
         updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
-        updatedMatchupMap.set(currentPairKey, aggregatedStats || nextMatchupRow);
-        setMatchupStats(aggregatedStats || nextMatchupRow);
+        setMatchupStats(nextMatchupRow);
       }
 
       setMatchupMap(updatedMatchupMap);
@@ -1533,16 +1552,9 @@ if (
       }
 
       const updatedMatchupMap = new Map(matchupMap);
-      const freshStats = aggregateMatchupRows(
-        [freshMatchup],
-        currentPair[0].show_id,
-        currentPair[1].show_id
-      );
-
       updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
-      updatedMatchupMap.set(pairKey, freshStats || freshMatchup);
       setMatchupMap(updatedMatchupMap);
-      setMatchupStats(freshStats || freshMatchup);
+      setMatchupStats(freshMatchup);
 
       const { data: freshComments, error: freshCommentsError } = await supabase
         .from("rankd_matchup_comments")
@@ -1648,10 +1660,22 @@ if (
     );
   }
 
-  const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
-  const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
-  const leftWins = getWinCount(matchupStats, currentPair[0].show_id);
-  const rightWins = getWinCount(matchupStats, currentPair[1].show_id);
+  const displayedMatchupStats = statsBelongToPair(
+    matchupStats,
+    currentPair[0].show_id,
+    currentPair[1].show_id
+  )
+    ? matchupStats
+    : getCachedStatsForPair(
+        matchupMap,
+        currentPair[0].show_id,
+        currentPair[1].show_id
+      );
+
+  const leftWinPercent = getWinPercent(displayedMatchupStats, currentPair[0].show_id);
+  const rightWinPercent = getWinPercent(displayedMatchupStats, currentPair[1].show_id);
+  const leftWins = getWinCount(displayedMatchupStats, currentPair[0].show_id);
+  const rightWins = getWinCount(displayedMatchupStats, currentPair[1].show_id);
 
   return (
     <div className="page rankd-page">
