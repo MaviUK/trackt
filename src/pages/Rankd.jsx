@@ -1,3 +1,4 @@
+// Rankd stack-safe hard cooldown fix
 import { useEffect, useMemo, useRef, useState } from "react";
 // Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
 import {
@@ -255,12 +256,11 @@ function getFairPair(
   const recentShowSet = new Set(recentShowList);
 
   // Hard rule: when there are at least two completely fresh shows available,
-  // only choose from those fresh shows. This prevents a title from reappearing
-  // a few votes later when the user has a large library.
+  // build candidates only from those fresh shows. Do NOT call getFairPair()
+  // again here: that causes infinite recursion when recentShowIds is emptied.
   const freshItems = items.filter((item) => !recentShowSet.has(String(item.show_id)));
-  if (freshItems.length >= 2) {
-    return getFairPair(freshItems, matchupMap, previousPairKey, [], recentPairKeys);
-  }
+  const candidateItems = freshItems.length >= 2 ? freshItems : items;
+  const useFreshOnly = freshItems.length >= 2;
 
   const lastMatchShowSet = new Set(recentShowList.slice(0, 2));
   const veryRecentShowSet = new Set(recentShowList.slice(0, 10));
@@ -272,10 +272,10 @@ function getFairPair(
 
   const candidates = [];
 
-  for (let i = 0; i < items.length; i += 1) {
-    for (let j = i + 1; j < items.length; j += 1) {
-      const first = items[i];
-      const second = items[j];
+  for (let i = 0; i < candidateItems.length; i += 1) {
+    for (let j = i + 1; j < candidateItems.length; j += 1) {
+      const first = candidateItems[i];
+      const second = candidateItems[j];
       const pairKey = makePairKey(first.show_id, second.show_id);
       const firstId = String(first.show_id);
       const secondId = String(second.show_id);
