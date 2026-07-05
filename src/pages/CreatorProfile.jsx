@@ -214,6 +214,33 @@ function CreatorListCard({
   );
 }
 
+function ProfileList({ profiles, emptyText }) {
+  if (!profiles.length) return <p className="creator-muted">{emptyText}</p>;
+
+  return (
+    <div className="creator-followers-list">
+      {profiles.map((person) => {
+        const personName = getName(person);
+        const personInitial = getInitial(person);
+
+        return (
+          <Link key={person.id} to={creatorProfileHref(person)} className="creator-follower-row">
+            {person.avatar_url ? (
+              <img src={person.avatar_url} alt="" />
+            ) : (
+              <span>{personInitial}</span>
+            )}
+            <div>
+              <strong>{personName}</strong>
+              {person.username ? <small>@{person.username}</small> : null}
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CreatorProfile() {
   const { username } = useParams();
   const [currentUser, setCurrentUser] = useState(null);
@@ -223,7 +250,9 @@ export default function CreatorProfile() {
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
   const [activeProfilePanel, setActiveProfilePanel] = useState("lists");
   const [monetization, setMonetization] = useState(null);
   const [subscription, setSubscription] = useState(null);
@@ -425,6 +454,41 @@ export default function CreatorProfile() {
     }
   }
 
+  async function loadFollowing(profileRow) {
+    try {
+      const { data: followRows, error: followError } = await supabase
+        .from("user_follows")
+        .select("following_id, created_at")
+        .eq("follower_id", profileRow.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (followError) throw followError;
+
+      const followingIds = (followRows || [])
+        .map((row) => row.following_id)
+        .filter(Boolean);
+
+      if (!followingIds.length) {
+        setFollowing([]);
+        return;
+      }
+
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, display_name, avatar_url")
+        .in("id", followingIds);
+
+      if (profileError) throw profileError;
+
+      const profileMap = new Map((profileRows || []).map((row) => [String(row.id), row]));
+      setFollowing(followingIds.map((id) => profileMap.get(String(id))).filter(Boolean));
+    } catch (err) {
+      console.warn("Failed loading following:", err);
+      setFollowing([]);
+    }
+  }
+
   async function loadCreatorProfile() {
     setLoading(true);
     setError("");
@@ -473,34 +537,43 @@ export default function CreatorProfile() {
 
       setProfile(profileRow);
 
-      const [{ count: followerCount }, { data: followingRow }, monetizationResult, subscriptionResult] =
-        await Promise.all([
-          supabase
-            .from("user_follows")
-            .select("follower_id", { count: "exact", head: true })
-            .eq("following_id", profileRow.id),
-          user?.id
-            ? supabase
-                .from("user_follows")
-                .select("follower_id")
-                .eq("follower_id", user.id)
-                .eq("following_id", profileRow.id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-          supabase
-            .from("creator_monetization")
-            .select("*")
-            .eq("user_id", profileRow.id)
-            .maybeSingle(),
-          user?.id && user.id !== profileRow.id
-            ? supabase
-                .from("creator_subscriptions")
-                .select("*")
-                .eq("creator_id", profileRow.id)
-                .eq("subscriber_id", user.id)
-                .maybeSingle()
-            : Promise.resolve({ data: null, error: null }),
-        ]);
+      const [
+        { count: followerCount },
+        { count: followingTotal },
+        { data: followingRow },
+        monetizationResult,
+        subscriptionResult,
+      ] = await Promise.all([
+        supabase
+          .from("user_follows")
+          .select("follower_id", { count: "exact", head: true })
+          .eq("following_id", profileRow.id),
+        supabase
+          .from("user_follows")
+          .select("following_id", { count: "exact", head: true })
+          .eq("follower_id", profileRow.id),
+        user?.id
+          ? supabase
+              .from("user_follows")
+              .select("follower_id")
+              .eq("follower_id", user.id)
+              .eq("following_id", profileRow.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("creator_monetization")
+          .select("*")
+          .eq("user_id", profileRow.id)
+          .maybeSingle(),
+        user?.id && user.id !== profileRow.id
+          ? supabase
+              .from("creator_subscriptions")
+              .select("*")
+              .eq("creator_id", profileRow.id)
+              .eq("subscriber_id", user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
 
       if (monetizationResult.error) {
         console.error("Monetization fetch error:", monetizationResult.error);
@@ -510,12 +583,14 @@ export default function CreatorProfile() {
       }
 
       setFollowersCount(followerCount || 0);
+      setFollowingCount(followingTotal || 0);
       setIsFollowing(Boolean(followingRow));
       setMonetization(monetizationResult.data || null);
       setSubscription(subscriptionResult.data || null);
 
       await Promise.all([
         loadFollowers(profileRow),
+        loadFollowing(profileRow),
         loadRankedTopShows(profileRow),
         loadCreatorLists(profileRow, user),
       ]);
@@ -785,6 +860,14 @@ export default function CreatorProfile() {
         </button>
         <button
           type="button"
+          className={getStatButtonClass("following")}
+          onClick={() => setActiveProfilePanel("following")}
+        >
+          <strong>{followingCount}</strong>
+          <span>Following</span>
+        </button>
+        <button
+          type="button"
           className={getStatButtonClass("posts")}
           onClick={() => setActiveProfilePanel("posts")}
         >
@@ -824,35 +907,16 @@ export default function CreatorProfile() {
             <div className="creator-section-head">
               <h2>Followers</h2>
             </div>
+            <ProfileList profiles={followers} emptyText="No followers yet." />
+          </>
+        ) : null}
 
-            {followers.length ? (
-              <div className="creator-followers-list">
-                {followers.map((follower) => {
-                  const followerName = getName(follower);
-                  const followerInitial = getInitial(follower);
-
-                  return (
-                    <Link
-                      key={follower.id}
-                      to={creatorProfileHref(follower)}
-                      className="creator-follower-row"
-                    >
-                      {follower.avatar_url ? (
-                        <img src={follower.avatar_url} alt="" />
-                      ) : (
-                        <span>{followerInitial}</span>
-                      )}
-                      <div>
-                        <strong>{followerName}</strong>
-                        {follower.username ? <small>@{follower.username}</small> : null}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="creator-muted">No followers yet.</p>
-            )}
+        {activeProfilePanel === "following" ? (
+          <>
+            <div className="creator-section-head">
+              <h2>Following</h2>
+            </div>
+            <ProfileList profiles={following} emptyText="Not following anyone yet." />
           </>
         ) : null}
 
