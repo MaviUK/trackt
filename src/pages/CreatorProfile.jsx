@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./CreatorProfile.css";
@@ -216,11 +216,6 @@ function CreatorListCard({
 export default function CreatorProfile() {
   const { username } = useParams();
 
-  const listsSectionRef = useRef(null);
-  const postsSectionRef = useRef(null);
-  const reviewsSectionRef = useRef(null);
-  const followersSectionRef = useRef(null);
-
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -229,7 +224,7 @@ export default function CreatorProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followers, setFollowers] = useState([]);
-  const [showFollowers, setShowFollowers] = useState(false);
+  const [activeProfilePanel, setActiveProfilePanel] = useState("lists");
 
   const [monetization, setMonetization] = useState(null);
   const [subscription, setSubscription] = useState(null);
@@ -266,32 +261,12 @@ export default function CreatorProfile() {
     );
   }, [isOwnProfile, monetization]);
 
-  function scrollToSection(ref) {
-    window.requestAnimationFrame(() => {
-      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  function handleStatClick(sectionName) {
+    setActiveProfilePanel(sectionName);
   }
 
-  function handleStatClick(sectionName) {
-    if (sectionName === "followers") {
-      setShowFollowers((current) => !current);
-      setTimeout(() => scrollToSection(followersSectionRef), 0);
-      return;
-    }
-
-    if (sectionName === "lists") {
-      scrollToSection(listsSectionRef);
-      return;
-    }
-
-    if (sectionName === "posts") {
-      scrollToSection(postsSectionRef);
-      return;
-    }
-
-    if (sectionName === "reviews") {
-      scrollToSection(reviewsSectionRef);
-    }
+  function getStatButtonClass(sectionName) {
+    return activeProfilePanel === sectionName ? "is-active" : "";
   }
 
   function toggleListExpanded(listId) {
@@ -629,7 +604,7 @@ export default function CreatorProfile() {
 
   useEffect(() => {
     setExpandedListIds(new Set());
-    setShowFollowers(false);
+    setActiveProfilePanel("lists");
     loadCreatorProfile();
   }, [username]);
 
@@ -856,63 +831,39 @@ export default function CreatorProfile() {
 
       {error ? <p className="creator-error">{error}</p> : null}
 
-      <section className="creator-stats-card creator-stats-card-clickable">
-        <button type="button" onClick={() => handleStatClick("followers")}>
+      <section className="creator-stats-card creator-stats-card-clickable" aria-label="Creator profile sections">
+        <button
+          type="button"
+          className={getStatButtonClass("followers")}
+          onClick={() => handleStatClick("followers")}
+        >
           <strong>{followersCount}</strong>
           <span>Followers</span>
         </button>
-        <button type="button" onClick={() => handleStatClick("posts")}>
+        <button
+          type="button"
+          className={getStatButtonClass("posts")}
+          onClick={() => handleStatClick("posts")}
+        >
           <strong>{posts.length}</strong>
           <span>Posts</span>
         </button>
-        <button type="button" onClick={() => handleStatClick("lists")}>
+        <button
+          type="button"
+          className={getStatButtonClass("lists")}
+          onClick={() => handleStatClick("lists")}
+        >
           <strong>{listCount}</strong>
           <span>Lists</span>
         </button>
-        <button type="button" onClick={() => handleStatClick("reviews")}>
+        <button
+          type="button"
+          className={getStatButtonClass("reviews")}
+          onClick={() => handleStatClick("reviews")}
+        >
           <strong>{reviews.length}</strong>
           <span>Reviews</span>
         </button>
-      </section>
-
-      <section
-        ref={followersSectionRef}
-        id="creator-followers"
-        className={`creator-card creator-followers-card ${showFollowers ? "is-visible" : ""}`}
-        hidden={!showFollowers}
-      >
-        <div className="creator-section-head">
-          <h2>Followers</h2>
-        </div>
-
-        {followers.length ? (
-          <div className="creator-followers-list">
-            {followers.map((follower) => {
-              const followerName = getName(follower);
-              const followerInitial = getInitial(follower);
-
-              return (
-                <Link
-                  key={follower.id}
-                  to={follower.username ? `/u/${encodeURIComponent(follower.username)}` : "#"}
-                  className="creator-follower-row"
-                >
-                  {follower.avatar_url ? (
-                    <img src={follower.avatar_url} alt="" />
-                  ) : (
-                    <span>{followerInitial}</span>
-                  )}
-                  <div>
-                    <strong>{followerName}</strong>
-                    {follower.username ? <small>@{follower.username}</small> : null}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="creator-muted">No followers yet.</p>
-        )}
       </section>
 
       {creatorBio ? (
@@ -924,143 +875,188 @@ export default function CreatorProfile() {
         </section>
       ) : null}
 
-      <section ref={listsSectionRef} id="creator-lists" className="creator-card">
-        <div className="creator-section-head">
-          <h2>Creator lists</h2>
-          {isOwnProfile ? (
-            <Link to="/creator/lists/new" className="creator-small-link">
-              Create list
-            </Link>
-          ) : null}
-        </div>
+      <section className="creator-card creator-profile-panel">
+        {activeProfilePanel === "followers" ? (
+          <>
+            <div className="creator-section-head">
+              <h2>Followers</h2>
+            </div>
 
-        {listCount ? (
-          <div className="creator-list-grid">
-            {rankedTopShows.length ? (
-              <CreatorListCard
-                listId="rankd-top-10"
-                title="Top 10 shows of all time"
-                subtitle={`${rankedTopShows.length} ranked shows • Auto-updates from Rank'd`}
-                badge="Rank'd"
-                description={`This list is generated from ${displayName}'s current Rank'd ladder and changes whenever their rankings change.`}
-                items={rankedTopShows}
-                isExpanded={expandedListIds.has("rankd-top-10")}
-                onToggle={toggleListExpanded}
-                className="creator-list-card-auto"
-              />
-            ) : null}
+            {followers.length ? (
+              <div className="creator-followers-list">
+                {followers.map((follower) => {
+                  const followerName = getName(follower);
+                  const followerInitial = getInitial(follower);
 
-            {lists.map((list) => {
-              const itemCount = list.items?.length || 0;
-              const subtitle = `${itemCount} show${itemCount === 1 ? "" : "s"}${
-                list.visibility === "private" ? " • Private draft" : ""
-              }`;
+                  return (
+                    <Link
+                      key={follower.id}
+                      to={follower.username ? `/u/${encodeURIComponent(follower.username)}` : "#"}
+                      className="creator-follower-row"
+                    >
+                      {follower.avatar_url ? (
+                        <img src={follower.avatar_url} alt="" />
+                      ) : (
+                        <span>{followerInitial}</span>
+                      )}
+                      <div>
+                        <strong>{followerName}</strong>
+                        {follower.username ? <small>@{follower.username}</small> : null}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="creator-muted">No followers yet.</p>
+            )}
+          </>
+        ) : null}
 
-              return (
-                <CreatorListCard
-                  key={list.id}
-                  listId={list.id}
-                  title={list.title}
-                  subtitle={subtitle}
-                  badge={formatDate(list.created_at)}
-                  description={list.description}
-                  items={list.items || []}
-                  isExpanded={expandedListIds.has(list.id)}
-                  onToggle={toggleListExpanded}
-                  canDelete={isOwnProfile}
-                  onDelete={handleDeleteList}
-                />
-              );
-            })}
-          </div>
-        ) : (
-          <p className="creator-muted">
-            {isOwnProfile
-              ? "You have not created any lists yet. Rank shows in Rank'd or tap Create list to make your first one."
-              : "This creator has not shared any lists yet."}
-          </p>
-        )}
-      </section>
-
-      <section ref={postsSectionRef} id="creator-posts" className="creator-card">
-        <div className="creator-section-head">
-          <h2>Creator feed</h2>
-          {isOwnProfile ? (
-            <Link to="/profile/edit" className="creator-small-link">
-              Create post
-            </Link>
-          ) : null}
-        </div>
-
-        {posts.length ? (
-          <div className="creator-post-list">
-            {posts.map((post) => (
-              <article key={post.id} className="creator-post-card">
-                <div className="creator-post-meta">
-                  <span>{formatPostType(post.post_type)}</span>
-                  <span>{formatDate(post.created_at)}</span>
-                  {post.visibility === "subscribers" ? (
-                    <span>Subscribers only</span>
-                  ) : null}
-                </div>
-
-                <VideoEmbed post={post} />
-
-                {!post.video_embed_url && post.image_url ? (
-                  <img src={post.image_url} alt="" className="creator-post-image" />
-                ) : null}
-
-                {post.title ? <h3>{post.title}</h3> : null}
-                {post.body ? <p>{post.body}</p> : null}
-
-                {isOwnProfile ? (
-                  <button
-                    type="button"
-                    className="creator-delete-post-btn"
-                    onClick={() => handleDeletePost(post.id)}
-                  >
-                    Delete post
-                  </button>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="creator-muted">
-            {isOwnProfile
-              ? "You have not posted yet. Tap Create post to share your first update."
-              : "This creator has not posted yet."}
-          </p>
-        )}
-      </section>
-
-      <section ref={reviewsSectionRef} id="creator-reviews" className="creator-card">
-        <div className="creator-section-head">
-          <h2>Latest reviews</h2>
-        </div>
-
-        {reviews.length ? (
-          <div className="creator-feed-list">
-            {reviews.map((review) => (
-              <article key={review.id} className="creator-review-card">
-                <Link to={showHref(review.shows)} className="creator-review-show">
-                  {review.shows?.poster_url ? (
-                    <img src={review.shows.poster_url} alt="" />
-                  ) : (
-                    <div className="creator-review-poster">?</div>
-                  )}
-                  <div>
-                    <strong>{review.shows?.name || "Show review"}</strong>
-                    <span>{formatDate(review.created_at)}</span>
-                  </div>
+        {activeProfilePanel === "lists" ? (
+          <>
+            <div className="creator-section-head">
+              <h2>Creator lists</h2>
+              {isOwnProfile ? (
+                <Link to="/creator/lists/new" className="creator-small-link">
+                  Create list
                 </Link>
-                <p>{review.body}</p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="creator-muted">No public reviews yet.</p>
-        )}
+              ) : null}
+            </div>
+
+            {listCount ? (
+              <div className="creator-list-grid">
+                {rankedTopShows.length ? (
+                  <CreatorListCard
+                    listId="rankd-top-10"
+                    title="Top 10 shows of all time"
+                    subtitle={`${rankedTopShows.length} ranked shows • Auto-updates from Rank'd`}
+                    badge="Rank'd"
+                    description={`This list is generated from ${displayName}'s current Rank'd ladder and changes whenever their rankings change.`}
+                    items={rankedTopShows}
+                    isExpanded={expandedListIds.has("rankd-top-10")}
+                    onToggle={toggleListExpanded}
+                    className="creator-list-card-auto"
+                  />
+                ) : null}
+
+                {lists.map((list) => {
+                  const itemCount = list.items?.length || 0;
+                  const subtitle = `${itemCount} show${itemCount === 1 ? "" : "s"}${
+                    list.visibility === "private" ? " • Private draft" : ""
+                  }`;
+
+                  return (
+                    <CreatorListCard
+                      key={list.id}
+                      listId={list.id}
+                      title={list.title}
+                      subtitle={subtitle}
+                      badge={formatDate(list.created_at)}
+                      description={list.description}
+                      items={list.items || []}
+                      isExpanded={expandedListIds.has(list.id)}
+                      onToggle={toggleListExpanded}
+                      canDelete={isOwnProfile}
+                      onDelete={handleDeleteList}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="creator-muted">
+                {isOwnProfile
+                  ? "You have not created any lists yet. Rank shows in Rank'd or tap Create list to make your first one."
+                  : "This creator has not shared any lists yet."}
+              </p>
+            )}
+          </>
+        ) : null}
+
+        {activeProfilePanel === "posts" ? (
+          <>
+            <div className="creator-section-head">
+              <h2>Creator feed</h2>
+              {isOwnProfile ? (
+                <Link to="/profile/edit" className="creator-small-link">
+                  Create post
+                </Link>
+              ) : null}
+            </div>
+
+            {posts.length ? (
+              <div className="creator-post-list">
+                {posts.map((post) => (
+                  <article key={post.id} className="creator-post-card">
+                    <div className="creator-post-meta">
+                      <span>{formatPostType(post.post_type)}</span>
+                      <span>{formatDate(post.created_at)}</span>
+                      {post.visibility === "subscribers" ? (
+                        <span>Subscribers only</span>
+                      ) : null}
+                    </div>
+
+                    <VideoEmbed post={post} />
+
+                    {!post.video_embed_url && post.image_url ? (
+                      <img src={post.image_url} alt="" className="creator-post-image" />
+                    ) : null}
+
+                    {post.title ? <h3>{post.title}</h3> : null}
+                    {post.body ? <p>{post.body}</p> : null}
+
+                    {isOwnProfile ? (
+                      <button
+                        type="button"
+                        className="creator-delete-post-btn"
+                        onClick={() => handleDeletePost(post.id)}
+                      >
+                        Delete post
+                      </button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="creator-muted">
+                {isOwnProfile
+                  ? "You have not posted yet. Tap Create post to share your first update."
+                  : "This creator has not posted yet."}
+              </p>
+            )}
+          </>
+        ) : null}
+
+        {activeProfilePanel === "reviews" ? (
+          <>
+            <div className="creator-section-head">
+              <h2>Latest reviews</h2>
+            </div>
+
+            {reviews.length ? (
+              <div className="creator-feed-list">
+                {reviews.map((review) => (
+                  <article key={review.id} className="creator-review-card">
+                    <Link to={showHref(review.shows)} className="creator-review-show">
+                      {review.shows?.poster_url ? (
+                        <img src={review.shows.poster_url} alt="" />
+                      ) : (
+                        <div className="creator-review-poster">?</div>
+                      )}
+                      <div>
+                        <strong>{review.shows?.name || "Show review"}</strong>
+                        <span>{formatDate(review.created_at)}</span>
+                      </div>
+                    </Link>
+                    <p>{review.body}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="creator-muted">No public reviews yet.</p>
+            )}
+          </>
+        ) : null}
       </section>
     </main>
   );
