@@ -177,10 +177,14 @@ function UserProfileLink({ session, profile, className = "top-profile-link" }) {
     session.user?.user_metadata?.avatar_url ||
     "";
 
+  const profilePath = profile?.username
+    ? `/u/${encodeURIComponent(profile.username)}`
+    : "/profile/edit";
+
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <NavLink to="/profile/edit" className={className}>
+    <NavLink to={profilePath} className={className}>
       {avatarUrl ? (
         <img
           src={avatarUrl}
