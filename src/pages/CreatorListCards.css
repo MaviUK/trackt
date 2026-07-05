@@ -2,7 +2,7 @@
   position: relative;
   overflow: hidden;
   padding: 0;
-  background: rgba(2, 6, 23, 0.82);
+  background: rgba(2, 6, 23, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -24,7 +24,7 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.38), transparent 36%),
+    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.22), transparent 36%),
     linear-gradient(135deg, #0f172a, #020617);
 }
 
@@ -35,7 +35,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   transform: rotate(-4deg) scale(1.08);
-  opacity: 0.78;
+  opacity: 0.96;
 }
 
 .creator-list-collage-poster {
@@ -43,7 +43,7 @@
   height: 92px;
   object-fit: cover;
   border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
 }
 
 .creator-list-collage-poster:nth-child(odd) {
@@ -78,8 +78,8 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(2, 6, 23, 0.94) 0%, rgba(2, 6, 23, 0.76) 44%, rgba(2, 6, 23, 0.22) 100%),
-    linear-gradient(180deg, rgba(2, 6, 23, 0.08) 0%, rgba(2, 6, 23, 0.9) 100%);
+    linear-gradient(90deg, rgba(2, 6, 23, 0.82) 0%, rgba(2, 6, 23, 0.55) 44%, rgba(2, 6, 23, 0.06) 100%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.02) 0%, rgba(2, 6, 23, 0.74) 100%);
 }
 
 .creator-list-cover-content {
@@ -111,7 +111,7 @@
   min-height: 26px;
   padding: 0 9px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(15, 23, 42, 0.62);
   border: 1px solid rgba(196, 181, 253, 0.24);
   backdrop-filter: blur(10px);
 }
@@ -123,7 +123,7 @@
   font-size: 24px;
   line-height: 1.02;
   letter-spacing: -0.045em;
-  text-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.76);
 }
 
 .creator-list-cover-content p {
@@ -132,6 +132,7 @@
   font-size: 13px;
   font-weight: 850;
   line-height: 1.35;
+  text-shadow: 0 5px 18px rgba(0, 0, 0, 0.7);
 }
 
 .creator-list-card-collapsed.is-expanded .creator-list-cover-button {
@@ -143,7 +144,7 @@
 }
 
 .creator-list-card-collapsed.is-expanded .creator-list-poster-collage {
-  opacity: 0.48;
+  opacity: 0.72;
 }
 
 .creator-list-expanded-body {
