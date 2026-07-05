@@ -86,7 +86,7 @@ export default function Login() {
     setSubmitting(true);
     setError("");
 
-    const setupRedirect = `/set-password?redirect=${encodeURIComponent(redirectTo)}`;
+    const setupRedirect = `/login?setPassword=1&redirect=${encodeURIComponent(redirectTo)}`;
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
