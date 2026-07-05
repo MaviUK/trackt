@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import BurgrsBanner from "../components/BurgrsBanner";
 import { supabase } from "../lib/supabase";
 import "./Login.css";
+import "./LoginDualAuth.css";
 
 const fallbackTrendingShows = [
   { id: "fallback-1", name: "Track your favourites", image: null, year: "Watchlist" },
