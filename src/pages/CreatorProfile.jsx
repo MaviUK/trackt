@@ -35,6 +35,17 @@ function showHref(show) {
   return `/show/${show.id || show.show_id}`;
 }
 
+function creatorProfileHref(profile) {
+  const slug = profile?.username || profile?.id;
+  return slug ? `/u/${encodeURIComponent(slug)}` : "#";
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
+}
+
 function formatPostType(value) {
   const labels = {
     post: "Post",
@@ -464,10 +475,7 @@ export default function CreatorProfile() {
       setCurrentUser(user);
 
       const cleanUsername = decodeURIComponent(username || "").replace(/^@/, "");
-
-      const { data: profileRow, error: profileError } = await supabase
-        .from("profiles")
-        .select(`
+      const profileSelect = `
           id,
           username,
           full_name,
@@ -478,9 +486,24 @@ export default function CreatorProfile() {
           creator_tagline,
           creator_niche,
           creator_bio
-        `)
+        `;
+
+      let { data: profileRow, error: profileError } = await supabase
+        .from("profiles")
+        .select(profileSelect)
         .eq("username", cleanUsername)
         .maybeSingle();
+
+      if (!profileRow && !profileError && isUuid(cleanUsername)) {
+        const fallbackResult = await supabase
+          .from("profiles")
+          .select(profileSelect)
+          .eq("id", cleanUsername)
+          .maybeSingle();
+
+        profileRow = fallbackResult.data;
+        profileError = fallbackResult.error;
+      }
 
       if (profileError) throw profileError;
 
@@ -891,7 +914,7 @@ export default function CreatorProfile() {
                   return (
                     <Link
                       key={follower.id}
-                      to={follower.username ? `/u/${encodeURIComponent(follower.username)}` : "#"}
+                      to={creatorProfileHref(follower)}
                       className="creator-follower-row"
                     >
                       {follower.avatar_url ? (
