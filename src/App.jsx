@@ -8,9 +8,10 @@ import {
   Navigate,
 } from "react-router-dom";
 import "./index.css";
-import ProfileEdit from "./pages/ProfileEdit";
+import ProfileEditMerged from "./pages/ProfileEditMerged";
 import CreatorProfile from "./pages/CreatorProfile";
 import CreatorListEditor from "./pages/CreatorListEditor";
+import CreatorPostEditor from "./pages/CreatorPostEditor";
 import FollowingFeed from "./pages/FollowingFeed";
 import Search from "./pages/Search";
 import Login from "./pages/Login";
@@ -206,14 +207,8 @@ function LoginRoute({ session }) {
   const redirectTo = params.get("redirect") || "/";
   const shouldSetPassword = params.get("setPassword") === "1";
 
-  if (session && shouldSetPassword) {
-    return <SetPassword />;
-  }
-
-  if (session) {
-    return <Navigate to={redirectTo} replace />;
-  }
-
+  if (session && shouldSetPassword) return <SetPassword />;
+  if (session) return <Navigate to={redirectTo} replace />;
   return <Login />;
 }
 
@@ -336,6 +331,7 @@ function AppLayout() {
         <Route path="/following" element={<ProtectedRoute session={session}><FollowingFeed /></ProtectedRoute>} />
         <Route path="/u/:username" element={<ProtectedRoute session={session}><CreatorProfile /></ProtectedRoute>} />
         <Route path="/creator/lists/new" element={<ProtectedRoute session={session}><CreatorListEditor /></ProtectedRoute>} />
+        <Route path="/creator/posts/new" element={<ProtectedRoute session={session}><CreatorPostEditor /></ProtectedRoute>} />
         <Route path="/search" element={<ProtectedRoute session={session}><Search /></ProtectedRoute>} />
         <Route path="/show/:id" element={<ProtectedRoute session={session}><ShowDetails /></ProtectedRoute>} />
         <Route path="/show/tmdb/:tmdbId" element={<ProtectedRoute session={session}><ShowDetails /></ProtectedRoute>} />
@@ -344,7 +340,7 @@ function AppLayout() {
         <Route path="/my-shows/tmdb/:tmdbId" element={<ProtectedRoute session={session}><MyShowDetails /></ProtectedRoute>} />
         <Route path="/actor/:name" element={<ProtectedRoute session={session}><ActorPage /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute session={session}><CalendarPage /></ProtectedRoute>} />
-        <Route path="/profile/edit" element={<ProtectedRoute session={session}><ProfileEdit /></ProtectedRoute>} />
+        <Route path="/profile/edit" element={<ProtectedRoute session={session}><ProfileEditMerged /></ProtectedRoute>} />
         <Route path="/rankd" element={<ProtectedRoute session={session}><Rankd /></ProtectedRoute>} />
         <Route path="/rankd/share/:slug" element={<Rankd />} />
         <Route path="*" element={<Navigate to="/" replace />} />
