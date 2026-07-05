@@ -30,7 +30,7 @@ function HomeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 10.5 12 3l9 7.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5.5 9.5V20h13V9.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5.5V20h13V9.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -138,6 +138,41 @@ function MobileTopBanner({ session, profile }) {
     <div className="mobile-top-banner-wrap">
       <BurgrsBanner />
       <UserProfileLink session={session} profile={profile} className="top-profile-link mobile-profile-link" />
+    </div>
+  );
+}
+
+function CreatorOwnerShortcuts({ session, profile }) {
+  const location = useLocation();
+  if (!session?.user?.id || !profile?.id || location.pathname === "/login") return null;
+  if (!location.pathname.startsWith("/u/")) return null;
+
+  const routeSlug = decodeURIComponent(location.pathname.replace(/^\/u\//, "").split("/")[0] || "");
+  const ownSlugs = [profile.username, profile.id].filter(Boolean).map(String);
+  const isOwnCreatorPage = ownSlugs.includes(routeSlug);
+
+  if (!isOwnCreatorPage) return null;
+
+  const linkStyle = {
+    flex: "1 1 0",
+    textAlign: "center",
+    padding: "10px 8px",
+    borderRadius: 14,
+    textDecoration: "none",
+    color: "#ffffff",
+    fontWeight: 900,
+    fontSize: 13,
+    background: "rgba(124,58,237,0.24)",
+    border: "1px solid rgba(196,181,253,0.26)",
+  };
+
+  return (
+    <div style={{ padding: "8px 12px 0", background: "#020617" }}>
+      <div style={{ display: "flex", gap: 8, maxWidth: 860, margin: "0 auto" }}>
+        <NavLink to="/profile/edit" style={linkStyle}>Edit profile</NavLink>
+        <NavLink to="/creator/posts/new" style={{ ...linkStyle, background: "linear-gradient(135deg, #7c3aed, #db2777)" }}>Create post</NavLink>
+        <NavLink to="/creator/lists/new" style={linkStyle}>Create list</NavLink>
+      </div>
     </div>
   );
 }
@@ -259,21 +294,17 @@ function AppLayout() {
 
   useEffect(() => {
     let mounted = true;
-
     const loadSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (mounted) setSession(data.session ?? null);
     };
-
     loadSession();
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setProfile(null);
       setSession(nextSession ?? null);
     });
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
@@ -282,41 +313,32 @@ function AppLayout() {
 
   useEffect(() => {
     let active = true;
-
     async function loadProfile() {
       if (!session?.user?.id) {
         setProfile(null);
         return;
       }
-
       setProfile(null);
-
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, full_name, avatar_url")
         .eq("id", session.user.id)
         .maybeSingle();
-
       if (!active) return;
-
       if (error) {
         console.error("Error loading header profile:", error);
         setProfile(null);
         return;
       }
-
       setProfile(data || null);
     }
-
     loadProfile();
-
     return () => {
       active = false;
     };
   }, [session?.user?.id]);
 
   if (session === undefined) return null;
-
   const routeUserKey = session?.user?.id || "anonymous";
 
   return (
@@ -324,6 +346,7 @@ function AppLayout() {
       <ScrollToTopOnRouteChange />
       <DesktopNav session={session} profile={profile} />
       <MobileTopBanner session={session} profile={profile} />
+      <CreatorOwnerShortcuts session={session} profile={profile} />
 
       <Routes key={routeUserKey}>
         <Route path="/" element={<AuthRedirect session={session} />} />
@@ -361,10 +384,8 @@ function App() {
     function handleResize() {
       setIsMobileWidth(window.innerWidth <= 768);
     }
-
     handleResize();
     window.addEventListener("resize", handleResize);
-
     return () => {
       window.removeEventListener("resize", handleResize);
     };
