@@ -148,7 +148,7 @@
 
 .creator-stats-card {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 14px 10px;
   margin-bottom: 14px;
@@ -164,7 +164,7 @@
 .creator-stats-card span {
   display: block;
   margin-top: 5px;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   color: #94a3b8;
   font-weight: 900;
@@ -236,6 +236,113 @@
   align-items: center;
   justify-content: center;
   color: #94a3b8;
+  font-weight: 900;
+}
+
+.creator-list-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.creator-list-card {
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.creator-list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.creator-list-head h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 19px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.creator-list-head p,
+.creator-list-head span {
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.creator-list-head > span {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.creator-list-description {
+  margin: 0 0 12px;
+  color: #dbeafe;
+  line-height: 1.45;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.creator-list-items {
+  display: grid;
+  gap: 8px;
+}
+
+.creator-list-item {
+  display: grid;
+  grid-template-columns: 42px 44px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 18px;
+  color: #f8fafc;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.creator-list-item img {
+  width: 44px;
+  height: 62px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #1e293b;
+}
+
+.creator-list-item strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.creator-list-item small {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.creator-list-item em {
+  display: block;
+  margin-top: 4px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.creator-list-more {
+  margin: 10px 0 0;
+  color: #c4b5fd;
+  font-size: 13px;
   font-weight: 900;
 }
 
