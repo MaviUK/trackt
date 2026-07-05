@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
 import "./FollowingFeed.css";
 
 function formatDate(value) {
@@ -14,16 +15,11 @@ function formatDate(value) {
 }
 
 function getCreatorName(profile) {
-  return (
-    profile?.display_name ||
-    profile?.full_name ||
-    profile?.username ||
-    "Someone"
-  );
+  return getProfileDisplayName(profile, "Someone");
 }
 
-function creatorHref(profile) {
-  return profile?.username ? `/u/${profile.username}` : "/";
+function creatorHref(profile, fallbackUserId = null) {
+  return getProfileHref(profile, fallbackUserId);
 }
 
 function showHref(show) {
@@ -236,12 +232,12 @@ export default function FollowingFeed() {
 
       const postsWithProfiles = (postRows || []).map((post) => ({
         ...post,
-        profiles: profileMap.get(String(post.user_id)) || null,
+        profiles: profileMap.get(String(post.user_id)) || { id: post.user_id },
       }));
 
       const reviewsWithProfilesAndShows = (reviewRows || []).map((review) => ({
         ...review,
-        profiles: profileMap.get(String(review.user_id)) || null,
+        profiles: profileMap.get(String(review.user_id)) || { id: review.user_id },
         shows: showMap.get(String(review.show_id)) || null,
       }));
 
@@ -280,11 +276,12 @@ export default function FollowingFeed() {
               const creator = post.profiles;
               const creatorName = getCreatorName(creator);
               const avatarUrl = creator?.avatar_url || "";
+              const profileHref = creatorHref(creator, post.user_id);
 
               return (
                 <article key={`post-${post.id}`} className="following-card">
                   <Link
-                    to={creatorHref(creator)}
+                    to={profileHref}
                     className="following-creator-line"
                   >
                     {avatarUrl ? (
@@ -327,7 +324,7 @@ export default function FollowingFeed() {
                   ) : null}
 
                   <Link
-                    to={creatorHref(creator)}
+                    to={profileHref}
                     className="following-view-profile"
                   >
                     View creator page
@@ -341,11 +338,12 @@ export default function FollowingFeed() {
             const show = review.shows;
             const creatorName = getCreatorName(creator);
             const avatarUrl = creator?.avatar_url || "";
+            const profileHref = creatorHref(creator, review.user_id);
 
             return (
               <article key={`review-${review.id}`} className="following-card">
                 <Link
-                  to={creatorHref(creator)}
+                  to={profileHref}
                   className="following-creator-line"
                 >
                   {avatarUrl ? (
