@@ -103,6 +103,14 @@ function getShowDestination(show, alreadySaved) {
   return show?.href || getMappedShowHref(show);
 }
 
+async function getCurrentUserId() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user?.id || null;
+}
+
 export default function ActorPage() {
   const { name } = useParams();
 
@@ -117,67 +125,101 @@ export default function ActorPage() {
   const [addingKey, setAddingKey] = useState(null);
   const [savedTvdbIds, setSavedTvdbIds] = useState(new Set());
   const [savedTmdbIds, setSavedTmdbIds] = useState(new Set());
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [bioOpen, setBioOpen] = useState(false);
   const [openShowDescriptionKey, setOpenShowDescriptionKey] = useState(null);
 
+  async function loadSavedShowsForUser(userId) {
+    if (!userId) {
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
+      return;
+    }
+
+    const { data, error: savedError } = await supabase
+      .from("user_shows_new")
+      .select(`
+        tmdb_id,
+        shows!inner(
+          tvdb_id
+        )
+      `)
+      .eq("user_id", userId);
+
+    if (savedError) {
+      console.warn("Failed loading saved ids", savedError);
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
+      return;
+    }
+
+    const latestUserId = await getCurrentUserId();
+    if (latestUserId !== userId) return;
+
+    const tvdbIds = new Set(
+      (data || [])
+        .map((row) => row?.shows?.tvdb_id)
+        .filter(Boolean)
+        .map(String)
+    );
+
+    const tmdbIds = new Set(
+      (data || [])
+        .map((row) => row?.tmdb_id)
+        .filter(Boolean)
+        .map(String)
+    );
+
+    setSavedTvdbIds(tvdbIds);
+    setSavedTmdbIds(tmdbIds);
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    async function syncUser() {
+      const userId = await getCurrentUserId();
+      if (!active) return;
+      setCurrentUserId(userId);
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
+      await loadSavedShowsForUser(userId);
+    }
+
+    syncUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user?.id || null;
+      setCurrentUserId(userId);
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
+      setAddingKey(null);
+      if (userId) loadSavedShowsForUser(userId);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-
-    async function loadSavedShows() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!cancelled) {
-          setSavedTvdbIds(new Set());
-          setSavedTmdbIds(new Set());
-        }
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_shows_new")
-        .select(`
-          tmdb_id,
-          shows!inner(
-            tvdb_id
-          )
-        `)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.warn("Failed loading saved ids", error);
-        return;
-      }
-
-      const tvdbIds = new Set(
-        (data || [])
-          .map((row) => row?.shows?.tvdb_id)
-          .filter(Boolean)
-          .map(String)
-      );
-
-      const tmdbIds = new Set(
-        (data || [])
-          .map((row) => row?.tmdb_id)
-          .filter(Boolean)
-          .map(String)
-      );
-
-      if (!cancelled) {
-        setSavedTvdbIds(tvdbIds);
-        setSavedTmdbIds(tmdbIds);
-      }
-    }
 
     async function loadActor() {
       setLoading(true);
       setError("");
       setBioOpen(false);
       setOpenShowDescriptionKey(null);
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
 
       try {
+        const activeUserId = await getCurrentUserId();
+        setCurrentUserId(activeUserId);
+
         const response = await fetch(
           `/.netlify/functions/getActorShows?name=${encodeURIComponent(name)}`
         );
@@ -261,7 +303,7 @@ export default function ActorPage() {
           setCredits(normalizedCredits);
         }
 
-        await loadSavedShows();
+        await loadSavedShowsForUser(activeUserId);
       } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Failed to load actor shows");
@@ -283,6 +325,14 @@ export default function ActorPage() {
   async function handleAddShow(event, show) {
     event.preventDefault();
     event.stopPropagation();
+
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      alert("Please log in to add shows.");
+      return;
+    }
+
+    setCurrentUserId(userId);
 
     const tvdbId = getResolvedTvdbId(show);
     const tmdbId = getResolvedTmdbId(show);
@@ -313,21 +363,7 @@ export default function ActorPage() {
         source: tvdbId ? "tvdb" : "tmdb",
       });
 
-      if (tvdbId) {
-        setSavedTvdbIds((prev) => {
-          const next = new Set(prev);
-          next.add(String(tvdbId));
-          return next;
-        });
-      }
-
-      if (tmdbId) {
-        setSavedTmdbIds((prev) => {
-          const next = new Set(prev);
-          next.add(String(tmdbId));
-          return next;
-        });
-      }
+      await loadSavedShowsForUser(userId);
     } catch (err) {
       console.error("Failed adding show", err);
       alert(err?.message || "Failed to add show");
