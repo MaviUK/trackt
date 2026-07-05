@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./CreatorProfile.css";
 import "./CreatorListCards.css";
+import "./CreatorProfileStats.css";
 
 function getName(profile) {
   return (
@@ -215,6 +216,11 @@ function CreatorListCard({
 export default function CreatorProfile() {
   const { username } = useParams();
 
+  const listsSectionRef = useRef(null);
+  const postsSectionRef = useRef(null);
+  const reviewsSectionRef = useRef(null);
+  const followersSectionRef = useRef(null);
+
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -222,6 +228,8 @@ export default function CreatorProfile() {
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [followers, setFollowers] = useState([]);
+  const [showFollowers, setShowFollowers] = useState(false);
 
   const [monetization, setMonetization] = useState(null);
   const [subscription, setSubscription] = useState(null);
@@ -257,6 +265,34 @@ export default function CreatorProfile() {
         monetization?.stripe_onboarding_complete
     );
   }, [isOwnProfile, monetization]);
+
+  function scrollToSection(ref) {
+    window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function handleStatClick(sectionName) {
+    if (sectionName === "followers") {
+      setShowFollowers((current) => !current);
+      setTimeout(() => scrollToSection(followersSectionRef), 0);
+      return;
+    }
+
+    if (sectionName === "lists") {
+      scrollToSection(listsSectionRef);
+      return;
+    }
+
+    if (sectionName === "posts") {
+      scrollToSection(postsSectionRef);
+      return;
+    }
+
+    if (sectionName === "reviews") {
+      scrollToSection(reviewsSectionRef);
+    }
+  }
 
   function toggleListExpanded(listId) {
     setExpandedListIds((current) => {
@@ -401,6 +437,48 @@ export default function CreatorProfile() {
     }
   }
 
+  async function loadFollowers(profileRow) {
+    try {
+      const { data: followRows, error: followError } = await supabase
+        .from("user_follows")
+        .select("follower_id, created_at")
+        .eq("following_id", profileRow.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (followError) throw followError;
+
+      const followerIds = (followRows || [])
+        .map((row) => row.follower_id)
+        .filter(Boolean);
+
+      if (!followerIds.length) {
+        setFollowers([]);
+        return;
+      }
+
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, display_name, avatar_url")
+        .in("id", followerIds);
+
+      if (profileError) throw profileError;
+
+      const profileMap = new Map(
+        (profileRows || []).map((row) => [String(row.id), row])
+      );
+
+      setFollowers(
+        followerIds
+          .map((id) => profileMap.get(String(id)))
+          .filter(Boolean)
+      );
+    } catch (err) {
+      console.warn("Failed loading followers:", err);
+      setFollowers([]);
+    }
+  }
+
   async function loadCreatorProfile() {
     setLoading(true);
     setError("");
@@ -489,6 +567,7 @@ export default function CreatorProfile() {
       setSubscription(subscriptionRow || null);
 
       await Promise.all([
+        loadFollowers(profileRow),
         loadRankedTopShows(profileRow),
         loadCreatorLists(profileRow, user),
       ]);
@@ -550,6 +629,7 @@ export default function CreatorProfile() {
 
   useEffect(() => {
     setExpandedListIds(new Set());
+    setShowFollowers(false);
     loadCreatorProfile();
   }, [username]);
 
@@ -655,6 +735,8 @@ export default function CreatorProfile() {
         setIsFollowing(true);
         setFollowersCount((count) => count + 1);
       }
+
+      await loadFollowers(profile);
     } catch (err) {
       console.error("Failed updating follow:", err);
       setError(err.message || "Could not update follow.");
@@ -774,23 +856,63 @@ export default function CreatorProfile() {
 
       {error ? <p className="creator-error">{error}</p> : null}
 
-      <section className="creator-stats-card">
-        <div>
+      <section className="creator-stats-card creator-stats-card-clickable">
+        <button type="button" onClick={() => handleStatClick("followers")}>
           <strong>{followersCount}</strong>
           <span>Followers</span>
-        </div>
-        <div>
+        </button>
+        <button type="button" onClick={() => handleStatClick("posts")}>
           <strong>{posts.length}</strong>
           <span>Posts</span>
-        </div>
-        <div>
+        </button>
+        <button type="button" onClick={() => handleStatClick("lists")}>
           <strong>{listCount}</strong>
           <span>Lists</span>
-        </div>
-        <div>
+        </button>
+        <button type="button" onClick={() => handleStatClick("reviews")}>
           <strong>{reviews.length}</strong>
           <span>Reviews</span>
+        </button>
+      </section>
+
+      <section
+        ref={followersSectionRef}
+        id="creator-followers"
+        className={`creator-card creator-followers-card ${showFollowers ? "is-visible" : ""}`}
+        hidden={!showFollowers}
+      >
+        <div className="creator-section-head">
+          <h2>Followers</h2>
         </div>
+
+        {followers.length ? (
+          <div className="creator-followers-list">
+            {followers.map((follower) => {
+              const followerName = getName(follower);
+              const followerInitial = getInitial(follower);
+
+              return (
+                <Link
+                  key={follower.id}
+                  to={follower.username ? `/u/${encodeURIComponent(follower.username)}` : "#"}
+                  className="creator-follower-row"
+                >
+                  {follower.avatar_url ? (
+                    <img src={follower.avatar_url} alt="" />
+                  ) : (
+                    <span>{followerInitial}</span>
+                  )}
+                  <div>
+                    <strong>{followerName}</strong>
+                    {follower.username ? <small>@{follower.username}</small> : null}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="creator-muted">No followers yet.</p>
+        )}
       </section>
 
       {creatorBio ? (
@@ -802,7 +924,7 @@ export default function CreatorProfile() {
         </section>
       ) : null}
 
-      <section className="creator-card">
+      <section ref={listsSectionRef} id="creator-lists" className="creator-card">
         <div className="creator-section-head">
           <h2>Creator lists</h2>
           {isOwnProfile ? (
@@ -860,7 +982,7 @@ export default function CreatorProfile() {
         )}
       </section>
 
-      <section className="creator-card">
+      <section ref={postsSectionRef} id="creator-posts" className="creator-card">
         <div className="creator-section-head">
           <h2>Creator feed</h2>
           {isOwnProfile ? (
@@ -912,7 +1034,7 @@ export default function CreatorProfile() {
         )}
       </section>
 
-      <section className="creator-card">
+      <section ref={reviewsSectionRef} id="creator-reviews" className="creator-card">
         <div className="creator-section-head">
           <h2>Latest reviews</h2>
         </div>
