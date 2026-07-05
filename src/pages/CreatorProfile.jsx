@@ -29,6 +29,17 @@ function formatDate(value) {
   });
 }
 
+function formatPostType(value) {
+  const labels = {
+    post: "Post",
+    hot_take: "Hot take",
+    recommendation: "Recommendation",
+    tonights_pick: "Tonight's pick",
+    watchlist_advice: "Watchlist advice",
+  };
+  return labels[value] || "Post";
+}
+
 function showHref(show) {
   if (!show) return "#";
   if (show.tmdb_id) return `/show/tmdb/${show.tmdb_id}`;
@@ -46,16 +57,8 @@ function isUuid(value) {
   );
 }
 
-function formatPostType(value) {
-  const labels = {
-    post: "Post",
-    hot_take: "Hot take",
-    recommendation: "Recommendation",
-    tonights_pick: "Tonight's pick",
-    watchlist_advice: "Watchlist advice",
-  };
-
-  return labels[value] || "Post";
+function getShowYear(show) {
+  return String(show?.first_aired || show?.show_year || "").slice(0, 4);
 }
 
 function isYouTubeEmbed(url) {
@@ -64,16 +67,6 @@ function isYouTubeEmbed(url) {
 
 function isTikTokEmbed(url) {
   return Boolean(url && url.includes("tiktok.com/embed"));
-}
-
-function getShowYear(show) {
-  return String(show?.first_aired || show?.show_year || "").slice(0, 4);
-}
-
-function getPosterItems(items, limit = 8) {
-  return (items || [])
-    .filter((item) => item?.poster_url)
-    .slice(0, limit);
 }
 
 function VideoEmbed({ post }) {
@@ -109,15 +102,14 @@ function VideoEmbed({ post }) {
   }
 
   return (
-    <a
-      href={originalUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="creator-video-link"
-    >
+    <a href={originalUrl} target="_blank" rel="noreferrer" className="creator-video-link">
       Watch video
     </a>
   );
+}
+
+function getPosterItems(items, limit = 8) {
+  return (items || []).filter((item) => item?.poster_url).slice(0, limit);
 }
 
 function CreatorListCard({
@@ -183,9 +175,7 @@ function CreatorListCard({
 
       {isExpanded ? (
         <div className="creator-list-expanded-body">
-          {description ? (
-            <p className="creator-list-description">{description}</p>
-          ) : null}
+          {description ? <p className="creator-list-description">{description}</p> : null}
 
           {items.length ? (
             <div className="creator-list-items">
@@ -226,27 +216,23 @@ function CreatorListCard({
 
 export default function CreatorProfile() {
   const { username } = useParams();
-
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState("");
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followers, setFollowers] = useState([]);
   const [activeProfilePanel, setActiveProfilePanel] = useState("lists");
-
   const [monetization, setMonetization] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
   const [lists, setLists] = useState([]);
   const [rankedTopShows, setRankedTopShows] = useState([]);
   const [expandedListIds, setExpandedListIds] = useState(() => new Set());
-  const [error, setError] = useState("");
 
   const isOwnProfile = useMemo(() => {
     if (!currentUser?.id || !profile?.id) return false;
@@ -255,12 +241,10 @@ export default function CreatorProfile() {
 
   const isSubscribed = useMemo(() => {
     if (!subscription) return false;
-
     const validStatus = ["active", "trialing"].includes(subscription.status);
     const validPeriod =
       !subscription.current_period_end ||
       new Date(subscription.current_period_end) > new Date();
-
     return validStatus && validPeriod;
   }, [subscription]);
 
@@ -272,10 +256,6 @@ export default function CreatorProfile() {
     );
   }, [isOwnProfile, monetization]);
 
-  function handleStatClick(sectionName) {
-    setActiveProfilePanel(sectionName);
-  }
-
   function getStatButtonClass(sectionName) {
     return activeProfilePanel === sectionName ? "is-active" : "";
   }
@@ -283,11 +263,8 @@ export default function CreatorProfile() {
   function toggleListExpanded(listId) {
     setExpandedListIds((current) => {
       const next = new Set(current);
-      if (next.has(listId)) {
-        next.delete(listId);
-      } else {
-        next.add(listId);
-      }
+      if (next.has(listId)) next.delete(listId);
+      else next.add(listId);
       return next;
     });
   }
@@ -310,7 +287,6 @@ export default function CreatorProfile() {
 
       const rows = rankingRows || [];
       const showIds = rows.map((row) => row.show_id).filter(Boolean);
-
       if (!showIds.length) {
         setRankedTopShows([]);
         return;
@@ -327,10 +303,7 @@ export default function CreatorProfile() {
         return;
       }
 
-      const showMap = new Map(
-        (showRows || []).map((show) => [String(show.id), show])
-      );
-
+      const showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
       setRankedTopShows(
         rows
           .map((row, index) => {
@@ -345,9 +318,6 @@ export default function CreatorProfile() {
               show_year: getShowYear(show),
               poster_url: show.poster_url || "",
               tmdb_id: show.tmdb_id || "",
-              wins: Number(row.wins || 0),
-              losses: Number(row.losses || 0),
-              comparisons: Number(row.comparisons || 0),
               note: row.comparisons
                 ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
                 : "From Rank'd",
@@ -372,12 +342,9 @@ export default function CreatorProfile() {
         .order("created_at", { ascending: false })
         .limit(12);
 
-      if (!canViewPrivateLists) {
-        listQuery = listQuery.eq("visibility", "public");
-      }
+      if (!canViewPrivateLists) listQuery = listQuery.eq("visibility", "public");
 
       const { data: listRows, error: listError } = await listQuery;
-
       if (listError) {
         console.warn("Creator lists fetch error:", listError);
         setLists([]);
@@ -450,15 +417,8 @@ export default function CreatorProfile() {
 
       if (profileError) throw profileError;
 
-      const profileMap = new Map(
-        (profileRows || []).map((row) => [String(row.id), row])
-      );
-
-      setFollowers(
-        followerIds
-          .map((id) => profileMap.get(String(id)))
-          .filter(Boolean)
-      );
+      const profileMap = new Map((profileRows || []).map((row) => [String(row.id), row]));
+      setFollowers(followerIds.map((id) => profileMap.get(String(id))).filter(Boolean));
     } catch (err) {
       console.warn("Failed loading followers:", err);
       setFollowers([]);
@@ -476,17 +436,17 @@ export default function CreatorProfile() {
 
       const cleanUsername = decodeURIComponent(username || "").replace(/^@/, "");
       const profileSelect = `
-          id,
-          username,
-          full_name,
-          display_name,
-          avatar_url,
-          cover_url,
-          bio,
-          creator_tagline,
-          creator_niche,
-          creator_bio
-        `;
+        id,
+        username,
+        full_name,
+        display_name,
+        avatar_url,
+        cover_url,
+        bio,
+        creator_tagline,
+        creator_niche,
+        creator_bio
+      `;
 
       let { data: profileRow, error: profileError } = await supabase
         .from("profiles")
@@ -500,13 +460,11 @@ export default function CreatorProfile() {
           .select(profileSelect)
           .eq("id", cleanUsername)
           .maybeSingle();
-
         profileRow = fallbackResult.data;
         profileError = fallbackResult.error;
       }
 
       if (profileError) throw profileError;
-
       if (!profileRow) {
         setProfile(null);
         setError("Creator profile not found.");
@@ -515,54 +473,46 @@ export default function CreatorProfile() {
 
       setProfile(profileRow);
 
-      const [
-        { count: followerCount },
-        { data: followingRow },
-        { data: monetizationRow, error: monetizationError },
-        { data: subscriptionRow, error: subscriptionError },
-      ] = await Promise.all([
-        supabase
-          .from("user_follows")
-          .select("follower_id", { count: "exact", head: true })
-          .eq("following_id", profileRow.id),
+      const [{ count: followerCount }, { data: followingRow }, monetizationResult, subscriptionResult] =
+        await Promise.all([
+          supabase
+            .from("user_follows")
+            .select("follower_id", { count: "exact", head: true })
+            .eq("following_id", profileRow.id),
+          user?.id
+            ? supabase
+                .from("user_follows")
+                .select("follower_id")
+                .eq("follower_id", user.id)
+                .eq("following_id", profileRow.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          supabase
+            .from("creator_monetization")
+            .select("*")
+            .eq("user_id", profileRow.id)
+            .maybeSingle(),
+          user?.id && user.id !== profileRow.id
+            ? supabase
+                .from("creator_subscriptions")
+                .select("*")
+                .eq("creator_id", profileRow.id)
+                .eq("subscriber_id", user.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
 
-        user?.id
-          ? supabase
-              .from("user_follows")
-              .select("follower_id")
-              .eq("follower_id", user.id)
-              .eq("following_id", profileRow.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-
-        supabase
-          .from("creator_monetization")
-          .select("*")
-          .eq("user_id", profileRow.id)
-          .maybeSingle(),
-
-        user?.id && user.id !== profileRow.id
-          ? supabase
-              .from("creator_subscriptions")
-              .select("*")
-              .eq("creator_id", profileRow.id)
-              .eq("subscriber_id", user.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-      ]);
-
-      if (monetizationError) {
-        console.error("Monetization fetch error:", monetizationError);
+      if (monetizationResult.error) {
+        console.error("Monetization fetch error:", monetizationResult.error);
       }
-
-      if (subscriptionError) {
-        console.error("Subscription fetch error:", subscriptionError);
+      if (subscriptionResult.error) {
+        console.error("Subscription fetch error:", subscriptionResult.error);
       }
 
       setFollowersCount(followerCount || 0);
       setIsFollowing(Boolean(followingRow));
-      setMonetization(monetizationRow || null);
-      setSubscription(subscriptionRow || null);
+      setMonetization(monetizationResult.data || null);
+      setSubscription(subscriptionResult.data || null);
 
       await Promise.all([
         loadFollowers(profileRow),
@@ -636,23 +586,14 @@ export default function CreatorProfile() {
       setError("Please sign in to subscribe.");
       return;
     }
-
     if (!profile?.id || !canSubscribe) return;
-
-    console.log("Subscribe clicked", {
-      creatorId: profile.id,
-      subscriberId: currentUser.id,
-    });
-
     setError("Stripe checkout is the next step.");
   }
 
   async function handleDeletePost(postId) {
     if (!currentUser?.id || !profile?.id || !isOwnProfile) return;
-
     const confirmed = window.confirm("Delete this post?");
     if (!confirmed) return;
-
     setError("");
 
     try {
@@ -663,10 +604,7 @@ export default function CreatorProfile() {
         .eq("user_id", currentUser.id);
 
       if (deleteError) throw deleteError;
-
-      setPosts((currentPosts) =>
-        currentPosts.filter((post) => post.id !== postId)
-      );
+      setPosts((currentPosts) => currentPosts.filter((post) => post.id !== postId));
     } catch (err) {
       console.error("Failed deleting creator post:", err);
       setError(err.message || "Could not delete post.");
@@ -675,10 +613,8 @@ export default function CreatorProfile() {
 
   async function handleDeleteList(listId) {
     if (!currentUser?.id || !profile?.id || !isOwnProfile) return;
-
     const confirmed = window.confirm("Delete this list?");
     if (!confirmed) return;
-
     setError("");
 
     try {
@@ -689,7 +625,6 @@ export default function CreatorProfile() {
         .eq("user_id", currentUser.id);
 
       if (deleteError) throw deleteError;
-
       setLists((currentLists) => currentLists.filter((list) => list.id !== listId));
       setExpandedListIds((current) => {
         const next = new Set(current);
@@ -704,7 +639,6 @@ export default function CreatorProfile() {
 
   async function toggleFollow() {
     if (!currentUser?.id || !profile?.id || isOwnProfile || followLoading) return;
-
     setFollowLoading(true);
     setError("");
 
@@ -715,21 +649,15 @@ export default function CreatorProfile() {
           .delete()
           .eq("follower_id", currentUser.id)
           .eq("following_id", profile.id);
-
         if (deleteError) throw deleteError;
-
         setIsFollowing(false);
         setFollowersCount((count) => Math.max(0, count - 1));
       } else {
-        const { error: insertError } = await supabase
-          .from("user_follows")
-          .insert({
-            follower_id: currentUser.id,
-            following_id: profile.id,
-          });
-
+        const { error: insertError } = await supabase.from("user_follows").insert({
+          follower_id: currentUser.id,
+          following_id: profile.id,
+        });
         if (insertError) throw insertError;
-
         setIsFollowing(true);
         setFollowersCount((count) => count + 1);
       }
@@ -802,16 +730,17 @@ export default function CreatorProfile() {
                 <Link to="/profile/edit" className="creator-btn creator-btn-secondary">
                   Edit profile
                 </Link>
-                <Link to="/creator/lists/new" className="creator-btn creator-btn-primary">
+                <Link to="/creator/posts/new" className="creator-btn creator-btn-primary">
+                  Create post
+                </Link>
+                <Link to="/creator/lists/new" className="creator-btn creator-btn-secondary">
                   Create list
                 </Link>
               </>
             ) : (
               <button
                 type="button"
-                className={`creator-btn ${
-                  isFollowing ? "creator-btn-secondary" : "creator-btn-primary"
-                }`}
+                className={`creator-btn ${isFollowing ? "creator-btn-secondary" : "creator-btn-primary"}`}
                 onClick={toggleFollow}
                 disabled={followLoading}
               >
@@ -821,11 +750,7 @@ export default function CreatorProfile() {
 
             {!isOwnProfile ? (
               isSubscribed ? (
-                <button
-                  type="button"
-                  className="creator-btn creator-btn-secondary"
-                  disabled
-                >
+                <button type="button" className="creator-btn creator-btn-secondary" disabled>
                   Subscribed
                 </button>
               ) : canSubscribe ? (
@@ -835,15 +760,10 @@ export default function CreatorProfile() {
                   onClick={handleSubscribe}
                   disabled={subscriptionLoading}
                 >
-                  Subscribe £
-                  {(monetization.monthly_price_pence / 100).toFixed(2)}/month
+                  Subscribe £{(monetization.monthly_price_pence / 100).toFixed(2)}/month
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="creator-btn creator-btn-locked"
-                  disabled
-                >
+                <button type="button" className="creator-btn creator-btn-locked" disabled>
                   Subscribe soon
                 </button>
               )
@@ -858,7 +778,7 @@ export default function CreatorProfile() {
         <button
           type="button"
           className={getStatButtonClass("followers")}
-          onClick={() => handleStatClick("followers")}
+          onClick={() => setActiveProfilePanel("followers")}
         >
           <strong>{followersCount}</strong>
           <span>Followers</span>
@@ -866,7 +786,7 @@ export default function CreatorProfile() {
         <button
           type="button"
           className={getStatButtonClass("posts")}
-          onClick={() => handleStatClick("posts")}
+          onClick={() => setActiveProfilePanel("posts")}
         >
           <strong>{posts.length}</strong>
           <span>Posts</span>
@@ -874,7 +794,7 @@ export default function CreatorProfile() {
         <button
           type="button"
           className={getStatButtonClass("lists")}
-          onClick={() => handleStatClick("lists")}
+          onClick={() => setActiveProfilePanel("lists")}
         >
           <strong>{listCount}</strong>
           <span>Lists</span>
@@ -882,7 +802,7 @@ export default function CreatorProfile() {
         <button
           type="button"
           className={getStatButtonClass("reviews")}
-          onClick={() => handleStatClick("reviews")}
+          onClick={() => setActiveProfilePanel("reviews")}
         >
           <strong>{reviews.length}</strong>
           <span>Reviews</span>
@@ -1001,7 +921,7 @@ export default function CreatorProfile() {
             <div className="creator-section-head">
               <h2>Creator feed</h2>
               {isOwnProfile ? (
-                <Link to="/profile/edit" className="creator-small-link">
+                <Link to="/creator/posts/new" className="creator-small-link">
                   Create post
                 </Link>
               ) : null}
@@ -1014,9 +934,7 @@ export default function CreatorProfile() {
                     <div className="creator-post-meta">
                       <span>{formatPostType(post.post_type)}</span>
                       <span>{formatDate(post.created_at)}</span>
-                      {post.visibility === "subscribers" ? (
-                        <span>Subscribers only</span>
-                      ) : null}
+                      {post.visibility === "subscribers" ? <span>Subscribers only</span> : null}
                     </div>
 
                     <VideoEmbed post={post} />
