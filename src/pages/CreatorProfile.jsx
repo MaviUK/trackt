@@ -53,6 +53,10 @@ function isTikTokEmbed(url) {
   return Boolean(url && url.includes("tiktok.com/embed"));
 }
 
+function getShowYear(show) {
+  return String(show?.first_aired || show?.show_year || "").slice(0, 4);
+}
+
 function VideoEmbed({ post }) {
   const embedUrl = post?.video_embed_url;
   const originalUrl = post?.video_url || embedUrl;
@@ -115,6 +119,7 @@ export default function CreatorProfile() {
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
   const [lists, setLists] = useState([]);
+  const [rankedTopShows, setRankedTopShows] = useState([]);
   const [error, setError] = useState("");
 
   const isOwnProfile = useMemo(() => {
@@ -140,6 +145,75 @@ export default function CreatorProfile() {
         monetization?.stripe_onboarding_complete
     );
   }, [isOwnProfile, monetization]);
+
+  async function loadRankedTopShows(profileRow) {
+    try {
+      const { data: rankingRows, error: rankingError } = await supabase
+        .from("user_show_rankings")
+        .select("show_id, ladder_position, wins, losses, comparisons, updated_at")
+        .eq("user_id", profileRow.id)
+        .not("ladder_position", "is", null)
+        .order("ladder_position", { ascending: true })
+        .limit(10);
+
+      if (rankingError) {
+        console.warn("Creator automatic ranking list fetch error:", rankingError);
+        setRankedTopShows([]);
+        return;
+      }
+
+      const rows = rankingRows || [];
+      const showIds = rows.map((row) => row.show_id).filter(Boolean);
+
+      if (!showIds.length) {
+        setRankedTopShows([]);
+        return;
+      }
+
+      const { data: showRows, error: showsError } = await supabase
+        .from("shows")
+        .select("id, name, first_aired, poster_url, tmdb_id")
+        .in("id", showIds);
+
+      if (showsError) {
+        console.warn("Creator automatic ranking list show fetch error:", showsError);
+        setRankedTopShows([]);
+        return;
+      }
+
+      const showMap = new Map(
+        (showRows || []).map((show) => [String(show.id), show])
+      );
+
+      setRankedTopShows(
+        rows
+          .map((row, index) => {
+            const show = showMap.get(String(row.show_id));
+            if (!show) return null;
+
+            return {
+              id: `ranked-${row.show_id}`,
+              show_id: row.show_id,
+              rank: index + 1,
+              show_name: show.name || "Untitled show",
+              show_year: getShowYear(show),
+              poster_url: show.poster_url || "",
+              tmdb_id: show.tmdb_id || "",
+              wins: Number(row.wins || 0),
+              losses: Number(row.losses || 0),
+              comparisons: Number(row.comparisons || 0),
+              note: row.comparisons
+                ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+                : "From Rank'd",
+            };
+          })
+          .filter(Boolean)
+      );
+    } catch (err) {
+      console.warn("Failed loading automatic creator ranking list:", err);
+      setRankedTopShows([]);
+    }
+  }
 
   async function loadCreatorLists(profileRow, user) {
     const canViewPrivateLists = Boolean(user?.id && user.id === profileRow.id);
@@ -290,7 +364,10 @@ export default function CreatorProfile() {
       setMonetization(monetizationRow || null);
       setSubscription(subscriptionRow || null);
 
-      await loadCreatorLists(profileRow, user);
+      await Promise.all([
+        loadRankedTopShows(profileRow),
+        loadCreatorLists(profileRow, user),
+      ]);
 
       const { data: postRows, error: postsError } = await supabase
         .from("creator_posts")
@@ -482,6 +559,7 @@ export default function CreatorProfile() {
     profile?.bio ||
     "Follow my TV reviews, posts and recommendations.";
   const creatorBio = profile?.creator_bio || profile?.bio || "";
+  const listCount = lists.length + (rankedTopShows.length ? 1 : 0);
 
   return (
     <main className="creator-page">
@@ -576,7 +654,7 @@ export default function CreatorProfile() {
           <span>Posts</span>
         </div>
         <div>
-          <strong>{lists.length}</strong>
+          <strong>{listCount}</strong>
           <span>Lists</span>
         </div>
         <div>
@@ -604,8 +682,42 @@ export default function CreatorProfile() {
           ) : null}
         </div>
 
-        {lists.length ? (
+        {listCount ? (
           <div className="creator-list-grid">
+            {rankedTopShows.length ? (
+              <article className="creator-list-card creator-list-card-auto">
+                <div className="creator-list-head">
+                  <div>
+                    <h3>Top 10 shows of all time</h3>
+                    <p>{rankedTopShows.length} ranked shows • Auto-updates from Rank'd</p>
+                  </div>
+                  <span>Rank'd</span>
+                </div>
+
+                <p className="creator-list-description">
+                  This list is generated from {displayName}&apos;s current Rank&apos;d ladder and changes whenever their rankings change.
+                </p>
+
+                <div className="creator-list-items">
+                  {rankedTopShows.map((item) => (
+                    <Link key={item.id} to={showHref(item)} className="creator-list-item">
+                      <span className="creator-rank">#{item.rank}</span>
+                      {item.poster_url ? (
+                        <img src={item.poster_url} alt="" />
+                      ) : (
+                        <span className="creator-mini-poster">?</span>
+                      )}
+                      <span>
+                        <strong>{item.show_name}</strong>
+                        {item.show_year ? <small>{item.show_year}</small> : null}
+                        {item.note ? <em>{item.note}</em> : null}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+
             {lists.map((list) => {
               const visibleItems = (list.items || []).slice(0, 6);
               const hiddenCount = Math.max(0, (list.items || []).length - visibleItems.length);
@@ -669,7 +781,7 @@ export default function CreatorProfile() {
         ) : (
           <p className="creator-muted">
             {isOwnProfile
-              ? "You have not created any lists yet. Tap Create list to make your first one."
+              ? "You have not created any lists yet. Rank shows in Rank'd or tap Create list to make your first one."
               : "This creator has not shared any lists yet."}
           </p>
         )}
