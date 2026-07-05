@@ -30,7 +30,7 @@ function formatDate(value) {
 function showHref(show) {
   if (!show) return "#";
   if (show.tmdb_id) return `/show/tmdb/${show.tmdb_id}`;
-  return `/show/${show.id}`;
+  return `/show/${show.id || show.show_id}`;
 }
 
 function formatPostType(value) {
@@ -114,6 +114,7 @@ export default function CreatorProfile() {
 
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
+  const [lists, setLists] = useState([]);
   const [error, setError] = useState("");
 
   const isOwnProfile = useMemo(() => {
@@ -139,6 +140,68 @@ export default function CreatorProfile() {
         monetization?.stripe_onboarding_complete
     );
   }, [isOwnProfile, monetization]);
+
+  async function loadCreatorLists(profileRow, user) {
+    const canViewPrivateLists = Boolean(user?.id && user.id === profileRow.id);
+
+    try {
+      let listQuery = supabase
+        .from("creator_lists")
+        .select("id, user_id, title, description, list_type, visibility, created_at, updated_at")
+        .eq("user_id", profileRow.id)
+        .order("created_at", { ascending: false })
+        .limit(12);
+
+      if (!canViewPrivateLists) {
+        listQuery = listQuery.eq("visibility", "public");
+      }
+
+      const { data: listRows, error: listError } = await listQuery;
+
+      if (listError) {
+        console.warn("Creator lists fetch error:", listError);
+        setLists([]);
+        return;
+      }
+
+      const rows = listRows || [];
+      if (!rows.length) {
+        setLists([]);
+        return;
+      }
+
+      const listIds = rows.map((list) => list.id);
+      const { data: itemRows, error: itemsError } = await supabase
+        .from("creator_list_items")
+        .select("id, list_id, rank, show_id, show_name, show_year, poster_url, tmdb_id, note")
+        .in("list_id", listIds)
+        .order("rank", { ascending: true });
+
+      if (itemsError) {
+        console.warn("Creator list items fetch error:", itemsError);
+        setLists(rows.map((list) => ({ ...list, items: [] })));
+        return;
+      }
+
+      const itemsByListId = new Map();
+      (itemRows || []).forEach((item) => {
+        const key = String(item.list_id);
+        const currentItems = itemsByListId.get(key) || [];
+        currentItems.push(item);
+        itemsByListId.set(key, currentItems);
+      });
+
+      setLists(
+        rows.map((list) => ({
+          ...list,
+          items: itemsByListId.get(String(list.id)) || [],
+        }))
+      );
+    } catch (err) {
+      console.warn("Failed loading creator lists:", err);
+      setLists([]);
+    }
+  }
 
   async function loadCreatorProfile() {
     setLoading(true);
@@ -226,6 +289,8 @@ export default function CreatorProfile() {
       setIsFollowing(Boolean(followingRow));
       setMonetization(monetizationRow || null);
       setSubscription(subscriptionRow || null);
+
+      await loadCreatorLists(profileRow, user);
 
       const { data: postRows, error: postsError } = await supabase
         .from("creator_posts")
@@ -328,6 +393,30 @@ export default function CreatorProfile() {
     }
   }
 
+  async function handleDeleteList(listId) {
+    if (!currentUser?.id || !profile?.id || !isOwnProfile) return;
+
+    const confirmed = window.confirm("Delete this list?");
+    if (!confirmed) return;
+
+    setError("");
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("creator_lists")
+        .delete()
+        .eq("id", listId)
+        .eq("user_id", currentUser.id);
+
+      if (deleteError) throw deleteError;
+
+      setLists((currentLists) => currentLists.filter((list) => list.id !== listId));
+    } catch (err) {
+      console.error("Failed deleting creator list:", err);
+      setError(err.message || "Could not delete list.");
+    }
+  }
+
   async function toggleFollow() {
     if (!currentUser?.id || !profile?.id || isOwnProfile || followLoading) return;
 
@@ -421,9 +510,14 @@ export default function CreatorProfile() {
 
           <div className="creator-actions">
             {isOwnProfile ? (
-              <Link to="/profile/edit" className="creator-btn creator-btn-secondary">
-                Edit profile
-              </Link>
+              <>
+                <Link to="/profile/edit" className="creator-btn creator-btn-secondary">
+                  Edit profile
+                </Link>
+                <Link to="/creator/lists/new" className="creator-btn creator-btn-primary">
+                  Create list
+                </Link>
+              </>
             ) : (
               <button
                 type="button"
@@ -482,6 +576,10 @@ export default function CreatorProfile() {
           <span>Posts</span>
         </div>
         <div>
+          <strong>{lists.length}</strong>
+          <span>Lists</span>
+        </div>
+        <div>
           <strong>{reviews.length}</strong>
           <span>Reviews</span>
         </div>
@@ -495,6 +593,87 @@ export default function CreatorProfile() {
           <p className="creator-copy">{creatorBio}</p>
         </section>
       ) : null}
+
+      <section className="creator-card">
+        <div className="creator-section-head">
+          <h2>Creator lists</h2>
+          {isOwnProfile ? (
+            <Link to="/creator/lists/new" className="creator-small-link">
+              Create list
+            </Link>
+          ) : null}
+        </div>
+
+        {lists.length ? (
+          <div className="creator-list-grid">
+            {lists.map((list) => {
+              const visibleItems = (list.items || []).slice(0, 6);
+              const hiddenCount = Math.max(0, (list.items || []).length - visibleItems.length);
+
+              return (
+                <article key={list.id} className="creator-list-card">
+                  <div className="creator-list-head">
+                    <div>
+                      <h3>{list.title}</h3>
+                      <p>
+                        {list.items?.length || 0} show{(list.items?.length || 0) === 1 ? "" : "s"}
+                        {list.visibility === "private" ? " • Private draft" : ""}
+                      </p>
+                    </div>
+                    <span>{formatDate(list.created_at)}</span>
+                  </div>
+
+                  {list.description ? (
+                    <p className="creator-list-description">{list.description}</p>
+                  ) : null}
+
+                  {visibleItems.length ? (
+                    <div className="creator-list-items">
+                      {visibleItems.map((item) => (
+                        <Link key={item.id} to={showHref(item)} className="creator-list-item">
+                          <span className="creator-rank">#{item.rank}</span>
+                          {item.poster_url ? (
+                            <img src={item.poster_url} alt="" />
+                          ) : (
+                            <span className="creator-mini-poster">?</span>
+                          )}
+                          <span>
+                            <strong>{item.show_name}</strong>
+                            {item.show_year ? <small>{item.show_year}</small> : null}
+                            {item.note ? <em>{item.note}</em> : null}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="creator-muted">No shows added yet.</p>
+                  )}
+
+                  {hiddenCount ? (
+                    <p className="creator-list-more">+{hiddenCount} more</p>
+                  ) : null}
+
+                  {isOwnProfile ? (
+                    <button
+                      type="button"
+                      className="creator-delete-post-btn"
+                      onClick={() => handleDeleteList(list.id)}
+                    >
+                      Delete list
+                    </button>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="creator-muted">
+            {isOwnProfile
+              ? "You have not created any lists yet. Tap Create list to make your first one."
+              : "This creator has not shared any lists yet."}
+          </p>
+        )}
+      </section>
 
       <section className="creator-card">
         <div className="creator-section-head">
