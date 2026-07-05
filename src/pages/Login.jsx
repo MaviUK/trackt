@@ -18,8 +18,11 @@ export default function Login() {
     return params.get("redirect") || "/";
   }, [location.search]);
 
+  const [loginMode, setLoginMode] = useState("email");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [trendingShows, setTrendingShows] = useState([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
@@ -60,10 +63,13 @@ export default function Login() {
     };
   }, []);
 
-  const login = async (event) => {
-    event?.preventDefault?.();
+  function setMode(nextMode) {
+    setLoginMode(nextMode);
     setError("");
+    setSent(false);
+  }
 
+  const loginWithEmailLink = async () => {
     if (!supabase) {
       setError("Supabase environment variables are missing.");
       return;
@@ -76,19 +82,65 @@ export default function Login() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
+    setSubmitting(true);
+    setError("");
+
+    const setupRedirect = `/set-password?redirect=${encodeURIComponent(redirectTo)}`;
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}${redirectTo}`,
+        emailRedirectTo: `${window.location.origin}${setupRedirect}`,
       },
     });
 
-    if (error) {
-      setError(error.message);
+    setSubmitting(false);
+
+    if (otpError) {
+      setError(otpError.message);
       return;
     }
 
     setSent(true);
+  };
+
+  const loginWithPassword = async () => {
+    if (!supabase) {
+      setError("Supabase environment variables are missing.");
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !password) {
+      setError("Enter your email and password.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    const { error: passwordError } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+
+    setSubmitting(false);
+
+    if (passwordError) {
+      setError(passwordError.message);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event?.preventDefault?.();
+
+    if (loginMode === "password") {
+      await loginWithPassword();
+      return;
+    }
+
+    await loginWithEmailLink();
   };
 
   const displayTrendingShows = trendingShows.length
@@ -103,16 +155,37 @@ export default function Login() {
 
       <main className="login-shell">
         <section className="login-login-section" aria-label="Login">
-          <form className="login-form-card" onSubmit={login}>
+          <form className="login-form-card" onSubmit={handleSubmit}>
             {sent ? (
               <div className="login-success" role="status">
-                Check your email for the login link.
+                <strong>Check your email for the login link.</strong>
+                <span>
+                  The first time you use that link, you will be asked to set a password.
+                  After that, you can sign in by password or email link.
+                </span>
               </div>
             ) : (
               <>
                 <label className="login-label" htmlFor="login-email">
                   Login
                 </label>
+
+                <div className="login-mode-tabs" role="tablist" aria-label="Login options">
+                  <button
+                    type="button"
+                    className={loginMode === "email" ? "is-active" : ""}
+                    onClick={() => setMode("email")}
+                  >
+                    Email link
+                  </button>
+                  <button
+                    type="button"
+                    className={loginMode === "password" ? "is-active" : ""}
+                    onClick={() => setMode("password")}
+                  >
+                    Password
+                  </button>
+                </div>
 
                 <input
                   id="login-email"
@@ -123,7 +196,40 @@ export default function Login() {
                   autoComplete="email"
                 />
 
-                <button type="submit">Send Login Link</button>
+                {loginMode === "password" ? (
+                  <input
+                    id="login-password"
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                ) : (
+                  <p className="login-help-text">
+                    Use this for your first login. You will set a password after clicking the email link.
+                  </p>
+                )}
+
+                <button type="submit" disabled={submitting}>
+                  {submitting
+                    ? loginMode === "password"
+                      ? "Signing in..."
+                      : "Sending..."
+                    : loginMode === "password"
+                      ? "Sign In With Password"
+                      : "Send Login Link"}
+                </button>
+
+                {loginMode === "password" ? (
+                  <button
+                    type="button"
+                    className="login-secondary-action"
+                    onClick={() => setMode("email")}
+                  >
+                    Forgotten it? Send an email link instead
+                  </button>
+                ) : null}
 
                 {error ? <p className="login-error">{error}</p> : null}
               </>
