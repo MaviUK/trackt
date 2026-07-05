@@ -487,6 +487,7 @@ function AppLayout() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setProfile(null);
       setSession(nextSession ?? null);
     });
 
@@ -504,6 +505,8 @@ function AppLayout() {
         setProfile(null);
         return;
       }
+
+      setProfile(null);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -533,13 +536,15 @@ function AppLayout() {
     return null;
   }
 
+  const routeUserKey = session?.user?.id || "anonymous";
+
   return (
     <>
       <ScrollToTopOnRouteChange />
       <DesktopNav session={session} profile={profile} />
       <MobileTopBanner session={session} profile={profile} />
 
-      <Routes>
+      <Routes key={routeUserKey}>
         <Route path="/" element={<AuthRedirect session={session} />} />
         <Route path="/login" element={<LoginRoute session={session} />} />
 
