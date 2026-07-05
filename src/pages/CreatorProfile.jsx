@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./CreatorProfile.css";
+import "./CreatorListCards.css";
 
 function getName(profile) {
   return (
@@ -57,6 +58,12 @@ function getShowYear(show) {
   return String(show?.first_aired || show?.show_year || "").slice(0, 4);
 }
 
+function getPosterItems(items, limit = 8) {
+  return (items || [])
+    .filter((item) => item?.poster_url)
+    .slice(0, limit);
+}
+
 function VideoEmbed({ post }) {
   const embedUrl = post?.video_embed_url;
   const originalUrl = post?.video_url || embedUrl;
@@ -101,6 +108,110 @@ function VideoEmbed({ post }) {
   );
 }
 
+function CreatorListCard({
+  listId,
+  title,
+  subtitle,
+  badge,
+  description,
+  items = [],
+  isExpanded,
+  onToggle,
+  canDelete = false,
+  onDelete,
+  className = "",
+}) {
+  const posterItems = getPosterItems(items);
+
+  return (
+    <article
+      className={`creator-list-card creator-list-card-collapsed ${
+        isExpanded ? "is-expanded" : ""
+      } ${className}`.trim()}
+    >
+      <button
+        type="button"
+        className="creator-list-cover-button"
+        onClick={() => onToggle(listId)}
+        aria-expanded={isExpanded}
+      >
+        <div className="creator-list-cover-art" aria-hidden="true">
+          {posterItems.length ? (
+            <div className="creator-list-poster-collage">
+              {posterItems.map((item, index) => (
+                <img
+                  key={`${listId}-poster-${item.show_id || item.id || index}`}
+                  src={item.poster_url}
+                  alt=""
+                  loading="lazy"
+                  className={`creator-list-collage-poster creator-list-collage-poster-${index + 1}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="creator-list-poster-collage creator-list-poster-collage-empty">
+              <span>TV</span>
+            </div>
+          )}
+          <div className="creator-list-cover-shade" />
+        </div>
+
+        <div className="creator-list-cover-content">
+          <div className="creator-list-cover-topline">
+            <span>{badge}</span>
+            <span>{isExpanded ? "Tap to close" : "Tap to expand"}</span>
+          </div>
+
+          <div>
+            <h3>{title}</h3>
+            <p>{subtitle}</p>
+          </div>
+        </div>
+      </button>
+
+      {isExpanded ? (
+        <div className="creator-list-expanded-body">
+          {description ? (
+            <p className="creator-list-description">{description}</p>
+          ) : null}
+
+          {items.length ? (
+            <div className="creator-list-items">
+              {items.map((item) => (
+                <Link key={item.id} to={showHref(item)} className="creator-list-item">
+                  <span className="creator-rank">#{item.rank}</span>
+                  {item.poster_url ? (
+                    <img src={item.poster_url} alt="" />
+                  ) : (
+                    <span className="creator-mini-poster">?</span>
+                  )}
+                  <span>
+                    <strong>{item.show_name}</strong>
+                    {item.show_year ? <small>{item.show_year}</small> : null}
+                    {item.note ? <em>{item.note}</em> : null}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="creator-muted">No shows added yet.</p>
+          )}
+        </div>
+      ) : null}
+
+      {canDelete ? (
+        <button
+          type="button"
+          className="creator-delete-post-btn"
+          onClick={() => onDelete(listId)}
+        >
+          Delete list
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
 export default function CreatorProfile() {
   const { username } = useParams();
 
@@ -120,6 +231,7 @@ export default function CreatorProfile() {
   const [posts, setPosts] = useState([]);
   const [lists, setLists] = useState([]);
   const [rankedTopShows, setRankedTopShows] = useState([]);
+  const [expandedListIds, setExpandedListIds] = useState(() => new Set());
   const [error, setError] = useState("");
 
   const isOwnProfile = useMemo(() => {
@@ -145,6 +257,18 @@ export default function CreatorProfile() {
         monetization?.stripe_onboarding_complete
     );
   }, [isOwnProfile, monetization]);
+
+  function toggleListExpanded(listId) {
+    setExpandedListIds((current) => {
+      const next = new Set(current);
+      if (next.has(listId)) {
+        next.delete(listId);
+      } else {
+        next.add(listId);
+      }
+      return next;
+    });
+  }
 
   async function loadRankedTopShows(profileRow) {
     try {
@@ -425,6 +549,7 @@ export default function CreatorProfile() {
   }
 
   useEffect(() => {
+    setExpandedListIds(new Set());
     loadCreatorProfile();
   }, [username]);
 
@@ -488,6 +613,11 @@ export default function CreatorProfile() {
       if (deleteError) throw deleteError;
 
       setLists((currentLists) => currentLists.filter((list) => list.id !== listId));
+      setExpandedListIds((current) => {
+        const next = new Set(current);
+        next.delete(listId);
+        return next;
+      });
     } catch (err) {
       console.error("Failed deleting creator list:", err);
       setError(err.message || "Could not delete list.");
@@ -685,96 +815,39 @@ export default function CreatorProfile() {
         {listCount ? (
           <div className="creator-list-grid">
             {rankedTopShows.length ? (
-              <article className="creator-list-card creator-list-card-auto">
-                <div className="creator-list-head">
-                  <div>
-                    <h3>Top 10 shows of all time</h3>
-                    <p>{rankedTopShows.length} ranked shows • Auto-updates from Rank'd</p>
-                  </div>
-                  <span>Rank'd</span>
-                </div>
-
-                <p className="creator-list-description">
-                  This list is generated from {displayName}&apos;s current Rank&apos;d ladder and changes whenever their rankings change.
-                </p>
-
-                <div className="creator-list-items">
-                  {rankedTopShows.map((item) => (
-                    <Link key={item.id} to={showHref(item)} className="creator-list-item">
-                      <span className="creator-rank">#{item.rank}</span>
-                      {item.poster_url ? (
-                        <img src={item.poster_url} alt="" />
-                      ) : (
-                        <span className="creator-mini-poster">?</span>
-                      )}
-                      <span>
-                        <strong>{item.show_name}</strong>
-                        {item.show_year ? <small>{item.show_year}</small> : null}
-                        {item.note ? <em>{item.note}</em> : null}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </article>
+              <CreatorListCard
+                listId="rankd-top-10"
+                title="Top 10 shows of all time"
+                subtitle={`${rankedTopShows.length} ranked shows • Auto-updates from Rank'd`}
+                badge="Rank'd"
+                description={`This list is generated from ${displayName}'s current Rank'd ladder and changes whenever their rankings change.`}
+                items={rankedTopShows}
+                isExpanded={expandedListIds.has("rankd-top-10")}
+                onToggle={toggleListExpanded}
+                className="creator-list-card-auto"
+              />
             ) : null}
 
             {lists.map((list) => {
-              const visibleItems = (list.items || []).slice(0, 6);
-              const hiddenCount = Math.max(0, (list.items || []).length - visibleItems.length);
+              const itemCount = list.items?.length || 0;
+              const subtitle = `${itemCount} show${itemCount === 1 ? "" : "s"}${
+                list.visibility === "private" ? " • Private draft" : ""
+              }`;
 
               return (
-                <article key={list.id} className="creator-list-card">
-                  <div className="creator-list-head">
-                    <div>
-                      <h3>{list.title}</h3>
-                      <p>
-                        {list.items?.length || 0} show{(list.items?.length || 0) === 1 ? "" : "s"}
-                        {list.visibility === "private" ? " • Private draft" : ""}
-                      </p>
-                    </div>
-                    <span>{formatDate(list.created_at)}</span>
-                  </div>
-
-                  {list.description ? (
-                    <p className="creator-list-description">{list.description}</p>
-                  ) : null}
-
-                  {visibleItems.length ? (
-                    <div className="creator-list-items">
-                      {visibleItems.map((item) => (
-                        <Link key={item.id} to={showHref(item)} className="creator-list-item">
-                          <span className="creator-rank">#{item.rank}</span>
-                          {item.poster_url ? (
-                            <img src={item.poster_url} alt="" />
-                          ) : (
-                            <span className="creator-mini-poster">?</span>
-                          )}
-                          <span>
-                            <strong>{item.show_name}</strong>
-                            {item.show_year ? <small>{item.show_year}</small> : null}
-                            {item.note ? <em>{item.note}</em> : null}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="creator-muted">No shows added yet.</p>
-                  )}
-
-                  {hiddenCount ? (
-                    <p className="creator-list-more">+{hiddenCount} more</p>
-                  ) : null}
-
-                  {isOwnProfile ? (
-                    <button
-                      type="button"
-                      className="creator-delete-post-btn"
-                      onClick={() => handleDeleteList(list.id)}
-                    >
-                      Delete list
-                    </button>
-                  ) : null}
-                </article>
+                <CreatorListCard
+                  key={list.id}
+                  listId={list.id}
+                  title={list.title}
+                  subtitle={subtitle}
+                  badge={formatDate(list.created_at)}
+                  description={list.description}
+                  items={list.items || []}
+                  isExpanded={expandedListIds.has(list.id)}
+                  onToggle={toggleListExpanded}
+                  canDelete={isOwnProfile}
+                  onDelete={handleDeleteList}
+                />
               );
             })}
           </div>
