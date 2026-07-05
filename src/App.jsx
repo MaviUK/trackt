@@ -10,6 +10,7 @@ import {
 import "./index.css";
 import ProfileEdit from "./pages/ProfileEdit";
 import CreatorProfile from "./pages/CreatorProfile";
+import CreatorListEditor from "./pages/CreatorListEditor";
 import FollowingFeed from "./pages/FollowingFeed";
 
 import Search from "./pages/Search";
@@ -260,12 +261,11 @@ function DesktopNav({ session, profile }) {
 
 function MobileTopBanner({ session, profile }) {
   const location = useLocation();
-
   const isSharedRankdPage = location.pathname.startsWith("/rankd/share/");
 
-if ((!session && !isSharedRankdPage) || location.pathname === "/login") {
-  return null;
-}
+  if ((!session && !isSharedRankdPage) || location.pathname === "/login") {
+    return null;
+  }
 
   return (
     <div className="mobile-top-banner-wrap">
@@ -348,7 +348,6 @@ function MobileBottomNav({ session }) {
         </span>
         <span className="mobile-nav-label">Rank</span>
       </NavLink>
-
     </nav>
   );
 }
@@ -554,6 +553,15 @@ function AppLayout() {
           element={
             <ProtectedRoute session={session}>
               <CreatorProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/creator/lists/new"
+          element={
+            <ProtectedRoute session={session}>
+              <CreatorListEditor />
             </ProtectedRoute>
           }
         />
