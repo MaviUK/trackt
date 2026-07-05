@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
 import ReviewVotes from "./ReviewVotes";
 
 function formatDateTime(value) {
@@ -15,10 +17,6 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function getDisplayName(profile) {
-  return profile?.full_name || profile?.username || "User";
 }
 
 function formatRating(value) {
@@ -77,10 +75,10 @@ function ReviewItem({
   const [showReplies, setShowReplies] = useState(false);
 
   const profile = review.profile || {};
-  const displayName = getDisplayName(profile);
+  const displayName = getProfileDisplayName(profile, "User");
   const avatarUrl = profile.avatar_url || "";
   const username = profile.username || "";
-  const profileUrl = username ? `/u/${encodeURIComponent(username)}` : "";
+  const profileUrl = getProfileHref(profile, review.user_id);
   const ratingLabel = formatRating(review.user_rating);
 
   const isOwnReview =
@@ -132,29 +130,29 @@ function ReviewItem({
         <div className="msd-review-card">
           <div className="msd-review-head">
             <div className="msd-review-head-left">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="" className="msd-review-avatar" />
-              ) : (
-                <div className="msd-review-avatar msd-review-avatar-fallback">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </div>
-              )}
+              <Link to={profileUrl} className="msd-review-avatar-link" aria-label={`Open ${displayName}'s profile`}>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="msd-review-avatar" />
+                ) : (
+                  <div className="msd-review-avatar msd-review-avatar-fallback">
+                    {displayName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </Link>
 
               <div className="msd-review-user-line">
-                {profileUrl ? (
-                  <a href={profileUrl} className="msd-review-username">
-                    {displayName}
-                  </a>
-                ) : (
-                  <strong className="msd-review-username">{displayName}</strong>
-                )}
+                <Link to={profileUrl} className="msd-review-username">
+                  {displayName}
+                </Link>
 
                 {ratingLabel ? (
                   <span className="msd-review-rating">{ratingLabel}</span>
                 ) : null}
 
                 {username && displayName !== username ? (
-                  <span className="msd-review-handle">@{username}</span>
+                  <Link to={profileUrl} className="msd-review-handle">
+                    @{username}
+                  </Link>
                 ) : null}
 
                 <span className="msd-review-date">
@@ -309,7 +307,6 @@ function ReviewItem({
           </form>
         ) : null}
 
-
         {hasReplies && effectiveShowReplies ? (
           <div className="msd-review-replies">
             {review.replies.map((reply) => (
@@ -375,7 +372,7 @@ export default function ReviewThread({
       if (userIds.length) {
         const { data: profiles, error: profileError } = await supabase
           .from("profiles")
-.select("id, username, full_name, avatar_url")
+          .select("id, username, full_name, display_name, avatar_url")
           .in("id", userIds);
 
         if (profileError) throw profileError;
@@ -437,7 +434,7 @@ export default function ReviewThread({
       setReviews(
         (reviewRows || []).map((row) => ({
           ...row,
-          profile: profileMap.get(String(row.user_id)) || null,
+          profile: profileMap.get(String(row.user_id)) || { id: row.user_id },
           user_rating: ratingMap.get(String(row.user_id)) ?? null,
           up_count: voteMap.get(String(row.id))?.up || 0,
           down_count: voteMap.get(String(row.id))?.down || 0,
@@ -619,30 +616,30 @@ ${trimmed}`.trim()
     }
   }
 
-function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
-  setReviews((prev) =>
-    prev.map((review) => {
-      if (String(review.id) !== String(reviewId)) return review;
+  function handleLocalVoteChanged(reviewId, nextVote, previousVote) {
+    setReviews((prev) =>
+      prev.map((review) => {
+        if (String(review.id) !== String(reviewId)) return review;
 
-      let up = Number(review.up_count || 0);
-      let down = Number(review.down_count || 0);
+        let up = Number(review.up_count || 0);
+        let down = Number(review.down_count || 0);
 
-      if (previousVote === 1) up -= 1;
-      if (previousVote === -1) down -= 1;
+        if (previousVote === 1) up -= 1;
+        if (previousVote === -1) down -= 1;
 
-      if (nextVote === 1) up += 1;
-      if (nextVote === -1) down += 1;
+        if (nextVote === 1) up += 1;
+        if (nextVote === -1) down += 1;
 
-      return {
-        ...review,
-        up_count: Math.max(0, up),
-        down_count: Math.max(0, down),
-        my_vote: nextVote,
-      };
-    })
-  );
-}
-  
+        return {
+          ...review,
+          up_count: Math.max(0, up),
+          down_count: Math.max(0, down),
+          my_vote: nextVote,
+        };
+      })
+    );
+  }
+
   return (
     <section className={config.sectionClass || "msd-reviews-section"}>
       <h2 className={config.headingClass || "msd-section-title"}>{heading}</h2>
