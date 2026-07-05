@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
 import ReviewVotes from "./ReviewVotes";
 
 function formatDateTime(value) {
@@ -12,14 +14,6 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function getDisplayName(profile, fallbackUserId) {
-  return (
-    profile?.username ||
-    profile?.full_name ||
-    (fallbackUserId ? `User ${String(fallbackUserId).slice(0, 6)}` : "User")
-  );
 }
 
 function buildTree(rows) {
@@ -38,8 +32,13 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const profile = message.profile || {};
-  const displayName = getDisplayName(profile, message.user_id);
+  const displayName = getProfileDisplayName(
+    profile,
+    message.user_id ? `User ${String(message.user_id).slice(0, 6)}` : "User"
+  );
   const avatarUrl = profile.avatar_url || "";
+  const profileUrl = getProfileHref(profile, message.user_id);
+  const username = profile.username || "";
   const isSaving = savingReplyId === message.id;
   const canReply = currentUserId && String(message.user_id) !== String(currentUserId);
 
@@ -59,15 +58,24 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
       <div className="msd-review-body-wrap">
         <div className="msd-review-card msd-chat-card">
           <div className="msd-review-head">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="msd-review-avatar" />
-            ) : (
-              <div className="msd-review-avatar msd-review-avatar-fallback">
-                {displayName.slice(0, 1).toUpperCase()}
-              </div>
-            )}
+            <Link to={profileUrl} className="msd-review-avatar-link" aria-label={`Open ${displayName}'s profile`}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="msd-review-avatar" />
+              ) : (
+                <div className="msd-review-avatar msd-review-avatar-fallback">
+                  {displayName.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+            </Link>
             <div className="msd-review-user-line">
-              <strong className="msd-review-username">{displayName}</strong>
+              <Link to={profileUrl} className="msd-review-username">
+                {displayName}
+              </Link>
+              {username && displayName !== username ? (
+                <Link to={profileUrl} className="msd-review-handle">
+                  @{username}
+                </Link>
+              ) : null}
             </div>
             <span className="msd-review-date">{formatDateTime(message.created_at)}</span>
           </div>
@@ -157,7 +165,7 @@ export default function ShowChatBoard({ showId, currentUserId }) {
       if (userIds.length) {
         const { data: profiles, error: profileError } = await supabase
           .from("profiles")
-          .select("id, username, full_name, avatar_url")
+          .select("id, username, full_name, display_name, avatar_url")
           .in("id", userIds);
         if (profileError) throw profileError;
         profileMap = new Map((profiles || []).map((profile) => [String(profile.id), profile]));
@@ -186,7 +194,7 @@ export default function ShowChatBoard({ showId, currentUserId }) {
 
       setMessages((rows || []).map((row) => ({
         ...row,
-        profile: profileMap.get(String(row.user_id)) || null,
+        profile: profileMap.get(String(row.user_id)) || { id: row.user_id },
         up_count: voteMap.get(String(row.id))?.up || 0,
         down_count: voteMap.get(String(row.id))?.down || 0,
         my_vote: myVoteMap.get(String(row.id)) ?? null,
