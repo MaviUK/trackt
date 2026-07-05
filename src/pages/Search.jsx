@@ -20,6 +20,14 @@ function withTimeout(promise, ms, message) {
   ]);
 }
 
+async function getCurrentUserId() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user?.id || null;
+}
+
 async function verifyShowWasActuallySaved(tvdbId, userId) {
   const { data, error } = await supabase
     .from("user_shows_new")
@@ -88,6 +96,7 @@ export default function Search() {
   const [error, setError] = useState("");
   const [addingId, setAddingId] = useState(null);
   const [savedIds, setSavedIds] = useState(new Set());
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
@@ -105,6 +114,33 @@ export default function Search() {
     !settingFilter;
 
   useEffect(() => {
+    let active = true;
+
+    async function syncUser() {
+      const userId = await getCurrentUserId();
+      if (!active) return;
+      setCurrentUserId(userId);
+      setSavedIds(new Set());
+    }
+
+    syncUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id || null);
+      setSavedIds(new Set());
+      setAddingId(null);
+      setError("");
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     if (genreFilter) setQuery(genreFilter);
     else if (networkFilter) setQuery(networkFilter);
     else if (relationshipTypeFilter) setQuery(relationshipTypeFilter);
@@ -112,28 +148,44 @@ export default function Search() {
     else setQuery("");
   }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
-  async function markAlreadySaved(results) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  useEffect(() => {
+    if (!shows.length) {
+      setSavedIds(new Set());
+      return;
+    }
 
-    if (!user || !results.length) {
+    markAlreadySaved(shows, currentUserId);
+  }, [currentUserId]);
+
+  async function markAlreadySaved(results, userIdOverride = currentUserId) {
+    const userId = userIdOverride || (await getCurrentUserId());
+
+    if (!userId || !results.length) {
       setSavedIds(new Set());
       return;
     }
 
     const tvdbIds = results.map((show) => Number(show.tvdb_id)).filter(Boolean);
 
+    if (!tvdbIds.length) {
+      setSavedIds(new Set());
+      return;
+    }
+
     const { data, error } = await supabase
       .from("user_shows_new")
       .select("show_id, shows!inner(tvdb_id)")
-      .eq("user_id", user.id);
+      .eq("user_id", userId)
+      .in("shows.tvdb_id", tvdbIds);
 
     if (error) {
       console.error("Failed checking saved shows:", error);
       setSavedIds(new Set());
       return;
     }
+
+    const latestUserId = await getCurrentUserId();
+    if (latestUserId !== userId) return;
 
     const matchedIds = new Set(
       (data || [])
@@ -148,8 +200,12 @@ export default function Search() {
   async function fetchSearch(paramsObject) {
     setLoading(true);
     setError("");
+    setSavedIds(new Set());
 
     try {
+      const activeUserId = await getCurrentUserId();
+      setCurrentUserId(activeUserId);
+
       const params = new URLSearchParams();
 
       Object.entries(paramsObject).forEach(([key, value]) => {
@@ -171,7 +227,7 @@ export default function Search() {
       );
 
       setShows(results);
-      await markAlreadySaved(results);
+      await markAlreadySaved(results, activeUserId);
     } catch (err) {
       console.error("Search failed:", err);
       setError(err.message || "Search failed");
@@ -232,6 +288,8 @@ export default function Search() {
       return;
     }
 
+    setCurrentUserId(user.id);
+
     const tvdbId = String(show.tvdb_id);
 
     if (!tvdbId) {
@@ -267,7 +325,7 @@ export default function Search() {
         );
       }
 
-      await markAlreadySaved(shows);
+      await markAlreadySaved(shows, user.id);
     } catch (err) {
       console.error("Failed to add show:", err);
       setError(err.message || "Failed to add show.");
