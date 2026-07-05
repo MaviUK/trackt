@@ -1,0 +1,64 @@
+.login-form-card button:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.login-success strong,
+.login-success span {
+  display: block;
+}
+
+.login-success span {
+  margin-top: 8px;
+  color: #dcfce7;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.login-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.login-form-card .login-mode-tabs button,
+.login-form-card .login-secondary-action {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.login-form-card .login-mode-tabs button:hover,
+.login-form-card .login-mode-tabs button.is-active {
+  background: rgba(139, 92, 246, 0.24);
+  color: #ffffff;
+  transform: none;
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.2);
+}
+
+.login-form-card .login-secondary-action {
+  margin-top: -4px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.055);
+  color: #c4b5fd;
+}
+
+.login-form-card .login-secondary-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.login-help-text {
+  margin: -4px 0 0 !important;
+  font-size: 0.88rem;
+}
