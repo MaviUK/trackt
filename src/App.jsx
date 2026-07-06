@@ -13,6 +13,7 @@ import CreatorProfile from "./pages/CreatorProfile";
 import CreatorListEditor from "./pages/CreatorListEditor";
 import CreatorPostEditor from "./pages/CreatorPostEditor";
 import FollowingFeed from "./pages/FollowingFeed";
+import Notifications from "./pages/Notifications";
 import Search from "./pages/Search";
 import Login from "./pages/Login";
 import SetPassword from "./pages/SetPassword";
@@ -64,6 +65,15 @@ function RankdIcon() {
   );
 }
 
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 10a6 6 0 0 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 20a2.4 2.4 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function UserProfileLink({ session, profile, className = "top-profile-link" }) {
   if (!session) return null;
 
@@ -105,6 +115,7 @@ function DesktopNav({ session, profile }) {
         <nav className="top-tabs">
           <NavLink to="/" end className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Dashboard</NavLink>
           <NavLink to="/following" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Following</NavLink>
+          <NavLink to="/notifications" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Notifications</NavLink>
           <NavLink to="/search" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Search</NavLink>
           <NavLink to="/my-shows" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>My Shows</NavLink>
           <NavLink to="/rankd" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Rank'd</NavLink>
@@ -177,6 +188,10 @@ function MobileBottomNav({ session }) {
       <NavLink to="/following" className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}>
         <span className="mobile-nav-icon"><ShowsIcon /></span>
         <span className="mobile-nav-label">Follow</span>
+      </NavLink>
+      <NavLink to="/notifications" className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}>
+        <span className="mobile-nav-icon"><BellIcon /></span>
+        <span className="mobile-nav-label">Alerts</span>
       </NavLink>
       <NavLink to="/search" className={({ isActive }) => `mobile-nav-item${isActive ? " active" : ""}`}>
         <span className="mobile-nav-icon"><SearchIcon /></span>
@@ -336,6 +351,7 @@ function AppLayout() {
         <Route path="/" element={<AuthRedirect session={session} />} />
         <Route path="/login" element={<LoginRoute session={session} />} />
         <Route path="/following" element={<ProtectedRoute session={session}><FollowingFeed /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute session={session}><Notifications /></ProtectedRoute>} />
         <Route path="/u/:username" element={<ProtectedRoute session={session}><CreatorProfile /></ProtectedRoute>} />
         <Route path="/creator/lists/new" element={<ProtectedRoute session={session}><CreatorListEditor /></ProtectedRoute>} />
         <Route path="/creator/posts/new" element={<ProtectedRoute session={session}><CreatorPostEditor /></ProtectedRoute>} />
