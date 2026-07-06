@@ -28,6 +28,22 @@ function formatRating(value) {
   return `${Math.round(rating)}%`;
 }
 
+function isMissingTableError(error, tableName) {
+  const message = String(error?.message || "").toLowerCase();
+  const details = String(error?.details || "").toLowerCase();
+  const code = String(error?.code || "").toUpperCase();
+  const table = String(tableName || "").toLowerCase();
+
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    message.includes(table) ||
+    details.includes(table) ||
+    message.includes("schema cache") ||
+    details.includes("schema cache")
+  );
+}
+
 function getCreatorName(profile) {
   return getProfileDisplayName(profile, "Someone");
 }
@@ -132,6 +148,34 @@ function CreatorLine({ profile, userId, action, createdAt }) {
   );
 }
 
+async function fetchCreatorLists(followingIds) {
+  try {
+    const { data, error } = await supabase
+      .from("creator_lists")
+      .select("id, user_id, title, description, list_type, visibility, created_at, updated_at")
+      .in("user_id", followingIds)
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false })
+      .limit(40);
+
+    if (error) {
+      if (isMissingTableError(error, "creator_lists")) {
+        console.warn("creator_lists table is not available yet; hiding list activity.", error);
+        return [];
+      }
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    if (isMissingTableError(error, "creator_lists")) {
+      console.warn("creator_lists table is not available yet; hiding list activity.", error);
+      return [];
+    }
+    throw error;
+  }
+}
+
 export default function FollowingFeed() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -210,7 +254,7 @@ export default function FollowingFeed() {
 
       const [
         { data: postRows, error: postsError },
-        { data: listRows, error: listsError },
+        listRows,
         { data: reviewRows, error: reviewsError },
         { data: chatRows, error: chatError },
       ] = await Promise.all([
@@ -235,13 +279,7 @@ export default function FollowingFeed() {
           .order("created_at", { ascending: false })
           .limit(40),
 
-        supabase
-          .from("creator_lists")
-          .select("id, user_id, title, description, list_type, visibility, created_at, updated_at")
-          .in("user_id", followingIds)
-          .eq("visibility", "public")
-          .order("created_at", { ascending: false })
-          .limit(40),
+        fetchCreatorLists(followingIds),
 
         supabase
           .from("show_reviews")
@@ -268,7 +306,6 @@ export default function FollowingFeed() {
       ]);
 
       if (postsError) throw postsError;
-      if (listsError) throw listsError;
       if (reviewsError) throw reviewsError;
       if (chatError) throw chatError;
 
