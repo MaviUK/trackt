@@ -44,6 +44,10 @@ function isMissingTableError(error, tableName) {
   );
 }
 
+function getRatingKey(userId, showId) {
+  return `${String(userId || "")}:${String(showId || "")}`;
+}
+
 function getCreatorName(profile) {
   return getProfileDisplayName(profile, "Someone");
 }
@@ -176,6 +180,40 @@ async function fetchCreatorLists(followingIds) {
   }
 }
 
+async function fetchReviewRatings(reviewRows) {
+  const reviews = reviewRows || [];
+  const ratingUserIds = Array.from(new Set(reviews.map((review) => review.user_id).filter(Boolean)));
+  const ratingShowIds = Array.from(new Set(reviews.map((review) => review.show_id).filter(Boolean)));
+
+  if (!ratingUserIds.length || !ratingShowIds.length) return new Map();
+
+  try {
+    const { data, error } = await supabase
+      .from("burgr_ratings")
+      .select("user_id, show_id, rating")
+      .in("user_id", ratingUserIds)
+      .in("show_id", ratingShowIds);
+
+    if (error) {
+      if (isMissingTableError(error, "burgr_ratings")) {
+        console.warn("burgr_ratings table is not available; hiding review ratings.", error);
+        return new Map();
+      }
+      throw error;
+    }
+
+    return new Map(
+      (data || []).map((row) => [getRatingKey(row.user_id, row.show_id), row.rating])
+    );
+  } catch (error) {
+    if (isMissingTableError(error, "burgr_ratings")) {
+      console.warn("burgr_ratings table is not available; hiding review ratings.", error);
+      return new Map();
+    }
+    throw error;
+  }
+}
+
 export default function FollowingFeed() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -288,7 +326,6 @@ export default function FollowingFeed() {
             user_id,
             show_id,
             body,
-            user_rating,
             created_at
           `)
           .in("user_id", followingIds)
@@ -308,6 +345,8 @@ export default function FollowingFeed() {
       if (postsError) throw postsError;
       if (reviewsError) throw reviewsError;
       if (chatError) throw chatError;
+
+      const ratingMap = await fetchReviewRatings(reviewRows || []);
 
       const allUserIds = Array.from(
         new Set([
@@ -365,8 +404,9 @@ export default function FollowingFeed() {
         profiles: profileMap.get(String(list.user_id)) || { id: list.user_id },
       }));
 
-      const reviewsWithProfilesAndShows = (reviewRows || []).map((review) => ({
+      const reviewsWithProfilesShowsAndRatings = (reviewRows || []).map((review) => ({
         ...review,
+        user_rating: ratingMap.get(getRatingKey(review.user_id, review.show_id)) ?? null,
         profiles: profileMap.get(String(review.user_id)) || { id: review.user_id },
         shows: showMap.get(String(review.show_id)) || null,
       }));
@@ -379,7 +419,7 @@ export default function FollowingFeed() {
 
       setPosts(postsWithProfiles);
       setLists(listsWithProfiles);
-      setReviews(reviewsWithProfilesAndShows);
+      setReviews(reviewsWithProfilesShowsAndRatings);
       setChatMessages(chatWithProfilesAndShows);
     } catch (err) {
       console.error("Failed loading following feed:", err);
