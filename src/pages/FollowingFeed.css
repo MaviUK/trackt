@@ -196,18 +196,29 @@
   margin-bottom: 8px;
 }
 
-.following-rating-pill {
+.following-rating-pill,
+.following-show-card .following-rating-pill {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-self: start;
+  margin-top: 0;
   background: rgba(34, 197, 94, 0.18);
   border-color: rgba(74, 222, 128, 0.3);
   color: #bbf7d0;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .following-show-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 8px;
+}
+
+.following-show-title-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .following-review-text {
