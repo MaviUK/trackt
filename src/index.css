@@ -296,11 +296,35 @@ textarea {
 /* MOBILE TOP BANNER */
 
 .mobile-top-banner-wrap {
-  display: none;
+  position: relative;
+  display: block;
+  background: #0b1020;
+  z-index: 100;
 }
 
 .mobile-profile-link {
-  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  min-width: 56px;
+  max-width: 76px;
+  padding: 0;
+}
+
+.mobile-profile-link .top-profile-avatar {
+  width: 38px;
+  height: 38px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.mobile-profile-link .top-profile-name {
+  max-width: 72px;
+  font-size: 0.62rem;
+  color: #f8fafc;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
 }
 
 .burgrs-banner {
