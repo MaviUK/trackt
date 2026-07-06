@@ -343,7 +343,6 @@ function AppLayout() {
   return (
     <>
       <ScrollToTopOnRouteChange />
-      <DesktopNav session={session} profile={profile} />
       <MobileTopBanner session={session} profile={profile} />
       <CreatorOwnerShortcuts session={session} profile={profile} />
 
