@@ -441,11 +441,6 @@ export default function FollowingFeed() {
 
   return (
     <main className="following-page">
-      <header className="following-header">
-        <h1>Following</h1>
-        <p>Choose whether you want to see posts, lists, reviews or chatboards.</p>
-      </header>
-
       <div className="following-filter-row" aria-label="Filter following feed">
         {FILTERS.map((filter) => (
           <button
