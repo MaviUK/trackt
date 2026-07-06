@@ -190,7 +190,7 @@ async function fetchAutomaticTopLists(followingIds) {
   try {
     const { data: rankingRows, error: rankingError } = await supabase
       .from("user_show_rankings")
-      .select("user_id, show_id, ladder_position, comparisons, updated_at, created_at")
+      .select("user_id, show_id, ladder_position, comparisons, updated_at")
       .in("user_id", followingIds)
       .not("ladder_position", "is", null)
       .order("ladder_position", { ascending: true })
@@ -252,7 +252,7 @@ async function fetchAutomaticTopLists(followingIds) {
         if (!items.length) return null;
 
         const latest = rows
-          .map((row) => row.updated_at || row.created_at)
+          .map((row) => row.updated_at)
           .filter(Boolean)
           .sort()
           .at(-1);
@@ -260,8 +260,8 @@ async function fetchAutomaticTopLists(followingIds) {
         return {
           id: `auto-top-10-${userId}`,
           user_id: userId,
-          title: "Automatic Top 10",
-          description: "This creator's current Rank'd Top 10 shows.",
+          title: "Top 10 shows of all time",
+          description: "Auto-updates from this creator's Rank'd ladder.",
           list_type: "automatic_top_10",
           visibility: "public",
           created_at: latest || new Date(0).toISOString(),
