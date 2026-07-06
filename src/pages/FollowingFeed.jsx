@@ -48,6 +48,10 @@ function getRatingKey(userId, showId) {
   return `${String(userId || "")}:${String(showId || "")}`;
 }
 
+function getShowYear(show) {
+  return String(show?.first_aired || show?.show_year || "").slice(0, 4);
+}
+
 function getCreatorName(profile) {
   return getProfileDisplayName(profile, "Someone");
 }
@@ -59,7 +63,7 @@ function creatorHref(profile, fallbackUserId = null) {
 function showHref(show) {
   if (!show) return "#";
   if (show.tmdb_id) return `/show/tmdb/${show.tmdb_id}`;
-  return `/show/${show.id}`;
+  return `/show/${show.id || show.show_id}`;
 }
 
 function formatPostType(value) {
@@ -180,6 +184,99 @@ async function fetchCreatorLists(followingIds) {
   }
 }
 
+async function fetchAutomaticTopLists(followingIds) {
+  if (!followingIds.length) return [];
+
+  try {
+    const { data: rankingRows, error: rankingError } = await supabase
+      .from("user_show_rankings")
+      .select("user_id, show_id, ladder_position, comparisons, updated_at, created_at")
+      .in("user_id", followingIds)
+      .not("ladder_position", "is", null)
+      .order("ladder_position", { ascending: true })
+      .limit(1000);
+
+    if (rankingError) {
+      if (isMissingTableError(rankingError, "user_show_rankings")) return [];
+      throw rankingError;
+    }
+
+    const rowsByUserId = new Map();
+    (rankingRows || []).forEach((row) => {
+      const key = String(row.user_id || "");
+      if (!key) return;
+      const current = rowsByUserId.get(key) || [];
+      if (current.length < 10) {
+        current.push(row);
+        rowsByUserId.set(key, current);
+      }
+    });
+
+    const showIds = Array.from(
+      new Set((rankingRows || []).map((row) => row.show_id).filter(Boolean))
+    );
+
+    if (!showIds.length) return [];
+
+    const { data: showRows, error: showsError } = await supabase
+      .from("shows")
+      .select("id, name, first_aired, poster_url, tmdb_id")
+      .in("id", showIds);
+
+    if (showsError) throw showsError;
+
+    const showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
+
+    return Array.from(rowsByUserId.entries())
+      .map(([userId, rows]) => {
+        const items = rows
+          .map((row, index) => {
+            const show = showMap.get(String(row.show_id));
+            if (!show) return null;
+
+            return {
+              id: `auto-top-${userId}-${row.show_id}`,
+              show_id: row.show_id,
+              rank: index + 1,
+              show_name: show.name || "Untitled show",
+              show_year: getShowYear(show),
+              poster_url: show.poster_url || "",
+              tmdb_id: show.tmdb_id || "",
+              note: row.comparisons
+                ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+                : "From Rank'd",
+            };
+          })
+          .filter(Boolean);
+
+        if (!items.length) return null;
+
+        const latest = rows
+          .map((row) => row.updated_at || row.created_at)
+          .filter(Boolean)
+          .sort()
+          .at(-1);
+
+        return {
+          id: `auto-top-10-${userId}`,
+          user_id: userId,
+          title: "Automatic Top 10",
+          description: "This creator's current Rank'd Top 10 shows.",
+          list_type: "automatic_top_10",
+          visibility: "public",
+          created_at: latest || new Date(0).toISOString(),
+          updated_at: latest || null,
+          is_auto_top_list: true,
+          items,
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.warn("Failed loading automatic following top lists:", error);
+    return [];
+  }
+}
+
 async function fetchReviewRatings(reviewRows) {
   const reviews = reviewRows || [];
   const ratingUserIds = Array.from(new Set(reviews.map((review) => review.user_id).filter(Boolean)));
@@ -293,6 +390,7 @@ export default function FollowingFeed() {
       const [
         { data: postRows, error: postsError },
         listRows,
+        autoTopLists,
         { data: reviewRows, error: reviewsError },
         { data: chatRows, error: chatError },
       ] = await Promise.all([
@@ -318,6 +416,7 @@ export default function FollowingFeed() {
           .limit(40),
 
         fetchCreatorLists(followingIds),
+        fetchAutomaticTopLists(followingIds),
 
         supabase
           .from("show_reviews")
@@ -346,12 +445,13 @@ export default function FollowingFeed() {
       if (reviewsError) throw reviewsError;
       if (chatError) throw chatError;
 
+      const allListRows = [...(autoTopLists || []), ...(listRows || [])];
       const ratingMap = await fetchReviewRatings(reviewRows || []);
 
       const allUserIds = Array.from(
         new Set([
           ...(postRows || []).map((post) => post.user_id),
-          ...(listRows || []).map((list) => list.user_id),
+          ...allListRows.map((list) => list.user_id),
           ...(reviewRows || []).map((review) => review.user_id),
           ...(chatRows || []).map((message) => message.user_id),
         ].filter(Boolean))
@@ -399,7 +499,7 @@ export default function FollowingFeed() {
         profiles: profileMap.get(String(post.user_id)) || { id: post.user_id },
       }));
 
-      const listsWithProfiles = (listRows || []).map((list) => ({
+      const listsWithProfiles = allListRows.map((list) => ({
         ...list,
         profiles: profileMap.get(String(list.user_id)) || { id: list.user_id },
       }));
@@ -493,20 +593,42 @@ export default function FollowingFeed() {
             if (item.type === "list") {
               const list = item.data;
               const profileHref = creatorHref(list.profiles, list.user_id);
+              const previewItems = (list.items || []).slice(0, 5);
 
               return (
                 <article key={`list-${list.id}`} className="following-card">
                   <CreatorLine
                     profile={list.profiles}
                     userId={list.user_id}
-                    action="created a list"
-                    createdAt={list.created_at}
+                    action={list.is_auto_top_list ? "updated their automatic top 10" : "created a list"}
+                    createdAt={list.updated_at || list.created_at}
                   />
 
                   <div className="following-list-card">
-                    <span className="following-type-pill">List</span>
+                    <span className="following-type-pill">
+                      {list.is_auto_top_list ? "Rank'd Top 10" : "List"}
+                    </span>
                     <h2>{list.title || "Untitled list"}</h2>
                     {list.description ? <p>{list.description}</p> : null}
+
+                    {previewItems.length ? (
+                      <div className="following-list-preview">
+                        {previewItems.map((listItem) => (
+                          <Link
+                            key={listItem.id || `${list.id}-${listItem.show_id}`}
+                            to={showHref(listItem)}
+                            className="following-list-preview-item"
+                          >
+                            <span>#{listItem.rank}</span>
+                            {listItem.poster_url ? (
+                              <img src={listItem.poster_url} alt="" />
+                            ) : (
+                              <i>?</i>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <Link to={profileHref} className="following-view-profile">
