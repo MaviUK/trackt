@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import FeedComments from "../components/FeedComments";
 import { supabase } from "../lib/supabase";
 import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
 import "./FollowingFeed.css";
@@ -452,6 +453,7 @@ async function fetchReviewRatings(reviewRows) {
 export default function FollowingFeed() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
   const [lists, setLists] = useState([]);
@@ -493,6 +495,7 @@ export default function FollowingFeed() {
         "auth"
       );
       const user = authResult?.data?.user || null;
+      setCurrentUserId(user?.id || null);
 
       if (!user?.id) {
         setReviews([]);
@@ -726,6 +729,11 @@ export default function FollowingFeed() {
                   <Link to={profileHref} className="following-view-profile">
                     View creator page
                   </Link>
+                  <FeedComments
+                    targetType="post"
+                    targetId={post.id}
+                    currentUserId={currentUserId}
+                  />
                 </article>
               );
             }
@@ -747,6 +755,11 @@ export default function FollowingFeed() {
                     isExpanded={expandedListIds.has(listKey)}
                     onToggle={toggleListExpanded}
                   />
+                  <FeedComments
+                    targetType="list"
+                    targetId={list.id}
+                    currentUserId={currentUserId}
+                  />
                 </article>
               );
             }
@@ -764,13 +777,22 @@ export default function FollowingFeed() {
                     createdAt={message.created_at}
                   />
                   <Link to={showHref(show)} className="following-show-card">
-                    {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
+                    {show?.poster_url ? (
+                      <img src={show.poster_url} alt="" />
+                    ) : (
+                      <div className="following-poster-fallback">?</div>
+                    )}
                     <div>
                       <strong>{show?.name || "Show chatboard"}</strong>
                       {show?.first_aired ? <span>{String(show.first_aired).slice(0, 4)}</span> : null}
                     </div>
                   </Link>
                   <p className="following-review-text">{message.body}</p>
+                  <FeedComments
+                    targetType="chatboard"
+                    targetId={message.id}
+                    currentUserId={currentUserId}
+                  />
                 </article>
               );
             }
@@ -788,7 +810,11 @@ export default function FollowingFeed() {
                   createdAt={review.created_at}
                 />
                 <Link to={showHref(show)} className="following-show-card">
-                  {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
+                  {show?.poster_url ? (
+                    <img src={show.poster_url} alt="" />
+                  ) : (
+                    <div className="following-poster-fallback">?</div>
+                  )}
                   <div>
                     <div className="following-show-title-row">
                       <strong>{show?.name || "Untitled show"}</strong>
@@ -798,6 +824,11 @@ export default function FollowingFeed() {
                   </div>
                 </Link>
                 <p className="following-review-text">{review.body}</p>
+                <FeedComments
+                  targetType="review"
+                  targetId={review.id}
+                  currentUserId={currentUserId}
+                />
               </article>
             );
           })}
