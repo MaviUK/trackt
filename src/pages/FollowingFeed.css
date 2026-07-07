@@ -86,7 +86,7 @@
 
 .following-creator-line {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: 44px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   color: #f8fafc;
@@ -127,8 +127,8 @@
 
 .following-creator-meta-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
   align-items: center;
   margin-top: 4px;
 }
@@ -140,10 +140,12 @@
   color: #94a3b8;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .following-card:has(.following-activity-label) .following-creator-meta-row > span {
-  padding-left: 92px;
+  padding-left: 66px;
 }
 
 .following-creator-meta-row .feed-comments-inline-toggle {
@@ -159,6 +161,7 @@
   letter-spacing: 0;
   text-transform: none;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .following-creator-meta-row .feed-comments-inline-toggle span,
@@ -179,7 +182,7 @@
 
 .following-activity-label {
   position: absolute;
-  top: 34px;
+  top: 35px;
   left: 68px;
   z-index: 2;
   width: auto;
@@ -193,7 +196,8 @@
   font-weight: 800;
   text-transform: none;
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .following-activity-label::before {
