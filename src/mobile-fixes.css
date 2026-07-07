@@ -5,7 +5,7 @@
   }
 
   .msd-mobile-banner {
-    height: 210px !important;
+    height: 140px !important;
     background-position: center top !important;
     background-size: cover !important;
   }
@@ -15,7 +15,7 @@
   }
 
   .msd-hero-main-mobile {
-    margin-top: -44px !important;
+    margin-top: -30px !important;
   }
 
   body:has(.my-shows-page) .mobile-top-banner-wrap .burgrs-banner {
