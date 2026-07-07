@@ -1,0 +1,146 @@
+.feed-comments {
+  margin-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding-top: 12px;
+}
+
+.feed-comments-toggle {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.feed-comments-toggle em {
+  color: #a78bfa;
+  font-size: 12px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.feed-comments-panel {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.feed-comments-list {
+  display: grid;
+  gap: 10px;
+}
+
+.feed-comment {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.feed-comment-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #1e293b;
+}
+
+.feed-comment-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 950;
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+}
+
+.feed-comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.feed-comment-meta strong {
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.feed-comment-meta span {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.feed-comment p {
+  margin: 4px 0 0;
+  color: #dbeafe;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.feed-comments-muted,
+.feed-comments-error {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.feed-comments-error {
+  color: #fecaca;
+}
+
+.feed-comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.feed-comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 58px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.52);
+  color: #f8fafc;
+  padding: 11px 12px;
+  font: inherit;
+  outline: none;
+}
+
+.feed-comment-form textarea::placeholder {
+  color: #64748b;
+}
+
+.feed-comment-form textarea:focus {
+  border-color: rgba(167, 139, 250, 0.62);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
+}
+
+.feed-comment-form button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #111827;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.feed-comment-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
