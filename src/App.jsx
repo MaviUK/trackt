@@ -8,6 +8,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import "./index.css";
+import "./mobile-fixes.css";
 import ProfileEditMerged from "./pages/ProfileEditMerged";
 import CreatorProfile from "./pages/CreatorProfile";
 import CreatorListEditor from "./pages/CreatorListEditor";
