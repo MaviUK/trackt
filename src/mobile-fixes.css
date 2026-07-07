@@ -17,4 +17,32 @@
   .msd-hero-main-mobile {
     margin-top: -44px !important;
   }
+
+  body:has(.my-shows-page) .mobile-top-banner-wrap .burgrs-banner {
+    height: 62px !important;
+  }
+
+  body:has(.my-shows-page) .burgrs-banner-title {
+    font-size: 1.45rem !important;
+  }
+
+  body:has(.my-shows-page) .burgrs-banner-burger {
+    width: 52px !important;
+  }
+
+  body:has(.my-shows-page) .mobile-profile-link {
+    top: 5px !important;
+    min-width: 48px !important;
+    max-width: 66px !important;
+  }
+
+  body:has(.my-shows-page) .mobile-profile-link .top-profile-avatar {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  body:has(.my-shows-page) .mobile-profile-link .top-profile-name {
+    max-width: 64px !important;
+    font-size: 0.55rem !important;
+  }
 }
