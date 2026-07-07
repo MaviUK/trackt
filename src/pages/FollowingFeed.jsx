@@ -149,26 +149,33 @@ function VideoEmbed({ post }) {
   );
 }
 
-function CreatorLine({ profile, userId, action, createdAt }) {
+function CreatorLine({ profile, userId, createdAt, comments }) {
   const creator = profile || { id: userId };
   const creatorName = getCreatorName(creator);
   const avatarUrl = creator?.avatar_url || "";
   const profileHref = creatorHref(creator, userId);
 
   return (
-    <Link to={profileHref} className="following-creator-line">
-      {avatarUrl ? (
-        <img src={avatarUrl} alt="" className="following-avatar" />
-      ) : (
-        <div className="following-avatar following-avatar-fallback">
-          {creatorName.slice(0, 1).toUpperCase()}
+    <div className="following-creator-line">
+      <Link to={profileHref} className="following-avatar-link">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="following-avatar" />
+        ) : (
+          <div className="following-avatar following-avatar-fallback">
+            {creatorName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+      </Link>
+      <div className="following-creator-copy">
+        <Link to={profileHref} className="following-creator-name-link">
+          <strong>{creatorName}</strong>
+        </Link>
+        <div className="following-creator-meta-row">
+          <span>{formatDate(createdAt)}</span>
+          {comments}
         </div>
-      )}
-      <div>
-        <strong>{creatorName}</strong>
-        <span>{action} · {formatDate(createdAt)}</span>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -710,30 +717,31 @@ export default function FollowingFeed() {
           {filteredFeedItems.map((item) => {
             if (item.type === "post") {
               const post = item.data;
-              const profileHref = creatorHref(post.profiles, post.user_id);
 
               return (
                 <article key={`post-${post.id}`} className="following-card">
                   <CreatorLine
                     profile={post.profiles}
                     userId={post.user_id}
-                    action={`posted ${formatPostType(post.post_type).toLowerCase()}`}
                     createdAt={post.created_at}
+                    comments={(
+                      <FeedComments
+                        inline
+                        targetType="post"
+                        targetId={post.id}
+                        currentUserId={currentUserId}
+                      />
+                    )}
                   />
+                  <div className="following-activity-label">
+                    {formatPostType(post.post_type)}
+                  </div>
                   <VideoEmbed post={post} />
                   {!post.video_embed_url && post.image_url ? (
                     <img src={post.image_url} alt="" className="following-post-image" />
                   ) : null}
                   {post.title ? <h2 className="following-post-title">{post.title}</h2> : null}
                   {post.body ? <p className="following-review-text">{post.body}</p> : null}
-                  <Link to={profileHref} className="following-view-profile">
-                    View creator page
-                  </Link>
-                  <FeedComments
-                    targetType="post"
-                    targetId={post.id}
-                    currentUserId={currentUserId}
-                  />
                 </article>
               );
             }
@@ -747,18 +755,20 @@ export default function FollowingFeed() {
                   <CreatorLine
                     profile={list.profiles}
                     userId={list.user_id}
-                    action={list.is_auto_top_list ? "updated their Rank'd top 10" : "created a list"}
                     createdAt={list.updated_at || list.created_at}
+                    comments={(
+                      <FeedComments
+                        inline
+                        targetType="list"
+                        targetId={list.id}
+                        currentUserId={currentUserId}
+                      />
+                    )}
                   />
                   <FollowingListCard
                     list={list}
                     isExpanded={expandedListIds.has(listKey)}
                     onToggle={toggleListExpanded}
-                  />
-                  <FeedComments
-                    targetType="list"
-                    targetId={list.id}
-                    currentUserId={currentUserId}
                   />
                 </article>
               );
@@ -773,9 +783,19 @@ export default function FollowingFeed() {
                   <CreatorLine
                     profile={message.profiles}
                     userId={message.user_id}
-                    action={`posted on ${show?.name || "a chatboard"}`}
                     createdAt={message.created_at}
+                    comments={(
+                      <FeedComments
+                        inline
+                        targetType="chatboard"
+                        targetId={message.id}
+                        currentUserId={currentUserId}
+                      />
+                    )}
                   />
+                  <div className="following-activity-label">
+                    Chatboard
+                  </div>
                   <Link to={showHref(show)} className="following-show-card">
                     {show?.poster_url ? (
                       <img src={show.poster_url} alt="" />
@@ -788,11 +808,6 @@ export default function FollowingFeed() {
                     </div>
                   </Link>
                   <p className="following-review-text">{message.body}</p>
-                  <FeedComments
-                    targetType="chatboard"
-                    targetId={message.id}
-                    currentUserId={currentUserId}
-                  />
                 </article>
               );
             }
@@ -806,9 +821,19 @@ export default function FollowingFeed() {
                 <CreatorLine
                   profile={review.profiles}
                   userId={review.user_id}
-                  action={`reviewed ${show?.name || "a show"}`}
                   createdAt={review.created_at}
+                  comments={(
+                    <FeedComments
+                      inline
+                      targetType="review"
+                      targetId={review.id}
+                      currentUserId={currentUserId}
+                    />
+                  )}
                 />
+                <div className="following-activity-label">
+                  Review
+                </div>
                 <Link to={showHref(show)} className="following-show-card">
                   {show?.poster_url ? (
                     <img src={show.poster_url} alt="" />
@@ -824,11 +849,6 @@ export default function FollowingFeed() {
                   </div>
                 </Link>
                 <p className="following-review-text">{review.body}</p>
-                <FeedComments
-                  targetType="review"
-                  targetId={review.id}
-                  currentUserId={currentUserId}
-                />
               </article>
             );
           })}
