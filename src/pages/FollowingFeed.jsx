@@ -149,7 +149,7 @@ function VideoEmbed({ post }) {
   );
 }
 
-function CreatorLine({ profile, userId, createdAt, comments }) {
+function CreatorLine({ profile, userId, createdAt, activityLabel, comments }) {
   const creator = profile || { id: userId };
   const creatorName = getCreatorName(creator);
   const avatarUrl = creator?.avatar_url || "";
@@ -171,8 +171,12 @@ function CreatorLine({ profile, userId, createdAt, comments }) {
           <strong>{creatorName}</strong>
         </Link>
         <div className="following-creator-meta-row">
-          <span>{formatDate(createdAt)}</span>
-          {comments}
+          <div className="following-meta-left">
+            {activityLabel ? <span className="following-meta-type">{activityLabel}</span> : null}
+            {activityLabel ? <span className="following-meta-dot">·</span> : null}
+            <span>{formatDate(createdAt)}</span>
+          </div>
+          <div className="following-meta-comments">{comments}</div>
         </div>
       </div>
     </div>
@@ -724,6 +728,7 @@ export default function FollowingFeed() {
                     profile={post.profiles}
                     userId={post.user_id}
                     createdAt={post.created_at}
+                    activityLabel={formatPostType(post.post_type)}
                     comments={(
                       <FeedComments
                         inline
@@ -733,9 +738,6 @@ export default function FollowingFeed() {
                       />
                     )}
                   />
-                  <div className="following-activity-label">
-                    {formatPostType(post.post_type)}
-                  </div>
                   <VideoEmbed post={post} />
                   {!post.video_embed_url && post.image_url ? (
                     <img src={post.image_url} alt="" className="following-post-image" />
@@ -756,6 +758,7 @@ export default function FollowingFeed() {
                     profile={list.profiles}
                     userId={list.user_id}
                     createdAt={list.updated_at || list.created_at}
+                    activityLabel={list.is_auto_top_list ? "Rank'd Top 10" : "List"}
                     comments={(
                       <FeedComments
                         inline
@@ -784,6 +787,7 @@ export default function FollowingFeed() {
                     profile={message.profiles}
                     userId={message.user_id}
                     createdAt={message.created_at}
+                    activityLabel="Chatboard"
                     comments={(
                       <FeedComments
                         inline
@@ -793,9 +797,6 @@ export default function FollowingFeed() {
                       />
                     )}
                   />
-                  <div className="following-activity-label">
-                    Chatboard
-                  </div>
                   <Link to={showHref(show)} className="following-show-card">
                     {show?.poster_url ? (
                       <img src={show.poster_url} alt="" />
@@ -822,6 +823,7 @@ export default function FollowingFeed() {
                   profile={review.profiles}
                   userId={review.user_id}
                   createdAt={review.created_at}
+                  activityLabel="Review"
                   comments={(
                     <FeedComments
                       inline
@@ -831,9 +833,6 @@ export default function FollowingFeed() {
                     />
                   )}
                 />
-                <div className="following-activity-label">
-                  Review
-                </div>
                 <Link to={showHref(show)} className="following-show-card">
                   {show?.poster_url ? (
                     <img src={show.poster_url} alt="" />
