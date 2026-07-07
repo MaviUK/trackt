@@ -211,6 +211,22 @@ function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
   };
 }
 
+function buildAutoListPlaceholder(userId) {
+  return {
+    id: `auto-top-10-placeholder-${userId}`,
+    user_id: userId,
+    title: "Top 10 shows of all time",
+    description: "Open this creator page to view their automatic Rank'd Top 10.",
+    list_type: "automatic_top_10",
+    visibility: "public",
+    created_at: new Date(0).toISOString(),
+    updated_at: null,
+    is_auto_top_list: true,
+    is_auto_placeholder: true,
+    items: [],
+  };
+}
+
 async function fetchSavedShowAutoListForUser(userId) {
   try {
     let savedRows = [];
@@ -227,7 +243,6 @@ async function fetchSavedShowAutoListForUser(userId) {
         shows!inner(id, name, first_aired, poster_url, tmdb_id)
       `)
       .eq("user_id", userId)
-      .in("watch_status", ["completed", "watching", "watchlist"])
       .limit(100);
 
     savedRows = fullResult.data || [];
@@ -242,16 +257,20 @@ async function fetchSavedShowAutoListForUser(userId) {
           shows!inner(id, name, first_aired, poster_url, tmdb_id)
         `)
         .eq("user_id", userId)
-        .in("watch_status", ["completed", "watching", "watchlist"])
         .limit(100);
 
       if (retryResult.error) return null;
       savedRows = retryResult.data || [];
     }
 
-    if (!savedRows.length) return null;
+    const usableRows = (savedRows || []).filter((row) => {
+      const status = String(row.watch_status || "").toLowerCase();
+      return !status || status === "completed" || status === "watching" || status === "watchlist";
+    });
 
-    const showIds = savedRows.map((row) => row.show_id).filter(Boolean);
+    if (!usableRows.length) return null;
+
+    const showIds = usableRows.map((row) => row.show_id).filter(Boolean);
     let ratingMap = new Map();
 
     try {
@@ -266,7 +285,7 @@ async function fetchSavedShowAutoListForUser(userId) {
       ratingMap = new Map();
     }
 
-    const rows = savedRows
+    const rows = usableRows
       .map((row) => {
         const rating = ratingMap.get(String(row.show_id));
         return {
@@ -288,9 +307,7 @@ async function fetchSavedShowAutoListForUser(userId) {
       });
 
     const showMap = new Map(
-      rows
-        .filter((row) => row.shows)
-        .map((row) => [String(row.show_id), row.shows])
+      rows.filter((row) => row.shows).map((row) => [String(row.show_id), row.shows])
     );
 
     return buildAutoList(userId, rows, showMap, "Saved show");
@@ -344,11 +361,15 @@ async function fetchRankedAutoListForUser(userId) {
 }
 
 async function fetchAutomaticTopLists(followingIds) {
-  const results = await Promise.all(
-    (followingIds || []).map((userId) => fetchRankedAutoListForUser(userId))
-  );
+  const ids = (followingIds || []).filter(Boolean);
+  const results = await Promise.all(ids.map((userId) => fetchRankedAutoListForUser(userId)));
+  const lists = results.filter(Boolean);
+  const seenUserIds = new Set(lists.map((list) => String(list.user_id)));
+  const placeholders = ids
+    .filter((userId) => !seenUserIds.has(String(userId)))
+    .map((userId) => buildAutoListPlaceholder(userId));
 
-  return results.filter(Boolean);
+  return [...lists, ...placeholders];
 }
 
 async function fetchReviewRatings(reviewRows) {
@@ -629,7 +650,7 @@ export default function FollowingFeed() {
                   <CreatorLine
                     profile={list.profiles}
                     userId={list.user_id}
-                    action={list.is_auto_top_list ? "updated their automatic top 10" : "created a list"}
+                    action={list.is_auto_top_list ? "has an automatic top 10" : "created a list"}
                     createdAt={list.updated_at || list.created_at}
                   />
                   <div className="following-list-card">
