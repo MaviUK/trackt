@@ -184,6 +184,148 @@ async function fetchCreatorLists(followingIds) {
   }
 }
 
+function buildAutoTopLists(rowsByUserId, showMap, options = {}) {
+  const title = options.title || "Top 10 shows of all time";
+  const description = options.description || "Auto-updates from this creator's Rank'd ladder.";
+  const badgeSource = options.badgeSource || "Rank'd";
+
+  return Array.from(rowsByUserId.entries())
+    .map(([userId, rows]) => {
+      const items = rows
+        .slice(0, 10)
+        .map((row, index) => {
+          const show = showMap.get(String(row.show_id));
+          if (!show) return null;
+
+          return {
+            id: `auto-top-${userId}-${row.show_id}`,
+            show_id: row.show_id,
+            rank: index + 1,
+            show_name: show.name || show.show_name || "Untitled show",
+            show_year: getShowYear(show),
+            poster_url: show.poster_url || "",
+            tmdb_id: show.tmdb_id || "",
+            note: row.note || badgeSource,
+          };
+        })
+        .filter(Boolean);
+
+      if (!items.length) return null;
+
+      const latest = rows
+        .map((row) => row.updated_at || row.created_at || row.added_at)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+
+      return {
+        id: `auto-top-10-${userId}`,
+        user_id: userId,
+        title,
+        description,
+        list_type: "automatic_top_10",
+        visibility: "public",
+        created_at: latest || new Date(0).toISOString(),
+        updated_at: latest || null,
+        is_auto_top_list: true,
+        items,
+      };
+    })
+    .filter(Boolean);
+}
+
+async function fetchAutomaticTopListsFromSavedShows(followingIds) {
+  try {
+    const { data: savedRows, error: savedError } = await supabase
+      .from("user_shows_new")
+      .select(`
+        user_id,
+        show_id,
+        watch_status,
+        added_at,
+        created_at,
+        shows!inner(id, name, first_aired, poster_url, tmdb_id)
+      `)
+      .in("user_id", followingIds)
+      .in("watch_status", ["completed", "watching"])
+      .limit(1000);
+
+    if (savedError) {
+      if (isMissingTableError(savedError, "user_shows_new")) return [];
+      throw savedError;
+    }
+
+    const rows = savedRows || [];
+    const showIds = Array.from(new Set(rows.map((row) => row.show_id).filter(Boolean)));
+    if (!showIds.length) return [];
+
+    let ratingMap = new Map();
+
+    try {
+      const { data: ratingRows, error: ratingError } = await supabase
+        .from("burgr_ratings")
+        .select("user_id, show_id, rating")
+        .in("user_id", followingIds)
+        .in("show_id", showIds);
+
+      if (!ratingError) {
+        ratingMap = new Map(
+          (ratingRows || []).map((row) => [getRatingKey(row.user_id, row.show_id), row.rating])
+        );
+      }
+    } catch {
+      ratingMap = new Map();
+    }
+
+    const rowsByUserId = new Map();
+    const showMap = new Map();
+
+    rows.forEach((row) => {
+      const userId = String(row.user_id || "");
+      if (!userId || !row.show_id || !row.shows) return;
+
+      const rating = ratingMap.get(getRatingKey(row.user_id, row.show_id));
+      const show = row.shows;
+      showMap.set(String(row.show_id), show);
+
+      const current = rowsByUserId.get(userId) || [];
+      current.push({
+        ...row,
+        rating,
+        note: Number.isFinite(Number(rating)) ? `${Math.round(Number(rating))}% rating` : "Saved show",
+      });
+      rowsByUserId.set(userId, current);
+    });
+
+    rowsByUserId.forEach((rowsForUser, userId) => {
+      rowsByUserId.set(
+        userId,
+        [...rowsForUser].sort((a, b) => {
+          const aRating = Number(a.rating);
+          const bRating = Number(b.rating);
+          const aHasRating = Number.isFinite(aRating);
+          const bHasRating = Number.isFinite(bRating);
+
+          if (aHasRating !== bHasRating) return aHasRating ? -1 : 1;
+          if (aHasRating && bHasRating && aRating !== bRating) return bRating - aRating;
+
+          const aDate = a.added_at || a.created_at || "";
+          const bDate = b.added_at || b.created_at || "";
+          return bDate.localeCompare(aDate);
+        })
+      );
+    });
+
+    return buildAutoTopLists(rowsByUserId, showMap, {
+      description: "Auto-built from this creator's rated and saved shows.",
+      badgeSource: "Saved show",
+    });
+  } catch (error) {
+    console.warn("Failed loading automatic saved-show top lists:", error);
+    return [];
+  }
+}
+
 async function fetchAutomaticTopLists(followingIds) {
   if (!followingIds.length) return [];
 
@@ -197,7 +339,9 @@ async function fetchAutomaticTopLists(followingIds) {
       .limit(1000);
 
     if (rankingError) {
-      if (isMissingTableError(rankingError, "user_show_rankings")) return [];
+      if (isMissingTableError(rankingError, "user_show_rankings")) {
+        return fetchAutomaticTopListsFromSavedShows(followingIds);
+      }
       throw rankingError;
     }
 
@@ -207,7 +351,12 @@ async function fetchAutomaticTopLists(followingIds) {
       if (!key) return;
       const current = rowsByUserId.get(key) || [];
       if (current.length < 10) {
-        current.push(row);
+        current.push({
+          ...row,
+          note: row.comparisons
+            ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+            : "From Rank'd",
+        });
         rowsByUserId.set(key, current);
       }
     });
@@ -216,7 +365,7 @@ async function fetchAutomaticTopLists(followingIds) {
       new Set((rankingRows || []).map((row) => row.show_id).filter(Boolean))
     );
 
-    if (!showIds.length) return [];
+    if (!showIds.length) return fetchAutomaticTopListsFromSavedShows(followingIds);
 
     const { data: showRows, error: showsError } = await supabase
       .from("shows")
@@ -226,54 +375,12 @@ async function fetchAutomaticTopLists(followingIds) {
     if (showsError) throw showsError;
 
     const showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
+    const rankedLists = buildAutoTopLists(rowsByUserId, showMap);
 
-    return Array.from(rowsByUserId.entries())
-      .map(([userId, rows]) => {
-        const items = rows
-          .map((row, index) => {
-            const show = showMap.get(String(row.show_id));
-            if (!show) return null;
-
-            return {
-              id: `auto-top-${userId}-${row.show_id}`,
-              show_id: row.show_id,
-              rank: index + 1,
-              show_name: show.name || "Untitled show",
-              show_year: getShowYear(show),
-              poster_url: show.poster_url || "",
-              tmdb_id: show.tmdb_id || "",
-              note: row.comparisons
-                ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
-                : "From Rank'd",
-            };
-          })
-          .filter(Boolean);
-
-        if (!items.length) return null;
-
-        const latest = rows
-          .map((row) => row.updated_at)
-          .filter(Boolean)
-          .sort()
-          .at(-1);
-
-        return {
-          id: `auto-top-10-${userId}`,
-          user_id: userId,
-          title: "Top 10 shows of all time",
-          description: "Auto-updates from this creator's Rank'd ladder.",
-          list_type: "automatic_top_10",
-          visibility: "public",
-          created_at: latest || new Date(0).toISOString(),
-          updated_at: latest || null,
-          is_auto_top_list: true,
-          items,
-        };
-      })
-      .filter(Boolean);
+    return rankedLists.length ? rankedLists : fetchAutomaticTopListsFromSavedShows(followingIds);
   } catch (error) {
     console.warn("Failed loading automatic following top lists:", error);
-    return [];
+    return fetchAutomaticTopListsFromSavedShows(followingIds);
   }
 }
 
