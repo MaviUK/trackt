@@ -80,6 +80,11 @@
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
 }
 
+.following-card {
+  display: grid;
+  gap: 12px;
+}
+
 .following-creator-line {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -193,7 +198,7 @@
   grid-template-columns: 58px 1fr;
   gap: 12px;
   align-items: center;
-  margin-top: 14px;
+  margin-top: 0;
   padding: 10px;
   border-radius: 18px;
   color: #f8fafc;
@@ -204,6 +209,10 @@
 
 .following-list-card {
   display: block;
+}
+
+.following-profile-list-card {
+  margin-top: 0;
 }
 
 .following-show-card img,
@@ -348,7 +357,7 @@
 }
 
 .following-review-text {
-  margin: 12px 0 0;
+  margin: 0;
   color: #dbeafe;
   line-height: 1.5;
   font-size: 14px;
@@ -356,7 +365,7 @@
 }
 
 .following-post-title {
-  margin: 12px 0 0;
+  margin: 0;
   color: #f8fafc;
   font-size: 20px;
   line-height: 1.15;
@@ -368,7 +377,7 @@
   width: 100%;
   max-height: 460px;
   object-fit: cover;
-  margin: 12px 0 0;
+  margin: 0;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #020617;
@@ -378,7 +387,7 @@
   position: relative;
   overflow: hidden;
   width: 100%;
-  margin-top: 12px;
+  margin: 0;
   border-radius: 18px;
   background: #020617;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -415,7 +424,7 @@
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  margin-top: 12px;
+  margin: 0;
   border-radius: 999px;
   text-decoration: none;
   font-weight: 950;
