@@ -6,9 +6,10 @@
   }
 
   .msd-mobile-banner {
+    width: 100% !important;
     height: 140px !important;
     background-position: center center !important;
-    background-size: auto 100% !important;
+    background-size: 100% auto !important;
     background-repeat: no-repeat !important;
     background-color: #0b1020 !important;
   }
