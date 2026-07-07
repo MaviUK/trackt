@@ -166,7 +166,7 @@ async function fetchCreatorLists(followingIds) {
   }
 }
 
-function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
+function buildAutoList(userId, rows, showMap) {
   const items = (rows || [])
     .slice(0, 10)
     .map((row, index) => {
@@ -181,7 +181,9 @@ function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
         show_year: getShowYear(show),
         poster_url: show.poster_url || "",
         tmdb_id: show.tmdb_id || "",
-        note: row.note || sourceLabel,
+        note: row.comparisons
+          ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+          : "From Rank'd",
       };
     })
     .filter(Boolean);
@@ -189,7 +191,7 @@ function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
   if (!items.length) return null;
 
   const latest = (rows || [])
-    .map((row) => row.updated_at || row.created_at || row.added_at)
+    .map((row) => row.updated_at)
     .filter(Boolean)
     .sort()
     .at(-1);
@@ -198,10 +200,7 @@ function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
     id: `auto-top-10-${userId}`,
     user_id: userId,
     title: "Top 10 shows of all time",
-    description:
-      sourceLabel === "Rank'd"
-        ? "Auto-updates from this creator's Rank'd ladder."
-        : "Auto-built from this creator's rated and saved shows.",
+    description: "Auto-updates from this creator's Rank'd ladder.",
     list_type: "automatic_top_10",
     visibility: "public",
     created_at: latest || new Date(0).toISOString(),
@@ -209,112 +208,6 @@ function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
     is_auto_top_list: true,
     items,
   };
-}
-
-function buildAutoListPlaceholder(userId) {
-  return {
-    id: `auto-top-10-placeholder-${userId}`,
-    user_id: userId,
-    title: "Top 10 shows of all time",
-    description: "Open this creator page to view their automatic Rank'd Top 10.",
-    list_type: "automatic_top_10",
-    visibility: "public",
-    created_at: new Date(0).toISOString(),
-    updated_at: null,
-    is_auto_top_list: true,
-    is_auto_placeholder: true,
-    items: [],
-  };
-}
-
-async function fetchSavedShowAutoListForUser(userId) {
-  try {
-    let savedRows = [];
-    let savedError = null;
-
-    const fullResult = await supabase
-      .from("user_shows_new")
-      .select(`
-        show_id,
-        watch_status,
-        added_at,
-        created_at,
-        updated_at,
-        shows!inner(id, name, first_aired, poster_url, tmdb_id)
-      `)
-      .eq("user_id", userId)
-      .limit(100);
-
-    savedRows = fullResult.data || [];
-    savedError = fullResult.error;
-
-    if (savedError) {
-      const retryResult = await supabase
-        .from("user_shows_new")
-        .select(`
-          show_id,
-          watch_status,
-          shows!inner(id, name, first_aired, poster_url, tmdb_id)
-        `)
-        .eq("user_id", userId)
-        .limit(100);
-
-      if (retryResult.error) return null;
-      savedRows = retryResult.data || [];
-    }
-
-    const usableRows = (savedRows || []).filter((row) => {
-      const status = String(row.watch_status || "").toLowerCase();
-      return !status || status === "completed" || status === "watching" || status === "watchlist";
-    });
-
-    if (!usableRows.length) return null;
-
-    const showIds = usableRows.map((row) => row.show_id).filter(Boolean);
-    let ratingMap = new Map();
-
-    try {
-      const { data: ratingRows } = await supabase
-        .from("burgr_ratings")
-        .select("show_id, rating")
-        .eq("user_id", userId)
-        .in("show_id", showIds);
-
-      ratingMap = new Map((ratingRows || []).map((row) => [String(row.show_id), row.rating]));
-    } catch {
-      ratingMap = new Map();
-    }
-
-    const rows = usableRows
-      .map((row) => {
-        const rating = ratingMap.get(String(row.show_id));
-        return {
-          ...row,
-          rating,
-          note: Number.isFinite(Number(rating)) ? `${Math.round(Number(rating))}% rating` : "Saved show",
-        };
-      })
-      .sort((a, b) => {
-        const aRating = Number(a.rating);
-        const bRating = Number(b.rating);
-        const aHasRating = Number.isFinite(aRating);
-        const bHasRating = Number.isFinite(bRating);
-        if (aHasRating !== bHasRating) return aHasRating ? -1 : 1;
-        if (aHasRating && bHasRating && aRating !== bRating) return bRating - aRating;
-        return String(b.updated_at || b.added_at || b.created_at || "").localeCompare(
-          String(a.updated_at || a.added_at || a.created_at || "")
-        );
-      });
-
-    const showMap = new Map(
-      rows.filter((row) => row.shows).map((row) => [String(row.show_id), row.shows])
-    );
-
-    return buildAutoList(userId, rows, showMap, "Saved show");
-  } catch (error) {
-    console.warn("Saved-show automatic list failed:", error);
-    return null;
-  }
 }
 
 async function fetchRankedAutoListForUser(userId) {
@@ -328,48 +221,36 @@ async function fetchRankedAutoListForUser(userId) {
       .limit(10);
 
     if (rankingError) {
-      if (isMissingTableError(rankingError, "user_show_rankings")) {
-        return fetchSavedShowAutoListForUser(userId);
-      }
-      throw rankingError;
+      console.warn("Following automatic ranking list fetch error:", rankingError);
+      return null;
     }
 
     const rows = rankingRows || [];
     const showIds = rows.map((row) => row.show_id).filter(Boolean);
-    if (!showIds.length) return fetchSavedShowAutoListForUser(userId);
+    if (!showIds.length) return null;
 
     const { data: showRows, error: showsError } = await supabase
       .from("shows")
       .select("id, name, first_aired, poster_url, tmdb_id")
       .in("id", showIds);
 
-    if (showsError) throw showsError;
+    if (showsError) {
+      console.warn("Following automatic ranking show fetch error:", showsError);
+      return null;
+    }
 
     const showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
-    const withNotes = rows.map((row) => ({
-      ...row,
-      note: row.comparisons
-        ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
-        : "From Rank'd",
-    }));
-
-    return buildAutoList(userId, withNotes, showMap, "Rank'd") || fetchSavedShowAutoListForUser(userId);
+    return buildAutoList(userId, rows, showMap);
   } catch (error) {
-    console.warn("Rank'd automatic list failed:", error);
-    return fetchSavedShowAutoListForUser(userId);
+    console.warn("Following automatic ranking list failed:", error);
+    return null;
   }
 }
 
 async function fetchAutomaticTopLists(followingIds) {
   const ids = (followingIds || []).filter(Boolean);
   const results = await Promise.all(ids.map((userId) => fetchRankedAutoListForUser(userId)));
-  const lists = results.filter(Boolean);
-  const seenUserIds = new Set(lists.map((list) => String(list.user_id)));
-  const placeholders = ids
-    .filter((userId) => !seenUserIds.has(String(userId)))
-    .map((userId) => buildAutoListPlaceholder(userId));
-
-  return [...lists, ...placeholders];
+  return results.filter(Boolean);
 }
 
 async function fetchReviewRatings(reviewRows) {
@@ -650,7 +531,7 @@ export default function FollowingFeed() {
                   <CreatorLine
                     profile={list.profiles}
                     userId={list.user_id}
-                    action={list.is_auto_top_list ? "has an automatic top 10" : "created a list"}
+                    action={list.is_auto_top_list ? "updated their automatic top 10" : "created a list"}
                     createdAt={list.updated_at || list.created_at}
                   />
                   <div className="following-list-card">
