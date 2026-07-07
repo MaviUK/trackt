@@ -1,9 +1,15 @@
 -- Public read policies for creator lists.
 -- Run this in Supabase SQL Editor.
 -- This lets other logged-in users see public creator lists and their items.
+-- It also fixes older rows where visibility was left null by treating them as public.
 
 alter table public.creator_lists enable row level security;
 alter table public.creator_list_items enable row level security;
+
+-- Backfill old lists that were created before visibility was consistently saved.
+update public.creator_lists
+set visibility = 'public'
+where visibility is null;
 
 -- Anyone authenticated can read creator lists marked public.
 drop policy if exists "Authenticated users can read public creator lists" on public.creator_lists;
@@ -11,7 +17,7 @@ create policy "Authenticated users can read public creator lists"
   on public.creator_lists
   for select
   to authenticated
-  using (visibility = 'public');
+  using (coalesce(visibility, 'public') = 'public');
 
 -- List owners can read all their own lists, including private drafts.
 drop policy if exists "Users can read own creator lists" on public.creator_lists;
@@ -57,7 +63,7 @@ create policy "Authenticated users can read public creator list items"
       select 1
       from public.creator_lists cl
       where cl.id = creator_list_items.list_id
-        and cl.visibility = 'public'
+        and coalesce(cl.visibility, 'public') = 'public'
     )
   );
 
