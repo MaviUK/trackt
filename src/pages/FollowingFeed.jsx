@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
 import "./FollowingFeed.css";
+import "./CreatorListCards.css";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -59,6 +60,10 @@ function getRatingKey(userId, showId) {
   return `${String(userId || "")}:${String(showId || "")}`;
 }
 
+function getShowYear(show) {
+  return String(show?.first_aired || show?.show_year || "").slice(0, 4);
+}
+
 function getCreatorName(profile) {
   return getProfileDisplayName(profile, "Someone");
 }
@@ -82,6 +87,18 @@ function formatPostType(value) {
     watchlist_advice: "Watchlist advice",
   };
   return labels[value] || "Post";
+}
+
+function getPosterItems(items, limit = 8) {
+  return (items || []).filter((item) => item?.poster_url).slice(0, limit);
+}
+
+function getListSubtitle(list) {
+  const itemCount = list.items?.length || 0;
+  if (list.is_auto_top_list) {
+    return `${itemCount} ranked show${itemCount === 1 ? "" : "s"} • Auto-updates from Rank'd`;
+  }
+  return `${itemCount} show${itemCount === 1 ? "" : "s"}`;
 }
 
 function isYouTubeEmbed(url) {
@@ -154,6 +171,89 @@ function CreatorLine({ profile, userId, action, createdAt }) {
   );
 }
 
+function FollowingListCard({ list, isExpanded, onToggle }) {
+  const posterItems = getPosterItems(list.items);
+  const badge = list.is_auto_top_list ? "Rank'd" : formatDate(list.created_at);
+  const title = list.title || "Untitled list";
+  const subtitle = getListSubtitle(list);
+
+  return (
+    <div
+      className={`creator-list-card creator-list-card-collapsed following-profile-list-card ${
+        isExpanded ? "is-expanded" : ""
+      }`.trim()}
+    >
+      <button
+        type="button"
+        className="creator-list-cover-button"
+        onClick={() => onToggle(list.id)}
+        aria-expanded={isExpanded}
+      >
+        <div className="creator-list-cover-art" aria-hidden="true">
+          {posterItems.length ? (
+            <div className="creator-list-poster-collage">
+              {posterItems.map((item, index) => (
+                <img
+                  key={`${list.id}-poster-${item.show_id || item.id || index}`}
+                  src={item.poster_url}
+                  alt=""
+                  loading="lazy"
+                  className={`creator-list-collage-poster creator-list-collage-poster-${index + 1}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="creator-list-poster-collage creator-list-poster-collage-empty">
+              <span>TV</span>
+            </div>
+          )}
+          <div className="creator-list-cover-shade" />
+        </div>
+
+        <div className="creator-list-cover-content">
+          <div className="creator-list-cover-topline">
+            <span>{badge}</span>
+            <span>{isExpanded ? "Tap to close" : "Tap to expand"}</span>
+          </div>
+
+          <div>
+            <h3>{title}</h3>
+            <p>{subtitle}</p>
+          </div>
+        </div>
+      </button>
+
+      {isExpanded ? (
+        <div className="creator-list-expanded-body">
+          {list.description ? <p className="creator-list-description">{list.description}</p> : null}
+
+          {list.items?.length ? (
+            <div className="creator-list-items">
+              {list.items.map((item) => (
+                <Link key={item.id} to={showHref(item)} className="creator-list-item">
+                  <span className="creator-rank">#{item.rank}</span>
+                  {item.poster_url ? (
+                    <img src={item.poster_url} alt="" />
+                  ) : (
+                    <span className="creator-mini-poster">?</span>
+                  )}
+                  <span>
+                    <strong>{item.show_name}</strong>
+                    {item.show_year ? <small>{item.show_year}</small> : null}
+                    {item.note ? <em>{item.note}</em> : null}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="following-muted">No shows added yet.</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 async function fetchCreatorLists(followingIds) {
   if (!followingIds.length) return [];
 
@@ -176,9 +276,144 @@ async function fetchCreatorLists(followingIds) {
       return [];
     }
 
-    return result.data || [];
+    const rows = result.data || [];
+    if (!rows.length) return [];
+
+    const listIds = rows.map((list) => list.id).filter(Boolean);
+    const itemsResult = await withTimeout(
+      supabase
+        .from("creator_list_items")
+        .select("id, list_id, rank, show_id, show_name, show_year, poster_url, tmdb_id, note")
+        .in("list_id", listIds)
+        .order("rank", { ascending: true }),
+      { data: [], error: null },
+      "creator list items"
+    );
+
+    if (itemsResult.error) {
+      console.warn("Following creator list items fetch error:", itemsResult.error);
+      return rows.map((list) => ({ ...list, items: [] }));
+    }
+
+    const itemsByListId = new Map();
+    (itemsResult.data || []).forEach((item) => {
+      const key = String(item.list_id);
+      const currentItems = itemsByListId.get(key) || [];
+      currentItems.push(item);
+      itemsByListId.set(key, currentItems);
+    });
+
+    return rows.map((list) => ({
+      ...list,
+      items: itemsByListId.get(String(list.id)) || [],
+    }));
   } catch (error) {
     console.warn("Following creator lists failed:", error);
+    return [];
+  }
+}
+
+async function fetchAutomaticRankdLists(followingIds) {
+  if (!followingIds.length) return [];
+
+  try {
+    const rankingResult = await withTimeout(
+      supabase
+        .from("user_show_rankings")
+        .select("user_id, show_id, ladder_position, comparisons, updated_at")
+        .in("user_id", followingIds)
+        .order("user_id", { ascending: true })
+        .order("ladder_position", { ascending: true, nullsFirst: false })
+        .limit(1000),
+      { data: [], error: null },
+      "automatic Rankd lists"
+    );
+
+    if (rankingResult.error) {
+      if (isMissingTableError(rankingResult.error, "user_show_rankings")) return [];
+      console.warn("Following automatic Rankd list fetch error:", rankingResult.error);
+      return [];
+    }
+
+    const rankingRows = rankingResult.data || [];
+    if (!rankingRows.length) return [];
+
+    const rowsByUserId = new Map();
+    rankingRows.forEach((row) => {
+      const userId = String(row.user_id || "");
+      if (!userId || !row.show_id) return;
+      const current = rowsByUserId.get(userId) || [];
+      if (current.length < 10) {
+        current.push(row);
+        rowsByUserId.set(userId, current);
+      }
+    });
+
+    const showIds = Array.from(new Set(rankingRows.map((row) => row.show_id).filter(Boolean)));
+    if (!showIds.length) return [];
+
+    const showsResult = await withTimeout(
+      supabase
+        .from("shows")
+        .select("id, name, tmdb_id, first_aired, poster_url")
+        .in("id", showIds),
+      { data: [], error: null },
+      "automatic Rankd list shows"
+    );
+
+    if (showsResult.error) {
+      console.warn("Following automatic Rankd show fetch error:", showsResult.error);
+      return [];
+    }
+
+    const showMap = new Map((showsResult.data || []).map((show) => [String(show.id), show]));
+
+    return Array.from(rowsByUserId.entries())
+      .map(([userId, rows]) => {
+        const items = rows
+          .map((row, index) => {
+            const show = showMap.get(String(row.show_id));
+            if (!show) return null;
+
+            return {
+              id: `rankd-auto-${userId}-${row.show_id}`,
+              show_id: row.show_id,
+              rank: index + 1,
+              show_name: show.name || "Untitled show",
+              show_year: getShowYear(show),
+              poster_url: show.poster_url || "",
+              tmdb_id: show.tmdb_id || "",
+              note: row.comparisons
+                ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+                : "From Rank'd",
+            };
+          })
+          .filter(Boolean);
+
+        if (!items.length) return null;
+
+        const latest = rows
+          .map((row) => row.updated_at)
+          .filter(Boolean)
+          .sort()
+          .at(-1);
+
+        return {
+          id: `rankd-top-10-${userId}`,
+          user_id: userId,
+          title: "Top 10 shows of all time",
+          description: "This list is generated from this creator's current Rank'd ladder and changes whenever their rankings change.",
+          list_type: "automatic_top_10",
+          visibility: "public",
+          created_at: latest || new Date(0).toISOString(),
+          updated_at: latest || null,
+          is_auto_top_list: true,
+          items,
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.warn("Following automatic Rankd lists failed:", error);
     return [];
   }
 }
@@ -221,6 +456,7 @@ export default function FollowingFeed() {
   const [posts, setPosts] = useState([]);
   const [lists, setLists] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
+  const [expandedListIds, setExpandedListIds] = useState(() => new Set());
   const [error, setError] = useState("");
 
   const feedItems = useMemo(() => {
@@ -236,6 +472,15 @@ export default function FollowingFeed() {
     if (activeFilter === "all") return feedItems;
     return feedItems.filter((item) => item.type === activeFilter);
   }, [activeFilter, feedItems]);
+
+  function toggleListExpanded(listId) {
+    setExpandedListIds((current) => {
+      const next = new Set(current);
+      if (next.has(listId)) next.delete(listId);
+      else next.add(listId);
+      return next;
+    });
+  }
 
   async function loadFeed() {
     setLoading(true);
@@ -280,7 +525,7 @@ export default function FollowingFeed() {
         return;
       }
 
-      const [postsResult, listRows, reviewsResult, chatResult] = await Promise.all([
+      const [postsResult, listRows, autoRankdLists, reviewsResult, chatResult] = await Promise.all([
         withTimeout(
           supabase
             .from("creator_posts")
@@ -306,6 +551,7 @@ export default function FollowingFeed() {
           "creator posts"
         ),
         fetchCreatorLists(followingIds),
+        fetchAutomaticRankdLists(followingIds),
         withTimeout(
           supabase
             .from("show_reviews")
@@ -337,7 +583,7 @@ export default function FollowingFeed() {
       const postRows = postsResult.data || [];
       const reviewRows = reviewsResult.data || [];
       const chatRows = chatResult.data || [];
-      const allListRows = listRows || [];
+      const allListRows = [...(autoRankdLists || []), ...(listRows || [])];
       const ratingMap = await fetchReviewRatings(reviewRows);
 
       const allUserIds = Array.from(
@@ -486,39 +732,21 @@ export default function FollowingFeed() {
 
             if (item.type === "list") {
               const list = item.data;
-              const profileHref = creatorHref(list.profiles, list.user_id);
-              const previewItems = (list.items || []).slice(0, 5);
+              const listKey = String(list.id);
 
               return (
-                <article key={`list-${list.id}`} className="following-card">
+                <article key={`list-${list.id}`} className="following-card following-card-list">
                   <CreatorLine
                     profile={list.profiles}
                     userId={list.user_id}
-                    action="created a list"
+                    action={list.is_auto_top_list ? "updated their Rank'd top 10" : "created a list"}
                     createdAt={list.updated_at || list.created_at}
                   />
-                  <div className="following-list-card">
-                    <span className="following-type-pill">List</span>
-                    <h2>{list.title || "Untitled list"}</h2>
-                    {list.description ? <p>{list.description}</p> : null}
-                    {previewItems.length ? (
-                      <div className="following-list-preview">
-                        {previewItems.map((listItem) => (
-                          <Link
-                            key={listItem.id || `${list.id}-${listItem.show_id}`}
-                            to={showHref(listItem)}
-                            className="following-list-preview-item"
-                          >
-                            <span>#{listItem.rank}</span>
-                            {listItem.poster_url ? <img src={listItem.poster_url} alt="" /> : <i>?</i>}
-                          </Link>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                  <Link to={profileHref} className="following-view-profile">
-                    View creator page
-                  </Link>
+                  <FollowingListCard
+                    list={list}
+                    isExpanded={expandedListIds.has(listKey)}
+                    onToggle={toggleListExpanded}
+                  />
                 </article>
               );
             }
