@@ -1,0 +1,20 @@
+@media (max-width: 768px) {
+  .msd-mobile-banner-wrap {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .msd-mobile-banner {
+    height: 210px !important;
+    background-position: center top !important;
+    background-size: cover !important;
+  }
+
+  .msd-hero {
+    margin-top: 0 !important;
+  }
+
+  .msd-hero-main-mobile {
+    margin-top: -44px !important;
+  }
+}
