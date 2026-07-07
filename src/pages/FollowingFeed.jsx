@@ -16,10 +16,7 @@ function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-  });
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 function formatRating(value) {
@@ -74,7 +71,6 @@ function formatPostType(value) {
     tonights_pick: "Tonight's pick",
     watchlist_advice: "Watchlist advice",
   };
-
   return labels[value] || "Post";
 }
 
@@ -119,12 +115,7 @@ function VideoEmbed({ post }) {
   }
 
   return (
-    <a
-      href={originalUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="following-video-link"
-    >
+    <a href={originalUrl} target="_blank" rel="noreferrer" className="following-video-link">
       Watch video
     </a>
   );
@@ -145,12 +136,9 @@ function CreatorLine({ profile, userId, action, createdAt }) {
           {creatorName.slice(0, 1).toUpperCase()}
         </div>
       )}
-
       <div>
         <strong>{creatorName}</strong>
-        <span>
-          {action} · {formatDate(createdAt)}
-        </span>
+        <span>{action} · {formatDate(createdAt)}</span>
       </div>
     </Link>
   );
@@ -167,205 +155,171 @@ async function fetchCreatorLists(followingIds) {
       .limit(40);
 
     if (error) {
-      if (isMissingTableError(error, "creator_lists")) {
-        console.warn("creator_lists table is not available yet; hiding list activity.", error);
-        return [];
-      }
+      if (isMissingTableError(error, "creator_lists")) return [];
       throw error;
     }
 
     return data || [];
   } catch (error) {
-    if (isMissingTableError(error, "creator_lists")) {
-      console.warn("creator_lists table is not available yet; hiding list activity.", error);
-      return [];
-    }
+    if (isMissingTableError(error, "creator_lists")) return [];
     throw error;
   }
 }
 
-function buildAutoTopLists(rowsByUserId, showMap, options = {}) {
-  const title = options.title || "Top 10 shows of all time";
-  const description = options.description || "Auto-updates from this creator's Rank'd ladder.";
-  const badgeSource = options.badgeSource || "Rank'd";
-
-  return Array.from(rowsByUserId.entries())
-    .map(([userId, rows]) => {
-      const items = rows
-        .slice(0, 10)
-        .map((row, index) => {
-          const show = showMap.get(String(row.show_id));
-          if (!show) return null;
-
-          return {
-            id: `auto-top-${userId}-${row.show_id}`,
-            show_id: row.show_id,
-            rank: index + 1,
-            show_name: show.name || show.show_name || "Untitled show",
-            show_year: getShowYear(show),
-            poster_url: show.poster_url || "",
-            tmdb_id: show.tmdb_id || "",
-            note: row.note || badgeSource,
-          };
-        })
-        .filter(Boolean);
-
-      if (!items.length) return null;
-
-      const latest = rows
-        .map((row) => row.updated_at || row.created_at || row.added_at)
-        .filter(Boolean)
-        .sort()
-        .at(-1);
+function buildAutoList(userId, rows, showMap, sourceLabel = "Rank'd") {
+  const items = (rows || [])
+    .slice(0, 10)
+    .map((row, index) => {
+      const show = showMap.get(String(row.show_id));
+      if (!show) return null;
 
       return {
-        id: `auto-top-10-${userId}`,
-        user_id: userId,
-        title,
-        description,
-        list_type: "automatic_top_10",
-        visibility: "public",
-        created_at: latest || new Date(0).toISOString(),
-        updated_at: latest || null,
-        is_auto_top_list: true,
-        items,
+        id: `auto-top-${userId}-${row.show_id}`,
+        show_id: row.show_id,
+        rank: index + 1,
+        show_name: show.name || show.show_name || "Untitled show",
+        show_year: getShowYear(show),
+        poster_url: show.poster_url || "",
+        tmdb_id: show.tmdb_id || "",
+        note: row.note || sourceLabel,
       };
     })
     .filter(Boolean);
+
+  if (!items.length) return null;
+
+  const latest = (rows || [])
+    .map((row) => row.updated_at || row.created_at || row.added_at)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+
+  return {
+    id: `auto-top-10-${userId}`,
+    user_id: userId,
+    title: "Top 10 shows of all time",
+    description:
+      sourceLabel === "Rank'd"
+        ? "Auto-updates from this creator's Rank'd ladder."
+        : "Auto-built from this creator's rated and saved shows.",
+    list_type: "automatic_top_10",
+    visibility: "public",
+    created_at: latest || new Date(0).toISOString(),
+    updated_at: latest || null,
+    is_auto_top_list: true,
+    items,
+  };
 }
 
-async function fetchAutomaticTopListsFromSavedShows(followingIds) {
+async function fetchSavedShowAutoListForUser(userId) {
   try {
-    const { data: savedRows, error: savedError } = await supabase
+    let savedRows = [];
+    let savedError = null;
+
+    const fullResult = await supabase
       .from("user_shows_new")
       .select(`
-        user_id,
         show_id,
         watch_status,
         added_at,
         created_at,
+        updated_at,
         shows!inner(id, name, first_aired, poster_url, tmdb_id)
       `)
-      .in("user_id", followingIds)
-      .in("watch_status", ["completed", "watching"])
-      .limit(1000);
+      .eq("user_id", userId)
+      .in("watch_status", ["completed", "watching", "watchlist"])
+      .limit(100);
+
+    savedRows = fullResult.data || [];
+    savedError = fullResult.error;
 
     if (savedError) {
-      if (isMissingTableError(savedError, "user_shows_new")) return [];
-      throw savedError;
+      const retryResult = await supabase
+        .from("user_shows_new")
+        .select(`
+          show_id,
+          watch_status,
+          shows!inner(id, name, first_aired, poster_url, tmdb_id)
+        `)
+        .eq("user_id", userId)
+        .in("watch_status", ["completed", "watching", "watchlist"])
+        .limit(100);
+
+      if (retryResult.error) return null;
+      savedRows = retryResult.data || [];
     }
 
-    const rows = savedRows || [];
-    const showIds = Array.from(new Set(rows.map((row) => row.show_id).filter(Boolean)));
-    if (!showIds.length) return [];
+    if (!savedRows.length) return null;
 
+    const showIds = savedRows.map((row) => row.show_id).filter(Boolean);
     let ratingMap = new Map();
 
     try {
-      const { data: ratingRows, error: ratingError } = await supabase
+      const { data: ratingRows } = await supabase
         .from("burgr_ratings")
-        .select("user_id, show_id, rating")
-        .in("user_id", followingIds)
+        .select("show_id, rating")
+        .eq("user_id", userId)
         .in("show_id", showIds);
 
-      if (!ratingError) {
-        ratingMap = new Map(
-          (ratingRows || []).map((row) => [getRatingKey(row.user_id, row.show_id), row.rating])
-        );
-      }
+      ratingMap = new Map((ratingRows || []).map((row) => [String(row.show_id), row.rating]));
     } catch {
       ratingMap = new Map();
     }
 
-    const rowsByUserId = new Map();
-    const showMap = new Map();
-
-    rows.forEach((row) => {
-      const userId = String(row.user_id || "");
-      if (!userId || !row.show_id || !row.shows) return;
-
-      const rating = ratingMap.get(getRatingKey(row.user_id, row.show_id));
-      const show = row.shows;
-      showMap.set(String(row.show_id), show);
-
-      const current = rowsByUserId.get(userId) || [];
-      current.push({
-        ...row,
-        rating,
-        note: Number.isFinite(Number(rating)) ? `${Math.round(Number(rating))}% rating` : "Saved show",
+    const rows = savedRows
+      .map((row) => {
+        const rating = ratingMap.get(String(row.show_id));
+        return {
+          ...row,
+          rating,
+          note: Number.isFinite(Number(rating)) ? `${Math.round(Number(rating))}% rating` : "Saved show",
+        };
+      })
+      .sort((a, b) => {
+        const aRating = Number(a.rating);
+        const bRating = Number(b.rating);
+        const aHasRating = Number.isFinite(aRating);
+        const bHasRating = Number.isFinite(bRating);
+        if (aHasRating !== bHasRating) return aHasRating ? -1 : 1;
+        if (aHasRating && bHasRating && aRating !== bRating) return bRating - aRating;
+        return String(b.updated_at || b.added_at || b.created_at || "").localeCompare(
+          String(a.updated_at || a.added_at || a.created_at || "")
+        );
       });
-      rowsByUserId.set(userId, current);
-    });
 
-    rowsByUserId.forEach((rowsForUser, userId) => {
-      rowsByUserId.set(
-        userId,
-        [...rowsForUser].sort((a, b) => {
-          const aRating = Number(a.rating);
-          const bRating = Number(b.rating);
-          const aHasRating = Number.isFinite(aRating);
-          const bHasRating = Number.isFinite(bRating);
+    const showMap = new Map(
+      rows
+        .filter((row) => row.shows)
+        .map((row) => [String(row.show_id), row.shows])
+    );
 
-          if (aHasRating !== bHasRating) return aHasRating ? -1 : 1;
-          if (aHasRating && bHasRating && aRating !== bRating) return bRating - aRating;
-
-          const aDate = a.added_at || a.created_at || "";
-          const bDate = b.added_at || b.created_at || "";
-          return bDate.localeCompare(aDate);
-        })
-      );
-    });
-
-    return buildAutoTopLists(rowsByUserId, showMap, {
-      description: "Auto-built from this creator's rated and saved shows.",
-      badgeSource: "Saved show",
-    });
+    return buildAutoList(userId, rows, showMap, "Saved show");
   } catch (error) {
-    console.warn("Failed loading automatic saved-show top lists:", error);
-    return [];
+    console.warn("Saved-show automatic list failed:", error);
+    return null;
   }
 }
 
-async function fetchAutomaticTopLists(followingIds) {
-  if (!followingIds.length) return [];
-
+async function fetchRankedAutoListForUser(userId) {
   try {
     const { data: rankingRows, error: rankingError } = await supabase
       .from("user_show_rankings")
-      .select("user_id, show_id, ladder_position, comparisons, updated_at")
-      .in("user_id", followingIds)
+      .select("show_id, ladder_position, wins, losses, comparisons, updated_at")
+      .eq("user_id", userId)
       .not("ladder_position", "is", null)
       .order("ladder_position", { ascending: true })
-      .limit(1000);
+      .limit(10);
 
     if (rankingError) {
       if (isMissingTableError(rankingError, "user_show_rankings")) {
-        return fetchAutomaticTopListsFromSavedShows(followingIds);
+        return fetchSavedShowAutoListForUser(userId);
       }
       throw rankingError;
     }
 
-    const rowsByUserId = new Map();
-    (rankingRows || []).forEach((row) => {
-      const key = String(row.user_id || "");
-      if (!key) return;
-      const current = rowsByUserId.get(key) || [];
-      if (current.length < 10) {
-        current.push({
-          ...row,
-          note: row.comparisons
-            ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
-            : "From Rank'd",
-        });
-        rowsByUserId.set(key, current);
-      }
-    });
-
-    const showIds = Array.from(
-      new Set((rankingRows || []).map((row) => row.show_id).filter(Boolean))
-    );
-
-    if (!showIds.length) return fetchAutomaticTopListsFromSavedShows(followingIds);
+    const rows = rankingRows || [];
+    const showIds = rows.map((row) => row.show_id).filter(Boolean);
+    if (!showIds.length) return fetchSavedShowAutoListForUser(userId);
 
     const { data: showRows, error: showsError } = await supabase
       .from("shows")
@@ -375,13 +329,26 @@ async function fetchAutomaticTopLists(followingIds) {
     if (showsError) throw showsError;
 
     const showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
-    const rankedLists = buildAutoTopLists(rowsByUserId, showMap);
+    const withNotes = rows.map((row) => ({
+      ...row,
+      note: row.comparisons
+        ? `${Number(row.comparisons || 0)} Rank'd comparison${Number(row.comparisons || 0) === 1 ? "" : "s"}`
+        : "From Rank'd",
+    }));
 
-    return rankedLists.length ? rankedLists : fetchAutomaticTopListsFromSavedShows(followingIds);
+    return buildAutoList(userId, withNotes, showMap, "Rank'd") || fetchSavedShowAutoListForUser(userId);
   } catch (error) {
-    console.warn("Failed loading automatic following top lists:", error);
-    return fetchAutomaticTopListsFromSavedShows(followingIds);
+    console.warn("Rank'd automatic list failed:", error);
+    return fetchSavedShowAutoListForUser(userId);
   }
+}
+
+async function fetchAutomaticTopLists(followingIds) {
+  const results = await Promise.all(
+    (followingIds || []).map((userId) => fetchRankedAutoListForUser(userId))
+  );
+
+  return results.filter(Boolean);
 }
 
 async function fetchReviewRatings(reviewRows) {
@@ -399,28 +366,19 @@ async function fetchReviewRatings(reviewRows) {
       .in("show_id", ratingShowIds);
 
     if (error) {
-      if (isMissingTableError(error, "burgr_ratings")) {
-        console.warn("burgr_ratings table is not available; hiding review ratings.", error);
-        return new Map();
-      }
+      if (isMissingTableError(error, "burgr_ratings")) return new Map();
       throw error;
     }
 
-    return new Map(
-      (data || []).map((row) => [getRatingKey(row.user_id, row.show_id), row.rating])
-    );
+    return new Map((data || []).map((row) => [getRatingKey(row.user_id, row.show_id), row.rating]));
   } catch (error) {
-    if (isMissingTableError(error, "burgr_ratings")) {
-      console.warn("burgr_ratings table is not available; hiding review ratings.", error);
-      return new Map();
-    }
+    if (isMissingTableError(error, "burgr_ratings")) return new Map();
     throw error;
   }
 }
 
 export default function FollowingFeed() {
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
   const [reviews, setReviews] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -430,26 +388,10 @@ export default function FollowingFeed() {
 
   const feedItems = useMemo(() => {
     return [
-      ...posts.map((post) => ({
-        type: "post",
-        created_at: post.created_at,
-        data: post,
-      })),
-      ...lists.map((list) => ({
-        type: "list",
-        created_at: list.created_at,
-        data: list,
-      })),
-      ...reviews.map((review) => ({
-        type: "review",
-        created_at: review.created_at,
-        data: review,
-      })),
-      ...chatMessages.map((message) => ({
-        type: "chatboard",
-        created_at: message.created_at,
-        data: message,
-      })),
+      ...posts.map((post) => ({ type: "post", created_at: post.created_at, data: post })),
+      ...lists.map((list) => ({ type: "list", created_at: list.updated_at || list.created_at, data: list })),
+      ...reviews.map((review) => ({ type: "review", created_at: review.created_at, data: review })),
+      ...chatMessages.map((message) => ({ type: "chatboard", created_at: message.created_at, data: message })),
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [posts, lists, reviews, chatMessages]);
 
@@ -465,7 +407,6 @@ export default function FollowingFeed() {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user || null;
-      setCurrentUser(user);
 
       if (!user?.id) {
         setReviews([]);
@@ -482,9 +423,7 @@ export default function FollowingFeed() {
 
       if (followsError) throw followsError;
 
-      const followingIds = (follows || [])
-        .map((row) => row.following_id)
-        .filter(Boolean);
+      const followingIds = (follows || []).map((row) => row.following_id).filter(Boolean);
 
       if (!followingIds.length) {
         setReviews([]);
@@ -521,24 +460,15 @@ export default function FollowingFeed() {
           .eq("visibility", "public")
           .order("created_at", { ascending: false })
           .limit(40),
-
         fetchCreatorLists(followingIds),
         fetchAutomaticTopLists(followingIds),
-
         supabase
           .from("show_reviews")
-          .select(`
-            id,
-            user_id,
-            show_id,
-            body,
-            created_at
-          `)
+          .select("id, user_id, show_id, body, created_at")
           .in("user_id", followingIds)
           .is("parent_id", null)
           .order("created_at", { ascending: false })
           .limit(40),
-
         supabase
           .from("show_chat_messages")
           .select("id, show_id, user_id, parent_id, body, created_at, updated_at")
@@ -554,7 +484,6 @@ export default function FollowingFeed() {
 
       const allListRows = [...(autoTopLists || []), ...(listRows || [])];
       const ratingMap = await fetchReviewRatings(reviewRows || []);
-
       const allUserIds = Array.from(
         new Set([
           ...(postRows || []).map((post) => post.user_id),
@@ -573,10 +502,7 @@ export default function FollowingFeed() {
           .in("id", allUserIds);
 
         if (profilesError) throw profilesError;
-
-        profileMap = new Map(
-          (profiles || []).map((profile) => [String(profile.id), profile])
-        );
+        profileMap = new Map((profiles || []).map((profile) => [String(profile.id), profile]));
       }
 
       const showIds = Array.from(
@@ -595,39 +521,39 @@ export default function FollowingFeed() {
           .in("id", showIds);
 
         if (showsError) throw showsError;
-
-        showMap = new Map(
-          (shows || []).map((show) => [String(show.id), show])
-        );
+        showMap = new Map((shows || []).map((show) => [String(show.id), show]));
       }
 
-      const postsWithProfiles = (postRows || []).map((post) => ({
-        ...post,
-        profiles: profileMap.get(String(post.user_id)) || { id: post.user_id },
-      }));
+      setPosts(
+        (postRows || []).map((post) => ({
+          ...post,
+          profiles: profileMap.get(String(post.user_id)) || { id: post.user_id },
+        }))
+      );
 
-      const listsWithProfiles = allListRows.map((list) => ({
-        ...list,
-        profiles: profileMap.get(String(list.user_id)) || { id: list.user_id },
-      }));
+      setLists(
+        allListRows.map((list) => ({
+          ...list,
+          profiles: profileMap.get(String(list.user_id)) || { id: list.user_id },
+        }))
+      );
 
-      const reviewsWithProfilesShowsAndRatings = (reviewRows || []).map((review) => ({
-        ...review,
-        user_rating: ratingMap.get(getRatingKey(review.user_id, review.show_id)) ?? null,
-        profiles: profileMap.get(String(review.user_id)) || { id: review.user_id },
-        shows: showMap.get(String(review.show_id)) || null,
-      }));
+      setReviews(
+        (reviewRows || []).map((review) => ({
+          ...review,
+          user_rating: ratingMap.get(getRatingKey(review.user_id, review.show_id)) ?? null,
+          profiles: profileMap.get(String(review.user_id)) || { id: review.user_id },
+          shows: showMap.get(String(review.show_id)) || null,
+        }))
+      );
 
-      const chatWithProfilesAndShows = (chatRows || []).map((message) => ({
-        ...message,
-        profiles: profileMap.get(String(message.user_id)) || { id: message.user_id },
-        shows: showMap.get(String(message.show_id)) || null,
-      }));
-
-      setPosts(postsWithProfiles);
-      setLists(listsWithProfiles);
-      setReviews(reviewsWithProfilesShowsAndRatings);
-      setChatMessages(chatWithProfilesAndShows);
+      setChatMessages(
+        (chatRows || []).map((message) => ({
+          ...message,
+          profiles: profileMap.get(String(message.user_id)) || { id: message.user_id },
+          shows: showMap.get(String(message.show_id)) || null,
+        }))
+      );
     } catch (err) {
       console.error("Failed loading following feed:", err);
       setError(err.message || "Failed loading feed.");
@@ -680,16 +606,12 @@ export default function FollowingFeed() {
                     action={`posted ${formatPostType(post.post_type).toLowerCase()}`}
                     createdAt={post.created_at}
                   />
-
                   <VideoEmbed post={post} />
-
                   {!post.video_embed_url && post.image_url ? (
                     <img src={post.image_url} alt="" className="following-post-image" />
                   ) : null}
-
                   {post.title ? <h2 className="following-post-title">{post.title}</h2> : null}
                   {post.body ? <p className="following-review-text">{post.body}</p> : null}
-
                   <Link to={profileHref} className="following-view-profile">
                     View creator page
                   </Link>
@@ -710,14 +632,12 @@ export default function FollowingFeed() {
                     action={list.is_auto_top_list ? "updated their automatic top 10" : "created a list"}
                     createdAt={list.updated_at || list.created_at}
                   />
-
                   <div className="following-list-card">
                     <span className="following-type-pill">
                       {list.is_auto_top_list ? "Rank'd Top 10" : "List"}
                     </span>
                     <h2>{list.title || "Untitled list"}</h2>
                     {list.description ? <p>{list.description}</p> : null}
-
                     {previewItems.length ? (
                       <div className="following-list-preview">
                         {previewItems.map((listItem) => (
@@ -727,17 +647,12 @@ export default function FollowingFeed() {
                             className="following-list-preview-item"
                           >
                             <span>#{listItem.rank}</span>
-                            {listItem.poster_url ? (
-                              <img src={listItem.poster_url} alt="" />
-                            ) : (
-                              <i>?</i>
-                            )}
+                            {listItem.poster_url ? <img src={listItem.poster_url} alt="" /> : <i>?</i>}
                           </Link>
                         ))}
                       </div>
                     ) : null}
                   </div>
-
                   <Link to={profileHref} className="following-view-profile">
                     View creator page
                   </Link>
@@ -757,20 +672,13 @@ export default function FollowingFeed() {
                     action={`posted on ${show?.name || "a chatboard"}`}
                     createdAt={message.created_at}
                   />
-
                   <Link to={showHref(show)} className="following-show-card">
-                    {show?.poster_url ? (
-                      <img src={show.poster_url} alt="" />
-                    ) : (
-                      <div className="following-poster-fallback">?</div>
-                    )}
-
+                    {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
                     <div>
                       <strong>{show?.name || "Show chatboard"}</strong>
                       {show?.first_aired ? <span>{String(show.first_aired).slice(0, 4)}</span> : null}
                     </div>
                   </Link>
-
                   <p className="following-review-text">{message.body}</p>
                 </article>
               );
@@ -788,25 +696,16 @@ export default function FollowingFeed() {
                   action={`reviewed ${show?.name || "a show"}`}
                   createdAt={review.created_at}
                 />
-
                 <Link to={showHref(show)} className="following-show-card">
-                  {show?.poster_url ? (
-                    <img src={show.poster_url} alt="" />
-                  ) : (
-                    <div className="following-poster-fallback">?</div>
-                  )}
-
+                  {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
                   <div>
                     <div className="following-show-title-row">
                       <strong>{show?.name || "Untitled show"}</strong>
-                      {ratingLabel ? (
-                        <span className="following-rating-pill">{ratingLabel}</span>
-                      ) : null}
+                      {ratingLabel ? <span className="following-rating-pill">{ratingLabel}</span> : null}
                     </div>
                     {show?.first_aired ? <span>{String(show.first_aired).slice(0, 4)}</span> : null}
                   </div>
                 </Link>
-
                 <p className="following-review-text">{review.body}</p>
               </article>
             );
