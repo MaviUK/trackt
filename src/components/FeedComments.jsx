@@ -30,7 +30,7 @@ function commenterInitial(profile, userId) {
   return name.slice(0, 1).toUpperCase();
 }
 
-export default function FeedComments({ targetType, targetId, currentUserId }) {
+export default function FeedComments({ targetType, targetId, currentUserId, inline = false }) {
   const targetKey = useMemo(
     () => `${String(targetType || "item")}:${String(targetId || "")}`,
     [targetType, targetId]
@@ -158,67 +158,82 @@ export default function FeedComments({ targetType, targetId, currentUserId }) {
     }
   }
 
-  return (
-    <section className="feed-comments">
-      <button
-        type="button"
-        className="feed-comments-toggle"
-        onClick={() => setIsOpen((value) => !value)}
-      >
-        <span>{comments.length ? `${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Comment"}</span>
-        <em>{isOpen ? "Hide" : "Open"}</em>
-      </button>
+  const toggle = (
+    <button
+      type="button"
+      className={inline ? "feed-comments-inline-toggle" : "feed-comments-toggle"}
+      onClick={() => setIsOpen((value) => !value)}
+      aria-expanded={isOpen}
+    >
+      <span>{comments.length ? `${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Comments"}</span>
+      <em>{isOpen ? "⌃" : "⌄"}</em>
+    </button>
+  );
 
-      {isOpen ? (
-        <div className="feed-comments-panel">
-          {loading ? <p className="feed-comments-muted">Loading comments...</p> : null}
-          {error ? <p className="feed-comments-error">{error}</p> : null}
+  const panel = isOpen ? (
+    <div className={inline ? "feed-comments-panel feed-comments-inline-panel" : "feed-comments-panel"}>
+      {loading ? <p className="feed-comments-muted">Loading comments...</p> : null}
+      {error ? <p className="feed-comments-error">{error}</p> : null}
 
-          {!loading && comments.length ? (
-            <div className="feed-comments-list">
-              {comments.map((comment) => {
-                const profile = comment.profiles;
-                const displayName = getProfileDisplayName(profile, "User");
+      {!loading && comments.length ? (
+        <div className="feed-comments-list">
+          {comments.map((comment) => {
+            const profile = comment.profiles;
+            const displayName = getProfileDisplayName(profile, "User");
 
-                return (
-                  <article key={comment.id} className="feed-comment">
-                    {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="" className="feed-comment-avatar" />
-                    ) : (
-                      <div className="feed-comment-avatar feed-comment-avatar-fallback">
-                        {commenterInitial(profile, comment.user_id)}
-                      </div>
-                    )}
-                    <div>
-                      <div className="feed-comment-meta">
-                        <strong>{displayName}</strong>
-                        <span>{formatCommentDate(comment.created_at)}</span>
-                      </div>
-                      <p>{comment.body}</p>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {!loading && !comments.length ? (
-            <p className="feed-comments-muted">No comments yet. Be the first.</p>
-          ) : null}
-
-          <form className="feed-comment-form" onSubmit={handleSubmit}>
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Write a comment..."
-              rows={2}
-            />
-            <button type="submit" disabled={!draft.trim() || submitting}>
-              {submitting ? "Posting..." : "Post"}
-            </button>
-          </form>
+            return (
+              <article key={comment.id} className="feed-comment">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="feed-comment-avatar" />
+                ) : (
+                  <div className="feed-comment-avatar feed-comment-avatar-fallback">
+                    {commenterInitial(profile, comment.user_id)}
+                  </div>
+                )}
+                <div>
+                  <div className="feed-comment-meta">
+                    <strong>{displayName}</strong>
+                    <span>{formatCommentDate(comment.created_at)}</span>
+                  </div>
+                  <p>{comment.body}</p>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : null}
+
+      {!loading && !comments.length ? (
+        <p className="feed-comments-muted">No comments yet. Be the first.</p>
+      ) : null}
+
+      <form className="feed-comment-form" onSubmit={handleSubmit}>
+        <textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Write a comment..."
+          rows={2}
+        />
+        <button type="submit" disabled={!draft.trim() || submitting}>
+          {submitting ? "Posting..." : "Post"}
+        </button>
+      </form>
+    </div>
+  ) : null;
+
+  if (inline) {
+    return (
+      <>
+        {toggle}
+        {panel}
+      </>
+    );
+  }
+
+  return (
+    <section className="feed-comments">
+      {toggle}
+      {panel}
     </section>
   );
 }
