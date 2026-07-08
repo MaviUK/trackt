@@ -149,7 +149,7 @@ function VideoEmbed({ post }) {
   );
 }
 
-function CreatorLine({ profile, userId, createdAt, activityLabel, comments }) {
+function CreatorLine({ profile, userId, createdAt, activityLabel }) {
   const creator = profile || { id: userId };
   const creatorName = getCreatorName(creator);
   const avatarUrl = creator?.avatar_url || "";
@@ -176,7 +176,6 @@ function CreatorLine({ profile, userId, createdAt, activityLabel, comments }) {
             {activityLabel ? <span className="following-meta-dot">·</span> : null}
             <span>{formatDate(createdAt)}</span>
           </div>
-          <div className="following-meta-comments">{comments}</div>
         </div>
       </div>
     </div>
@@ -190,11 +189,7 @@ function FollowingListCard({ list, isExpanded, onToggle }) {
   const subtitle = getListSubtitle(list);
 
   return (
-    <div
-      className={`creator-list-card creator-list-card-collapsed following-profile-list-card ${
-        isExpanded ? "is-expanded" : ""
-      }`.trim()}
-    >
+    <div className={`creator-list-card creator-list-card-collapsed following-profile-list-card ${isExpanded ? "is-expanded" : ""}`.trim()}>
       <button
         type="button"
         className="creator-list-cover-button"
@@ -244,11 +239,7 @@ function FollowingListCard({ list, isExpanded, onToggle }) {
               {list.items.map((item) => (
                 <Link key={item.id} to={showHref(item)} className="creator-list-item">
                   <span className="creator-rank">#{item.rank}</span>
-                  {item.poster_url ? (
-                    <img src={item.poster_url} alt="" />
-                  ) : (
-                    <span className="creator-mini-poster">?</span>
-                  )}
+                  {item.poster_url ? <img src={item.poster_url} alt="" /> : <span className="creator-mini-poster">?</span>}
                   <span>
                     <strong>{item.show_name}</strong>
                     {item.show_year ? <small>{item.show_year}</small> : null}
@@ -404,11 +395,7 @@ async function fetchAutomaticRankdLists(followingIds) {
 
         if (!items.length) return null;
 
-        const latest = rows
-          .map((row) => row.updated_at)
-          .filter(Boolean)
-          .sort()
-          .at(-1);
+        const latest = rows.map((row) => row.updated_at).filter(Boolean).sort().at(-1);
 
         return {
           id: `rankd-top-10-${userId}`,
@@ -729,14 +716,6 @@ export default function FollowingFeed() {
                     userId={post.user_id}
                     createdAt={post.created_at}
                     activityLabel={formatPostType(post.post_type)}
-                    comments={(
-                      <FeedComments
-                        inline
-                        targetType="post"
-                        targetId={post.id}
-                        currentUserId={currentUserId}
-                      />
-                    )}
                   />
                   <VideoEmbed post={post} />
                   {!post.video_embed_url && post.image_url ? (
@@ -744,6 +723,12 @@ export default function FollowingFeed() {
                   ) : null}
                   {post.title ? <h2 className="following-post-title">{post.title}</h2> : null}
                   {post.body ? <p className="following-review-text">{post.body}</p> : null}
+                  <FeedComments
+                    inline
+                    targetType="post"
+                    targetId={post.id}
+                    currentUserId={currentUserId}
+                  />
                 </article>
               );
             }
@@ -759,19 +744,17 @@ export default function FollowingFeed() {
                     userId={list.user_id}
                     createdAt={list.updated_at || list.created_at}
                     activityLabel={list.is_auto_top_list ? "Rank'd Top 10" : "List"}
-                    comments={(
-                      <FeedComments
-                        inline
-                        targetType="list"
-                        targetId={list.id}
-                        currentUserId={currentUserId}
-                      />
-                    )}
                   />
                   <FollowingListCard
                     list={list}
                     isExpanded={expandedListIds.has(listKey)}
                     onToggle={toggleListExpanded}
+                  />
+                  <FeedComments
+                    inline
+                    targetType="list"
+                    targetId={list.id}
+                    currentUserId={currentUserId}
                   />
                 </article>
               );
@@ -788,27 +771,21 @@ export default function FollowingFeed() {
                     userId={message.user_id}
                     createdAt={message.created_at}
                     activityLabel="Chatboard"
-                    comments={(
-                      <FeedComments
-                        inline
-                        targetType="chatboard"
-                        targetId={message.id}
-                        currentUserId={currentUserId}
-                      />
-                    )}
                   />
                   <Link to={showHref(show)} className="following-show-card">
-                    {show?.poster_url ? (
-                      <img src={show.poster_url} alt="" />
-                    ) : (
-                      <div className="following-poster-fallback">?</div>
-                    )}
+                    {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
                     <div>
                       <strong>{show?.name || "Show chatboard"}</strong>
                       {show?.first_aired ? <span>{String(show.first_aired).slice(0, 4)}</span> : null}
                     </div>
                   </Link>
                   <p className="following-review-text">{message.body}</p>
+                  <FeedComments
+                    inline
+                    targetType="chatboard"
+                    targetId={message.id}
+                    currentUserId={currentUserId}
+                  />
                 </article>
               );
             }
@@ -824,21 +801,9 @@ export default function FollowingFeed() {
                   userId={review.user_id}
                   createdAt={review.created_at}
                   activityLabel="Review"
-                  comments={(
-                    <FeedComments
-                      inline
-                      targetType="review"
-                      targetId={review.id}
-                      currentUserId={currentUserId}
-                    />
-                  )}
                 />
                 <Link to={showHref(show)} className="following-show-card">
-                  {show?.poster_url ? (
-                    <img src={show.poster_url} alt="" />
-                  ) : (
-                    <div className="following-poster-fallback">?</div>
-                  )}
+                  {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
                   <div>
                     <div className="following-show-title-row">
                       <strong>{show?.name || "Untitled show"}</strong>
@@ -848,6 +813,12 @@ export default function FollowingFeed() {
                   </div>
                 </Link>
                 <p className="following-review-text">{review.body}</p>
+                <FeedComments
+                  inline
+                  targetType="review"
+                  targetId={review.id}
+                  currentUserId={currentUserId}
+                />
               </article>
             );
           })}
