@@ -110,6 +110,11 @@ function isTikTokEmbed(url) {
   return Boolean(url && url.includes("tiktok.com/embed"));
 }
 
+function getCommentButtonLabel(type) {
+  if (type === "review" || type === "chatboard") return "Replies";
+  return "Comments";
+}
+
 function VideoEmbed({ post }) {
   const embedUrl = post?.video_embed_url;
   const originalUrl = post?.video_url || embedUrl;
@@ -149,7 +154,7 @@ function VideoEmbed({ post }) {
   );
 }
 
-function CreatorLine({ profile, userId, createdAt, activityLabel }) {
+function CreatorLine({ profile, userId, createdAt, activityLabel, comments }) {
   const creator = profile || { id: userId };
   const creatorName = getCreatorName(creator);
   const avatarUrl = creator?.avatar_url || "";
@@ -176,6 +181,7 @@ function CreatorLine({ profile, userId, createdAt, activityLabel }) {
             {activityLabel ? <span className="following-meta-dot">·</span> : null}
             <span>{formatDate(createdAt)}</span>
           </div>
+          <div className="following-meta-comments">{comments}</div>
         </div>
       </div>
     </div>
@@ -457,6 +463,7 @@ export default function FollowingFeed() {
   const [lists, setLists] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [expandedListIds, setExpandedListIds] = useState(() => new Set());
+  const [openCommentIds, setOpenCommentIds] = useState(() => new Set());
   const [error, setError] = useState("");
 
   const feedItems = useMemo(() => {
@@ -480,6 +487,43 @@ export default function FollowingFeed() {
       else next.add(listId);
       return next;
     });
+  }
+
+  function setCommentsOpen(commentKey, isOpen) {
+    setOpenCommentIds((current) => {
+      const next = new Set(current);
+      if (isOpen) next.add(commentKey);
+      else next.delete(commentKey);
+      return next;
+    });
+  }
+
+  function toggleComments(commentKey) {
+    setOpenCommentIds((current) => {
+      const next = new Set(current);
+      if (next.has(commentKey)) next.delete(commentKey);
+      else next.add(commentKey);
+      return next;
+    });
+  }
+
+  function isCommentsOpen(commentKey) {
+    return openCommentIds.has(commentKey);
+  }
+
+  function renderCommentButton(commentKey, type) {
+    const isOpen = isCommentsOpen(commentKey);
+    return (
+      <button
+        type="button"
+        className="feed-comments-inline-toggle following-header-comment-button"
+        onClick={() => toggleComments(commentKey)}
+        aria-expanded={isOpen}
+      >
+        <span>{getCommentButtonLabel(type)}</span>
+        <em>{isOpen ? "⌃" : "⌄"}</em>
+      </button>
+    );
   }
 
   async function loadFeed() {
@@ -708,6 +752,7 @@ export default function FollowingFeed() {
           {filteredFeedItems.map((item) => {
             if (item.type === "post") {
               const post = item.data;
+              const commentKey = `post-${post.id}`;
 
               return (
                 <article key={`post-${post.id}`} className="following-card">
@@ -716,6 +761,7 @@ export default function FollowingFeed() {
                     userId={post.user_id}
                     createdAt={post.created_at}
                     activityLabel={formatPostType(post.post_type)}
+                    comments={renderCommentButton(commentKey, "post")}
                   />
                   <VideoEmbed post={post} />
                   {!post.video_embed_url && post.image_url ? (
@@ -725,6 +771,9 @@ export default function FollowingFeed() {
                   {post.body ? <p className="following-review-text">{post.body}</p> : null}
                   <FeedComments
                     inline
+                    hideToggle
+                    isOpen={isCommentsOpen(commentKey)}
+                    onOpenChange={(value) => setCommentsOpen(commentKey, value)}
                     targetType="post"
                     targetId={post.id}
                     currentUserId={currentUserId}
@@ -736,6 +785,7 @@ export default function FollowingFeed() {
             if (item.type === "list") {
               const list = item.data;
               const listKey = String(list.id);
+              const commentKey = `list-${list.id}`;
 
               return (
                 <article key={`list-${list.id}`} className="following-card following-card-list">
@@ -744,6 +794,7 @@ export default function FollowingFeed() {
                     userId={list.user_id}
                     createdAt={list.updated_at || list.created_at}
                     activityLabel={list.is_auto_top_list ? "Rank'd Top 10" : "List"}
+                    comments={renderCommentButton(commentKey, "list")}
                   />
                   <FollowingListCard
                     list={list}
@@ -752,6 +803,9 @@ export default function FollowingFeed() {
                   />
                   <FeedComments
                     inline
+                    hideToggle
+                    isOpen={isCommentsOpen(commentKey)}
+                    onOpenChange={(value) => setCommentsOpen(commentKey, value)}
                     targetType="list"
                     targetId={list.id}
                     currentUserId={currentUserId}
@@ -763,6 +817,7 @@ export default function FollowingFeed() {
             if (item.type === "chatboard") {
               const message = item.data;
               const show = message.shows;
+              const commentKey = `chatboard-${message.id}`;
 
               return (
                 <article key={`chatboard-${message.id}`} className="following-card">
@@ -771,6 +826,7 @@ export default function FollowingFeed() {
                     userId={message.user_id}
                     createdAt={message.created_at}
                     activityLabel="Chatboard"
+                    comments={renderCommentButton(commentKey, "chatboard")}
                   />
                   <Link to={showHref(show)} className="following-show-card">
                     {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
@@ -782,6 +838,9 @@ export default function FollowingFeed() {
                   <p className="following-review-text">{message.body}</p>
                   <FeedComments
                     inline
+                    hideToggle
+                    isOpen={isCommentsOpen(commentKey)}
+                    onOpenChange={(value) => setCommentsOpen(commentKey, value)}
                     targetType="chatboard"
                     targetId={message.id}
                     currentUserId={currentUserId}
@@ -793,6 +852,7 @@ export default function FollowingFeed() {
             const review = item.data;
             const show = review.shows;
             const ratingLabel = formatRating(review.user_rating);
+            const commentKey = `review-${review.id}`;
 
             return (
               <article key={`review-${review.id}`} className="following-card">
@@ -801,6 +861,7 @@ export default function FollowingFeed() {
                   userId={review.user_id}
                   createdAt={review.created_at}
                   activityLabel="Review"
+                  comments={renderCommentButton(commentKey, "review")}
                 />
                 <Link to={showHref(show)} className="following-show-card">
                   {show?.poster_url ? <img src={show.poster_url} alt="" /> : <div className="following-poster-fallback">?</div>}
@@ -815,6 +876,9 @@ export default function FollowingFeed() {
                 <p className="following-review-text">{review.body}</p>
                 <FeedComments
                   inline
+                  hideToggle
+                  isOpen={isCommentsOpen(commentKey)}
+                  onOpenChange={(value) => setCommentsOpen(commentKey, value)}
                   targetType="review"
                   targetId={review.id}
                   currentUserId={currentUserId}
