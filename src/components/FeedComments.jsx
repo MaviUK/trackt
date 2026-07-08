@@ -94,15 +94,32 @@ function getToggleLabel(config, count) {
   return `${count} comment${count === 1 ? "" : "s"}`;
 }
 
-export default function FeedComments({ targetType, targetId, currentUserId, inline = false }) {
+export default function FeedComments({
+  targetType,
+  targetId,
+  currentUserId,
+  inline = false,
+  hideToggle = false,
+  isOpen: controlledOpen,
+  onOpenChange,
+}) {
   const config = useMemo(() => configForTarget(targetType), [targetType]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [comments, setComments] = useState([]);
   const [parentItem, setParentItem] = useState(null);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const isControlled = typeof controlledOpen === "boolean";
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+
+  function setOpen(nextValue) {
+    const value = typeof nextValue === "function" ? nextValue(isOpen) : nextValue;
+    if (!isControlled) setInternalOpen(value);
+    onOpenChange?.(value);
+  }
 
   async function attachProfiles(rows) {
     const userIds = Array.from(new Set((rows || []).map((row) => row.user_id).filter(Boolean)));
@@ -241,7 +258,7 @@ export default function FeedComments({ targetType, targetId, currentUserId, inli
       }
 
       setDraft("");
-      setIsOpen(true);
+      setOpen(true);
       await loadComments();
     } catch (err) {
       console.error("Failed posting comment:", err);
@@ -251,11 +268,11 @@ export default function FeedComments({ targetType, targetId, currentUserId, inli
     }
   }
 
-  const toggle = (
+  const toggle = hideToggle ? null : (
     <button
       type="button"
       className={inline ? "feed-comments-inline-toggle" : "feed-comments-toggle"}
-      onClick={() => setIsOpen((value) => !value)}
+      onClick={() => setOpen((value) => !value)}
       aria-expanded={isOpen}
     >
       <span>{getToggleLabel(config, comments.length)}</span>
