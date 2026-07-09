@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
 
-const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v5_TMDB_RESOLVER_LINKS";
+const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v6_SAVED_SHOW_ID_LINKS";
 const DASHBOARD_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
 
@@ -301,7 +301,8 @@ function getExternalShowLink(show, savedShows, databaseShows) {
     );
   });
 
-  if (saved?.show_id) return `/my-shows/${saved.show_id}`;
+  if (saved?.tmdb_id) return `/my-shows/tmdb/${saved.tmdb_id}`;
+  if (saved?.tvdb_id) return `/my-shows/${saved.tvdb_id}`;
 
   const database = (databaseShows || []).find((item) => {
     return (
