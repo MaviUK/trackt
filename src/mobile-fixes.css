@@ -22,6 +22,15 @@
     margin-top: -30px !important;
   }
 
+  .msd-episode-watched .msd-episode-mobile-actions .msd-btn:first-child {
+    font-size: 0 !important;
+  }
+
+  .msd-episode-watched .msd-episode-mobile-actions .msd-btn:first-child::after {
+    content: "Unwatch" !important;
+    font-size: 0.78rem !important;
+  }
+
   body:has(.my-shows-page) .mobile-top-banner-wrap .burgrs-banner {
     height: 62px !important;
   }
