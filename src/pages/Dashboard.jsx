@@ -310,7 +310,11 @@ function getExternalShowLink(show, savedShows, databaseShows) {
     );
   });
 
-  if (database?.id) return `/show/${database.id}`;
+  const databaseTmdbId = database?.tmdb_id || tmdbId || null;
+  const databaseTvdbId = database?.tvdb_id || tvdbId || null;
+
+  if (databaseTmdbId) return `/show/tmdb/${databaseTmdbId}`;
+  if (databaseTvdbId) return `/show/${databaseTvdbId}`;
   if (tmdbId) return `/show/tmdb/${tmdbId}`;
   return null;
 }
