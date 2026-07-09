@@ -31,7 +31,9 @@ function getButtonIntent(button) {
 
   if (
     isFirstButton &&
-    (label === "watched" || episodeCard?.classList?.contains("msd-episode-watched"))
+    (label === "watched" ||
+      label === "unwatch" ||
+      episodeCard?.classList?.contains("msd-episode-watched"))
   ) {
     return "unwatch-episode";
   }
@@ -161,9 +163,10 @@ function setButtonWatchedState(card, watched) {
   if (!button) return;
 
   button.disabled = false;
-  button.textContent = watched ? "Watched" : "Watch";
+  button.textContent = watched ? "Unwatch" : "Watch";
   button.classList.toggle("msd-btn-primary", !watched);
   button.classList.toggle("msd-btn-secondary", watched);
+  delete button.dataset.originalText;
 }
 
 function ensureSeasonBadge(section, complete) {
@@ -354,6 +357,7 @@ export function installMyShowWatchProgressFix() {
 
       if (intent === "watch-up-to-here") {
         await handleWatchUpToHere(userId, episodeId);
+        unlockButton(button);
       } else {
         await handleUnwatchEpisode(userId, episodeId);
       }
