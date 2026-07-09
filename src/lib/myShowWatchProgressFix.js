@@ -27,11 +27,12 @@ function getButtonIntent(button) {
   const isFirstButton = buttons[0] === button;
   const label = String(button.textContent || "").trim().toLowerCase();
 
-  // Let the React page handler process this so the UI updates in place.
-  // The old fallback intercepted this click and forced a full page reload.
-  if (label.includes("up to here")) return null;
+  if (label.includes("up to here")) return "watch-up-to-here";
 
-  if (isFirstButton && episodeCard?.classList?.contains("msd-episode-watched")) {
+  if (
+    isFirstButton &&
+    (label === "watched" || episodeCard?.classList?.contains("msd-episode-watched"))
+  ) {
     return "unwatch-episode";
   }
 
@@ -118,6 +119,7 @@ async function updateShowStatus(userId, showId, watchedCount, totalCount) {
     .eq("show_id", showId);
 
   if (error) throw error;
+  return watchStatus;
 }
 
 async function upsertWatchedRows(rows) {
@@ -147,12 +149,118 @@ async function deleteWatchedRows(userId, episodeIds) {
   }
 }
 
+function episodeCode(ep) {
+  const season = Number(ep?.season_number ?? 0);
+  const number = Number(ep?.episode_number ?? 0);
+  if (!season || !number) return "Episode";
+  return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
+}
+
+function setButtonWatchedState(card, watched) {
+  const button = card?.querySelector(".msd-episode-mobile-actions button");
+  if (!button) return;
+
+  button.disabled = false;
+  button.textContent = watched ? "Watched" : "Watch";
+  button.classList.toggle("msd-btn-primary", !watched);
+  button.classList.toggle("msd-btn-secondary", watched);
+}
+
+function ensureSeasonBadge(section, complete) {
+  const right = section.querySelector(".msd-season-toggle-right");
+  if (!right) return;
+
+  let badge = right.querySelector(".msd-season-badge");
+  const chevron = right.querySelector(".msd-season-chevron");
+
+  if (complete && !badge) {
+    badge = document.createElement("span");
+    badge.className = "msd-season-badge";
+    badge.textContent = "Completed";
+    right.insertBefore(badge, chevron || null);
+  }
+
+  if (!complete && badge) badge.remove();
+}
+
+function updateStats(watchedCount, totalCount) {
+  const statBoxes = Array.from(document.querySelectorAll(".msd-stats-row-five .msd-stat-box"));
+  const pct = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
+
+  const watchedValue = statBoxes[0]?.querySelector(".msd-stat-value");
+  const totalValue = statBoxes[1]?.querySelector(".msd-stat-value");
+  const progressValue = statBoxes[2]?.querySelector(".msd-stat-value");
+
+  if (watchedValue) watchedValue.textContent = String(watchedCount);
+  if (totalValue) totalValue.textContent = String(totalCount);
+  if (progressValue) progressValue.textContent = `${pct}%`;
+}
+
+function updateBottomWatchButton(episodes, watchedIds) {
+  const existing = document.querySelector(".msd-bottom-action-btn-primary");
+  if (!existing) return;
+
+  const nextEpisode = episodes.find((ep) => !watchedIds.has(String(ep.id)));
+  if (!nextEpisode) {
+    existing.remove();
+    return;
+  }
+
+  existing.disabled = false;
+  existing.textContent = `Watch ${episodeCode(nextEpisode)}`;
+}
+
+function applyWatchedDomState(episodes, watchedIds) {
+  const seasonStats = new Map();
+
+  for (const ep of episodes) {
+    const id = String(ep.id);
+    const watched = watchedIds.has(id);
+    const card = document.getElementById(`episode-${id}`);
+
+    if (card) {
+      card.classList.toggle("msd-episode-watched", watched);
+      setButtonWatchedState(card, watched);
+    }
+
+    const seasonNumber = Number(ep.season_number ?? 0);
+    if (!seasonStats.has(seasonNumber)) {
+      seasonStats.set(seasonNumber, { watched: 0, total: 0 });
+    }
+
+    const stats = seasonStats.get(seasonNumber);
+    stats.total += 1;
+    if (watched) stats.watched += 1;
+  }
+
+  const sections = Array.from(document.querySelectorAll(".msd-season-card"));
+  const sortedSeasonNumbers = Array.from(seasonStats.keys()).sort((a, b) => a - b);
+
+  sortedSeasonNumbers.forEach((seasonNumber, index) => {
+    const section = sections[index];
+    const stats = seasonStats.get(seasonNumber);
+    if (!section || !stats) return;
+
+    const complete = stats.total > 0 && stats.watched === stats.total;
+    section.classList.toggle("msd-season-complete", complete);
+
+    const subtitle = section.querySelector(".msd-season-subtitle");
+    if (subtitle) subtitle.textContent = `${stats.watched}/${stats.total} watched`;
+
+    ensureSeasonBadge(section, complete);
+  });
+
+  updateStats(watchedIds.size, episodes.length);
+  updateBottomWatchButton(episodes, watchedIds);
+}
+
 async function handleUnwatchEpisode(userId, episodeId) {
   const { episodes, showId } = await fetchEpisodeAndShowEpisodes(episodeId);
   const userShow = await fetchUserShow(userId, showId);
   const existingRows = await fetchWatchedRowsForShow(userId, episodes);
   const existingIds = new Set(existingRows.map((row) => String(row.episode_id)));
   const allEpisodeIds = episodes.map((ep) => String(ep.id));
+  let nextWatchedIds;
 
   if (
     userShow?.watch_status === "completed" &&
@@ -165,23 +273,60 @@ async function handleUnwatchEpisode(userId, episodeId) {
     await upsertWatchedRows(materializedRows);
     await deleteWatchedRows(userId, [episodeId]);
     await updateShowStatus(userId, showId, materializedRows.length, episodes.length);
-    return;
+
+    nextWatchedIds = new Set(materializedRows.map((row) => String(row.episode_id)));
+  } else {
+    await deleteWatchedRows(userId, [episodeId]);
+
+    const remainingRows = await fetchWatchedRowsForShow(
+      userId,
+      episodes.filter((ep) => String(ep.id) !== String(episodeId))
+    );
+
+    await updateShowStatus(userId, showId, remainingRows.length, episodes.length);
+    nextWatchedIds = new Set(remainingRows.map((row) => String(row.episode_id)));
   }
 
-  await deleteWatchedRows(userId, [episodeId]);
+  applyWatchedDomState(episodes, nextWatchedIds);
+}
 
-  const remainingRows = await fetchWatchedRowsForShow(
+async function handleWatchUpToHere(userId, episodeId) {
+  const { episodes, showId } = await fetchEpisodeAndShowEpisodes(episodeId);
+  const targetIndex = episodes.findIndex((ep) => String(ep.id) === String(episodeId));
+  if (targetIndex < 0) throw new Error("Episode not found in show.");
+
+  const episodesToWatch = episodes.slice(0, targetIndex + 1);
+  const episodesToUnwatch = episodes.slice(targetIndex + 1);
+  const rowsToUpsert = episodesToWatch.map((ep) => ({
+    user_id: userId,
+    episode_id: ep.id,
+  }));
+
+  await upsertWatchedRows(rowsToUpsert);
+  await deleteWatchedRows(
     userId,
-    episodes.filter((ep) => String(ep.id) !== String(episodeId))
+    episodesToUnwatch.map((ep) => ep.id)
   );
+  await updateShowStatus(userId, showId, episodesToWatch.length, episodes.length);
 
-  await updateShowStatus(userId, showId, remainingRows.length, episodes.length);
+  applyWatchedDomState(
+    episodes,
+    new Set(episodesToWatch.map((ep) => String(ep.id)))
+  );
 }
 
 function lockButton(button) {
   button.disabled = true;
   button.dataset.originalText = button.textContent || "";
   button.textContent = "Saving...";
+}
+
+function unlockButton(button) {
+  button.disabled = false;
+  if (button.dataset.originalText) {
+    button.textContent = button.dataset.originalText;
+    delete button.dataset.originalText;
+  }
 }
 
 export function installMyShowWatchProgressFix() {
@@ -207,13 +352,15 @@ export function installMyShowWatchProgressFix() {
       const userId = await getCurrentUserId();
       if (!userId) throw new Error("Please log in again.");
 
-      await handleUnwatchEpisode(userId, episodeId);
-
-      window.location.reload();
+      if (intent === "watch-up-to-here") {
+        await handleWatchUpToHere(userId, episodeId);
+      } else {
+        await handleUnwatchEpisode(userId, episodeId);
+      }
     } catch (error) {
       console.error("Failed updating watch progress:", error);
       alert(error.message || "Failed updating watched episodes");
-      window.location.reload();
+      unlockButton(button);
     }
   }
 
