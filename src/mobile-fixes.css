@@ -59,3 +59,86 @@
     font-size: 0.55rem !important;
   }
 }
+
+.following-page > .following-muted {
+  position: relative !important;
+  display: block !important;
+  min-height: 440px !important;
+  margin: 14px 0 0 !important;
+  padding: 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  overflow: hidden !important;
+}
+
+.following-page > .following-muted::before {
+  content: "🍔\A Serving your feed...";
+  display: flex;
+  min-height: 92px;
+  margin: 2px 0 16px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.26), transparent 52%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.66));
+  color: #f8fafc;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.25;
+  text-align: center;
+  white-space: pre;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+  animation: following-loader-float 1.7s ease-in-out infinite;
+}
+
+.following-page > .following-muted::after {
+  content: "";
+  display: block;
+  height: 330px;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent) -160px 0 / 160px 100% no-repeat,
+    linear-gradient(#22304a, #22304a) 66px 24px / 48% 14px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 66px 46px / 30% 10px no-repeat,
+    radial-gradient(circle, #22304a 0 21px, transparent 22px) 18px 16px / 44px 44px no-repeat,
+    linear-gradient(#22304a, #22304a) 18px 78px / calc(100% - 36px) 148px no-repeat,
+    linear-gradient(#22304a, #22304a) 18px 244px / 72% 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 18px 266px / 54% 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 18px 288px / 38% 12px no-repeat,
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.72));
+  box-shadow:
+    0 350px 0 -1px rgba(15, 23, 42, 0.72),
+    0 350px 0 0 rgba(148, 163, 184, 0.12),
+    0 700px 0 -1px rgba(15, 23, 42, 0.58),
+    0 700px 0 0 rgba(148, 163, 184, 0.1);
+  animation: following-loader-shimmer 1.35s linear infinite;
+}
+
+@keyframes following-loader-shimmer {
+  100% {
+    background-position:
+      calc(100% + 160px) 0,
+      66px 24px,
+      66px 46px,
+      18px 16px,
+      18px 78px,
+      18px 244px,
+      18px 266px,
+      18px 288px,
+      0 0;
+  }
+}
+
+@keyframes following-loader-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
