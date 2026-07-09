@@ -318,10 +318,15 @@ async function handleWatchUpToHere(userId, episodeId) {
   );
 }
 
-function lockButton(button) {
+function lockButton(button, intent) {
   button.disabled = true;
   button.dataset.originalText = button.textContent || "";
-  button.textContent = "Saving...";
+
+  // Do not change the Up to Here label. It is not part of the watched/unwatched
+  // button refresh, so changing it to Saving... can leave it visually stuck.
+  if (intent !== "watch-up-to-here") {
+    button.textContent = "Saving...";
+  }
 }
 
 function unlockButton(button) {
@@ -349,7 +354,7 @@ export function installMyShowWatchProgressFix() {
     event.stopPropagation();
     event.stopImmediatePropagation?.();
 
-    lockButton(button);
+    lockButton(button, intent);
 
     try {
       const userId = await getCurrentUserId();
@@ -357,13 +362,13 @@ export function installMyShowWatchProgressFix() {
 
       if (intent === "watch-up-to-here") {
         await handleWatchUpToHere(userId, episodeId);
-        unlockButton(button);
       } else {
         await handleUnwatchEpisode(userId, episodeId);
       }
     } catch (error) {
       console.error("Failed updating watch progress:", error);
       alert(error.message || "Failed updating watched episodes");
+    } finally {
       unlockButton(button);
     }
   }
