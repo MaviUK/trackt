@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { formatDate } from "../lib/date";
 import "./Dashboard.css";
 
-const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v3_RENDERED_ONLY";
+const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v4_DB_FIRST_LINKS";
 const DASHBOARD_CACHE_DURATION = 1000 * 60 * 60 * 24; // 24 hours
 const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
 
@@ -310,11 +310,9 @@ function getExternalShowLink(show, savedShows, databaseShows) {
     );
   });
 
-  const databaseTmdbId = database?.tmdb_id || tmdbId || null;
-  const databaseTvdbId = database?.tvdb_id || tvdbId || null;
-
-  if (databaseTmdbId) return `/show/tmdb/${databaseTmdbId}`;
-  if (databaseTvdbId) return `/show/${databaseTvdbId}`;
+  if (database?.tvdb_id) return `/show/${database.tvdb_id}`;
+  if (database?.tmdb_id) return `/show/tmdb/${database.tmdb_id}`;
+  if (tvdbId) return `/show/${tvdbId}`;
   if (tmdbId) return `/show/tmdb/${tmdbId}`;
   return null;
 }
