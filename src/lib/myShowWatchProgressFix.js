@@ -27,7 +27,10 @@ function getButtonIntent(button) {
   const isFirstButton = buttons[0] === button;
   const label = String(button.textContent || "").trim().toLowerCase();
 
-  if (label.includes("up to here")) return "watch-up-to-here";
+  // Let the React page handler process this so the UI updates in place.
+  // The old fallback intercepted this click and forced a full page reload.
+  if (label.includes("up to here")) return null;
+
   if (isFirstButton && episodeCard?.classList?.contains("msd-episode-watched")) {
     return "unwatch-episode";
   }
@@ -151,7 +154,10 @@ async function handleUnwatchEpisode(userId, episodeId) {
   const existingIds = new Set(existingRows.map((row) => String(row.episode_id)));
   const allEpisodeIds = episodes.map((ep) => String(ep.id));
 
-  if (userShow?.watch_status === "completed" && existingIds.size < allEpisodeIds.length) {
+  if (
+    userShow?.watch_status === "completed" &&
+    existingIds.size < allEpisodeIds.length
+  ) {
     const materializedRows = episodes
       .filter((ep) => String(ep.id) !== String(episodeId))
       .map((ep) => ({ user_id: userId, episode_id: ep.id }));
@@ -170,26 +176,6 @@ async function handleUnwatchEpisode(userId, episodeId) {
   );
 
   await updateShowStatus(userId, showId, remainingRows.length, episodes.length);
-}
-
-async function handleWatchUpToHere(userId, episodeId) {
-  const { episodes, showId } = await fetchEpisodeAndShowEpisodes(episodeId);
-  const targetIndex = episodes.findIndex((ep) => String(ep.id) === String(episodeId));
-  if (targetIndex < 0) throw new Error("Episode not found in show.");
-
-  const episodesToWatch = episodes.slice(0, targetIndex + 1);
-  const episodesToUnwatch = episodes.slice(targetIndex + 1);
-
-  await upsertWatchedRows(
-    episodesToWatch.map((ep) => ({ user_id: userId, episode_id: ep.id }))
-  );
-
-  await deleteWatchedRows(
-    userId,
-    episodesToUnwatch.map((ep) => ep.id)
-  );
-
-  await updateShowStatus(userId, showId, episodesToWatch.length, episodes.length);
 }
 
 function lockButton(button) {
@@ -221,11 +207,7 @@ export function installMyShowWatchProgressFix() {
       const userId = await getCurrentUserId();
       if (!userId) throw new Error("Please log in again.");
 
-      if (intent === "unwatch-episode") {
-        await handleUnwatchEpisode(userId, episodeId);
-      } else {
-        await handleWatchUpToHere(userId, episodeId);
-      }
+      await handleUnwatchEpisode(userId, episodeId);
 
       window.location.reload();
     } catch (error) {
