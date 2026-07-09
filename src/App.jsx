@@ -27,6 +27,7 @@ import ActorPage from "./pages/ActorPage";
 import Rankd from "./pages/Rankd";
 import BurgrsBanner from "./components/BurgrsBanner";
 import { supabase } from "./lib/supabase";
+import { installMyShowWatchProgressFix } from "./lib/myShowWatchProgressFix";
 
 function HomeIcon() {
   return (
@@ -291,6 +292,8 @@ function MobileOnlyScreen() {
 function AppLayout() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
+
+  useEffect(() => installMyShowWatchProgressFix(), []);
 
   useEffect(() => {
     let mounted = true;
