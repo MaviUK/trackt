@@ -4,6 +4,7 @@ let rankdLastShareUrl = "";
 let rankdShareSheet = null;
 let rankdCopiedTimer = null;
 let rankdShareInFlight = false;
+let rankdLastShareImageFile = null;
 
 function isRankdShareUrl(value) {
   return typeof value === "string" && value.includes("/rankd/share/");
@@ -37,6 +38,13 @@ function getRankdShareTitles() {
 
   if (titles.length === 2) return titles;
   return ["this show", "that show"];
+}
+
+function getRankdPosterUrls() {
+  return Array.from(document.querySelectorAll(".rankd-page .rankd-battle-shell .rankd-poster-image"))
+    .map((image) => image.currentSrc || image.src || "")
+    .filter(Boolean)
+    .slice(0, 2);
 }
 
 function getRankdShareCopy(url) {
@@ -149,7 +157,10 @@ async function copyRankdShareLink(url, message = "Link copied") {
 async function shareViaNativeOrCopy(title, text, url, platformName, fallbackUrl = "") {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text, url });
+      const payload = rankdLastShareImageFile && navigator.canShare?.({ files: [rankdLastShareImageFile] })
+        ? { title, text, url, files: [rankdLastShareImageFile] }
+        : { title, text, url };
+      await navigator.share(payload);
       closeRankdShareSheet();
       return;
     } catch (shareError) {
@@ -176,6 +187,207 @@ async function shareToThreads(title, text, url) {
 
 async function shareToMessenger(title, text, url) {
   await shareViaNativeOrCopy(title, text, url, "Messenger", "https://www.messenger.com/");
+}
+
+function loadShareImage(src) {
+  return new Promise((resolve) => {
+    if (!src) {
+      resolve(null);
+      return;
+    }
+
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.referrerPolicy = "no-referrer";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawPoster(ctx, image, x, y, width, height, title) {
+  ctx.save();
+  roundRect(ctx, x, y, width, height, 34);
+  ctx.clip();
+
+  if (image) {
+    const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+    const drawWidth = image.naturalWidth * scale;
+    const drawHeight = image.naturalHeight * scale;
+    ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+  } else {
+    const fallback = ctx.createLinearGradient(x, y, x + width, y + height);
+    fallback.addColorStop(0, "#312e81");
+    fallback.addColorStop(1, "#111827");
+    ctx.fillStyle = fallback;
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 44px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(title || "BURGRS", x + width / 2, y + height / 2, width - 52);
+  }
+
+  ctx.restore();
+
+  ctx.save();
+  roundRect(ctx, x, y, width, height, 34);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCenteredText(ctx, text, x, y, maxWidth, fontSize = 52) {
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `900 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+
+  let size = fontSize;
+  while (ctx.measureText(text).width > maxWidth && size > 28) {
+    size -= 2;
+    ctx.font = `900 ${size}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+  }
+
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+async function createRankdShareImageFile(url) {
+  const [leftTitle, rightTitle] = getRankdShareTitles();
+  const [leftPoster, rightPoster] = getRankdPosterUrls();
+  const [leftImage, rightImage] = await Promise.all([loadShareImage(leftPoster), loadShareImage(rightPoster)]);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1536;
+  canvas.height = 864;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const background = ctx.createLinearGradient(0, 0, 1536, 864);
+  background.addColorStop(0, "#020617");
+  background.addColorStop(0.52, "#071426");
+  background.addColorStop(1, "#020617");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, 1536, 864);
+
+  const glow = ctx.createRadialGradient(768, 390, 40, 768, 390, 390);
+  glow.addColorStop(0, "rgba(168, 85, 247, 0.30)");
+  glow.addColorStop(1, "rgba(168, 85, 247, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 1536, 864);
+
+  ctx.save();
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = "#7c3aed";
+  ctx.beginPath();
+  ctx.ellipse(768, 430, 330, 170, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  const posterWidth = 520;
+  const posterHeight = 620;
+  const posterTop = 72;
+  const leftX = 120;
+  const rightX = 896;
+
+  drawPoster(ctx, leftImage, leftX, posterTop, posterWidth, posterHeight, leftTitle);
+  drawPoster(ctx, rightImage, rightX, posterTop, posterWidth, posterHeight, rightTitle);
+
+  const vsGradient = ctx.createLinearGradient(680, 344, 856, 520);
+  vsGradient.addColorStop(0, "#8b5cf6");
+  vsGradient.addColorStop(1, "#db2777");
+  ctx.fillStyle = vsGradient;
+  ctx.beginPath();
+  ctx.arc(768, 420, 88, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "900 48px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("VS", 768, 420);
+
+  drawCenteredText(ctx, leftTitle, leftX + posterWidth / 2, 760, 520, 56);
+  drawCenteredText(ctx, rightTitle, rightX + posterWidth / 2, 760, 520, 56);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.textAlign = "center";
+  ctx.font = "800 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Vote now on BURGRS", 768, 828);
+  ctx.restore();
+
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          resolve(null);
+          return;
+        }
+
+        const safeName = `${leftTitle}-vs-${rightTitle}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        resolve(new File([blob], `${safeName || "burgrs-matchup"}.png`, { type: "image/png" }));
+      }, "image/png", 0.95);
+    } catch (error) {
+      console.warn("Rankd share image failed:", error);
+      resolve(null);
+    }
+  });
+}
+
+async function tryNativeImageShare(title, text, url, imageFile) {
+  if (!navigator.share || !imageFile || !navigator.canShare?.({ files: [imageFile] })) return false;
+
+  try {
+    await navigator.share({ title, text, url, files: [imageFile] });
+    return true;
+  } catch (shareError) {
+    const isCancel = String(shareError?.name || "").toLowerCase().includes("abort");
+    if (isCancel) return true;
+    console.warn("Rankd native image share failed:", shareError);
+    return false;
+  }
+}
+
+async function downloadRankdShareImage() {
+  try {
+    const imageFile = rankdLastShareImageFile || await createRankdShareImageFile(rankdLastShareUrl);
+    if (!imageFile) {
+      showRankdCopied("Could not create image");
+      return;
+    }
+
+    rankdLastShareImageFile = imageFile;
+    const objectUrl = URL.createObjectURL(imageFile);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = imageFile.name || "burgrs-matchup.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+    showRankdCopied("Image downloaded");
+  } catch (error) {
+    console.warn("Rankd image download failed:", error);
+    showRankdCopied("Could not download image");
+  }
 }
 
 function showRankdCopied(message) {
@@ -205,10 +417,11 @@ function createShareButton(label, className, onClick) {
   return button;
 }
 
-function showRankdShareSheet(url) {
+function showRankdShareSheet(url, imageFile = rankdLastShareImageFile) {
   if (!isRankdShareUrl(url)) return;
 
   rankdLastShareUrl = url;
+  rankdLastShareImageFile = imageFile || rankdLastShareImageFile;
   closeRankdShareSheet();
 
   const { title, text } = getRankdShareCopy(url);
@@ -258,7 +471,10 @@ function showRankdShareSheet(url) {
     options.appendChild(
       createShareButton("Share via phone", "rankd-share-native", async () => {
         try {
-          await navigator.share({ title, text, url });
+          const payload = rankdLastShareImageFile && navigator.canShare?.({ files: [rankdLastShareImageFile] })
+            ? { title, text, url, files: [rankdLastShareImageFile] }
+            : { title, text, url };
+          await navigator.share(payload);
           closeRankdShareSheet();
         } catch (shareError) {
           const isCancel = String(shareError?.name || "").toLowerCase().includes("abort");
@@ -267,6 +483,12 @@ function showRankdShareSheet(url) {
       })
     );
   }
+
+  options.appendChild(
+    createShareButton("Download image", "rankd-share-download", () => {
+      downloadRankdShareImage();
+    })
+  );
 
   options.appendChild(
     createShareButton("Instagram", "rankd-share-instagram", () => {
@@ -351,13 +573,22 @@ async function handleRankdShareButtonClick(event) {
   const originalText = button.textContent;
   button.textContent = "Preparing share...";
   button.disabled = true;
-  setRankdInlineShareStatus("Preparing share options...");
+  setRankdInlineShareStatus("Creating share image...");
 
   try {
     const shareUrl = await createRankdShareUrl();
+    const { title, text } = getRankdShareCopy(shareUrl);
     rankdLastShareUrl = shareUrl;
+
+    const imageFile = await createRankdShareImageFile(shareUrl);
+    rankdLastShareImageFile = imageFile;
+
     setRankdInlineShareStatus("");
-    showRankdShareSheet(shareUrl);
+
+    const nativeShared = await tryNativeImageShare(title, text, shareUrl, imageFile);
+    if (!nativeShared) {
+      showRankdShareSheet(shareUrl, imageFile);
+    }
   } catch (shareError) {
     console.error("RANKD SOCIAL SHARE FAILED:", shareError);
     setRankdInlineShareStatus(shareError.message || "Could not create share link.");
