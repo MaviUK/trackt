@@ -11,7 +11,8 @@
 }
 
 .rankd-error-card,
-.rankd-empty-card {
+.rankd-empty-card,
+.rankd-notice-card {
   padding: 18px;
   margin-bottom: 18px;
 }
@@ -20,6 +21,18 @@
   border-color: rgba(239, 68, 68, 0.35);
   display: grid;
   gap: 6px;
+}
+
+.rankd-notice-card {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+
+.rankd-notice-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #fcd34d;
 }
 
 .rankd-error-card span,
@@ -46,7 +59,8 @@
   gap: 18px;
 }
 
-.rankd-battle-vs {
+.rankd-battle-vs,
+.rankd-versus {
   width: 62px;
   height: 62px;
   display: flex;
@@ -134,7 +148,8 @@
   text-align: center;
 }
 
-.rankd-matchup-dashboard {
+.rankd-matchup-dashboard,
+.rankd-matchup-stats {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
@@ -143,6 +158,29 @@
   background: rgba(139, 92, 246, 0.06);
   border-radius: 20px;
   padding: 14px;
+}
+
+.rankd-matchup-stats {
+  grid-template-columns: 1fr 1fr;
+}
+
+.rankd-matchup-stats > div {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.rankd-matchup-stats strong {
+  color: #ffffff;
+  font-size: 1.15rem;
+}
+
+.rankd-matchup-stats span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rankd-win-bars {
@@ -182,6 +220,14 @@
 
 .rankd-win-row strong {
   text-align: right;
+}
+
+.rankd-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
 }
 
 .rankd-comment-form {
@@ -317,6 +363,7 @@
   padding: 20px;
 }
 
+.rankd-card-heading,
 .rankd-leaderboard-header {
   display: flex;
   justify-content: space-between;
@@ -325,11 +372,13 @@
   margin-bottom: 14px;
 }
 
+.rankd-card-heading h2,
 .rankd-leaderboard-header h2 {
   margin: 0;
   font-size: 1.2rem;
 }
 
+.rankd-card-heading p,
 .rankd-leaderboard-header p {
   margin: 6px 0 0;
   color: var(--text-muted);
@@ -350,11 +399,11 @@
   gap: 12px;
 }
 
-.rankd-leaderboard-row {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 14px;
+.rankd-leaderboard-row,
+.rankd-leaderboard-item {
+  display: flex;
   align-items: center;
+  gap: 12px;
   padding: 12px;
   border-radius: 16px;
   text-decoration: none;
@@ -363,7 +412,9 @@
   border: 1px solid var(--border);
 }
 
-.rankd-leaderboard-poster {
+.rankd-leaderboard-poster,
+.rankd-leaderboard-item img,
+.rankd-mini-poster {
   width: 56px;
   height: 56px;
   border-radius: 14px;
@@ -373,6 +424,8 @@
   align-items: center;
   justify-content: center;
   font-weight: 900;
+  object-fit: cover;
+  flex: 0 0 auto;
 }
 
 .rankd-leaderboard-poster img {
@@ -386,6 +439,52 @@
   margin-bottom: 4px;
 }
 
+.rankd-leaderboard-rank {
+  min-width: 38px;
+  color: #c4b5fd;
+  font-weight: 1000;
+}
+
+.rankd-leaderboard-item span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rankd-leaderboard-item strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankd-leaderboard-item small {
+  color: var(--text-muted);
+}
+
+.rankd-comment-highlight {
+  outline: 2px solid #facc15;
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.18);
+}
+
+.rankd-rank-button {
+  margin-left: auto;
+  align-self: center;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rankd-rank-button:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: #ffffff;
+}
+
 @media (max-width: 900px) {
   .rankd-main-grid {
     grid-template-columns: 1fr;
@@ -395,15 +494,11 @@
 @media (max-width: 760px) {
   .rankd-page {
     margin-top: -16px;
-    padding-bottom: 0px;
-  }
-  }
-
-    padding-bottom: 0px;
+    padding-bottom: 88px;
   }
 
   .rankd-page .page-shell {
-    padding-top: 0px;
+    padding-top: 0;
   }
 
   .rankd-matchup-number {
@@ -421,7 +516,8 @@
     grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
   }
 
-  .rankd-battle-vs {
+  .rankd-battle-vs,
+  .rankd-versus {
     width: 44px;
     height: 44px;
     font-size: 0.82rem;
@@ -452,54 +548,21 @@
     padding: 14px;
   }
 
+  .rankd-card-heading,
   .rankd-leaderboard-header {
     align-items: flex-start;
   }
 
-  .rankd-leaderboard-row {
-    grid-template-columns: 48px 1fr;
+  .rankd-leaderboard-row,
+  .rankd-leaderboard-item {
+    gap: 10px;
+    padding: 10px;
   }
-}
 
-
-.rankd-comment-highlight {
-  outline: 2px solid #facc15;
-  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.18);
-}
-
-.rankd-rank-button {
-  margin-left: auto;
-  align-self: center;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 999px;
-  padding: 5px 10px;
-  background: rgba(148, 163, 184, 0.08);
-  color: #cbd5e1;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.rankd-rank-button:hover {
-  background: rgba(148, 163, 184, 0.14);
-  color: #ffffff;
-}
-
-.rankd-leaderboard-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.rankd-notice-card {
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  color: #fde68a;
-}
-
-.rankd-notice-card strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #fcd34d;
+  .rankd-leaderboard-poster,
+  .rankd-leaderboard-item img,
+  .rankd-mini-poster {
+    width: 48px;
+    height: 48px;
+  }
 }
