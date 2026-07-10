@@ -8,31 +8,74 @@ function isRankdDragRunning() {
 
 function getRankdSpeed(clientY) {
   const height = window.innerHeight || 700;
-  const zone = Math.max(210, Math.round(height * 0.34));
+  const zone = Math.max(230, Math.round(height * 0.38));
   const bottomStart = height - zone;
 
   if (clientY > bottomStart) {
     const ratio = Math.min(1, Math.max(0, (clientY - bottomStart) / zone));
-    return Math.round(32 + Math.pow(ratio, 1.35) * 150);
+    return Math.round(45 + Math.pow(ratio, 1.2) * 230);
   }
 
   if (clientY < zone) {
     const ratio = Math.min(1, Math.max(0, (zone - clientY) / zone));
-    return -Math.round(32 + Math.pow(ratio, 1.35) * 150);
+    return -Math.round(45 + Math.pow(ratio, 1.2) * 230);
   }
 
   return 0;
 }
 
+function getRankdScrollCandidates() {
+  const candidates = [
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+    document.querySelector("#root"),
+    document.querySelector("main"),
+    document.querySelector(".app-shell"),
+    document.querySelector(".app-main"),
+    document.querySelector(".page-shell"),
+    document.querySelector(".rankd-page"),
+    document.querySelector(".rankd-page .page-shell"),
+    document.querySelector(".rankd-leaderboard-card"),
+    document.querySelector(".rankd-leaderboard-list"),
+  ].filter(Boolean);
+
+  document.querySelectorAll("body *").forEach((element) => {
+    if (element.scrollHeight > element.clientHeight + 8) {
+      candidates.push(element);
+    }
+  });
+
+  return Array.from(new Set(candidates)).filter((element) => {
+    if (!element || element === document) return false;
+    return element.scrollHeight > element.clientHeight + 8 || element === document.body || element === document.documentElement;
+  });
+}
+
+function scrollElementBy(element, delta) {
+  if (!element || !delta) return false;
+
+  const before = element.scrollTop || 0;
+  element.scrollTop = before + delta;
+  return Math.abs((element.scrollTop || 0) - before) > 0;
+}
+
 function forceRankdScroll(delta) {
   if (!delta) return;
 
+  let moved = false;
+
   window.scrollBy(0, delta);
 
-  const scroller = document.scrollingElement || document.documentElement || document.body;
-  if (scroller) scroller.scrollTop += delta;
-  if (document.documentElement) document.documentElement.scrollTop += delta;
-  if (document.body) document.body.scrollTop += delta;
+  getRankdScrollCandidates().forEach((element) => {
+    if (scrollElementBy(element, delta)) moved = true;
+  });
+
+  if (!moved) {
+    const root = document.scrollingElement || document.documentElement || document.body;
+    if (root) root.scrollTo({ top: (root.scrollTop || 0) + delta, behavior: "auto" });
+    window.scrollTo({ top: window.scrollY + delta, behavior: "auto" });
+  }
 }
 
 function runRankdSpeedScroll() {
@@ -51,7 +94,7 @@ function runRankdSpeedScroll() {
   }
 
   rankdSpeedHoldTicks += 1;
-  const boost = Math.min(2.4, 1 + rankdSpeedHoldTicks / 22);
+  const boost = Math.min(3.2, 1 + rankdSpeedHoldTicks / 16);
   forceRankdScroll(Math.round(baseSpeed * boost));
 
   rankdSpeedFrame = window.requestAnimationFrame(runRankdSpeedScroll);
