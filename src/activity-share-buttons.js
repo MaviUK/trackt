@@ -56,10 +56,18 @@ function addShareButton(container, options) {
   if (!container || container.querySelector(".burgrs-activity-share-btn")) return;
 
   const button = makeShareButton(options);
-  const commentsArea = container.querySelector(".following-meta-comments");
+  const creatorCopy = container.querySelector(".following-creator-copy");
+  const creatorName = creatorCopy?.querySelector(".following-creator-name-link");
 
-  if (commentsArea) {
-    commentsArea.insertBefore(button, commentsArea.firstChild);
+  if (creatorCopy && creatorName) {
+    let topRow = creatorCopy.querySelector(".burgrs-creator-name-share-row");
+    if (!topRow) {
+      topRow = document.createElement("div");
+      topRow.className = "burgrs-creator-name-share-row";
+      creatorName.parentNode.insertBefore(topRow, creatorName);
+      topRow.appendChild(creatorName);
+    }
+    topRow.appendChild(button);
     return;
   }
 
