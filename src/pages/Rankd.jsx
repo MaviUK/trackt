@@ -152,6 +152,16 @@ function getWinPercent(stats, showId) {
 }
 
 async function getOptionalUser() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionData?.session?.user?.id) return sessionData.session.user;
+
+  const sessionMessage = String(sessionError?.message || "").toLowerCase();
+  const sessionMissing =
+    sessionMessage.includes("auth session missing") ||
+    sessionMessage.includes("session missing");
+
+  if (sessionError && !sessionMissing) throw sessionError;
+
   const { data, error } = await supabase.auth.getUser();
   const message = String(error?.message || "").toLowerCase();
   const isMissingSession = message.includes("auth session missing") || message.includes("session missing");
@@ -256,11 +266,27 @@ export default function Rankd() {
   const saveQueueRef = useRef(Promise.resolve());
   const recentShowIdsRef = useRef([]);
   const recentPairKeysRef = useRef([]);
+  const userIdRef = useRef(null);
   const currentPairKey =
     currentPair.length === 2 ? makePairKey(currentPair[0].show_id, currentPair[1].show_id) : "";
 
   const leaderboard = useMemo(() => [...eligibleShows].sort(sortByLadder), [eligibleShows]);
   const isSharedPage = Boolean(sharedSlug);
+
+  function storeActiveUserId(nextUserId) {
+    const cleanUserId = nextUserId || null;
+    userIdRef.current = cleanUserId;
+    setUserId(cleanUserId);
+    return cleanUserId;
+  }
+
+  async function ensureActiveUserId() {
+    if (userIdRef.current) return userIdRef.current;
+    if (userId) return userId;
+
+    const user = await getOptionalUser();
+    return storeActiveUserId(user?.id || null);
+  }
 
   async function buildShowsForRows(userIdValue, rows, startIndex = 0) {
     const showIds = rows.map((row) => row.show_id).filter(Boolean);
@@ -291,7 +317,7 @@ export default function Rankd() {
     setEligibleShows(pair);
     setCurrentPair(pair);
     setMatchupStats(data);
-    setUserId(user?.id || null);
+    storeActiveUserId(user?.id || null);
     setLoading(false);
   }
 
@@ -329,43 +355,35 @@ export default function Rankd() {
       setSaveStatus("");
 
       const user = await getOptionalUser();
-      setUserId(user?.id || null);
+      const activeUserId = storeActiveUserId(user?.id || null);
 
       if (sharedSlug) {
         await loadSharedMatchup(user);
         return;
       }
 
-      if (!user?.id) {
+      if (!activeUserId) {
         setEligibleShows([]);
         setCurrentPair([]);
         setLoading(false);
         return;
       }
 
-      recentShowIdsRef.current = readRecentShows(user.id);
+      recentShowIdsRef.current = readRecentShows(activeUserId);
 
-      let rows = await fetchRankdShowPage(user.id, 0, FRONTLOAD_SHOW_COUNT - 1);
+      let rows = await fetchRankdShowPage(activeUserId, 0, FRONTLOAD_SHOW_COUNT - 1);
       let nextFrom = FRONTLOAD_SHOW_COUNT;
 
-      // If the first slice somehow contains fewer than two eligible shows, grab a
-      // larger first slice before showing the empty state. This is still much
-      // quicker than scanning the entire 1000+ library.
       if (rows.length < 2) {
-        const moreRows = await fetchRankdShowPage(user.id, FRONTLOAD_SHOW_COUNT, FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE - 1);
+        const moreRows = await fetchRankdShowPage(activeUserId, FRONTLOAD_SHOW_COUNT, FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE - 1);
         rows = [...rows, ...moreRows];
         nextFrom = FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE;
       }
 
-      const initialShows = await buildShowsForRows(user.id, rows, 0);
+      const initialShows = await buildShowsForRows(activeUserId, rows, 0);
       setEligibleShows(initialShows);
 
-      const firstPair = chooseFastPair(
-        initialShows,
-        "",
-        recentShowIdsRef.current,
-        recentPairKeysRef.current
-      );
+      const firstPair = chooseFastPair(initialShows, "", recentShowIdsRef.current, recentPairKeysRef.current);
 
       setCurrentPair(firstPair);
       setMatchupStats(null);
@@ -376,7 +394,7 @@ export default function Rankd() {
         recentPairKeysRef.current = [pairKey];
       }
 
-      loadRestInBackground(user.id, nextFrom);
+      loadRestInBackground(activeUserId, nextFrom);
     } catch (loadError) {
       console.error("RANKD LOAD FAILED:", loadError);
       setError(loadError.message || "Failed to load Rank'd.");
@@ -451,10 +469,12 @@ export default function Rankd() {
       });
   }
 
-  function handleChoice(winnerShowId) {
+  async function handleChoice(winnerShowId) {
     if (currentPair.length !== 2) return;
 
-    if (!userId && !isSharedPage) {
+    const activeUserId = await ensureActiveUserId();
+
+    if (!activeUserId && !isSharedPage) {
       setShowLoginModal(true);
       return;
     }
@@ -495,7 +515,7 @@ export default function Rankd() {
       ...recentShowIdsRef.current,
     ];
     recentShowIdsRef.current = nextRecentShows.slice(0, RECENT_SHOW_LIMIT);
-    writeRecentShows(userId, recentShowIdsRef.current);
+    writeRecentShows(activeUserId, recentShowIdsRef.current);
 
     const previousPairKey = currentPairKey;
     const nextPair = chooseFastPair(
@@ -516,9 +536,9 @@ export default function Rankd() {
     setMatchupStats(null);
     setNotice("");
 
-    if (userId) {
+    if (activeUserId) {
       queueVoteSave({
-        userIdValue: userId,
+        userIdValue: activeUserId,
         winner,
         loser,
         beforeLadder,
