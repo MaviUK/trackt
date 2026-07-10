@@ -32,9 +32,7 @@ function makeAbsolute(path) {
   return `${window.location.origin}${path}`;
 }
 
-function addShareButton(container, options) {
-  if (!container || container.querySelector(".burgrs-activity-share-btn")) return;
-
+function makeShareButton(options) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "burgrs-activity-share-btn";
@@ -50,6 +48,20 @@ function addShareButton(container, options) {
     else if (result?.ok) showShareToast("Share opened");
     else if (!result?.cancelled) showShareToast("Could not share");
   });
+
+  return button;
+}
+
+function addShareButton(container, options) {
+  if (!container || container.querySelector(".burgrs-activity-share-btn")) return;
+
+  const button = makeShareButton(options);
+  const commentsArea = container.querySelector(".following-meta-comments");
+
+  if (commentsArea) {
+    commentsArea.insertBefore(button, commentsArea.firstChild);
+    return;
+  }
 
   const target = container.querySelector(".creator-list-expanded-body") || container;
   target.appendChild(button);
