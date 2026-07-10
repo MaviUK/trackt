@@ -54,6 +54,13 @@
   align-self: start !important;
 }
 
+.rankd-page .rankd-moved-row-highlight {
+  border-color: rgba(196, 181, 253, 0.78) !important;
+  box-shadow:
+    0 0 0 2px rgba(139, 92, 246, 0.32),
+    0 16px 38px rgba(139, 92, 246, 0.22) !important;
+}
+
 @media (max-width: 760px) {
   .rankd-page .rankd-leaderboard-row {
     grid-template-columns: 56px minmax(0, 1fr) 54px !important;
