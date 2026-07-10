@@ -6,6 +6,8 @@
   column-gap: 10px !important;
   row-gap: 4px !important;
   min-height: 72px !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .rankd-page .rankd-leaderboard-poster {
@@ -59,6 +61,44 @@
   box-shadow:
     0 0 0 2px rgba(139, 92, 246, 0.32),
     0 16px 38px rgba(139, 92, 246, 0.22) !important;
+}
+
+.rankd-page .rankd-row-long-pressing {
+  border-color: rgba(196, 181, 253, 0.52) !important;
+  transform: scale(0.992) !important;
+}
+
+.rankd-page .rankd-row-being-dragged {
+  opacity: 0.34 !important;
+}
+
+.rankd-drag-active,
+.rankd-drag-active * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.rankd-drag-ghost {
+  position: fixed !important;
+  z-index: 999999 !important;
+  pointer-events: none !important;
+  opacity: 0.96 !important;
+  transform-origin: top left !important;
+  box-shadow:
+    0 0 0 2px rgba(196, 181, 253, 0.52),
+    0 22px 56px rgba(0, 0, 0, 0.55) !important;
+}
+
+.rankd-drag-ghost .rankd-rank-button {
+  opacity: 0.65 !important;
+}
+
+.rankd-drag-drop-indicator {
+  border: 2px dashed rgba(196, 181, 253, 0.6) !important;
+  border-radius: 22px !important;
+  background: rgba(139, 92, 246, 0.12) !important;
+  margin: 0 !important;
 }
 
 .rankd-page .rankd-search-panel {
