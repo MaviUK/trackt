@@ -1,36 +1,19 @@
-// Rankd share pair_key fix
 import { useEffect, useMemo, useRef, useState } from "react";
-// Rankd HARD recent-show cooldown fix: avoids reusing the same show for many votes when enough eligible shows exist.
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./Rankd.css";
 import LoginModal from "../components/LoginModal";
 
 const DEFAULT_LADDER_POSITION = 999999;
+const FRONTLOAD_SHOW_COUNT = 80;
+const BACKGROUND_PAGE_SIZE = 250;
+const RECENT_SHOW_LIMIT = 80;
+const RECENT_PAIR_LIMIT = 150;
 const SWIPE_THRESHOLD = 70;
-const MAX_COMMENT_DEPTH = 10;
-const RECENT_MATCHUP_SHOW_LIMIT = 80;
-const RECENT_MATCHUP_PAIR_LIMIT = 150;
-const FOCUSED_RANKING_ROUND_LIMIT = 12;
-const MATCHUP_FETCH_CHUNK_SIZE = 75;
-
-function chunkArray(items, size) {
-  const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
 
 function sortByLadder(a, b) {
-  const aUnrated = (a.rank_comparisons || 0) === 0;
-  const bUnrated = (b.rank_comparisons || 0) === 0;
+  const aUnrated = Number(a.rank_comparisons || 0) === 0;
+  const bUnrated = Number(b.rank_comparisons || 0) === 0;
 
   if (aUnrated && !bUnrated) return 1;
   if (!aUnrated && bUnrated) return -1;
@@ -42,93 +25,6 @@ function sortByLadder(a, b) {
   return (a.show_name || "").localeCompare(b.show_name || "");
 }
 
-function applyLadderWin(shows, winnerId, loserId) {
-  const ranked = [...shows].sort(sortByLadder);
-
-  const winnerIndex = ranked.findIndex(
-    (show) => String(show.show_id) === String(winnerId)
-  );
-
-  const loserIndex = ranked.findIndex(
-    (show) => String(show.show_id) === String(loserId)
-  );
-
-  if (winnerIndex === -1 || loserIndex === -1) return shows;
-
-  if (winnerIndex < loserIndex) {
-    return ranked.map((show, index) => ({
-      ...show,
-      ladder_position: index + 1,
-    }));
-  }
-
-  const [winner] = ranked.splice(winnerIndex, 1);
-  ranked.splice(loserIndex, 0, winner);
-
-  return ranked.map((show, index) => ({
-    ...show,
-    ladder_position: index + 1,
-  }));
-}
-
-function getFocusedPair(items, focusShowId, focus = null) {
-  const sorted = [...items].sort(sortByLadder);
-  const focusShow = sorted.find(
-    (show) => String(show.show_id) === String(focusShowId)
-  );
-
-  if (!focusShow) return [];
-
-  const opponents = sorted.filter(
-    (show) => String(show.show_id) !== String(focusShowId)
-  );
-
-  if (opponents.length === 0) return [];
-
-  const testedIds = new Set((focus?.testedIds || []).map(String));
-  const lowerBound = Math.max(0, Number(focus?.lowerBound ?? 0));
-  const upperBound = Math.min(
-    opponents.length - 1,
-    Number(focus?.upperBound ?? opponents.length - 1)
-  );
-
-  // If the search window has closed, the show has found its place.
-  if (lowerBound > upperBound) return [];
-
-  let targetIndex = Math.floor((lowerBound + upperBound) / 2);
-  let opponent = opponents[targetIndex];
-
-  // Prefer an untested show inside the remaining search window.
-  if (!opponent || testedIds.has(String(opponent.show_id))) {
-    opponent = opponents.find((show, index) => {
-      if (index < lowerBound || index > upperBound) return false;
-      return !testedIds.has(String(show.show_id));
-    });
-  }
-
-  // If every show inside the window was already tested, allow the midpoint again.
-  // This prevents the focused ranking flow from getting stuck.
-  if (!opponent) {
-    opponent = opponents[targetIndex];
-  }
-
-  if (!opponent) return [];
-
-  return Math.random() > 0.5
-    ? [focusShow, opponent]
-    : [opponent, focusShow];
-}
-
-function getFocusedOpponentIndex(items, focusShowId, opponentShowId) {
-  const opponents = [...items]
-    .sort(sortByLadder)
-    .filter((show) => String(show.show_id) !== String(focusShowId));
-
-  return opponents.findIndex(
-    (show) => String(show.show_id) === String(opponentShowId)
-  );
-}
-
 function makePairKey(firstId, secondId) {
   return [firstId, secondId].map(String).sort().join(":");
 }
@@ -138,518 +34,188 @@ function getOrderedPair(firstId, secondId) {
   return { showAId, showBId, pairKey: `${showAId}:${showBId}` };
 }
 
+function normalizeShowRow(row, ranking = null, fallbackPosition = null) {
+  const show = row?.shows || row;
 
-async function getShowsWithCompletedSeason(userId, showIds) {
-  const uniqueShowIds = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
-  if (!userId || uniqueShowIds.length === 0) return new Set();
+  return {
+    show_id: row?.show_id || show?.id,
+    tvdb_id: show?.tvdb_id || row?.tvdb_id || null,
+    show_name: show?.name || row?.show_name || row?.name || "Unknown title",
+    poster_url: show?.poster_url || row?.poster_url || null,
+    ladder_position: ranking?.ladder_position ?? fallbackPosition,
+    rank_wins: ranking?.wins ?? 0,
+    rank_losses: ranking?.losses ?? 0,
+    rank_comparisons: ranking?.comparisons ?? 0,
+  };
+}
 
-  const episodeRows = [];
+function applyLadderWin(shows, winnerId, loserId) {
+  const ranked = [...shows].sort(sortByLadder);
+  const winnerIndex = ranked.findIndex((show) => String(show.show_id) === String(winnerId));
+  const loserIndex = ranked.findIndex((show) => String(show.show_id) === String(loserId));
 
-  for (const chunk of chunkArray(uniqueShowIds, MATCHUP_FETCH_CHUNK_SIZE)) {
-    const { data, error } = await supabase
-      .from("episodes")
-      .select("id, show_id, season_id, season_number, episode_number, is_special")
-      .in("show_id", chunk)
-      .gt("season_number", 0)
-      .eq("is_special", false);
+  if (winnerIndex === -1 || loserIndex === -1) return shows;
 
-    if (error) throw error;
-    episodeRows.push(...(data || []));
+  if (winnerIndex > loserIndex) {
+    const [winner] = ranked.splice(winnerIndex, 1);
+    ranked.splice(loserIndex, 0, winner);
   }
 
-  if (episodeRows.length === 0) return new Set();
-
-  const episodeIds = episodeRows.map((episode) => episode.id).filter(Boolean);
-  const watchedEpisodeIds = new Set();
-
-  for (const chunk of chunkArray(episodeIds, MATCHUP_FETCH_CHUNK_SIZE)) {
-    const { data, error } = await supabase
-      .from("watched_episodes")
-      .select("episode_id")
-      .eq("user_id", userId)
-      .in("episode_id", chunk);
-
-    if (error) throw error;
-    (data || []).forEach((row) => {
-      if (row.episode_id) watchedEpisodeIds.add(String(row.episode_id));
-    });
-  }
-
-  const seasonProgress = new Map();
-
-  episodeRows.forEach((episode) => {
-    const seasonKey = episode.season_id
-      ? String(episode.season_id)
-      : `${episode.show_id}:season:${episode.season_number}`;
-
-    const current = seasonProgress.get(seasonKey) || {
-      showId: String(episode.show_id),
-      total: 0,
-      watched: 0,
-    };
-
-    current.total += 1;
-    if (watchedEpisodeIds.has(String(episode.id))) current.watched += 1;
-
-    seasonProgress.set(seasonKey, current);
-  });
-
-  const eligibleShowIds = new Set();
-
-  seasonProgress.forEach((season) => {
-    if (season.total > 0 && season.watched >= season.total) {
-      eligibleShowIds.add(season.showId);
-    }
-  });
-
-  return eligibleShowIds;
+  return ranked.map((show, index) => ({
+    ...show,
+    ladder_position: index + 1,
+  }));
 }
 
-function getRecentShowLimit(showCount) {
-  if (showCount <= 4) return 2;
-  if (showCount <= 8) return 4;
-  if (showCount <= 16) return Math.max(4, showCount - 2);
-
-  // With a large library, keep a much longer show cooldown.
-  // Example: 132 eligible shows => remember 66 recent show slots, so the same
-  // show should not reappear after only a few votes.
-  return Math.min(
-    RECENT_MATCHUP_SHOW_LIMIT,
-    Math.max(12, Math.floor(showCount * 0.5))
-  );
+function getRecentShowStorageKey(userId) {
+  return `rankd_recent_shows_v3:${userId || "guest"}`;
 }
 
-function makeRecentShowsStorageKey(userId) {
-  return `rankd_recent_shows_v2:${userId || "guest"}`;
-}
-
-function getUniqueRecentShowIds(showIds, limit) {
-  const seen = new Set();
-  const clean = [];
-
-  (showIds || []).forEach((showId) => {
-    const id = String(showId || "");
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    clean.push(id);
-  });
-
-  return clean.slice(0, limit);
-}
-
-function readRecentShowsFromSession(userId, limit) {
+function readRecentShows(userId) {
   try {
-    const raw = window.sessionStorage.getItem(makeRecentShowsStorageKey(userId));
+    const raw = window.sessionStorage.getItem(getRecentShowStorageKey(userId));
     const parsed = raw ? JSON.parse(raw) : [];
-    return getUniqueRecentShowIds(Array.isArray(parsed) ? parsed : [], limit);
+    return Array.isArray(parsed) ? parsed.map(String).slice(0, RECENT_SHOW_LIMIT) : [];
   } catch {
     return [];
   }
 }
 
-function writeRecentShowsToSession(userId, showIds, limit) {
+function writeRecentShows(userId, showIds) {
   try {
+    const clean = [];
+    const seen = new Set();
+    (showIds || []).forEach((id) => {
+      const key = String(id || "");
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      clean.push(key);
+    });
     window.sessionStorage.setItem(
-      makeRecentShowsStorageKey(userId),
-      JSON.stringify(getUniqueRecentShowIds(showIds, limit))
+      getRecentShowStorageKey(userId),
+      JSON.stringify(clean.slice(0, RECENT_SHOW_LIMIT))
     );
   } catch {
-    // Session storage can be unavailable in private browsing. Rankd still works
-    // with the in-memory cooldown.
+    // Session storage can be unavailable. Rankd still works without it.
   }
 }
 
-function getFairPair(
-  items,
-  matchupMap,
-  previousPairKey = "",
-  recentShowIds = [],
-  recentPairKeys = []
-) {
-  if (items.length < 2) return [];
+function chooseFastPair(shows, previousPairKey = "", recentShowIds = [], recentPairKeys = []) {
+  if (!shows || shows.length < 2) return [];
 
-  const cooldownLimit = getRecentShowLimit(items.length);
-  const recentShowList = getUniqueRecentShowIds(recentShowIds, cooldownLimit);
-  const recentShowSet = new Set(recentShowList);
+  const recentShowSet = new Set((recentShowIds || []).map(String));
+  const recentPairSet = new Set((recentPairKeys || []).map(String));
+  const freshShows = shows.filter((show) => !recentShowSet.has(String(show.show_id)));
+  const pool = freshShows.length >= 2 ? freshShows : shows;
 
-  // Hard rule: when there are at least two completely fresh shows available,
-  // build candidates only from those fresh shows. Do NOT call getFairPair()
-  // again here: that causes infinite recursion when recentShowIds is emptied.
-  const freshItems = items.filter((item) => !recentShowSet.has(String(item.show_id)));
-  const candidateItems = freshItems.length >= 2 ? freshItems : items;
-  const useFreshOnly = freshItems.length >= 2;
+  const scored = [...pool]
+    .sort((a, b) => {
+      const comparisonDiff = Number(a.rank_comparisons || 0) - Number(b.rank_comparisons || 0);
+      if (comparisonDiff !== 0) return comparisonDiff;
 
-  const lastMatchShowSet = new Set(recentShowList.slice(0, 2));
-  const veryRecentShowSet = new Set(recentShowList.slice(0, 10));
-  const recentPairSet = new Set((recentPairKeys || []).filter(Boolean).map(String));
-  const recentShowFrequency = recentShowList.reduce((map, showId) => {
-    map.set(showId, (map.get(showId) || 0) + 1);
-    return map;
-  }, new Map());
+      const positionDiff =
+        Number(a.ladder_position ?? DEFAULT_LADDER_POSITION) -
+        Number(b.ladder_position ?? DEFAULT_LADDER_POSITION);
+      if (positionDiff !== 0) return positionDiff;
 
-  const candidates = [];
+      return (a.show_name || "").localeCompare(b.show_name || "");
+    })
+    .slice(0, Math.min(pool.length, 80));
 
-  for (let i = 0; i < candidateItems.length; i += 1) {
-    for (let j = i + 1; j < candidateItems.length; j += 1) {
-      const first = candidateItems[i];
-      const second = candidateItems[j];
-      const pairKey = makePairKey(first.show_id, second.show_id);
-      const firstId = String(first.show_id);
-      const secondId = String(second.show_id);
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const first = scored[Math.floor(Math.random() * scored.length)];
+    const second = scored[Math.floor(Math.random() * scored.length)];
+    if (!first || !second || String(first.show_id) === String(second.show_id)) continue;
 
-      const isPreviousPair = pairKey === previousPairKey;
-      const isRecentPair = recentPairSet.has(pairKey);
-      const firstRecentIndex = recentShowList.indexOf(firstId);
-      const secondRecentIndex = recentShowList.indexOf(secondId);
-      const firstWasRecent = firstRecentIndex !== -1;
-      const secondWasRecent = secondRecentIndex !== -1;
-      const recentShowCount = Number(firstWasRecent) + Number(secondWasRecent);
-      const usesLastMatchShow =
-        lastMatchShowSet.has(firstId) || lastMatchShowSet.has(secondId);
-      const usesVeryRecentShow =
-        veryRecentShowSet.has(firstId) || veryRecentShowSet.has(secondId);
-      const recentAppearancePenalty =
-        Number(recentShowFrequency.get(firstId) || 0) +
-        Number(recentShowFrequency.get(secondId) || 0);
+    const pairKey = makePairKey(first.show_id, second.show_id);
+    if (pairKey === previousPairKey) continue;
+    if (recentPairSet.has(pairKey) && scored.length > 8) continue;
 
-      const stats = matchupMap.get(pairKey);
-      const timesMatched = Number(stats?.times_matched || 0);
-      const lastMatchedAt = stats?.updated_at || stats?.created_at || "";
-      const combinedComparisons =
-        Number(first.rank_comparisons || 0) + Number(second.rank_comparisons || 0);
-
-      const recencyPenalty =
-        (firstWasRecent ? recentShowList.length - firstRecentIndex : 0) +
-        (secondWasRecent ? recentShowList.length - secondRecentIndex : 0);
-
-      candidates.push({
-        first,
-        second,
-        pairKey,
-        isPreviousPair,
-        isRecentPair,
-        usesLastMatchShow,
-        usesVeryRecentShow,
-        recentShowCount,
-        recencyPenalty,
-        recentAppearancePenalty,
-        timesMatched,
-        lastMatchedAt,
-        combinedComparisons,
-      });
-    }
+    return Math.random() > 0.5 ? [first, second] : [second, first];
   }
 
-  function chooseFrom(pool) {
-    if (!pool.length) return null;
-
-    const sorted = [...pool].sort((a, b) => {
-      // Most important: do not keep showing the same individual shows.
-      // This must come before timesMatched, otherwise a never-seen pair that
-      // includes a recently shown title can beat an older pair with two fresh titles.
-      if (a.usesLastMatchShow !== b.usesLastMatchShow) return a.usesLastMatchShow ? 1 : -1;
-      if (a.usesVeryRecentShow !== b.usesVeryRecentShow) return a.usesVeryRecentShow ? 1 : -1;
-      if (a.recentShowCount !== b.recentShowCount) return a.recentShowCount - b.recentShowCount;
-      if (a.recentAppearancePenalty !== b.recentAppearancePenalty) {
-        return a.recentAppearancePenalty - b.recentAppearancePenalty;
-      }
-      if (a.recencyPenalty !== b.recencyPenalty) return a.recencyPenalty - b.recencyPenalty;
-      if (a.isRecentPair !== b.isRecentPair) return a.isRecentPair ? 1 : -1;
-      if (a.timesMatched !== b.timesMatched) return a.timesMatched - b.timesMatched;
-      if (a.combinedComparisons !== b.combinedComparisons) {
-        return a.combinedComparisons - b.combinedComparisons;
-      }
-      return (a.lastMatchedAt || "").localeCompare(b.lastMatchedAt || "");
-    });
-
-    // Keep randomness, but only among the very best candidates. A 25% pool is
-    // too wide when the user has 100+ shows and can let recent shows leak back in.
-    const poolSize = Math.min(sorted.length, Math.max(3, Math.ceil(sorted.length * 0.08)));
-    const bestPool = sorted.slice(0, poolSize);
-    return bestPool[Math.floor(Math.random() * bestPool.length)];
-  }
-
-  const noRecentShows = candidates.filter(
-    (candidate) =>
-      !candidate.isPreviousPair &&
-      !candidate.isRecentPair &&
-      !candidate.usesLastMatchShow &&
-      candidate.recentShowCount === 0
-  );
-
-  const noLastShowNoRecentPair = candidates.filter(
-    (candidate) =>
-      !candidate.isPreviousPair &&
-      !candidate.isRecentPair &&
-      !candidate.usesLastMatchShow
-  );
-
-  const noVeryRecentShows = candidates.filter(
-    (candidate) =>
-      !candidate.isPreviousPair &&
-      !candidate.isRecentPair &&
-      !candidate.usesVeryRecentShow
-  );
-
-  const noLastShow = candidates.filter(
-    (candidate) => !candidate.isPreviousPair && !candidate.usesLastMatchShow
-  );
-
-  const noRecentPairs = candidates.filter(
-    (candidate) => !candidate.isPreviousPair && !candidate.isRecentPair
-  );
-
-  const noPreviousPair = candidates.filter((candidate) => !candidate.isPreviousPair);
-
-  const chosen =
-    chooseFrom(noRecentShows) ||
-    chooseFrom(noLastShowNoRecentPair) ||
-    chooseFrom(noVeryRecentShows) ||
-    chooseFrom(noLastShow) ||
-    chooseFrom(noRecentPairs) ||
-    chooseFrom(noPreviousPair) ||
-    chooseFrom(candidates);
-
-  if (!chosen) return [];
-
-  return Math.random() > 0.5
-    ? [chosen.first, chosen.second]
-    : [chosen.second, chosen.first];
-}
-
-function slugify(value) {
-  return (
-    String(value || "show")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 70) || "matchup"
-  );
-}
-
-function makeShareSlug(firstName, secondName) {
-  const base = `${slugify(firstName)}-vs-${slugify(secondName)}`;
-  const suffix = Math.random().toString(36).slice(2, 8);
-  return `${base}-${suffix}`;
-}
-
-function normalizeShowRow(show, fallbackPosition = null) {
-  return {
-    show_id: show.id || show.show_id,
-    tvdb_id: show.tvdb_id,
-    show_name: show.name || show.show_name || "Unknown title",
-    poster_url: show.poster_url || null,
-    totalMainEpisodes: 1,
-    watchedMainCount: 1,
-    ladder_position: fallbackPosition,
-    rank_wins: 0,
-    rank_losses: 0,
-    rank_comparisons: 0,
-  };
-}
-
-async function getOptionalUser() {
-  const { data, error } = await supabase.auth.getUser();
-
-  const message = String(error?.message || "").toLowerCase();
-  const isMissingSession =
-    message.includes("auth session missing") ||
-    message.includes("session missing");
-
-  if (error && !isMissingSession) {
-    throw error;
-  }
-
-  return data?.user || null;
-}
-
-async function addSharedShowsAsCompleted(userId, showIds) {
-  const uniqueShowIds = Array.from(
-    new Set((showIds || []).filter(Boolean).map(String))
-  );
-
-  if (!userId || uniqueShowIds.length < 2) return;
-
-  const now = new Date().toISOString();
-
-  const { error: userShowsError } = await supabase.from("user_shows_new").upsert(
-    uniqueShowIds.map((showId) => ({
-      user_id: userId,
-      show_id: showId,
-      watch_status: "completed",
-      updated_at: now,
-    })),
-    { onConflict: "user_id,show_id" }
-  );
-
-  if (userShowsError) throw userShowsError;
-
-  const { data: episodes, error: episodesError } = await supabase
-    .from("episodes")
-    .select("id")
-    .in("show_id", uniqueShowIds);
-
-  if (episodesError) throw episodesError;
-
-  const watchedPayload = (episodes || []).map((episode) => ({
-    user_id: userId,
-    episode_id: episode.id,
-    watched_at: now,
-  }));
-
-  if (!watchedPayload.length) return;
-
-  const { error: watchedError } = await supabase
-    .from("watched_episodes")
-    .upsert(watchedPayload, { onConflict: "user_id,episode_id" });
-
-  if (watchedError) throw watchedError;
+  const fallback = scored.filter(Boolean);
+  return fallback.length >= 2 ? [fallback[0], fallback[1]] : [];
 }
 
 function getWinCount(stats, showId) {
   if (!stats) return 0;
-
   return String(stats.show_a_id) === String(showId)
     ? Number(stats.show_a_wins || 0)
     : Number(stats.show_b_wins || 0);
 }
 
 function getWinPercent(stats, showId) {
-  const totalFromMatches = Number(stats?.times_matched || 0);
-  const totalFromWins =
-    Number(stats?.show_a_wins || 0) + Number(stats?.show_b_wins || 0);
-  const total = Math.max(totalFromMatches, totalFromWins);
-
+  const total = Number(stats?.times_matched || 0);
   if (!total) return 0;
-
-  const wins = getWinCount(stats, showId);
-  return Math.round((wins / total) * 100);
+  return Math.round((getWinCount(stats, showId) / total) * 100);
 }
 
-function statsBelongToPair(stats, firstShowId, secondShowId) {
-  if (!stats || !firstShowId || !secondShowId) return false;
-  return makePairKey(stats.show_a_id, stats.show_b_id) === makePairKey(firstShowId, secondShowId);
+async function getOptionalUser() {
+  const { data, error } = await supabase.auth.getUser();
+  const message = String(error?.message || "").toLowerCase();
+  const isMissingSession = message.includes("auth session missing") || message.includes("session missing");
+  if (error && !isMissingSession) throw error;
+  return data?.user || null;
 }
 
-function getCachedStatsForPair(matchupMap, firstShowId, secondShowId) {
-  if (!matchupMap || !firstShowId || !secondShowId) return null;
+async function fetchRankdShowPage(userId, from, to) {
+  const { data, error } = await supabase
+    .from("user_shows_new")
+    .select("show_id, watch_status, shows!inner(id, tvdb_id, name, poster_url)")
+    .eq("user_id", userId)
+    .in("watch_status", ["completed", "watching"])
+    .range(from, to);
 
-  const firstId = String(firstShowId);
-  const secondId = String(secondShowId);
-  const canonicalKey = makePairKey(firstId, secondId);
-  const directKey = `${firstId}:${secondId}`;
-  const reverseKey = `${secondId}:${firstId}`;
-
-  const rows = [
-    matchupMap.get(canonicalKey),
-    matchupMap.get(directKey),
-    matchupMap.get(reverseKey),
-  ].filter(Boolean);
-
-  return aggregateMatchupRows(rows, firstId, secondId);
+  if (error) throw error;
+  return data || [];
 }
 
-function aggregateMatchupRows(rows, firstShowId, secondShowId) {
-  const uniqueRows = Array.from(
-    new Map((rows || []).filter(Boolean).map((row) => [String(row.id || row.pair_key), row])).values()
-  );
+async function fetchRankingMap(userId, showIds) {
+  const ids = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
+  const map = new Map();
+  if (!userId || !ids.length) return map;
 
-  if (!uniqueRows.length) return null;
+  for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100);
+    const { data, error } = await supabase
+      .from("user_show_rankings")
+      .select("show_id, ladder_position, wins, losses, comparisons")
+      .eq("user_id", userId)
+      .in("show_id", batch);
 
-  const firstId = String(firstShowId);
-  const secondId = String(secondShowId);
-  const newestRow = [...uniqueRows].sort((a, b) => {
-    const aDate = a?.updated_at || a?.created_at || "";
-    const bDate = b?.updated_at || b?.created_at || "";
-    return bDate.localeCompare(aDate);
-  })[0];
+    if (error) throw error;
+    (data || []).forEach((row) => map.set(String(row.show_id), row));
+  }
 
-  let firstWins = 0;
-  let secondWins = 0;
-  let timesMatched = 0;
-
-  uniqueRows.forEach((row) => {
-    const showAId = String(row.show_a_id || "");
-    const showBId = String(row.show_b_id || "");
-    const showAWins = Number(row.show_a_wins || 0);
-    const showBWins = Number(row.show_b_wins || 0);
-
-    if (showAId === firstId) firstWins += showAWins;
-    if (showBId === firstId) firstWins += showBWins;
-    if (showAId === secondId) secondWins += showAWins;
-    if (showBId === secondId) secondWins += showBWins;
-
-    timesMatched += Number(row.times_matched || 0);
-  });
-
-  const winTotal = firstWins + secondWins;
-
-  return {
-    ...newestRow,
-    id: newestRow?.id,
-    pair_key: makePairKey(firstId, secondId),
-    show_a_id: firstId,
-    show_b_id: secondId,
-    show_a_wins: firstWins,
-    show_b_wins: secondWins,
-    times_matched: Math.max(timesMatched, winTotal),
-    related_matchup_ids: uniqueRows.map((row) => row.id).filter(Boolean),
-  };
+  return map;
 }
 
-async function hydrateComments(rows) {
-  const comments = rows || [];
-  const userIds = Array.from(
-    new Set(comments.map((comment) => comment.user_id).filter(Boolean))
-  );
+function mergeShows(existing, incoming) {
+  const map = new Map((existing || []).map((show) => [String(show.show_id), show]));
 
-  if (!userIds.length) return comments;
-
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, username, full_name")
-    .in("id", userIds);
-
-  const profileMap = new Map(
-    (profiles || []).map((profile) => [String(profile.id), profile])
-  );
-
-  return comments.map((comment) => ({
-    ...comment,
-    profile: profileMap.get(String(comment.user_id)) || null,
-  }));
-}
-
-function buildCommentTree(comments) {
-  const byId = new Map();
-  const roots = [];
-
-  comments.forEach((comment) => {
-    byId.set(String(comment.id), { ...comment, replies: [] });
-  });
-
-  byId.forEach((comment) => {
-    const commentId = String(comment.id);
-    const parentId = comment.parent_comment_id
-      ? String(comment.parent_comment_id)
-      : null;
-
-    if (!parentId || parentId === commentId || !byId.has(parentId)) {
-      roots.push(comment);
-      return;
-    }
-
-    const parent = byId.get(parentId);
-
-    if (!parent.replies.some((reply) => String(reply.id) === commentId)) {
-      parent.replies.push(comment);
+  (incoming || []).forEach((show) => {
+    const key = String(show.show_id);
+    if (!key) return;
+    if (map.has(key)) {
+      map.set(key, {
+        ...show,
+        ...map.get(key),
+      });
+    } else {
+      map.set(key, show);
     }
   });
 
-  return roots;
+  return Array.from(map.values())
+    .sort(sortByLadder)
+    .map((show, index) => ({
+      ...show,
+      ladder_position: show.ladder_position ?? index + 1,
+    }));
 }
 
-function RankCard({ show, onChoose, onTouchStart, onTouchEnd, disabledLabel }) {
+function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
   return (
     <button
       type="button"
@@ -662,907 +228,182 @@ function RankCard({ show, onChoose, onTouchStart, onTouchEnd, disabledLabel }) {
     >
       <div className="rankd-poster-frame">
         {show.poster_url ? (
-          <img
-            src={show.poster_url}
-            alt={show.show_name}
-            className="rankd-poster-image"
-          />
+          <img src={show.poster_url} alt={show.show_name} className="rankd-poster-image" />
         ) : (
           <div className="rankd-poster-placeholder">{show.show_name}</div>
         )}
       </div>
-
       <strong className="rankd-card-title">{show.show_name}</strong>
-      {disabledLabel ? <span className="rankd-muted">{disabledLabel}</span> : null}
     </button>
-  );
-}
-
-function CommentItem({
-  comment,
-  currentUserId,
-  onReply,
-  depth = 0,
-  visitedIds = new Set(),
-}) {
-  const author = comment.profile?.username || comment.profile?.full_name || "Rank'd user";
-  const commentId = String(comment.id);
-
-  if (depth > MAX_COMMENT_DEPTH || visitedIds.has(commentId)) return null;
-
-  const nextVisitedIds = new Set(visitedIds);
-  nextVisitedIds.add(commentId);
-
-  const safeReplies = (comment.replies || []).filter(
-    (reply) => String(reply.id) !== commentId && !nextVisitedIds.has(String(reply.id))
-  );
-
-  return (
-    <div className="rankd-comment-item" id={`comment-${comment.id}`}>
-      <div className="rankd-comment-meta">
-        <strong>{author}</strong>
-        <span>{new Date(comment.created_at).toLocaleString()}</span>
-      </div>
-
-      <p>{comment.body}</p>
-
-      {String(comment.user_id) !== String(currentUserId) ? (
-        <button type="button" className="rankd-text-button" onClick={() => onReply(comment)}>
-          Reply
-        </button>
-      ) : null}
-
-      {safeReplies.length ? (
-        <div className="rankd-comment-replies">
-          {safeReplies.map((reply) => (
-            <CommentItem
-              key={reply.id}
-              comment={reply}
-              currentUserId={currentUserId}
-              onReply={onReply}
-              depth={depth + 1}
-              visitedIds={nextVisitedIds}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
 export default function Rankd() {
   const { slug: sharedSlug } = useParams();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [eligibleShows, setEligibleShows] = useState([]);
   const [currentPair, setCurrentPair] = useState([]);
-  const [rankFocus, setRankFocus] = useState(null);
-  const [lastPairKey, setLastPairKey] = useState("");
-  const [matchupMap, setMatchupMap] = useState(new Map());
   const [matchupStats, setMatchupStats] = useState(null);
-  const [comments, setComments] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [commentText, setCommentText] = useState("");
-  const [replyTo, setReplyTo] = useState(null);
-  const [showComments, setShowComments] = useState(false);
-  const [pendingCommentId, setPendingCommentId] = useState(null);
   const [error, setError] = useState("");
-  const [userId, setUserId] = useState(null);
-  const [shareStatus, setShareStatus] = useState("");
-  const [sharedMatchupTitle, setSharedMatchupTitle] = useState("");
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [notice, setNotice] = useState("");
+  const [userId, setUserId] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [shareStatus, setShareStatus] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
 
   const touchStartX = useRef(null);
-  const battleRef = useRef(null);
-  const recentRankdShowIds = useRef([]);
-  const recentRankdPairKeys = useRef([]);
-
-  const isSharedPage = Boolean(sharedSlug);
-  const isLoggedIn = Boolean(userId);
-
+  const saveQueueRef = useRef(Promise.resolve());
+  const recentShowIdsRef = useRef([]);
+  const recentPairKeysRef = useRef([]);
   const currentPairKey =
-    currentPair.length === 2
-      ? makePairKey(currentPair[0].show_id, currentPair[1].show_id)
-      : "";
+    currentPair.length === 2 ? makePairKey(currentPair[0].show_id, currentPair[1].show_id) : "";
 
-  const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
+  const leaderboard = useMemo(() => [...eligibleShows].sort(sortByLadder), [eligibleShows]);
+  const isSharedPage = Boolean(sharedSlug);
 
-  const leaderboard = useMemo(() => {
-    return [...eligibleShows].sort(sortByLadder);
-  }, [eligibleShows]);
+  async function buildShowsForRows(userIdValue, rows, startIndex = 0) {
+    const showIds = rows.map((row) => row.show_id).filter(Boolean);
+    const rankingMap = await fetchRankingMap(userIdValue, showIds);
 
-  function loginRedirectPath() {
-    return `${location.pathname}${location.search || ""}`;
+    return rows
+      .map((row, index) => normalizeShowRow(row, rankingMap.get(String(row.show_id)), startIndex + index + 1))
+      .filter((show) => show.show_id && show.show_name)
+      .sort(sortByLadder)
+      .map((show, index) => ({
+        ...show,
+        ladder_position: show.ladder_position ?? startIndex + index + 1,
+      }));
   }
 
-  function goToLogin() {
-  setShowLoginModal(true);
-}
-
-  function scrollToComment(commentId) {
-    if (!commentId) return;
-
-    setTimeout(() => {
-      const el = document.getElementById(`comment-${commentId}`);
-      if (!el) return;
-
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("rankd-comment-highlight");
-
-      setTimeout(() => {
-        el.classList.remove("rankd-comment-highlight");
-      }, 2500);
-    }, 500);
-  }
-
-  async function loadCurrentMatchup(pair) {
-    if (!pair?.length || pair.length !== 2) {
-      setMatchupStats(null);
-      setComments([]);
-      return;
-    }
-
-    const firstId = String(pair[0].show_id);
-    const secondId = String(pair[1].show_id);
-    const pairKey = makePairKey(firstId, secondId);
-    const directPairKey = `${firstId}:${secondId}`;
-    const reversePairKey = `${secondId}:${firstId}`;
-    const possiblePairKeys = Array.from(new Set([pairKey, directPairKey, reversePairKey]));
-
-    const cachedRows = possiblePairKeys
-      .map((key) => matchupMap.get(key))
-      .filter(Boolean);
-
-    const cachedStats = aggregateMatchupRows(cachedRows, firstId, secondId);
-    setMatchupStats(cachedStats || null);
-
-    const { data: keyRows, error: keyRowsError } = await supabase
+  async function loadSharedMatchup(user) {
+    const { data, error: sharedError } = await supabase
       .from("rankd_matchups")
-      .select("*")
-      .in("pair_key", possiblePairKeys);
+      .select("*, show_a:show_a_id(id, tvdb_id, name, poster_url), show_b:show_b_id(id, tvdb_id, name, poster_url)")
+      .eq("share_slug", sharedSlug)
+      .eq("is_shareable", true)
+      .maybeSingle();
 
-    if (keyRowsError) throw keyRowsError;
+    if (sharedError) throw sharedError;
+    if (!data?.id) throw new Error("This shared Rank'd matchup could not be found.");
 
-    const { data: idRows, error: idRowsError } = await supabase
-      .from("rankd_matchups")
-      .select("*")
-      .or(
-        `and(show_a_id.eq.${firstId},show_b_id.eq.${secondId}),and(show_a_id.eq.${secondId},show_b_id.eq.${firstId})`
-      );
-
-    if (idRowsError) throw idRowsError;
-
-    const matchingRows = [...cachedRows, ...(keyRows || []), ...(idRows || [])];
-    const stats = aggregateMatchupRows(matchingRows, firstId, secondId);
-
-    setMatchupStats(stats || null);
-
-    if (stats?.related_matchup_ids?.length) {
-      setMatchupMap((prev) => {
-        const next = new Map(prev);
-        next.set(pairKey, stats);
-        matchingRows.forEach((row) => {
-          if (row?.pair_key) next.set(String(row.pair_key), row);
-        });
-        return next;
-      });
-    }
-
-    const matchupIds = stats?.related_matchup_ids || [];
-
-    if (!matchupIds.length) {
-      setComments([]);
-      return;
-    }
-
-    const { data, error: commentsError } = await supabase
-      .from("rankd_matchup_comments")
-      .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-      .in("matchup_id", matchupIds)
-      .order("created_at", { ascending: true });
-
-    if (commentsError) throw commentsError;
-
-    setComments(await hydrateComments(data || []));
+    const pair = [normalizeShowRow(data.show_a), normalizeShowRow(data.show_b)].filter(Boolean);
+    setEligibleShows(pair);
+    setCurrentPair(pair);
+    setMatchupStats(data);
+    setUserId(user?.id || null);
+    setLoading(false);
   }
 
-  async function loadNotifications(nextUserId) {
-    if (!nextUserId) return;
+  async function loadRestInBackground(userIdValue, startFrom) {
+    setBackgroundLoading(true);
 
-    const { data, error: notificationError } = await supabase
-      .from("rankd_notifications")
-      .select(`
-        id,
-        user_id,
-        actor_user_id,
-        matchup_id,
-        comment_id,
-        is_read,
-        created_at,
-        rankd_matchups(id, show_a_id, show_b_id, pair_key),
-        rankd_matchup_comments(id, body, created_at)
-      `)
-      .eq("user_id", nextUserId)
-      .order("created_at", { ascending: false })
-      .limit(15);
+    try {
+      let from = startFrom;
+      let safety = 0;
 
-    if (notificationError) throw notificationError;
+      while (safety < 20) {
+        const rows = await fetchRankdShowPage(userIdValue, from, from + BACKGROUND_PAGE_SIZE - 1);
+        if (!rows.length) break;
 
-    setNotifications(data || []);
+        const shows = await buildShowsForRows(userIdValue, rows, from);
+        setEligibleShows((prev) => mergeShows(prev, shows));
+
+        if (rows.length < BACKGROUND_PAGE_SIZE) break;
+        from += BACKGROUND_PAGE_SIZE;
+        safety += 1;
+      }
+    } catch (backgroundError) {
+      console.warn("Rankd background load failed:", backgroundError);
+    } finally {
+      setBackgroundLoading(false);
+    }
   }
 
   async function loadRankd() {
-      try {
-        setLoading(true);
-        setError("");
-        setNotice("");
-        setShareStatus("");
-        setSharedMatchupTitle("");
-
-        const user = await getOptionalUser();
-
-        setUserId(user?.id || null);
-
-        let sharedMatchup = null;
-        let sharedShowIds = [];
-
-        if (sharedSlug) {
-          const { data: sharedData, error: sharedError } = await supabase
-            .from("rankd_matchups")
-            .select(`
-              *,
-              show_a:show_a_id(id, tvdb_id, name, poster_url),
-              show_b:show_b_id(id, tvdb_id, name, poster_url)
-            `)
-            .eq("share_slug", sharedSlug)
-            .eq("is_shareable", true)
-            .maybeSingle();
-
-          if (sharedError) throw sharedError;
-          if (!sharedData?.id) {
-            throw new Error("This shared Rank'd matchup could not be found.");
-          }
-
-          sharedMatchup = sharedData;
-          sharedShowIds = [sharedData.show_a_id, sharedData.show_b_id];
-
-          setSharedMatchupTitle(
-            `${sharedData.show_a?.name || "Show A"} vs ${
-              sharedData.show_b?.name || "Show B"
-            }`
-          );
-
-          if (user?.id) {
-            await addSharedShowsAsCompleted(user.id, sharedShowIds);
-          }
-        }
-
-        if (!user?.id && !sharedMatchup) {
-          setEligibleShows([]);
-          setCurrentPair([]);
-          return;
-        }
-
-        const normalizedShowsMap = new Map();
-        const completedStatusShowIds = new Set();
-
-        if (user?.id) {
-          const { data: userShows, error: userShowsError } = await supabase
-            .from("user_shows_new")
-            .select(`
-              show_id,
-              watch_status,
-              shows!inner(id, tvdb_id, name, poster_url)
-            `)
-            .eq("user_id", user.id);
-
-          if (userShowsError) throw userShowsError;
-
-          (userShows || [])
-            .filter((row) => {
-              const status = String(row.watch_status || "").toLowerCase();
-              return status === "completed" || status === "watching";
-            })
-            .forEach((row) => {
-              const showId = String(row.show_id);
-              const status = String(row.watch_status || "").toLowerCase();
-
-              if (status === "completed") {
-                completedStatusShowIds.add(showId);
-              }
-
-              normalizedShowsMap.set(showId, {
-                show_id: row.show_id,
-                tvdb_id: row.shows?.tvdb_id,
-                show_name: row.shows?.name || "Unknown title",
-                poster_url: row.shows?.poster_url || null,
-              });
-            });
-        }
-
-        if (sharedMatchup?.show_a) {
-          normalizedShowsMap.set(
-            String(sharedMatchup.show_a.id),
-            normalizeShowRow(sharedMatchup.show_a)
-          );
-        }
-
-        if (sharedMatchup?.show_b) {
-          normalizedShowsMap.set(
-            String(sharedMatchup.show_b.id),
-            normalizeShowRow(sharedMatchup.show_b)
-          );
-        }
-
-        const allNormalizedShows = Array.from(normalizedShowsMap.values());
-        const allShowIds = allNormalizedShows.map((show) => show.show_id).filter(Boolean);
-
-        let completedSeasonShowIds = new Set();
-
-        if (user?.id) {
-          completedSeasonShowIds = await getShowsWithCompletedSeason(user.id, allShowIds);
-        }
-
-        // A show is allowed in Rankd when either:
-        // 1) the user has marked the whole show as completed, or
-        // 2) the user is still watching it but has fully watched at least one season.
-        completedStatusShowIds.forEach((showId) => completedSeasonShowIds.add(showId));
-
-        sharedShowIds.forEach((showId) => {
-          if (showId) completedSeasonShowIds.add(String(showId));
-        });
-
-        const normalizedShows = allNormalizedShows.filter((show) =>
-          completedSeasonShowIds.has(String(show.show_id))
-        );
-
-        const showIds = normalizedShows.map((show) => show.show_id).filter(Boolean);
-
-        if (showIds.length < 2) {
-          setEligibleShows([]);
-          setCurrentPair([]);
-          return;
-        }
-
-        let rankingMap = new Map();
-
-        if (user?.id) {
-          const { data: rankingData, error: rankingError } = await supabase
-            .from("user_show_rankings")
-            .select("show_id, ladder_position, wins, losses, comparisons")
-            .eq("user_id", user.id);
-
-          if (rankingError) throw rankingError;
-
-          rankingMap = new Map(
-            (rankingData || []).map((row) => [String(row.show_id), row])
-          );
-        }
-
-        const withProgress = normalizedShows
-          .map((show) => {
-            const ranking = rankingMap.get(String(show.show_id));
-
-            return {
-              ...show,
-              totalMainEpisodes: 1,
-              watchedMainCount: 1,
-              ladder_position: ranking?.ladder_position ?? null,
-              rank_wins: ranking?.wins ?? 0,
-              rank_losses: ranking?.losses ?? 0,
-              rank_comparisons: ranking?.comparisons ?? 0,
-            };
-          })
-          .sort(sortByLadder)
-          .map((show, index) => ({
-            ...show,
-            ladder_position: show.ladder_position ?? index + 1,
-          }));
-
-        let loadedMatchupMap = new Map();
-
-        if (showIds.length) {
-          const matchupRows = [];
-          const showIdChunks = chunkArray(showIds, MATCHUP_FETCH_CHUNK_SIZE);
-
-          // Supabase turns .in() filters into URL query params.
-          // Users with a lot of shows can hit a 400 Bad Request if we put
-          // every show id into one request, so chunk BOTH sides of the lookup.
-          for (const showAChunk of showIdChunks) {
-            for (const showBChunk of showIdChunks) {
-              const { data: rows, error: matchupLoadError } = await supabase
-                .from("rankd_matchups")
-                .select("*")
-                .in("show_a_id", showAChunk)
-                .in("show_b_id", showBChunk);
-
-              if (matchupLoadError) {
-                console.error("RANKD MATCHUP HISTORY LOAD FAILED:", matchupLoadError);
-                continue;
-              }
-
-              matchupRows.push(...(rows || []));
-            }
-          }
-
-          loadedMatchupMap = new Map(
-            matchupRows.map((row) => [String(row.pair_key), row])
-          );
-        }
-
-        const sortedRecentMatchups = [...loadedMatchupMap.values()]
-          .sort((a, b) => {
-            const aDate = a?.updated_at || a?.created_at || "";
-            const bDate = b?.updated_at || b?.created_at || "";
-            return bDate.localeCompare(aDate);
-          })
-          .slice(0, Math.ceil(getRecentShowLimit(withProgress.length) / 2));
-
-        const recentShowLimit = getRecentShowLimit(withProgress.length);
-        const sessionRecentShowIds = readRecentShowsFromSession(user?.id, recentShowLimit);
-        const dbRecentShowIds = sortedRecentMatchups
-          .flatMap((row) => [row.show_a_id, row.show_b_id])
-          .filter(Boolean)
-          .map(String);
-
-        recentRankdShowIds.current = getUniqueRecentShowIds(
-          [...sessionRecentShowIds, ...dbRecentShowIds],
-          recentShowLimit
-        );
-
-        writeRecentShowsToSession(user?.id, recentRankdShowIds.current, recentShowLimit);
-
-        recentRankdPairKeys.current = [...loadedMatchupMap.values()]
-          .sort((a, b) => {
-            const aDate = a?.updated_at || a?.created_at || "";
-            const bDate = b?.updated_at || b?.created_at || "";
-            return bDate.localeCompare(aDate);
-          })
-          .map((row) => row.pair_key)
-          .filter(Boolean)
-          .map(String)
-          .filter((pairKey, index, list) => list.indexOf(pairKey) === index)
-          .slice(0, RECENT_MATCHUP_PAIR_LIMIT);
-
-        setMatchupMap(loadedMatchupMap);
-        setEligibleShows(withProgress);
-
-        let firstPair = getFairPair(
-          withProgress,
-          loadedMatchupMap,
-          lastPairKey,
-          recentRankdShowIds.current,
-          recentRankdPairKeys.current
-        );
-
-        if (sharedMatchup) {
-          const sharedPair = sharedShowIds
-            .map((id) =>
-              withProgress.find((show) => String(show.show_id) === String(id))
-            )
-            .filter(Boolean);
-
-          if (sharedPair.length === 2) {
-            firstPair = sharedPair;
-            setShowComments(true);
-          }
-        }
-
-        setCurrentPair(firstPair);
-        setLastPairKey(
-          firstPair.length === 2
-            ? makePairKey(firstPair[0].show_id, firstPair[1].show_id)
-            : ""
-        );
-
-        if (user?.id) {
-          await loadNotifications(user.id);
-        } else {
-          setNotifications([]);
-        }
-      } catch (loadError) {
-        console.error("RANKD LOAD FAILED:", loadError);
-        setError(loadError.message || "Failed to load Rank'd.");
-      } finally {
-        setLoading(false);
-      }
-    }
-  
-useEffect(() => {
-  loadRankd();
-}, [sharedSlug]);
-  
-  useEffect(() => {
-    loadCurrentMatchup(currentPair).catch((matchupError) => {
-      console.error("RANKD MATCHUP LOAD FAILED:", matchupError);
-      setError(matchupError.message || "Failed to load this matchup.");
-    });
-  }, [currentPairKey]);
-
-  useEffect(() => {
-    async function openNotificationMatchup() {
-      const notificationId = searchParams.get("notification");
-      if (!notificationId || !notifications.length) return;
-
-      const notification = notifications.find(
-        (item) => String(item.id) === String(notificationId)
-      );
-
-      if (!notification?.rankd_matchups?.pair_key) return;
-
-      const pairKey = notification.rankd_matchups.pair_key;
-      const showIds = pairKey.split(":");
-
-      let pair = showIds
-        .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
-        .filter(Boolean);
-
-      if (pair.length !== 2) {
-        const { data: missingShows, error: missingShowsError } = await supabase
-          .from("shows")
-          .select("id, tvdb_id, name, poster_url")
-          .in("id", showIds);
-
-        if (missingShowsError) {
-          console.error("RANKD NOTIFICATION SHOW LOAD FAILED:", missingShowsError);
-          return;
-        }
-
-        pair = showIds
-          .map((id) => {
-            const existing = eligibleShows.find(
-              (show) => String(show.show_id) === String(id)
-            );
-
-            if (existing) return existing;
-
-            const fetched = (missingShows || []).find(
-              (show) => String(show.id) === String(id)
-            );
-
-            if (!fetched) return null;
-
-            return normalizeShowRow(fetched);
-          })
-          .filter(Boolean);
-      }
-
-      if (pair.length !== 2) return;
-
-      setRankFocus(null);
-      setCurrentPair(pair);
-      setLastPairKey(pairKey);
-      setShowComments(true);
-      setPendingCommentId(notification.comment_id || null);
-
-      supabase
-        .from("rankd_notifications")
-        .update({ is_read: true })
-        .eq("id", notification.id)
-        .then(() => loadNotifications(userId));
-
-      setSearchParams({}, { replace: true });
-    }
-
-    openNotificationMatchup();
-  }, [searchParams, notifications, eligibleShows, userId, setSearchParams]);
-
-  useEffect(() => {
-    async function openLinkedMatchup() {
-      const pairKey = searchParams.get("matchup");
-      const commentId = searchParams.get("comment");
-
-      if (!pairKey || !eligibleShows.length) return;
-
-      const showIds = pairKey.split(":");
-
-      let pair = showIds
-        .map((id) => eligibleShows.find((show) => String(show.show_id) === String(id)))
-        .filter(Boolean);
-
-      if (pair.length !== 2) {
-        const { data: missingShows, error: missingShowsError } = await supabase
-          .from("shows")
-          .select("id, tvdb_id, name, poster_url")
-          .in("id", showIds);
-
-        if (missingShowsError) {
-          console.error("RANKD LINKED SHOW LOAD FAILED:", missingShowsError);
-          return;
-        }
-
-        pair = showIds
-          .map((id) => {
-            const existing = eligibleShows.find(
-              (show) => String(show.show_id) === String(id)
-            );
-
-            if (existing) return existing;
-
-            const fetched = (missingShows || []).find(
-              (show) => String(show.id) === String(id)
-            );
-
-            if (!fetched) return null;
-
-            return normalizeShowRow(fetched);
-          })
-          .filter(Boolean);
-      }
-
-      if (pair.length !== 2) return;
-
-      setRankFocus(null);
-      setCurrentPair(pair);
-      setLastPairKey(pairKey);
-      setShowComments(true);
-      setPendingCommentId(commentId || null);
-
-      setSearchParams({}, { replace: true });
-    }
-
-    openLinkedMatchup();
-  }, [searchParams, eligibleShows, setSearchParams]);
-
-  useEffect(() => {
-    if (!pendingCommentId || !comments.length) return;
-
-    scrollToComment(pendingCommentId);
-    setPendingCommentId(null);
-  }, [pendingCommentId, comments]);
-
-  function startFocusedRanking(show) {
-    if (!isLoggedIn) {
-      goToLogin();
-      return;
-    }
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-
-    const sorted = [...eligibleShows].sort(sortByLadder);
-
-    const newFocus = {
-      showId: show.show_id,
-      showName: show.show_name,
-      roundsDone: 0,
-      testedIds: [],
-      lowerBound: 0,
-      upperBound: sorted.length - 1,
-      lastOpponentId: null,
-    };
-
-    const nextPair = getFocusedPair(eligibleShows, show.show_id, newFocus);
-
-    if (nextPair.length !== 2) return;
-
-    setRankFocus(newFocus);
-    setCurrentPair(nextPair);
-    setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
-    setShowComments(false);
-    setCommentText("");
-    setReplyTo(null);
-  }
-
-  async function handleChoice(winnerShowId) {
-    if (saving || currentPair.length !== 2) return;
-
-    const [firstShow, secondShow] = currentPair;
-    const winner =
-      String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
-    const loser =
-      String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
-
     try {
-      setSaving(true);
+      setLoading(true);
       setError("");
       setNotice("");
+      setShareStatus("");
+      setSaveStatus("");
 
       const user = await getOptionalUser();
+      setUserId(user?.id || null);
 
-      if (!user?.id) {
-        goToLogin();
+      if (sharedSlug) {
+        await loadSharedMatchup(user);
         return;
       }
 
-      if (isSharedPage) {
-        await addSharedShowsAsCompleted(user.id, [winner.show_id, loser.show_id]);
+      if (!user?.id) {
+        setEligibleShows([]);
+        setCurrentPair([]);
+        setLoading(false);
+        return;
       }
 
-      const ladderReadyShows = [...eligibleShows]
-        .sort(sortByLadder)
-        .map((show, index) => ({
-          ...show,
-          ladder_position: show.ladder_position ?? index + 1,
-        }));
+      recentShowIdsRef.current = readRecentShows(user.id);
 
-      const updatedLadder = applyLadderWin(
-        ladderReadyShows,
-        winner.show_id,
-        loser.show_id
-      ).map((show) => {
-        if (String(show.show_id) === String(winner.show_id)) {
-          return {
-            ...show,
-            rank_wins: (show.rank_wins || 0) + 1,
-            rank_comparisons: (show.rank_comparisons || 0) + 1,
-          };
-        }
+      let rows = await fetchRankdShowPage(user.id, 0, FRONTLOAD_SHOW_COUNT - 1);
+      let nextFrom = FRONTLOAD_SHOW_COUNT;
 
-        if (String(show.show_id) === String(loser.show_id)) {
-          return {
-            ...show,
-            rank_losses: (show.rank_losses || 0) + 1,
-            rank_comparisons: (show.rank_comparisons || 0) + 1,
-          };
-        }
-
-        return show;
-      });
-
-      let nextRankFocus = null;
-      let nextPair = [];
-      let focusedPlacementComplete = false;
-
-      const nextMatchupMap = new Map(matchupMap);
-      nextMatchupMap.set(currentPairKey, {
-        ...(nextMatchupMap.get(currentPairKey) || {}),
-        pair_key: currentPairKey,
-        times_matched:
-          Number(nextMatchupMap.get(currentPairKey)?.times_matched || 0) + 1,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (rankFocus?.showId) {
-        const focusedShowId = String(rankFocus.showId);
-        const opponent = currentPair.find(
-          (show) => String(show.show_id) !== focusedShowId
-        );
-        const opponentId = opponent?.show_id || null;
-        const opponentIndex = opponentId
-          ? getFocusedOpponentIndex(ladderReadyShows, focusedShowId, opponentId)
-          : -1;
-        const focusedWon = String(winner.show_id) === focusedShowId;
-        const previousLowerBound = Number(rankFocus.lowerBound ?? 0);
-        const previousUpperBound = Number(
-          rankFocus.upperBound ?? Math.max(0, ladderReadyShows.length - 2)
-        );
-        let lowerBound = previousLowerBound;
-        let upperBound = previousUpperBound;
-
-        if (opponentIndex >= 0) {
-          if (focusedWon) {
-            // Focused show belongs above this opponent, so only test higher-ranked shows next.
-            upperBound = Math.min(previousUpperBound, opponentIndex - 1);
-          } else {
-            // Focused show belongs below this opponent, so only test lower-ranked shows next.
-            lowerBound = Math.max(previousLowerBound, opponentIndex + 1);
-          }
-        }
-
-        const testedIds = [
-          ...(rankFocus.testedIds || []),
-          opponentId,
-        ].filter(Boolean);
-
-        nextRankFocus = {
-          ...rankFocus,
-          roundsDone: Number(rankFocus.roundsDone || 0) + 1,
-          testedIds,
-          lowerBound,
-          upperBound,
-          lastOpponentId: opponentId,
-        };
-
-        if (
-          lowerBound <= upperBound &&
-          nextRankFocus.roundsDone < FOCUSED_RANKING_ROUND_LIMIT
-        ) {
-          nextPair = getFocusedPair(updatedLadder, focusedShowId, nextRankFocus);
-        }
-
-        if (nextPair.length === 2) {
-          setRankFocus(nextRankFocus);
-        } else {
-          focusedPlacementComplete = true;
-          nextRankFocus = null;
-          setRankFocus(null);
-          setNotice(`${rankFocus.showName || "This show"} has found its Rank'd spot.`);
-        }
+      // If the first slice somehow contains fewer than two eligible shows, grab a
+      // larger first slice before showing the empty state. This is still much
+      // quicker than scanning the entire 1000+ library.
+      if (rows.length < 2) {
+        const moreRows = await fetchRankdShowPage(user.id, FRONTLOAD_SHOW_COUNT, FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE - 1);
+        rows = [...rows, ...moreRows];
+        nextFrom = FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE;
       }
 
-      if (!nextRankFocus && !focusedPlacementComplete) {
-        const currentShowIds = currentPair.map((show) => String(show.show_id));
-        const recentShowLimit = getRecentShowLimit(updatedLadder.length);
-        const sessionRecentShowIds = readRecentShowsFromSession(
-          user?.id,
-          recentShowLimit
-        );
-        const recentPlusCurrent = getUniqueRecentShowIds(
-          [
-            ...currentShowIds,
-            ...sessionRecentShowIds,
-            ...recentRankdShowIds.current,
-          ],
-          recentShowLimit
-        );
+      const initialShows = await buildShowsForRows(user.id, rows, 0);
+      setEligibleShows(initialShows);
 
-        nextPair = getFairPair(
-          updatedLadder,
-          nextMatchupMap,
-          currentPairKey,
-          recentPlusCurrent,
-          [currentPairKey, ...recentRankdPairKeys.current]
-        );
+      const firstPair = chooseFastPair(
+        initialShows,
+        "",
+        recentShowIdsRef.current,
+        recentPairKeysRef.current
+      );
+
+      setCurrentPair(firstPair);
+      setMatchupStats(null);
+      setLoading(false);
+
+      if (firstPair.length === 2) {
+        const pairKey = makePairKey(firstPair[0].show_id, firstPair[1].show_id);
+        recentPairKeysRef.current = [pairKey];
       }
 
-      if (!focusedPlacementComplete) {
-        if (
-          nextPair.length === 2 &&
-          makePairKey(nextPair[0].show_id, nextPair[1].show_id) === currentPairKey
-        ) {
-          setNotice(
-            "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
-          );
-          return;
-        }
+      loadRestInBackground(user.id, nextFrom);
+    } catch (loadError) {
+      console.error("RANKD LOAD FAILED:", loadError);
+      setError(loadError.message || "Failed to load Rank'd.");
+      setLoading(false);
+    }
+  }
 
-        if (!nextPair.length) {
-          setNotice(
-            "You Have Already Voted on this Matchup! Add more watched shows to continue ranking."
-          );
-          return;
-        }
+  useEffect(() => {
+    loadRankd();
+  }, [sharedSlug]);
 
-        const nextRecentShowIds = getUniqueRecentShowIds(
-          [
-            ...nextPair.map((show) => String(show.show_id)),
-            String(winner.show_id),
-            String(loser.show_id),
-            ...recentRankdShowIds.current,
-          ],
-          getRecentShowLimit(updatedLadder.length)
+  function queueVoteSave({ userIdValue, winner, loser, beforeLadder, updatedLadder }) {
+    const now = new Date().toISOString();
+    const beforeById = new Map(beforeLadder.map((show) => [String(show.show_id), show]));
+
+    const rankingPayload = updatedLadder
+      .filter((show) => {
+        const before = beforeById.get(String(show.show_id));
+        return (
+          !before ||
+          before.ladder_position !== show.ladder_position ||
+          String(show.show_id) === String(winner.show_id) ||
+          String(show.show_id) === String(loser.show_id)
         );
-
-        recentRankdShowIds.current = nextRecentShowIds;
-        writeRecentShowsToSession(
-          user?.id,
-          nextRecentShowIds,
-          getRecentShowLimit(updatedLadder.length)
-        );
-
-        recentRankdPairKeys.current = [
-          makePairKey(nextPair[0].show_id, nextPair[1].show_id),
-          currentPairKey,
-          ...recentRankdPairKeys.current,
-        ]
-          .filter(Boolean)
-          .filter((pairKey, index, list) => list.indexOf(pairKey) === index)
-          .slice(0, RECENT_MATCHUP_PAIR_LIMIT);
-
-        setCurrentPair(nextPair);
-        setLastPairKey(makePairKey(nextPair[0].show_id, nextPair[1].show_id));
-      }
-
-      setEligibleShows(updatedLadder);
-      setCommentText("");
-      setReplyTo(null);
-
-      if (!isSharedPage) {
-        setShowComments(false);
-      }
-
-      const now = new Date().toISOString();
-
-      const rankingPayload = updatedLadder.map((show) => ({
-        user_id: user.id,
+      })
+      .map((show) => ({
+        user_id: userIdValue,
         show_id: show.show_id,
         ladder_position: show.ladder_position,
         wins: show.rank_wins || 0,
@@ -1571,84 +412,143 @@ useEffect(() => {
         updated_at: now,
       }));
 
-      const { error: rankingSaveError } = await supabase
-        .from("user_show_rankings")
-        .upsert(rankingPayload, {
-          onConflict: "user_id,show_id",
-        });
+    const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
 
-      if (rankingSaveError) throw rankingSaveError;
+    setSaveStatus("Saving vote...");
 
-      const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => null)
+      .then(async () => {
+        if (rankingPayload.length) {
+          const { error: rankingError } = await supabase
+            .from("user_show_rankings")
+            .upsert(rankingPayload, { onConflict: "user_id,show_id" });
 
-      const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
-        "rankd_record_matchup_vote",
-        {
-          p_show_a_id: showAId,
-          p_show_b_id: showBId,
-          p_winner_show_id: String(winner.show_id),
-          p_loser_show_id: String(loser.show_id),
+          if (rankingError) throw rankingError;
         }
-      );
 
-      if (matchupError) throw matchupError;
+        const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
+          "rankd_record_matchup_vote",
+          {
+            p_show_a_id: showAId,
+            p_show_b_id: showBId,
+            p_winner_show_id: String(winner.show_id),
+            p_loser_show_id: String(loser.show_id),
+          }
+        );
 
-      const nextMatchupRow = Array.isArray(recordedMatchup)
-        ? recordedMatchup[0]
-        : recordedMatchup;
+        if (matchupError) throw matchupError;
 
-      const updatedMatchupMap = new Map(matchupMap);
+        const row = Array.isArray(recordedMatchup) ? recordedMatchup[0] : recordedMatchup;
+        if (row) setMatchupStats(row);
+      })
+      .then(() => {
+        setSaveStatus("");
+      })
+      .catch((saveError) => {
+        console.error("RANKD BACKGROUND SAVE FAILED:", saveError);
+        setSaveStatus("Vote saved locally. Sync will retry on your next vote.");
+      });
+  }
 
-      if (nextMatchupRow?.pair_key) {
-        updatedMatchupMap.set(nextMatchupRow.pair_key, nextMatchupRow);
-        setMatchupStats(nextMatchupRow);
+  function handleChoice(winnerShowId) {
+    if (currentPair.length !== 2) return;
+
+    if (!userId && !isSharedPage) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const [firstShow, secondShow] = currentPair;
+    const winner = String(firstShow.show_id) === String(winnerShowId) ? firstShow : secondShow;
+    const loser = String(firstShow.show_id) === String(winnerShowId) ? secondShow : firstShow;
+    const beforeLadder = [...eligibleShows]
+      .sort(sortByLadder)
+      .map((show, index) => ({
+        ...show,
+        ladder_position: show.ladder_position ?? index + 1,
+      }));
+
+    const updatedLadder = applyLadderWin(beforeLadder, winner.show_id, loser.show_id).map((show) => {
+      if (String(show.show_id) === String(winner.show_id)) {
+        return {
+          ...show,
+          rank_wins: Number(show.rank_wins || 0) + 1,
+          rank_comparisons: Number(show.rank_comparisons || 0) + 1,
+        };
       }
 
-      setMatchupMap(updatedMatchupMap);
-   } catch (saveChoiceError) {
-  console.error("RANKD SAVE FAILED:", saveChoiceError);
+      if (String(show.show_id) === String(loser.show_id)) {
+        return {
+          ...show,
+          rank_losses: Number(show.rank_losses || 0) + 1,
+          rank_comparisons: Number(show.rank_comparisons || 0) + 1,
+        };
+      }
 
-  const errorMessage = String(
-    saveChoiceError?.message || ""
-  ).toLowerCase();
+      return show;
+    });
 
-  if (
-    errorMessage.includes("2 minutes") ||
-    errorMessage.includes("once every") ||
-    errorMessage.includes("blocked")
-  ) {
-    setError(
-      "You’ve already voted on this matchup recently. Try again in a couple of minutes."
+    const nextRecentShows = [
+      String(winner.show_id),
+      String(loser.show_id),
+      ...recentShowIdsRef.current,
+    ];
+    recentShowIdsRef.current = nextRecentShows.slice(0, RECENT_SHOW_LIMIT);
+    writeRecentShows(userId, recentShowIdsRef.current);
+
+    const previousPairKey = currentPairKey;
+    const nextPair = chooseFastPair(
+      updatedLadder,
+      previousPairKey,
+      recentShowIdsRef.current,
+      [previousPairKey, ...recentPairKeysRef.current]
     );
-  } else {
-    setError(
-      saveChoiceError.message || "Failed to save your Rank'd vote."
-    );
-  }
-} finally {
-      setSaving(false);
+
+    const nextPairKey = nextPair.length === 2 ? makePairKey(nextPair[0].show_id, nextPair[1].show_id) : "";
+    recentPairKeysRef.current = [nextPairKey, previousPairKey, ...recentPairKeysRef.current]
+      .filter(Boolean)
+      .filter((pairKey, index, list) => list.indexOf(pairKey) === index)
+      .slice(0, RECENT_PAIR_LIMIT);
+
+    setEligibleShows(updatedLadder);
+    setCurrentPair(nextPair);
+    setMatchupStats(null);
+    setNotice("");
+
+    if (userId) {
+      queueVoteSave({
+        userIdValue: userId,
+        winner,
+        loser,
+        beforeLadder,
+        updatedLadder,
+      });
     }
   }
 
+  function handleTouchStart(event) {
+    touchStartX.current = event.touches?.[0]?.clientX ?? null;
+  }
+
+  function handleTouchEnd(side, showId) {
+    return (event) => {
+      const startX = touchStartX.current;
+      const endX = event.changedTouches?.[0]?.clientX ?? null;
+      if (startX == null || endX == null) return;
+
+      const deltaX = endX - startX;
+      if (side === "left" && deltaX <= -SWIPE_THRESHOLD) handleChoice(showId);
+      if (side === "right" && deltaX >= SWIPE_THRESHOLD) handleChoice(showId);
+    };
+  }
+
   async function handleShareMatchup() {
-    if (currentPair.length !== 2 || saving) return;
+    if (currentPair.length !== 2) return;
 
     try {
-      setSaving(true);
-      setShareStatus("");
-      setError("");
-
-      const user = await getOptionalUser();
-
-      if (!user?.id) {
-        goToLogin();
-        return;
-      }
-
-      const { showAId, showBId, pairKey } = getOrderedPair(
-        currentPair[0].show_id,
-        currentPair[1].show_id
-      );
+      setShareStatus("Saving share link...");
+      const { showAId, showBId, pairKey } = getOrderedPair(currentPair[0].show_id, currentPair[1].show_id);
 
       const { data: existing, error: existingError } = await supabase
         .from("rankd_matchups")
@@ -1658,156 +558,38 @@ useEffect(() => {
 
       if (existingError) throw existingError;
 
-      let slug = existing?.share_slug;
+      let shareSlug = existing?.share_slug || "";
+      if (!shareSlug) {
+        shareSlug = `${String(currentPair[0].show_name || "show").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50)}-vs-${String(currentPair[1].show_name || "show").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50)}-${Math.random().toString(36).slice(2, 8)}`;
 
-      if (!existing?.id) {
-        slug = makeShareSlug(currentPair[0].show_name, currentPair[1].show_name);
-
-        const { error: insertError } = await supabase.from("rankd_matchups").insert({
-          show_a_id: showAId,
-          show_b_id: showBId,
-          share_slug: slug,
-          is_shareable: true,
-          created_by: user.id,
-        });
-
-        if (insertError) throw insertError;
-      } else if (!slug) {
-        slug = makeShareSlug(currentPair[0].show_name, currentPair[1].show_name);
-
-        const { error: updateError } = await supabase
-          .from("rankd_matchups")
-          .update({
-            share_slug: slug,
+        if (existing?.id) {
+          const { error: updateError } = await supabase
+            .from("rankd_matchups")
+            .update({ share_slug: shareSlug, is_shareable: true })
+            .eq("id", existing.id);
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase.from("rankd_matchups").insert({
+            show_a_id: showAId,
+            show_b_id: showBId,
+            pair_key: pairKey,
+            show_a_wins: 0,
+            show_b_wins: 0,
+            times_matched: 0,
+            share_slug: shareSlug,
             is_shareable: true,
-            created_by: user.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: enableError } = await supabase
-          .from("rankd_matchups")
-          .update({ is_shareable: true })
-          .eq("id", existing.id);
-
-        if (enableError) throw enableError;
+          });
+          if (insertError) throw insertError;
+        }
       }
 
-      const shareUrl = `${window.location.origin}/rankd/share/${slug}`;
-
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        setShareStatus("Share link copied.");
-      } catch {
-        setShareStatus(shareUrl);
-      }
+      const shareUrl = `${window.location.origin}/rankd/share/${shareSlug}`;
+      await navigator.clipboard?.writeText(shareUrl);
+      setShareStatus("Share link copied.");
     } catch (shareError) {
       console.error("RANKD SHARE FAILED:", shareError);
-      setError(shareError.message || "Failed to create share link.");
-    } finally {
-      setSaving(false);
+      setShareStatus(shareError.message || "Could not create share link.");
     }
-  }
-
-  async function handleAddComment(event) {
-    event.preventDefault();
-
-    const body = commentText.trim();
-    if (!body || currentPair.length !== 2) return;
-
-    try {
-      setSaving(true);
-      setError("");
-      setNotice("");
-
-      const user = await getOptionalUser();
-
-      if (!user?.id) {
-        goToLogin();
-        return;
-      }
-
-      if (isSharedPage) {
-        await addSharedShowsAsCompleted(user.id, [
-          currentPair[0].show_id,
-          currentPair[1].show_id,
-        ]);
-      }
-
-      const { showAId, showBId, pairKey } = getOrderedPair(
-        currentPair[0].show_id,
-        currentPair[1].show_id
-      );
-
-      const { error: commentError } = await supabase.rpc(
-        "rankd_add_matchup_comment",
-        {
-          p_show_a_id: showAId,
-          p_show_b_id: showBId,
-          p_body: body,
-          p_parent_comment_id: replyTo?.id || null,
-        }
-      );
-
-      if (commentError) throw commentError;
-
-      const { data: freshMatchup, error: matchupReloadError } = await supabase
-        .from("rankd_matchups")
-        .select("*")
-        .eq("pair_key", pairKey)
-        .maybeSingle();
-
-      if (matchupReloadError) throw matchupReloadError;
-      if (!freshMatchup?.id) {
-        throw new Error("Comment saved, but matchup could not be reloaded.");
-      }
-
-      const updatedMatchupMap = new Map(matchupMap);
-      updatedMatchupMap.set(freshMatchup.pair_key, freshMatchup);
-      setMatchupMap(updatedMatchupMap);
-      setMatchupStats(freshMatchup);
-
-      const { data: freshComments, error: freshCommentsError } = await supabase
-        .from("rankd_matchup_comments")
-        .select("id, matchup_id, user_id, parent_comment_id, body, created_at")
-        .eq("matchup_id", freshMatchup.id)
-        .order("created_at", { ascending: true });
-
-      if (freshCommentsError) throw freshCommentsError;
-
-      setComments(await hydrateComments(freshComments || []));
-      setCommentText("");
-      setReplyTo(null);
-      setShowComments(true);
-      await loadNotifications(user.id);
-    } catch (commentError) {
-      console.error("RANKD COMMENT FAILED:", commentError);
-      setError(commentError.message || "Failed to save your comment.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function buildTouchStartHandler() {
-    return (event) => {
-      touchStartX.current = event.changedTouches?.[0]?.clientX ?? null;
-    };
-  }
-
-  function buildTouchEndHandler(showId, side) {
-    return (event) => {
-      const startX = touchStartX.current;
-      const endX = event.changedTouches?.[0]?.clientX ?? null;
-
-      if (startX == null || endX == null) return;
-
-      const deltaX = endX - startX;
-
-      if (side === "left" && deltaX <= -SWIPE_THRESHOLD) handleChoice(showId);
-      if (side === "right" && deltaX >= SWIPE_THRESHOLD) handleChoice(showId);
-    };
   }
 
   if (loading) {
@@ -1816,14 +598,31 @@ useEffect(() => {
         <div className="page-shell">
           <div className="page-header">
             <h1>Rank'd</h1>
-            <p>Loading your matchups...</p>
+            <p>Front-loading your first matchups...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  if (eligibleShows.length < 2) {
+  if (!userId && !isSharedPage) {
+    return (
+      <div className="page rankd-page">
+        <div className="page-shell">
+          <div className="page-header">
+            <h1>Rank'd</h1>
+            <p>Log in to rank your shows.</p>
+          </div>
+          <button type="button" className="top-tab active" onClick={() => setShowLoginModal(true)}>
+            Log in
+          </button>
+          <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} redirectTo="/rankd" />
+        </div>
+      </div>
+    );
+  }
+
+  if (eligibleShows.length < 2 || currentPair.length < 2) {
     return (
       <div className="page rankd-page">
         <div className="page-shell">
@@ -1831,19 +630,14 @@ useEffect(() => {
             <h1>Rank'd</h1>
             <p>Swipe your favourite shows against each other to build your personal ranking.</p>
           </div>
-
-          
-
           {error ? (
             <div className="section-card rankd-error-card">
               <strong>Something went wrong</strong>
               <span>{error}</span>
             </div>
           ) : null}
-
           <div className="section-card rankd-empty-card">
-            <p>You need at least 2 eligible shows before Rank'd can start.</p>
-            <p>Completed shows count automatically. Watching shows are included once at least one full season has been watched.</p>
+            <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
             <Link to="/my-shows" className="top-tab active">
               Go to My Shows
             </Link>
@@ -1853,66 +647,31 @@ useEffect(() => {
     );
   }
 
-  if (currentPair.length < 2) {
-    return (
-      <div className="page rankd-page">
-        <div className="page-shell">
-          <div className="page-header">
-            <h1>Rank'd</h1>
-            <p>Preparing your first matchup...</p>
-          </div>
-
-          {error ? (
-            <div className="section-card rankd-error-card">
-              <strong>Something went wrong</strong>
-              <span>{error}</span>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  const displayedMatchupStats = statsBelongToPair(
-    matchupStats,
-    currentPair[0].show_id,
-    currentPair[1].show_id
-  )
-    ? matchupStats
-    : getCachedStatsForPair(
-        matchupMap,
-        currentPair[0].show_id,
-        currentPair[1].show_id
-      );
-
-  const leftWinPercent = getWinPercent(displayedMatchupStats, currentPair[0].show_id);
-  const rightWinPercent = getWinPercent(displayedMatchupStats, currentPair[1].show_id);
-  const leftWins = getWinCount(displayedMatchupStats, currentPair[0].show_id);
-  const rightWins = getWinCount(displayedMatchupStats, currentPair[1].show_id);
+  const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
+  const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
 
   return (
     <div className="page rankd-page">
       <div className="page-shell">
- {!isSharedPage ? (
-  <div className="rankd-matchup-number">
-    {rankFocus ? (
-      <>
-        Finding place for {rankFocus.showName} — round{" "}
-        {(rankFocus.roundsDone || 0) + 1}
-      </>
-    ) : (
-      <>
-        Matchup #{" "}
-        {Math.floor(
-          leaderboard.reduce(
-            (total, show) => total + (show.rank_comparisons || 0),
-            0
-          ) / 2
-        ) + 1}
-      </>
-    )}
-  </div>
-) : null}
+        {!isSharedPage ? (
+          <div className="rankd-matchup-number">
+            Matchup #{Math.floor(leaderboard.reduce((total, show) => total + Number(show.rank_comparisons || 0), 0) / 2) + 1}
+          </div>
+        ) : null}
+
+        {backgroundLoading ? (
+          <div className="section-card rankd-notice-card">
+            <strong>Preparing the rest of your Rank'd list...</strong>
+            <span>You can start voting now. More shows are loading in the background.</span>
+          </div>
+        ) : null}
+
+        {saveStatus ? (
+          <div className="section-card rankd-notice-card">
+            <strong>{saveStatus}</strong>
+            <span>The next matchup is ready while BURGRS syncs your vote.</span>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="section-card rankd-error-card">
@@ -1923,207 +682,73 @@ useEffect(() => {
 
         {notice ? (
           <div className="section-card rankd-notice-card">
-            <strong>You Have Already Voted on this Matchup!</strong>
-            <span>Add more watched shows to continue ranking.</span>
+            <strong>{notice}</strong>
           </div>
         ) : null}
 
         <div className="rankd-main-grid">
-          <div id="rankd-top" className="section-card rankd-battle-shell" ref={battleRef}>
+          <div id="rankd-top" className="section-card rankd-battle-shell">
             <div className="rankd-battle-layout">
               <RankCard
                 show={currentPair[0]}
                 onChoose={() => handleChoice(currentPair[0].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
-                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd("left", currentPair[0].show_id)}
               />
 
-              <div className="rankd-battle-vs">VS</div>
+              <div className="rankd-versus">
+                <span>VS</span>
+              </div>
 
               <RankCard
                 show={currentPair[1]}
                 onChoose={() => handleChoice(currentPair[1].show_id)}
-                onTouchStart={buildTouchStartHandler()}
-                onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
-                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd("right", currentPair[1].show_id)}
               />
             </div>
 
-            <div className="rankd-matchup-dashboard">
-              <div className="rankd-win-bars">
-                <div className="rankd-win-row">
-                  <span>{currentPair[0].show_name}</span>
-                  <div>
-                    <i style={{ width: `${leftWinPercent}%` }} />
-                  </div>
-                  <strong>
-                    {leftWinPercent}% / {leftWins} wins
-                  </strong>
-                </div>
-
-                <div className="rankd-win-row">
-                  <span>{currentPair[1].show_name}</span>
-                  <div>
-                    <i style={{ width: `${rightWinPercent}%` }} />
-                  </div>
-                  <strong>
-                    {rightWinPercent}% / {rightWins} wins
-                  </strong>
-                </div>
+            <div className="rankd-matchup-stats">
+              <div>
+                <strong>{leftWinPercent}%</strong>
+                <span>{currentPair[0].show_name}</span>
+              </div>
+              <div>
+                <strong>{rightWinPercent}%</strong>
+                <span>{currentPair[1].show_name}</span>
               </div>
             </div>
 
-            <form className="rankd-comment-form" onSubmit={handleAddComment}>
-              {replyTo ? (
-                <div className="rankd-replying-to">
-                  Replying to: <strong>{replyTo.body}</strong>
-                  <button type="button" onClick={() => setReplyTo(null)}>
-                    Cancel
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="rankd-comment-actions">
-                <button
-                  type="button"
-                  className="rankd-outline-button"
-                  onClick={() => setShowComments((value) => !value)}
-                >
-                  {showComments ? "Hide all comments" : `View all comments (${comments.length})`}
-                </button>
-
-                <button
-                  type="button"
-                  className="rankd-outline-button"
-                  onClick={handleShareMatchup}
-                  disabled={saving}
-                >
-                  {isLoggedIn ? "Share matchup" : "Sign in to share"}
-                </button>
-              </div>
-
-              {shareStatus ? <p className="rankd-muted">{shareStatus}</p> : null}
-
-              <textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder={
-                  isLoggedIn
-                    ? "Write a brief comment about this matchup..."
-                    : "Sign in to comment on this matchup..."
-                }
-                rows={3}
-              />
-
-              <button type="submit" disabled={saving || !commentText.trim()}>
-                {!isLoggedIn ? "Sign in to comment" : replyTo ? "Post reply" : "Post comment"}
+            <div className="rankd-actions-row">
+              <button type="button" className="top-tab" onClick={handleShareMatchup}>
+                Share matchup
               </button>
-            </form>
-
-            {showComments ? (
-              <div className="rankd-comments-panel">
-                <div className="rankd-comments-header">
-                  <h2>Matchup comments</h2>
-                  <button
-                    type="button"
-                    className="rankd-text-button"
-                    onClick={() => setShowComments(false)}
-                  >
-                    Hide
-                  </button>
-                </div>
-
-                {commentTree.length ? (
-                  commentTree.map((comment) => (
-                    <CommentItem
-                      key={comment.id}
-                      comment={comment}
-                      currentUserId={userId}
-                      onReply={(selected) => {
-                        if (!isLoggedIn) {
-                          goToLogin();
-                          return;
-                        }
-
-                        setReplyTo(selected);
-                        setCommentText("");
-                      }}
-                    />
-                  ))
-                ) : (
-                  <p className="rankd-muted">No comments yet. Add the first one.</p>
-                )}
-              </div>
-            ) : null}
+              {shareStatus ? <span className="rankd-muted">{shareStatus}</span> : null}
+            </div>
           </div>
 
-          <div className="section-card rankd-leaderboard-card">
-            <div className="rankd-leaderboard-header">
-              <div>
-                <h2>{isLoggedIn ? "Your Top Shows" : "This Matchup"}</h2>
-                <p>
-                  {isLoggedIn
-                    ? "Your personal ladder from Rank'd decisions."
-                    : "Sign in to add these shows and build your personal ladder."}
-                </p>
-              </div>
-              <div>{leaderboard.length} shows</div>
+          <aside className="section-card rankd-leaderboard-card">
+            <div className="rankd-card-heading">
+              <h2>Your Rank'd list</h2>
+              <p>{eligibleShows.length} shows loaded{backgroundLoading ? " so far" : ""}</p>
             </div>
 
             <div className="rankd-leaderboard-list">
-              {leaderboard.map((show, index) => (
-                <Link
-                  key={show.show_id}
-                  to={isLoggedIn ? `/my-shows/${show.tvdb_id}` : "#"}
-                  className="rankd-leaderboard-row"
-                  onClick={(event) => {
-                    if (!isLoggedIn) event.preventDefault();
-                  }}
-                >
-                  <div className="rankd-leaderboard-poster">
-                    {show.poster_url ? (
-                      <img src={show.poster_url} alt={show.show_name} />
-                    ) : (
-                      <span>#{index + 1}</span>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="rankd-leaderboard-title">
-                      #{index + 1} {show.show_name}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="rankd-rank-button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      startFocusedRanking(show);
-                    }}
-                  >
-                    {isLoggedIn ? "Rank" : "Sign in"}
-                  </button>
-                </Link>
+              {leaderboard.slice(0, 80).map((show, index) => (
+                <div key={show.show_id} className="rankd-leaderboard-item">
+                  <span className="rankd-leaderboard-rank">#{index + 1}</span>
+                  {show.poster_url ? <img src={show.poster_url} alt="" /> : <span className="rankd-mini-poster">?</span>}
+                  <span>
+                    <strong>{show.show_name}</strong>
+                    <small>{show.rank_comparisons || 0} votes</small>
+                  </span>
+                </div>
               ))}
-
-
-              
             </div>
-          </div>
+          </aside>
         </div>
-                      {showLoginModal ? (
-  <LoginModal
-    onClose={() => {
-  setShowLoginModal(false);
-
-  loadRankd();
-}}
-  />
-) : null}
       </div>
+      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} redirectTo="/rankd" />
     </div>
   );
 }
