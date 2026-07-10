@@ -1,8 +1,20 @@
+.burgrs-creator-name-share-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.burgrs-creator-name-share-row .following-creator-name-link {
+  min-width: 0 !important;
+}
+
 .burgrs-activity-share-btn {
-  display: block !important;
+  display: inline !important;
   min-height: 0 !important;
   width: auto !important;
-  margin: 0 0 4px auto !important;
+  margin: 0 0 0 auto !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -14,6 +26,7 @@
   line-height: 1.2 !important;
   text-align: right !important;
   text-decoration: none !important;
+  white-space: nowrap !important;
 }
 
 .burgrs-activity-share-btn::before {
@@ -28,10 +41,7 @@
 }
 
 .following-meta-comments {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-end !important;
-  gap: 3px !important;
+  display: block !important;
 }
 
 .following-meta-comments .feed-comments-inline-toggle,
@@ -44,7 +54,7 @@
 .creator-review-card .burgrs-activity-share-btn,
 .following-card .burgrs-activity-share-btn {
   margin-left: auto !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 0 !important;
 }
 
 .creator-list-expanded-body .burgrs-activity-share-btn {
