@@ -1,0 +1,29 @@
+@media (max-width: 768px) {
+  .mobile-top-banner-wrap .burgrs-banner {
+    height: 62px !important;
+  }
+
+  .mobile-top-banner-wrap .burgrs-banner-title {
+    font-size: 1.45rem !important;
+  }
+
+  .mobile-top-banner-wrap .burgrs-banner-burger {
+    width: 52px !important;
+  }
+
+  .mobile-top-banner-wrap .mobile-profile-link {
+    top: 5px !important;
+    min-width: 48px !important;
+    max-width: 66px !important;
+  }
+
+  .mobile-top-banner-wrap .mobile-profile-link .top-profile-avatar {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .mobile-top-banner-wrap .mobile-profile-link .top-profile-name {
+    max-width: 64px !important;
+    font-size: 0.55rem !important;
+  }
+}
