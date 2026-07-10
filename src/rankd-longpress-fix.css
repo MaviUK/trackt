@@ -11,9 +11,7 @@
 }
 
 body.rankd-drag-active {
-  overflow: hidden !important;
   overscroll-behavior: none !important;
-  touch-action: none !important;
 }
 
 body.rankd-drag-active .rankd-page,
