@@ -1,18 +1,26 @@
-export async function shareActivity({ title, text, url }) {
+export async function shareActivity({ title, text, url, files }) {
   const absoluteUrl = url?.startsWith("http")
     ? url
     : `${window.location.origin}${url || window.location.pathname}`;
+
+  const validFiles = Array.isArray(files) ? files.filter(Boolean) : [];
+  const canShareFiles = Boolean(
+    validFiles.length &&
+      navigator.canShare &&
+      navigator.canShare({ files: validFiles })
+  );
 
   const payload = {
     title: title || "BURGRS",
     text: text || "Check this out on BURGRS.",
     url: absoluteUrl,
+    ...(canShareFiles ? { files: validFiles } : {}),
   };
 
   if (navigator.share) {
     try {
       await navigator.share(payload);
-      return { ok: true, copied: false };
+      return { ok: true, copied: false, sharedFiles: canShareFiles };
     } catch (error) {
       const isCancel = String(error?.name || "").toLowerCase().includes("abort");
       if (isCancel) return { ok: false, cancelled: true };
@@ -21,9 +29,9 @@ export async function shareActivity({ title, text, url }) {
 
   try {
     await navigator.clipboard?.writeText(`${payload.text}\n${absoluteUrl}`);
-    return { ok: true, copied: true };
+    return { ok: true, copied: true, sharedFiles: false };
   } catch {
-    return { ok: false, copied: false };
+    return { ok: false, copied: false, sharedFiles: false };
   }
 }
 
