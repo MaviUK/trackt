@@ -182,6 +182,37 @@
   display: none !important;
 }
 
+.rankd-page .rankd-win-summary {
+  display: grid !important;
+  gap: 2px !important;
+  line-height: 1.12 !important;
+  font-size: 0.82rem !important;
+  text-align: right !important;
+}
+
+.rankd-page .rankd-win-summary span:first-child {
+  color: #ffffff !important;
+}
+
+.rankd-page .rankd-win-summary span:last-child {
+  color: #c4b5fd !important;
+  font-size: 0.76rem !important;
+}
+
+@media (max-width: 760px) {
+  .rankd-page .rankd-win-row {
+    grid-template-columns: 1fr 112px !important;
+  }
+
+  .rankd-page .rankd-win-summary {
+    font-size: 0.78rem !important;
+  }
+
+  .rankd-page .rankd-win-summary span:last-child {
+    font-size: 0.72rem !important;
+  }
+}
+
 @keyframes following-loader-shimmer {
   100% {
     background-position:
