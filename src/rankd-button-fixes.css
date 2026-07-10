@@ -61,6 +61,94 @@
     0 16px 38px rgba(139, 92, 246, 0.22) !important;
 }
 
+.rankd-page .rankd-search-panel {
+  position: relative !important;
+  margin: 0 0 14px !important;
+  z-index: 5 !important;
+}
+
+.rankd-page .rankd-search-label {
+  display: block !important;
+  margin: 0 0 7px !important;
+  color: #cbd5e1 !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+}
+
+.rankd-page .rankd-search-input {
+  width: 100% !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(148, 163, 184, 0.26) !important;
+  border-radius: 15px !important;
+  background: rgba(2, 6, 23, 0.58) !important;
+  color: #f8fafc !important;
+  font: inherit !important;
+  font-size: 0.95rem !important;
+  font-weight: 750 !important;
+  outline: none !important;
+  padding: 10px 13px !important;
+}
+
+.rankd-page .rankd-search-input:focus {
+  border-color: rgba(196, 181, 253, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+}
+
+.rankd-page .rankd-search-results {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: calc(100% + 8px) !important;
+  display: grid !important;
+  gap: 7px !important;
+  max-height: 320px !important;
+  overflow: auto !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  border-radius: 18px !important;
+  background: rgba(7, 12, 24, 0.98) !important;
+  padding: 9px !important;
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.42) !important;
+}
+
+.rankd-page .rankd-search-results[hidden] {
+  display: none !important;
+}
+
+.rankd-page .rankd-search-result {
+  display: grid !important;
+  grid-template-columns: 46px minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: center !important;
+  width: 100% !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: #f8fafc !important;
+  padding: 10px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+}
+
+.rankd-page .rankd-search-result strong {
+  color: #c4b5fd !important;
+  font-weight: 1000 !important;
+}
+
+.rankd-page .rankd-search-result span {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-weight: 850 !important;
+}
+
+.rankd-page .rankd-search-empty {
+  padding: 12px !important;
+  color: #94a3b8 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
 @media (max-width: 760px) {
   .rankd-page .rankd-leaderboard-row {
     grid-template-columns: 56px minmax(0, 1fr) 54px !important;
@@ -76,6 +164,11 @@
     min-height: 23px !important;
     font-size: 9.5px !important;
     padding: 3px 0 !important;
+  }
+
+  .rankd-page .rankd-search-input {
+    min-height: 40px !important;
+    font-size: 0.9rem !important;
   }
 }
 
