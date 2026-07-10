@@ -6,6 +6,7 @@ import './rankd-button-fixes.css'
 import './rankd-longpress-fix.css'
 import './rankd-scroll-fix.js'
 import './rankd-longpress-fix.js'
+import './rankd-drag-speed-fix.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
