@@ -1,0 +1,107 @@
+.rankd-guest-thanks-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000004 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(2, 6, 23, 0.68) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.rankd-guest-thanks-card {
+  position: relative !important;
+  width: min(100%, 430px) !important;
+  padding: 22px !important;
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important;
+  border: 1px solid rgba(196, 181, 253, 0.28) !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at top, rgba(139, 92, 246, 0.26), transparent 46%),
+    rgba(15, 23, 42, 0.98) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.54) !important;
+  color: #fff !important;
+}
+
+.rankd-guest-thanks-card h2 {
+  margin: 0 42px 10px 0 !important;
+  font-size: 1.55rem !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.rankd-guest-thanks-card p {
+  margin: 0 0 18px !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-size: 0.95rem !important;
+  line-height: 1.45 !important;
+}
+
+.rankd-guest-thanks-close {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  font-size: 1.45rem !important;
+  line-height: 1 !important;
+}
+
+.rankd-guest-thanks-actions {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+.rankd-guest-primary,
+.rankd-guest-secondary {
+  min-height: 48px !important;
+  border-radius: 16px !important;
+  font-weight: 900 !important;
+  font-size: 0.94rem !important;
+}
+
+.rankd-guest-primary {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: linear-gradient(135deg, #7c3aed, #db2777) !important;
+  color: #fff !important;
+}
+
+.rankd-guest-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.rankd-guest-claim-toast {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1000005 !important;
+  transform: translateX(-50%) translateY(16px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: max-content !important;
+  max-width: calc(100vw - 32px) !important;
+  padding: 10px 14px !important;
+  border-radius: 999px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  border: 1px solid rgba(196, 181, 253, 0.28) !important;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.38) !important;
+  color: #fff !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  transition: opacity 0.18s ease, transform 0.18s ease !important;
+}
+
+.rankd-guest-claim-toast.is-visible {
+  opacity: 1 !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
