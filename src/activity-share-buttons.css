@@ -1,7 +1,8 @@
 .burgrs-activity-share-btn {
-  display: inline !important;
+  display: block !important;
   min-height: 0 !important;
-  margin: 8px 0 0 !important;
+  width: auto !important;
+  margin: 0 0 4px auto !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -11,14 +12,13 @@
   font-weight: 800 !important;
   letter-spacing: 0 !important;
   line-height: 1.2 !important;
+  text-align: right !important;
   text-decoration: none !important;
 }
 
 .burgrs-activity-share-btn::before {
-  content: "·";
-  margin: 0 7px 0 2px;
-  color: rgba(148, 163, 184, 0.72);
-  font-weight: 800;
+  content: "" !important;
+  margin: 0 !important;
 }
 
 .burgrs-activity-share-btn:hover,
@@ -27,16 +27,30 @@
   text-decoration: underline !important;
 }
 
+.following-meta-comments {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 3px !important;
+}
+
+.following-meta-comments .feed-comments-inline-toggle,
+.following-meta-comments .following-header-comment-button {
+  margin: 0 !important;
+}
+
 .creator-list-card .burgrs-activity-share-btn,
 .following-card-list .burgrs-activity-share-btn,
 .creator-review-card .burgrs-activity-share-btn,
 .following-card .burgrs-activity-share-btn {
-  margin-left: 0 !important;
-  margin-bottom: 0 !important;
+  margin-left: auto !important;
+  margin-bottom: 4px !important;
 }
 
 .creator-list-expanded-body .burgrs-activity-share-btn {
   margin-top: 10px !important;
+  margin-left: 0 !important;
+  text-align: left !important;
 }
 
 .burgrs-share-toast {
