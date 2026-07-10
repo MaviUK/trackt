@@ -1,8 +1,10 @@
 import { supabase } from "./lib/supabase";
 
 const PENDING_KEY = "burgrs_pending_rankd_signup_shows";
+const VOTED_KEY_PREFIX = "burgrs_rankd_guest_voted:";
 let cachedSharedMatchup = null;
 let voteInFlight = false;
+let guestVoteLocked = false;
 let claimInFlight = false;
 
 function isSharedRankdPage() {
@@ -11,6 +13,27 @@ function isSharedRankdPage() {
 
 function getSharedSlug() {
   return decodeURIComponent(window.location.pathname.replace(/^\/rankd\/share\//, "").split(/[/?#]/)[0] || "");
+}
+
+function getGuestVoteKey() {
+  return `${VOTED_KEY_PREFIX}${getSharedSlug()}`;
+}
+
+function hasAlreadyGuestVoted() {
+  try {
+    return window.localStorage.getItem(getGuestVoteKey()) === "1";
+  } catch {
+    return guestVoteLocked;
+  }
+}
+
+function markGuestVoted() {
+  guestVoteLocked = true;
+  try {
+    window.localStorage.setItem(getGuestVoteKey(), "1");
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 async function getActiveUser() {
@@ -46,6 +69,17 @@ async function loadSharedMatchup() {
   return cachedSharedMatchup;
 }
 
+function closeSharedVoteWindow() {
+  window.open("", "_self");
+  window.close();
+
+  window.setTimeout(() => {
+    if (!document.hidden) {
+      window.location.replace("/");
+    }
+  }, 220);
+}
+
 function showGuestThanksModal(matchup, winnerName) {
   document.querySelector(".rankd-guest-thanks-overlay")?.remove();
 
@@ -60,7 +94,7 @@ function showGuestThanksModal(matchup, winnerName) {
   close.className = "rankd-guest-thanks-close";
   close.textContent = "×";
   close.setAttribute("aria-label", "Close");
-  close.addEventListener("click", () => overlay.remove());
+  close.addEventListener("click", closeSharedVoteWindow);
 
   const title = document.createElement("h2");
   title.textContent = "Thanks for voting";
@@ -84,7 +118,7 @@ function showGuestThanksModal(matchup, winnerName) {
   stay.type = "button";
   stay.className = "rankd-guest-secondary";
   stay.textContent = "Not now";
-  stay.addEventListener("click", () => overlay.remove());
+  stay.addEventListener("click", closeSharedVoteWindow);
 
   actions.appendChild(signup);
   actions.appendChild(stay);
@@ -187,29 +221,49 @@ function findWinnerFromButton(button, matchup) {
   return index === 0 ? matchup.show_a : matchup.show_b;
 }
 
+function lockRankdPosterButtons() {
+  document.querySelectorAll(".rankd-page .rankd-poster-button").forEach((posterButton) => {
+    posterButton.disabled = true;
+    posterButton.style.pointerEvents = "none";
+    posterButton.style.opacity = "0.65";
+  });
+}
+
 async function handleGuestSharedVote(event) {
-  if (!isSharedRankdPage() || voteInFlight) return;
+  if (!isSharedRankdPage()) return;
 
   const button = event.target?.closest?.(".rankd-page .rankd-poster-button");
   if (!button) return;
-
-  const user = await getActiveUser();
-  if (user?.id) return;
 
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation?.();
 
+  const user = await getActiveUser();
+  if (user?.id) return;
+
+  if (voteInFlight || guestVoteLocked || hasAlreadyGuestVoted()) {
+    showGuestThanksModal(cachedSharedMatchup, "Your pick");
+    return;
+  }
+
   voteInFlight = true;
-  const originalOpacity = button.style.opacity;
-  button.style.opacity = "0.65";
+  markGuestVoted();
+  lockRankdPosterButtons();
+
+  let matchup = cachedSharedMatchup;
+  let winnerName = "Your pick";
 
   try {
-    const matchup = await loadSharedMatchup();
+    matchup = await loadSharedMatchup();
     if (!matchup?.show_a_id || !matchup?.show_b_id) throw new Error("Matchup not found.");
 
     const winner = findWinnerFromButton(button, matchup);
     const loser = String(winner?.id) === String(matchup.show_a_id) ? matchup.show_b : matchup.show_a;
+    winnerName = winner?.name || "Your pick";
+
+    savePendingShows(matchup);
+    showGuestThanksModal(matchup, winnerName);
 
     const { showAId, showBId } = [matchup.show_a_id, matchup.show_b_id]
       .map(String)
@@ -228,21 +282,18 @@ async function handleGuestSharedVote(event) {
     });
 
     if (error) throw error;
-
-    savePendingShows(matchup);
-    showGuestThanksModal(matchup, winner.name || "Your pick");
   } catch (error) {
     console.warn("Guest shared Rankd vote failed:", error);
-    showGuestThanksModal(cachedSharedMatchup, "Your pick");
+    if (!document.querySelector(".rankd-guest-thanks-overlay")) {
+      showGuestThanksModal(matchup, winnerName);
+    }
   } finally {
-    button.style.opacity = originalOpacity;
     voteInFlight = false;
   }
 }
 
 if (typeof window !== "undefined") {
   document.addEventListener("click", handleGuestSharedVote, true);
-  document.addEventListener("touchend", () => {}, true);
 
   const runClaim = () => window.setTimeout(addPendingShowsToUser, 500);
   if (document.readyState === "loading") {
