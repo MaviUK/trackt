@@ -1,6 +1,6 @@
 .rankd-page .rankd-leaderboard-row {
   display: grid !important;
-  grid-template-columns: 56px minmax(0, 1fr) 82px 82px !important;
+  grid-template-columns: 56px minmax(0, 1fr) 64px !important;
   align-items: center !important;
   gap: 12px !important;
 }
@@ -18,38 +18,64 @@
 }
 
 .rankd-page .rankd-rank-button {
-  width: 76px !important;
-  min-width: 76px !important;
+  width: 58px !important;
+  min-width: 58px !important;
+  min-height: 28px !important;
   margin-left: 0 !important;
-  justify-self: center !important;
+  justify-self: end !important;
   text-align: center !important;
+  padding: 4px 0 !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+.rankd-page .rankd-leaderboard-row .rankd-rank-button:first-of-type {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  align-self: end !important;
+}
+
+.rankd-page .rankd-leaderboard-row .rankd-rank-button:last-of-type {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  align-self: start !important;
+  margin-top: 32px !important;
 }
 
 @media (max-width: 760px) {
   .rankd-page .rankd-leaderboard-row {
-    grid-template-columns: 56px minmax(0, 1fr) 74px 74px !important;
+    grid-template-columns: 56px minmax(0, 1fr) 58px !important;
     gap: 10px !important;
   }
 
   .rankd-page .rankd-rank-button {
-    width: 70px !important;
-    min-width: 70px !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    width: 54px !important;
+    min-width: 54px !important;
+    min-height: 26px !important;
+    font-size: 10.5px !important;
+  }
+
+  .rankd-page .rankd-leaderboard-row .rankd-rank-button:last-of-type {
+    margin-top: 30px !important;
   }
 }
 
 @media (max-width: 380px) {
   .rankd-page .rankd-leaderboard-row {
-    grid-template-columns: 52px minmax(0, 1fr) 66px 66px !important;
+    grid-template-columns: 52px minmax(0, 1fr) 54px !important;
     gap: 8px !important;
     padding-left: 10px !important;
     padding-right: 10px !important;
   }
 
   .rankd-page .rankd-rank-button {
-    width: 64px !important;
-    min-width: 64px !important;
-    font-size: 11px !important;
+    width: 50px !important;
+    min-width: 50px !important;
+    min-height: 25px !important;
+    font-size: 10px !important;
+  }
+
+  .rankd-page .rankd-leaderboard-row .rankd-rank-button:last-of-type {
+    margin-top: 29px !important;
   }
 }
