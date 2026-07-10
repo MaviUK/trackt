@@ -179,6 +179,15 @@ function getWinPercent(stats, showId) {
   return Math.round((getWinCount(stats, showId) / total) * 100);
 }
 
+function getOverallStats(statsByShow, showId) {
+  const stats = statsByShow?.[String(showId)] || { wins: 0, total: 0 };
+  const wins = Number(stats.wins || 0);
+  const total = Number(stats.total || 0);
+  const percent = total > 0 ? Math.round((wins / total) * 100) : 0;
+
+  return { wins, total, percent };
+}
+
 async function getOptionalUser() {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionData?.session?.user?.id) return sessionData.session.user;
@@ -229,6 +238,59 @@ async function fetchRankingMap(userId, showIds) {
   }
 
   return map;
+}
+
+async function fetchMatchupStatsForPair(firstShowId, secondShowId) {
+  const { pairKey } = getOrderedPair(firstShowId, secondShowId);
+
+  const { data, error } = await supabase
+    .from("rankd_matchups")
+    .select("id, show_a_id, show_b_id, show_a_wins, show_b_wins, times_matched")
+    .eq("pair_key", pairKey)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function fetchOverallStatsForShows(showIds) {
+  const ids = Array.from(new Set((showIds || []).filter(Boolean).map(String)));
+  const statsByShow = ids.reduce((map, showId) => {
+    map[showId] = { wins: 0, total: 0 };
+    return map;
+  }, {});
+
+  if (!ids.length) return statsByShow;
+
+  const [asShowA, asShowB] = await Promise.all([
+    supabase
+      .from("rankd_matchups")
+      .select("show_a_id, show_a_wins, times_matched")
+      .in("show_a_id", ids),
+    supabase
+      .from("rankd_matchups")
+      .select("show_b_id, show_b_wins, times_matched")
+      .in("show_b_id", ids),
+  ]);
+
+  if (asShowA.error) throw asShowA.error;
+  if (asShowB.error) throw asShowB.error;
+
+  (asShowA.data || []).forEach((row) => {
+    const showId = String(row.show_a_id);
+    if (!statsByShow[showId]) return;
+    statsByShow[showId].wins += Number(row.show_a_wins || 0);
+    statsByShow[showId].total += Number(row.times_matched || 0);
+  });
+
+  (asShowB.data || []).forEach((row) => {
+    const showId = String(row.show_b_id);
+    if (!statsByShow[showId]) return;
+    statsByShow[showId].wins += Number(row.show_b_wins || 0);
+    statsByShow[showId].total += Number(row.times_matched || 0);
+  });
+
+  return statsByShow;
 }
 
 function mergeShows(existing, incoming) {
@@ -286,6 +348,7 @@ export default function Rankd() {
   const [eligibleShows, setEligibleShows] = useState([]);
   const [currentPair, setCurrentPair] = useState([]);
   const [matchupStats, setMatchupStats] = useState(null);
+  const [overallStatsByShow, setOverallStatsByShow] = useState({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [userId, setUserId] = useState(null);
@@ -303,6 +366,7 @@ export default function Rankd() {
   const recentShowIdsRef = useRef([]);
   const recentPairKeysRef = useRef([]);
   const userIdRef = useRef(null);
+  const pairStatsRequestRef = useRef(0);
   const currentPairKey =
     currentPair.length === 2 ? makePairKey(currentPair[0].show_id, currentPair[1].show_id) : "";
 
@@ -385,6 +449,37 @@ export default function Rankd() {
     }
   }
 
+  async function loadCurrentPairStats(pair) {
+    if (!pair || pair.length !== 2) {
+      setMatchupStats(null);
+      setOverallStatsByShow({});
+      return;
+    }
+
+    const requestId = pairStatsRequestRef.current + 1;
+    pairStatsRequestRef.current = requestId;
+
+    try {
+      setMatchupStats(null);
+      setOverallStatsByShow({});
+
+      const [pairStats, overallStats] = await Promise.all([
+        fetchMatchupStatsForPair(pair[0].show_id, pair[1].show_id),
+        fetchOverallStatsForShows([pair[0].show_id, pair[1].show_id]),
+      ]);
+
+      if (pairStatsRequestRef.current !== requestId) return;
+
+      setMatchupStats(pairStats);
+      setOverallStatsByShow(overallStats);
+    } catch (statsError) {
+      console.warn("Rankd stats load failed:", statsError);
+      if (pairStatsRequestRef.current !== requestId) return;
+      setMatchupStats(null);
+      setOverallStatsByShow({});
+    }
+  }
+
   async function loadRankd() {
     try {
       setLoading(true);
@@ -429,6 +524,7 @@ export default function Rankd() {
       const firstPair = chooseFastPair(initialShows, "", recentShowIdsRef.current, recentPairKeysRef.current);
       setCurrentPair(firstPair);
       setMatchupStats(null);
+      setOverallStatsByShow({});
       setLoading(false);
 
       if (firstPair.length === 2) {
@@ -446,6 +542,10 @@ export default function Rankd() {
   useEffect(() => {
     loadRankd();
   }, [sharedSlug]);
+
+  useEffect(() => {
+    loadCurrentPairStats(currentPair);
+  }, [currentPairKey]);
 
   function queueVoteSave({ userIdValue, winner, loser, beforeLadder, updatedLadder }) {
     const now = new Date().toISOString();
@@ -485,7 +585,7 @@ export default function Rankd() {
           if (rankingError) throw rankingError;
         }
 
-        const { data: recordedMatchup, error: matchupError } = await supabase.rpc(
+        const { error: matchupError } = await supabase.rpc(
           "rankd_record_matchup_vote",
           {
             p_show_a_id: showAId,
@@ -496,9 +596,6 @@ export default function Rankd() {
         );
 
         if (matchupError) throw matchupError;
-
-        const row = Array.isArray(recordedMatchup) ? recordedMatchup[0] : recordedMatchup;
-        if (row) setMatchupStats(row);
       })
       .then(() => setSaveStatus(""))
       .catch((saveError) => {
@@ -647,6 +744,7 @@ export default function Rankd() {
     setEligibleShows(updatedLadder);
     setCurrentPair(nextPair);
     setMatchupStats(null);
+    setOverallStatsByShow({});
     setNotice("");
 
     if (activeUserId) {
@@ -807,6 +905,8 @@ export default function Rankd() {
   const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
   const leftWins = getWinCount(matchupStats, currentPair[0].show_id);
   const rightWins = getWinCount(matchupStats, currentPair[1].show_id);
+  const leftOverallStats = getOverallStats(overallStatsByShow, currentPair[0].show_id);
+  const rightOverallStats = getOverallStats(overallStatsByShow, currentPair[1].show_id);
 
   return (
     <div className="page rankd-page">
@@ -873,8 +973,9 @@ export default function Rankd() {
                   <div>
                     <i style={{ width: `${leftWinPercent}%` }} />
                   </div>
-                  <strong>
-                    {leftWinPercent}% / {leftWins} wins
+                  <strong className="rankd-win-summary">
+                    <span>Overall {leftOverallStats.percent}% / {leftOverallStats.wins} wins</span>
+                    <span>Matchup {leftWinPercent}% / {leftWins} wins</span>
                   </strong>
                 </div>
 
@@ -883,8 +984,9 @@ export default function Rankd() {
                   <div>
                     <i style={{ width: `${rightWinPercent}%` }} />
                   </div>
-                  <strong>
-                    {rightWinPercent}% / {rightWins} wins
+                  <strong className="rankd-win-summary">
+                    <span>Overall {rightOverallStats.percent}% / {rightOverallStats.wins} wins</span>
+                    <span>Matchup {rightWinPercent}% / {rightWins} wins</span>
                   </strong>
                 </div>
               </div>
