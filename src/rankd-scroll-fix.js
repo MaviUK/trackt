@@ -1,5 +1,7 @@
 let rankdSuppressClickUntil = 0;
 let rankdDragState = null;
+let rankdAutoScrollSpeed = 0;
+let rankdAutoScrollFrame = null;
 
 function getMoveRankTarget(form) {
   const modal = form?.closest?.(".login-modal-card");
@@ -201,6 +203,66 @@ function submitMoveViaExistingModal(row, targetRank) {
   }, 120);
 }
 
+function getScrollElement() {
+  return document.scrollingElement || document.documentElement || document.body;
+}
+
+function stopRankdAutoScroll() {
+  rankdAutoScrollSpeed = 0;
+
+  if (rankdAutoScrollFrame) {
+    window.cancelAnimationFrame(rankdAutoScrollFrame);
+    rankdAutoScrollFrame = null;
+  }
+}
+
+function runRankdAutoScroll() {
+  if (!rankdDragState?.active || !rankdAutoScrollSpeed) {
+    stopRankdAutoScroll();
+    return;
+  }
+
+  const scrollElement = getScrollElement();
+  const before = scrollElement.scrollTop;
+  scrollElement.scrollTop = before + rankdAutoScrollSpeed;
+
+  if (rankdDragState.lastX != null && rankdDragState.lastY != null) {
+    updateDragGhost(rankdDragState.lastX, rankdDragState.lastY);
+  }
+
+  rankdAutoScrollFrame = window.requestAnimationFrame(runRankdAutoScroll);
+}
+
+function setRankdAutoScroll(clientY) {
+  if (!rankdDragState?.active) {
+    stopRankdAutoScroll();
+    return;
+  }
+
+  const edgeSize = 120;
+  const maxSpeed = 16;
+  let nextSpeed = 0;
+
+  if (clientY < edgeSize) {
+    nextSpeed = -Math.max(5, Math.round(((edgeSize - clientY) / edgeSize) * maxSpeed));
+  } else if (clientY > window.innerHeight - edgeSize) {
+    nextSpeed = Math.max(
+      5,
+      Math.round(((clientY - (window.innerHeight - edgeSize)) / edgeSize) * maxSpeed)
+    );
+  }
+
+  rankdAutoScrollSpeed = nextSpeed;
+
+  if (rankdAutoScrollSpeed && !rankdAutoScrollFrame) {
+    rankdAutoScrollFrame = window.requestAnimationFrame(runRankdAutoScroll);
+  }
+
+  if (!rankdAutoScrollSpeed && rankdAutoScrollFrame) {
+    stopRankdAutoScroll();
+  }
+}
+
 function getRankFromPointerY(pointerY, draggedRow) {
   const rows = getRankdRows();
   const otherRows = rows.filter((row) => row !== draggedRow);
@@ -222,6 +284,8 @@ function getRankFromPointerY(pointerY, draggedRow) {
 function updateDragGhost(clientX, clientY) {
   if (!rankdDragState?.ghost) return;
 
+  rankdDragState.lastX = clientX;
+  rankdDragState.lastY = clientY;
   rankdDragState.ghost.style.transform = `translate3d(${clientX - rankdDragState.offsetX}px, ${clientY - rankdDragState.offsetY}px, 0)`;
 
   const targetRank = getRankFromPointerY(clientY, rankdDragState.row);
@@ -247,6 +311,7 @@ function endRankdDrag(event) {
   const state = rankdDragState;
   rankdDragState = null;
   rankdSuppressClickUntil = Date.now() + 600;
+  stopRankdAutoScroll();
 
   window.clearTimeout(state.timer);
   window.removeEventListener("pointermove", onRankdDragPointerMove, true);
@@ -274,6 +339,7 @@ function cancelRankdDrag(event) {
 
   const state = rankdDragState;
   rankdDragState = null;
+  stopRankdAutoScroll();
 
   window.clearTimeout(state.timer);
   window.removeEventListener("pointermove", onRankdDragPointerMove, true);
@@ -302,6 +368,8 @@ function activateRankdDrag(clientX, clientY) {
   state.ghost = ghost;
   state.indicator = indicator;
   state.targetRank = state.startRank;
+  state.lastX = clientX;
+  state.lastY = clientY;
 
   ghost.classList.add("rankd-drag-ghost");
   ghost.style.width = `${rect.width}px`;
@@ -320,6 +388,7 @@ function activateRankdDrag(clientX, clientY) {
   state.row.parentNode.insertBefore(indicator, state.row);
 
   updateDragGhost(clientX, clientY);
+  setRankdAutoScroll(clientY);
 }
 
 function onRankdDragPointerMove(event) {
@@ -331,6 +400,7 @@ function onRankdDragPointerMove(event) {
     window.clearTimeout(rankdDragState.timer);
     rankdDragState.row.classList.remove("rankd-row-long-pressing");
     rankdDragState = null;
+    stopRankdAutoScroll();
     return;
   }
 
@@ -339,13 +409,7 @@ function onRankdDragPointerMove(event) {
   event.preventDefault();
   event.stopPropagation();
   updateDragGhost(event.clientX, event.clientY);
-
-  const edgeSize = 92;
-  if (event.clientY < edgeSize) {
-    window.scrollBy({ top: -13, behavior: "auto" });
-  } else if (event.clientY > window.innerHeight - edgeSize) {
-    window.scrollBy({ top: 13, behavior: "auto" });
-  }
+  setRankdAutoScroll(event.clientY);
 }
 
 function attachRankdLongPressDrag(row, index) {
@@ -369,6 +433,8 @@ function attachRankdLongPressDrag(row, index) {
       startRank,
       targetRank: startRank,
       pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY,
     };
 
     row.classList.add("rankd-row-long-pressing");
