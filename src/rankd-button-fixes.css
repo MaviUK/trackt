@@ -1,0 +1,55 @@
+.rankd-page .rankd-leaderboard-row {
+  display: grid !important;
+  grid-template-columns: 56px minmax(0, 1fr) 82px 82px !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.rankd-page .rankd-leaderboard-row > div:nth-child(2) {
+  min-width: 0 !important;
+}
+
+.rankd-page .rankd-leaderboard-title {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  line-height: 1.18 !important;
+}
+
+.rankd-page .rankd-rank-button {
+  width: 76px !important;
+  min-width: 76px !important;
+  margin-left: 0 !important;
+  justify-self: center !important;
+  text-align: center !important;
+}
+
+@media (max-width: 760px) {
+  .rankd-page .rankd-leaderboard-row {
+    grid-template-columns: 56px minmax(0, 1fr) 74px 74px !important;
+    gap: 10px !important;
+  }
+
+  .rankd-page .rankd-rank-button {
+    width: 70px !important;
+    min-width: 70px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .rankd-page .rankd-leaderboard-row {
+    grid-template-columns: 52px minmax(0, 1fr) 66px 66px !important;
+    gap: 8px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  .rankd-page .rankd-rank-button {
+    width: 64px !important;
+    min-width: 64px !important;
+    font-size: 11px !important;
+  }
+}
