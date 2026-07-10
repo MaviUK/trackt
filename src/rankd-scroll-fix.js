@@ -239,15 +239,15 @@ function setRankdAutoScroll(clientY) {
     return;
   }
 
-  const edgeSize = 120;
-  const maxSpeed = 16;
+  const edgeSize = 190;
+  const maxSpeed = 46;
   let nextSpeed = 0;
 
   if (clientY < edgeSize) {
-    nextSpeed = -Math.max(5, Math.round(((edgeSize - clientY) / edgeSize) * maxSpeed));
+    nextSpeed = -Math.max(14, Math.round(((edgeSize - clientY) / edgeSize) * maxSpeed));
   } else if (clientY > window.innerHeight - edgeSize) {
     nextSpeed = Math.max(
-      5,
+      14,
       Math.round(((clientY - (window.innerHeight - edgeSize)) / edgeSize) * maxSpeed)
     );
   }
