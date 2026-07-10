@@ -12,6 +12,10 @@ function getRankdPressRow(target) {
   return target?.closest?.(".rankd-page .rankd-leaderboard-row") || null;
 }
 
+function isRankdDragging() {
+  return document.body.classList.contains("rankd-drag-active");
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener(
     "contextmenu",
@@ -36,5 +40,28 @@ if (typeof window !== "undefined") {
       event.stopPropagation();
     },
     true
+  );
+
+  window.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!isRankdDragging()) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    },
+    { capture: true, passive: false }
+  );
+
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (!isRankdDragging()) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    { capture: true, passive: false }
   );
 }
