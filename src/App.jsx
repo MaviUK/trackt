@@ -105,11 +105,19 @@ function UserProfileLink({ session, profile, className = "top-profile-link" }) {
   );
 }
 
+function isPublicSharedPage(pathname) {
+  return (
+    pathname.startsWith("/rankd/share/") ||
+    pathname.startsWith("/u/") ||
+    pathname.startsWith("/show/")
+  );
+}
+
 function DesktopNav({ session, profile }) {
   const location = useLocation();
-  const isSharedRankdPage = location.pathname.startsWith("/rankd/share/");
+  const isPublicPage = isPublicSharedPage(location.pathname);
 
-  if (!session && !isSharedRankdPage) return null;
+  if (!session && !isPublicPage) return null;
 
   return (
     <div className="nav-wrap desktop-nav">
@@ -131,9 +139,9 @@ function DesktopNav({ session, profile }) {
 
 function MobileTopBanner({ session, profile }) {
   const location = useLocation();
-  const isSharedRankdPage = location.pathname.startsWith("/rankd/share/");
+  const isPublicPage = isPublicSharedPage(location.pathname);
 
-  if ((!session && !isSharedRankdPage) || location.pathname === "/login") return null;
+  if ((!session && !isPublicPage) || location.pathname === "/login") return null;
 
   return (
     <div className="mobile-top-banner-wrap">
@@ -355,12 +363,12 @@ function AppLayout() {
         <Route path="/login" element={<LoginRoute session={session} />} />
         <Route path="/following" element={<ProtectedRoute session={session}><FollowingFeed /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute session={session}><Notifications /></ProtectedRoute>} />
-        <Route path="/u/:username" element={<ProtectedRoute session={session}><CreatorProfile /></ProtectedRoute>} />
+        <Route path="/u/:username" element={<CreatorProfile />} />
         <Route path="/creator/lists/new" element={<ProtectedRoute session={session}><CreatorListEditor /></ProtectedRoute>} />
         <Route path="/creator/posts/new" element={<ProtectedRoute session={session}><CreatorPostEditor /></ProtectedRoute>} />
         <Route path="/search" element={<ProtectedRoute session={session}><Search /></ProtectedRoute>} />
-        <Route path="/show/:id" element={<ProtectedRoute session={session}><ShowDetails /></ProtectedRoute>} />
-        <Route path="/show/tmdb/:tmdbId" element={<ProtectedRoute session={session}><ShowDetails /></ProtectedRoute>} />
+        <Route path="/show/:id" element={<ShowDetails />} />
+        <Route path="/show/tmdb/:tmdbId" element={<ShowDetails />} />
         <Route path="/my-shows" element={<ProtectedRoute session={session}><MyShows /></ProtectedRoute>} />
         <Route path="/my-shows/:id" element={<ProtectedRoute session={session}><MyShowDetails /></ProtectedRoute>} />
         <Route path="/my-shows/tmdb/:tmdbId" element={<ProtectedRoute session={session}><MyShowDetails /></ProtectedRoute>} />
