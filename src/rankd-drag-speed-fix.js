@@ -1,127 +1,139 @@
-let rankdSpeedPointerY = null;
-let rankdSpeedFrame = null;
-let rankdSpeedHoldTicks = 0;
+let rankdEdgePointer = null;
+let rankdEdgeFrame = null;
+let rankdEdgeTick = 0;
+let rankdLastJumpAt = 0;
 
 function isRankdDragRunning() {
   return document.body.classList.contains("rankd-drag-active");
 }
 
-function getRankdSpeed(clientY) {
+function getRankdRows() {
+  return Array.from(document.querySelectorAll(".rankd-page .rankd-leaderboard-row"));
+}
+
+function getRankdIndicatorRank() {
+  const list = document.querySelector(".rankd-page .rankd-leaderboard-list");
+  const indicator = list?.querySelector(".rankd-drag-drop-indicator");
+  const rows = getRankdRows();
+
+  if (!list || !indicator || !rows.length) return null;
+
+  const children = Array.from(list.children);
+  const indicatorIndex = children.indexOf(indicator);
+  if (indicatorIndex < 0) return null;
+
+  let rank = 1;
+  for (let index = 0; index < indicatorIndex; index += 1) {
+    if (children[index].classList?.contains("rankd-leaderboard-row")) rank += 1;
+  }
+
+  return Math.max(1, Math.min(rank, rows.length));
+}
+
+function dispatchRankdPointerMove() {
+  if (!rankdEdgePointer) return;
+
+  try {
+    window.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        cancelable: true,
+        clientX: rankdEdgePointer.x,
+        clientY: rankdEdgePointer.y,
+        pointerId: 1,
+        pointerType: "touch",
+        isPrimary: true,
+      })
+    );
+  } catch {
+    window.dispatchEvent(
+      new MouseEvent("pointermove", {
+        bubbles: true,
+        cancelable: true,
+        clientX: rankdEdgePointer.x,
+        clientY: rankdEdgePointer.y,
+      })
+    );
+  }
+}
+
+function jumpRankdList(direction) {
+  const rows = getRankdRows();
+  if (!rows.length) return;
+
+  const currentRank = getRankdIndicatorRank() || 1;
+  const step = rankdEdgeTick > 14 ? 14 : rankdEdgeTick > 7 ? 9 : 5;
+  const nextRank = Math.max(1, Math.min(rows.length, currentRank + direction * step));
+  const targetRow = rows[nextRank - 1];
+
+  if (!targetRow) return;
+
+  targetRow.scrollIntoView({ block: direction > 0 ? "end" : "start", inline: "nearest", behavior: "auto" });
+
+  window.setTimeout(() => {
+    dispatchRankdPointerMove();
+  }, 20);
+}
+
+function getRankdDirection(clientY) {
   const height = window.innerHeight || 700;
-  const zone = Math.max(230, Math.round(height * 0.38));
-  const bottomStart = height - zone;
+  const zone = Math.max(190, Math.round(height * 0.32));
 
-  if (clientY > bottomStart) {
-    const ratio = Math.min(1, Math.max(0, (clientY - bottomStart) / zone));
-    return Math.round(45 + Math.pow(ratio, 1.2) * 230);
-  }
-
-  if (clientY < zone) {
-    const ratio = Math.min(1, Math.max(0, (zone - clientY) / zone));
-    return -Math.round(45 + Math.pow(ratio, 1.2) * 230);
-  }
-
+  if (clientY > height - zone) return 1;
+  if (clientY < zone) return -1;
   return 0;
 }
 
-function getRankdScrollCandidates() {
-  const candidates = [
-    document.scrollingElement,
-    document.documentElement,
-    document.body,
-    document.querySelector("#root"),
-    document.querySelector("main"),
-    document.querySelector(".app-shell"),
-    document.querySelector(".app-main"),
-    document.querySelector(".page-shell"),
-    document.querySelector(".rankd-page"),
-    document.querySelector(".rankd-page .page-shell"),
-    document.querySelector(".rankd-leaderboard-card"),
-    document.querySelector(".rankd-leaderboard-list"),
-  ].filter(Boolean);
-
-  document.querySelectorAll("body *").forEach((element) => {
-    if (element.scrollHeight > element.clientHeight + 8) {
-      candidates.push(element);
-    }
-  });
-
-  return Array.from(new Set(candidates)).filter((element) => {
-    if (!element || element === document) return false;
-    return element.scrollHeight > element.clientHeight + 8 || element === document.body || element === document.documentElement;
-  });
-}
-
-function scrollElementBy(element, delta) {
-  if (!element || !delta) return false;
-
-  const before = element.scrollTop || 0;
-  element.scrollTop = before + delta;
-  return Math.abs((element.scrollTop || 0) - before) > 0;
-}
-
-function forceRankdScroll(delta) {
-  if (!delta) return;
-
-  let moved = false;
-
-  window.scrollBy(0, delta);
-
-  getRankdScrollCandidates().forEach((element) => {
-    if (scrollElementBy(element, delta)) moved = true;
-  });
-
-  if (!moved) {
-    const root = document.scrollingElement || document.documentElement || document.body;
-    if (root) root.scrollTo({ top: (root.scrollTop || 0) + delta, behavior: "auto" });
-    window.scrollTo({ top: window.scrollY + delta, behavior: "auto" });
-  }
-}
-
-function runRankdSpeedScroll() {
-  if (!isRankdDragRunning() || rankdSpeedPointerY == null) {
-    rankdSpeedFrame = null;
-    rankdSpeedHoldTicks = 0;
+function runRankdEdgeJump() {
+  if (!isRankdDragRunning() || !rankdEdgePointer) {
+    rankdEdgeFrame = null;
+    rankdEdgeTick = 0;
     return;
   }
 
-  const baseSpeed = getRankdSpeed(rankdSpeedPointerY);
-
-  if (!baseSpeed) {
-    rankdSpeedFrame = null;
-    rankdSpeedHoldTicks = 0;
+  const direction = getRankdDirection(rankdEdgePointer.y);
+  if (!direction) {
+    rankdEdgeFrame = null;
+    rankdEdgeTick = 0;
     return;
   }
 
-  rankdSpeedHoldTicks += 1;
-  const boost = Math.min(3.2, 1 + rankdSpeedHoldTicks / 16);
-  forceRankdScroll(Math.round(baseSpeed * boost));
+  rankdEdgeTick += 1;
 
-  rankdSpeedFrame = window.requestAnimationFrame(runRankdSpeedScroll);
+  const now = Date.now();
+  const delay = rankdEdgeTick > 12 ? 80 : rankdEdgeTick > 6 ? 120 : 170;
+
+  if (now - rankdLastJumpAt >= delay) {
+    rankdLastJumpAt = now;
+    jumpRankdList(direction);
+  }
+
+  rankdEdgeFrame = window.requestAnimationFrame(runRankdEdgeJump);
 }
 
-function startRankdSpeedScroll(clientY) {
-  rankdSpeedPointerY = clientY;
+function startRankdEdgeJump(clientX, clientY) {
+  rankdEdgePointer = { x: clientX, y: clientY };
 
   if (!isRankdDragRunning()) return;
 
-  if (!getRankdSpeed(clientY)) {
-    rankdSpeedHoldTicks = 0;
+  if (!getRankdDirection(clientY)) {
+    rankdEdgeTick = 0;
     return;
   }
 
-  if (!rankdSpeedFrame) {
-    rankdSpeedFrame = window.requestAnimationFrame(runRankdSpeedScroll);
+  if (!rankdEdgeFrame) {
+    rankdEdgeFrame = window.requestAnimationFrame(runRankdEdgeJump);
   }
 }
 
-function stopRankdSpeedScroll() {
-  rankdSpeedPointerY = null;
-  rankdSpeedHoldTicks = 0;
+function stopRankdEdgeJump() {
+  rankdEdgePointer = null;
+  rankdEdgeTick = 0;
+  rankdLastJumpAt = 0;
 
-  if (rankdSpeedFrame) {
-    window.cancelAnimationFrame(rankdSpeedFrame);
-    rankdSpeedFrame = null;
+  if (rankdEdgeFrame) {
+    window.cancelAnimationFrame(rankdEdgeFrame);
+    rankdEdgeFrame = null;
   }
 }
 
@@ -130,13 +142,13 @@ if (typeof window !== "undefined") {
     "pointermove",
     (event) => {
       if (!isRankdDragRunning()) return;
-      startRankdSpeedScroll(event.clientY);
+      startRankdEdgeJump(event.clientX, event.clientY);
     },
     true
   );
 
-  window.addEventListener("pointerup", stopRankdSpeedScroll, true);
-  window.addEventListener("pointercancel", stopRankdSpeedScroll, true);
+  window.addEventListener("pointerup", stopRankdEdgeJump, true);
+  window.addEventListener("pointercancel", stopRankdEdgeJump, true);
 
   window.addEventListener(
     "touchmove",
@@ -144,7 +156,7 @@ if (typeof window !== "undefined") {
       if (!isRankdDragRunning()) return;
       const touch = event.touches?.[0];
       if (!touch) return;
-      startRankdSpeedScroll(touch.clientY);
+      startRankdEdgeJump(touch.clientX, touch.clientY);
     },
     { capture: true, passive: false }
   );
