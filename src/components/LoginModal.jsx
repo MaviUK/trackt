@@ -2,10 +2,12 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./LoginModal.css";
 
-export default function LoginModal({ onClose }) {
+export default function LoginModal({ isOpen = true, onClose }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  if (!isOpen) return null;
 
   async function handleSubmit(event) {
     event.preventDefault();
