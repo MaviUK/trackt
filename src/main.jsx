@@ -12,6 +12,7 @@ import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
 import './activity-share-buttons.js'
 import './rankd-guest-share-vote.js'
+import './rankd-shared-stats-fix.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
