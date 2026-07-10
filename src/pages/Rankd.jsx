@@ -67,6 +67,32 @@ function applyLadderWin(shows, winnerId, loserId) {
   }));
 }
 
+function moveShowToRank(shows, showId, targetRank) {
+  const ranked = [...shows].sort(sortByLadder);
+  const fromIndex = ranked.findIndex((show) => String(show.show_id) === String(showId));
+  if (fromIndex === -1) return { nextShows: shows, affectedShows: [] };
+
+  const clampedRank = Math.max(1, Math.min(Number(targetRank || 1), ranked.length));
+  const toIndex = clampedRank - 1;
+  if (fromIndex === toIndex) return { nextShows: ranked, affectedShows: [] };
+
+  const [movedShow] = ranked.splice(fromIndex, 1);
+  ranked.splice(toIndex, 0, movedShow);
+
+  const nextShows = ranked.map((show, index) => ({
+    ...show,
+    ladder_position: index + 1,
+  }));
+
+  const start = Math.min(fromIndex, toIndex);
+  const end = Math.max(fromIndex, toIndex);
+
+  return {
+    nextShows,
+    affectedShows: nextShows.slice(start, end + 1),
+  };
+}
+
 function getRecentShowStorageKey(userId) {
   return `rankd_recent_shows_v3:${userId || "guest"}`;
 }
@@ -268,6 +294,9 @@ export default function Rankd() {
   const [commentText, setCommentText] = useState("");
   const [shareStatus, setShareStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
+  const [moveModalShow, setMoveModalShow] = useState(null);
+  const [moveTargetRank, setMoveTargetRank] = useState("");
+  const [moveSaving, setMoveSaving] = useState(false);
 
   const touchStartX = useRef(null);
   const saveQueueRef = useRef(Promise.resolve());
@@ -476,6 +505,85 @@ export default function Rankd() {
         console.error("RANKD BACKGROUND SAVE FAILED:", saveError);
         setSaveStatus("Vote saved locally. Sync will retry on your next vote.");
       });
+  }
+
+  async function saveManualMove(userIdValue, affectedShows) {
+    if (!affectedShows.length) return;
+
+    const now = new Date().toISOString();
+    const payload = affectedShows.map((show) => ({
+      user_id: userIdValue,
+      show_id: show.show_id,
+      ladder_position: show.ladder_position,
+      wins: show.rank_wins || 0,
+      losses: show.rank_losses || 0,
+      comparisons: show.rank_comparisons || 0,
+      updated_at: now,
+    }));
+
+    const { error: moveError } = await supabase
+      .from("user_show_rankings")
+      .upsert(payload, { onConflict: "user_id,show_id" });
+
+    if (moveError) throw moveError;
+  }
+
+  function openMoveModal(show, position) {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setMoveModalShow(show);
+    setMoveTargetRank(String(position));
+    setError("");
+  }
+
+  async function handleMoveSubmit(event) {
+    event.preventDefault();
+
+    if (!moveModalShow) return;
+
+    const targetRank = Number.parseInt(moveTargetRank, 10);
+    if (!Number.isFinite(targetRank) || targetRank < 1) {
+      setError("Enter a valid rank number.");
+      return;
+    }
+
+    try {
+      setMoveSaving(true);
+      setError("");
+
+      const activeUserId = await ensureActiveUserId();
+      if (!activeUserId) {
+        setShowLoginModal(true);
+        return;
+      }
+
+      const beforeShows = [...eligibleShows].sort(sortByLadder);
+      const { nextShows, affectedShows } = moveShowToRank(
+        beforeShows,
+        moveModalShow.show_id,
+        targetRank
+      );
+
+      if (!affectedShows.length) {
+        setMoveModalShow(null);
+        setMoveTargetRank("");
+        return;
+      }
+
+      setEligibleShows(nextShows);
+      setMoveModalShow(null);
+      setMoveTargetRank("");
+
+      await saveManualMove(activeUserId, affectedShows);
+    } catch (moveError) {
+      console.error("RANKD MANUAL MOVE FAILED:", moveError);
+      setError(moveError.message || "Could not move this show.");
+    } finally {
+      setMoveSaving(false);
+    }
   }
 
   async function handleChoice(winnerShowId) {
@@ -872,6 +980,18 @@ export default function Rankd() {
                   >
                     {isLoggedIn ? "Rank" : "Sign in"}
                   </button>
+
+                  <button
+                    type="button"
+                    className="rankd-rank-button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openMoveModal(show, index + 1);
+                    }}
+                  >
+                    Move
+                  </button>
                 </Link>
               ))}
             </div>
@@ -879,6 +999,45 @@ export default function Rankd() {
         </div>
 
         <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} redirectTo="/rankd" />
+
+        {moveModalShow ? (
+          <div className="login-modal-overlay">
+            <div className="login-modal-card">
+              <button
+                type="button"
+                className="login-modal-close"
+                onClick={() => {
+                  setMoveModalShow(null);
+                  setMoveTargetRank("");
+                }}
+              >
+                ×
+              </button>
+
+              <h2>Move rank</h2>
+              <p className="login-modal-intro">
+                Move <strong>{moveModalShow.show_name}</strong> to position:
+              </p>
+
+              <form className="login-modal-form" onSubmit={handleMoveSubmit}>
+                <input
+                  type="number"
+                  min="1"
+                  max={leaderboard.length}
+                  value={moveTargetRank}
+                  onChange={(event) => setMoveTargetRank(event.target.value)}
+                  placeholder="Rank number"
+                  autoFocus
+                  required
+                />
+
+                <button type="submit" disabled={moveSaving}>
+                  {moveSaving ? "Moving..." : "Move show"}
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
