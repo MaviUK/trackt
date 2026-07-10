@@ -119,6 +119,63 @@
   animation: following-loader-shimmer 1.35s linear infinite;
 }
 
+.rankd-page .page-shell > .page-header:only-child {
+  position: relative !important;
+  min-height: 440px !important;
+  margin: 14px 0 0 !important;
+  padding: 24px 16px !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.26), transparent 52%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.66)) !important;
+  text-align: center !important;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22) !important;
+  overflow: hidden !important;
+}
+
+.rankd-page .page-shell > .page-header:only-child::before {
+  content: "🍔";
+  display: block;
+  margin-bottom: 10px;
+  color: #f8fafc;
+  font-size: 36px;
+  line-height: 1;
+  animation: following-loader-float 1.7s ease-in-out infinite;
+}
+
+.rankd-page .page-shell > .page-header:only-child h1 {
+  margin-bottom: 8px !important;
+}
+
+.rankd-page .page-shell > .page-header:only-child p {
+  color: #cbd5e1 !important;
+  font-size: 17px !important;
+  font-weight: 850 !important;
+  line-height: 1.35 !important;
+}
+
+.rankd-page .page-shell > .page-header:only-child::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 300px;
+  margin-top: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent) -160px 0 / 160px 100% no-repeat,
+    linear-gradient(#22304a, #22304a) 66px 24px / 48% 14px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 66px 46px / 30% 10px no-repeat,
+    radial-gradient(circle, #22304a 0 21px, transparent 22px) 18px 16px / 44px 44px no-repeat,
+    linear-gradient(#22304a, #22304a) 18px 78px / calc(100% - 36px) 128px no-repeat,
+    linear-gradient(#22304a, #22304a) 18px 224px / 72% 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 18px 246px / 54% 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 18px 268px / 38% 12px no-repeat,
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.72));
+  animation: rankd-loader-shimmer 1.35s linear infinite;
+}
+
 .rankd-page .rankd-notice-card {
   display: none !important;
 }
@@ -134,6 +191,21 @@
       18px 244px,
       18px 266px,
       18px 288px,
+      0 0;
+  }
+}
+
+@keyframes rankd-loader-shimmer {
+  100% {
+    background-position:
+      calc(100% + 160px) 0,
+      66px 24px,
+      66px 46px,
+      18px 16px,
+      18px 78px,
+      18px 224px,
+      18px 246px,
+      18px 268px,
       0 0;
   }
 }
