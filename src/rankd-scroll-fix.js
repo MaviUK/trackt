@@ -154,6 +154,16 @@ function setNativeInputValue(input, value) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function beginSilentRankdMove() {
+  document.body.classList.add("rankd-silent-move-active");
+}
+
+function endSilentRankdMove() {
+  window.setTimeout(() => {
+    document.body.classList.remove("rankd-silent-move-active");
+  }, 450);
+}
+
 function submitMoveViaExistingModal(row, targetRank) {
   const moveButton = Array.from(row.querySelectorAll(".rankd-rank-button")).find(
     (button) => button.textContent.trim().toLowerCase() === "move"
@@ -161,6 +171,7 @@ function submitMoveViaExistingModal(row, targetRank) {
 
   if (!moveButton || !targetRank) return;
 
+  beginSilentRankdMove();
   moveButton.click();
 
   window.setTimeout(() => {
@@ -171,7 +182,10 @@ function submitMoveViaExistingModal(row, targetRank) {
     const input = moveModal?.querySelector('input[type="number"]');
     const form = moveModal?.querySelector("form");
 
-    if (!input || !form) return;
+    if (!input || !form) {
+      endSilentRankdMove();
+      return;
+    }
 
     setNativeInputValue(input, String(targetRank));
 
@@ -181,6 +195,8 @@ function submitMoveViaExistingModal(row, targetRank) {
       } else {
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       }
+
+      endSilentRankdMove();
     }, 140);
   }, 120);
 }
