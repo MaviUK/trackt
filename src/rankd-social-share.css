@@ -1,0 +1,121 @@
+.rankd-share-sheet-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000002 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(2, 6, 23, 0.68) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.rankd-share-sheet {
+  width: min(100%, 440px) !important;
+  position: relative !important;
+  padding: 20px !important;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  border: 1px solid rgba(196, 181, 253, 0.26) !important;
+  border-radius: 26px !important;
+  background:
+    radial-gradient(circle at top, rgba(139, 92, 246, 0.24), transparent 42%),
+    rgba(15, 23, 42, 0.98) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52) !important;
+  color: #fff !important;
+}
+
+.rankd-share-sheet h2 {
+  margin: 0 44px 8px 0 !important;
+  font-size: 1.45rem !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.rankd-share-sheet p {
+  margin: 0 0 16px !important;
+  color: rgba(255, 255, 255, 0.76) !important;
+  font-size: 0.95rem !important;
+  line-height: 1.4 !important;
+}
+
+.rankd-share-close {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  font-size: 1.45rem !important;
+  line-height: 1 !important;
+}
+
+.rankd-share-options {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.rankd-share-option {
+  min-height: 48px !important;
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.rankd-share-native,
+.rankd-share-copy {
+  grid-column: 1 / -1 !important;
+  background: linear-gradient(135deg, #7c3aed, #db2777) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+.rankd-share-whatsapp {
+  background: rgba(34, 197, 94, 0.2) !important;
+}
+
+.rankd-share-x {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.rankd-share-facebook {
+  background: rgba(59, 130, 246, 0.2) !important;
+}
+
+.rankd-share-telegram {
+  background: rgba(14, 165, 233, 0.2) !important;
+}
+
+.rankd-share-url {
+  display: block !important;
+  margin-top: 12px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  background: rgba(2, 6, 23, 0.5) !important;
+  color: rgba(255, 255, 255, 0.52) !important;
+  font-size: 0.72rem !important;
+  line-height: 1.25 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.rankd-share-copied {
+  display: block !important;
+  margin-top: 10px !important;
+  color: #c4b5fd !important;
+  font-size: 0.85rem !important;
+  text-align: center !important;
+}
+
+.rankd-share-copied[hidden] {
+  display: none !important;
+}
