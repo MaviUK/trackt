@@ -282,6 +282,7 @@ async function handleGuestSharedVote(event) {
     });
 
     if (error) throw error;
+    window.dispatchEvent(new CustomEvent("rankd:guest-vote-recorded"));
   } catch (error) {
     console.warn("Guest shared Rankd vote failed:", error);
     if (!document.querySelector(".rankd-guest-thanks-overlay")) {
