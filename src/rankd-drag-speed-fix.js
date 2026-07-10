@@ -16,7 +16,7 @@ function getActiveRankdDragRow() {
 
 function getDirection(clientY) {
   const height = window.innerHeight || 700;
-  const zone = Math.max(165, Math.round(height * 0.26));
+  const zone = Math.max(145, Math.round(height * 0.22));
 
   if (clientY > height - zone) return 1;
   if (clientY < zone) return -1;
@@ -25,18 +25,16 @@ function getDirection(clientY) {
 
 function getStepSize() {
   const ticks = rankdEdgeState?.ticks || 0;
-  if (ticks > 28) return 8;
-  if (ticks > 16) return 5;
-  if (ticks > 7) return 3;
+  if (ticks > 45) return 3;
+  if (ticks > 24) return 2;
   return 1;
 }
 
 function getDelay() {
   const ticks = rankdEdgeState?.ticks || 0;
-  if (ticks > 28) return 130;
-  if (ticks > 16) return 165;
-  if (ticks > 7) return 205;
-  return 260;
+  if (ticks > 45) return 260;
+  if (ticks > 24) return 330;
+  return 430;
 }
 
 function getOverlay() {
