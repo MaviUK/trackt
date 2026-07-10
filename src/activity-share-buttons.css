@@ -1,0 +1,50 @@
+.burgrs-activity-share-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 34px !important;
+  margin-top: 10px !important;
+  padding: 8px 13px !important;
+  border: 1px solid rgba(196, 181, 253, 0.26) !important;
+  border-radius: 999px !important;
+  background: rgba(124, 58, 237, 0.18) !important;
+  color: #fff !important;
+  font-size: 0.78rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.creator-list-card .burgrs-activity-share-btn,
+.following-card-list .burgrs-activity-share-btn {
+  margin-left: 12px !important;
+  margin-bottom: 12px !important;
+}
+
+.creator-review-card .burgrs-activity-share-btn,
+.following-card .burgrs-activity-share-btn {
+  margin-left: 0 !important;
+}
+
+.burgrs-share-toast {
+  position: fixed !important;
+  left: 50% !important;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 1000003 !important;
+  transform: translateX(-50%) translateY(16px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  padding: 10px 14px !important;
+  border-radius: 999px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  border: 1px solid rgba(196, 181, 253, 0.28) !important;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.38) !important;
+  color: #fff !important;
+  font-size: 0.82rem !important;
+  font-weight: 900 !important;
+  transition: opacity 0.18s ease, transform 0.18s ease !important;
+}
+
+.burgrs-share-toast.is-visible {
+  opacity: 1 !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
