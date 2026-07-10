@@ -85,18 +85,20 @@ function writeRecentShows(userId, showIds) {
   try {
     const clean = [];
     const seen = new Set();
+
     (showIds || []).forEach((id) => {
       const key = String(id || "");
       if (!key || seen.has(key)) return;
       seen.add(key);
       clean.push(key);
     });
+
     window.sessionStorage.setItem(
       getRecentShowStorageKey(userId),
       JSON.stringify(clean.slice(0, RECENT_SHOW_LIMIT))
     );
   } catch {
-    // Session storage can be unavailable. Rankd still works without it.
+    // Rankd still works without session storage.
   }
 }
 
@@ -164,7 +166,9 @@ async function getOptionalUser() {
 
   const { data, error } = await supabase.auth.getUser();
   const message = String(error?.message || "").toLowerCase();
-  const isMissingSession = message.includes("auth session missing") || message.includes("session missing");
+  const isMissingSession =
+    message.includes("auth session missing") || message.includes("session missing");
+
   if (error && !isMissingSession) throw error;
   return data?.user || null;
 }
@@ -225,7 +229,7 @@ function mergeShows(existing, incoming) {
     }));
 }
 
-function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
+function RankCard({ show, onChoose, onTouchStart, onTouchEnd, disabledLabel = "" }) {
   return (
     <button
       type="button"
@@ -244,6 +248,7 @@ function RankCard({ show, onChoose, onTouchStart, onTouchEnd }) {
         )}
       </div>
       <strong className="rankd-card-title">{show.show_name}</strong>
+      {disabledLabel ? <span className="rankd-muted">{disabledLabel}</span> : null}
     </button>
   );
 }
@@ -259,6 +264,8 @@ export default function Rankd() {
   const [notice, setNotice] = useState("");
   const [userId, setUserId] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
   const [shareStatus, setShareStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
 
@@ -272,6 +279,7 @@ export default function Rankd() {
 
   const leaderboard = useMemo(() => [...eligibleShows].sort(sortByLadder), [eligibleShows]);
   const isSharedPage = Boolean(sharedSlug);
+  const isLoggedIn = Boolean(userId);
 
   function storeActiveUserId(nextUserId) {
     const cleanUserId = nextUserId || null;
@@ -293,7 +301,9 @@ export default function Rankd() {
     const rankingMap = await fetchRankingMap(userIdValue, showIds);
 
     return rows
-      .map((row, index) => normalizeShowRow(row, rankingMap.get(String(row.show_id)), startIndex + index + 1))
+      .map((row, index) =>
+        normalizeShowRow(row, rankingMap.get(String(row.show_id)), startIndex + index + 1)
+      )
       .filter((show) => show.show_id && show.show_name)
       .sort(sortByLadder)
       .map((show, index) => ({
@@ -375,7 +385,11 @@ export default function Rankd() {
       let nextFrom = FRONTLOAD_SHOW_COUNT;
 
       if (rows.length < 2) {
-        const moreRows = await fetchRankdShowPage(activeUserId, FRONTLOAD_SHOW_COUNT, FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE - 1);
+        const moreRows = await fetchRankdShowPage(
+          activeUserId,
+          FRONTLOAD_SHOW_COUNT,
+          FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE - 1
+        );
         rows = [...rows, ...moreRows];
         nextFrom = FRONTLOAD_SHOW_COUNT + BACKGROUND_PAGE_SIZE;
       }
@@ -384,14 +398,12 @@ export default function Rankd() {
       setEligibleShows(initialShows);
 
       const firstPair = chooseFastPair(initialShows, "", recentShowIdsRef.current, recentPairKeysRef.current);
-
       setCurrentPair(firstPair);
       setMatchupStats(null);
       setLoading(false);
 
       if (firstPair.length === 2) {
-        const pairKey = makePairKey(firstPair[0].show_id, firstPair[1].show_id);
-        recentPairKeysRef.current = [pairKey];
+        recentPairKeysRef.current = [makePairKey(firstPair[0].show_id, firstPair[1].show_id)];
       }
 
       loadRestInBackground(activeUserId, nextFrom);
@@ -431,7 +443,6 @@ export default function Rankd() {
       }));
 
     const { showAId, showBId } = getOrderedPair(winner.show_id, loser.show_id);
-
     setSaveStatus("Saving vote...");
 
     saveQueueRef.current = saveQueueRef.current
@@ -460,9 +471,7 @@ export default function Rankd() {
         const row = Array.isArray(recordedMatchup) ? recordedMatchup[0] : recordedMatchup;
         if (row) setMatchupStats(row);
       })
-      .then(() => {
-        setSaveStatus("");
-      })
+      .then(() => setSaveStatus(""))
       .catch((saveError) => {
         console.error("RANKD BACKGROUND SAVE FAILED:", saveError);
         setSaveStatus("Vote saved locally. Sync will retry on your next vote.");
@@ -509,11 +518,7 @@ export default function Rankd() {
       return show;
     });
 
-    const nextRecentShows = [
-      String(winner.show_id),
-      String(loser.show_id),
-      ...recentShowIdsRef.current,
-    ];
+    const nextRecentShows = [String(winner.show_id), String(loser.show_id), ...recentShowIdsRef.current];
     recentShowIdsRef.current = nextRecentShows.slice(0, RECENT_SHOW_LIMIT);
     writeRecentShows(activeUserId, recentShowIdsRef.current);
 
@@ -537,21 +542,17 @@ export default function Rankd() {
     setNotice("");
 
     if (activeUserId) {
-      queueVoteSave({
-        userIdValue: activeUserId,
-        winner,
-        loser,
-        beforeLadder,
-        updatedLadder,
-      });
+      queueVoteSave({ userIdValue: activeUserId, winner, loser, beforeLadder, updatedLadder });
     }
   }
 
-  function handleTouchStart(event) {
-    touchStartX.current = event.touches?.[0]?.clientX ?? null;
+  function buildTouchStartHandler() {
+    return (event) => {
+      touchStartX.current = event.touches?.[0]?.clientX ?? null;
+    };
   }
 
-  function handleTouchEnd(side, showId) {
+  function buildTouchEndHandler(showId, side) {
     return (event) => {
       const startX = touchStartX.current;
       const endX = event.changedTouches?.[0]?.clientX ?? null;
@@ -580,7 +581,15 @@ export default function Rankd() {
 
       let shareSlug = existing?.share_slug || "";
       if (!shareSlug) {
-        shareSlug = `${String(currentPair[0].show_name || "show").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50)}-vs-${String(currentPair[1].show_name || "show").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50)}-${Math.random().toString(36).slice(2, 8)}`;
+        shareSlug = `${String(currentPair[0].show_name || "show")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50)}-vs-${String(currentPair[1].show_name || "show")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50)}-${Math.random().toString(36).slice(2, 8)}`;
 
         if (existing?.id) {
           const { error: updateError } = await supabase
@@ -610,6 +619,22 @@ export default function Rankd() {
       console.error("RANKD SHARE FAILED:", shareError);
       setShareStatus(shareError.message || "Could not create share link.");
     }
+  }
+
+  function handleAddComment(event) {
+    event.preventDefault();
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setCommentText("");
+    setNotice("Comments are being reconnected after the Rank'd speed update.");
+  }
+
+  function startFocusedRanking(show) {
+    setNotice(`${show.show_name || "This show"} focused ranking is being reconnected.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (loading) {
@@ -650,14 +675,17 @@ export default function Rankd() {
             <h1>Rank'd</h1>
             <p>Swipe your favourite shows against each other to build your personal ranking.</p>
           </div>
+
           {error ? (
             <div className="section-card rankd-error-card">
               <strong>Something went wrong</strong>
               <span>{error}</span>
             </div>
           ) : null}
+
           <div className="section-card rankd-empty-card">
-            <p>You need at least 2 completed or watching shows before Rank'd can start.</p>
+            <p>You need at least 2 eligible shows before Rank'd can start.</p>
+            <p>Completed shows count automatically. Watching shows are included once at least one full season has been watched.</p>
             <Link to="/my-shows" className="top-tab active">
               Go to My Shows
             </Link>
@@ -669,6 +697,8 @@ export default function Rankd() {
 
   const leftWinPercent = getWinPercent(matchupStats, currentPair[0].show_id);
   const rightWinPercent = getWinPercent(matchupStats, currentPair[1].show_id);
+  const leftWins = getWinCount(matchupStats, currentPair[0].show_id);
+  const rightWins = getWinCount(matchupStats, currentPair[1].show_id);
 
   return (
     <div className="page rankd-page">
@@ -712,63 +742,144 @@ export default function Rankd() {
               <RankCard
                 show={currentPair[0]}
                 onChoose={() => handleChoice(currentPair[0].show_id)}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd("left", currentPair[0].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[0].show_id, "left")}
+                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
               />
 
-              <div className="rankd-versus">
-                <span>VS</span>
-              </div>
+              <div className="rankd-battle-vs">VS</div>
 
               <RankCard
                 show={currentPair[1]}
                 onChoose={() => handleChoice(currentPair[1].show_id)}
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd("right", currentPair[1].show_id)}
+                onTouchStart={buildTouchStartHandler()}
+                onTouchEnd={buildTouchEndHandler(currentPair[1].show_id, "right")}
+                disabledLabel={!isLoggedIn && isSharedPage ? "Sign in to vote" : ""}
               />
             </div>
 
-            <div className="rankd-matchup-stats">
-              <div>
-                <strong>{leftWinPercent}%</strong>
-                <span>{currentPair[0].show_name}</span>
-              </div>
-              <div>
-                <strong>{rightWinPercent}%</strong>
-                <span>{currentPair[1].show_name}</span>
+            <div className="rankd-matchup-dashboard">
+              <div className="rankd-win-bars">
+                <div className="rankd-win-row">
+                  <span>{currentPair[0].show_name}</span>
+                  <div>
+                    <i style={{ width: `${leftWinPercent}%` }} />
+                  </div>
+                  <strong>
+                    {leftWinPercent}% / {leftWins} wins
+                  </strong>
+                </div>
+
+                <div className="rankd-win-row">
+                  <span>{currentPair[1].show_name}</span>
+                  <div>
+                    <i style={{ width: `${rightWinPercent}%` }} />
+                  </div>
+                  <strong>
+                    {rightWinPercent}% / {rightWins} wins
+                  </strong>
+                </div>
               </div>
             </div>
 
-            <div className="rankd-actions-row">
-              <button type="button" className="top-tab" onClick={handleShareMatchup}>
-                Share matchup
+            <form className="rankd-comment-form" onSubmit={handleAddComment}>
+              <div className="rankd-comment-actions">
+                <button
+                  type="button"
+                  className="rankd-outline-button"
+                  onClick={() => setShowComments((value) => !value)}
+                >
+                  {showComments ? "Hide all comments" : "View all comments (0)"}
+                </button>
+
+                <button type="button" className="rankd-outline-button" onClick={handleShareMatchup}>
+                  {isLoggedIn ? "Share matchup" : "Sign in to share"}
+                </button>
+              </div>
+
+              {shareStatus ? <p className="rankd-muted">{shareStatus}</p> : null}
+
+              <textarea
+                value={commentText}
+                onChange={(event) => setCommentText(event.target.value)}
+                placeholder={
+                  isLoggedIn
+                    ? "Write a brief comment about this matchup..."
+                    : "Sign in to comment on this matchup..."
+                }
+                rows={3}
+              />
+
+              <button type="submit" disabled={!commentText.trim()}>
+                {!isLoggedIn ? "Sign in to comment" : "Post comment"}
               </button>
-              {shareStatus ? <span className="rankd-muted">{shareStatus}</span> : null}
-            </div>
+            </form>
+
+            {showComments ? (
+              <div className="rankd-comments-panel">
+                <div className="rankd-comments-header">
+                  <h2>Matchup comments</h2>
+                  <button type="button" className="rankd-text-button" onClick={() => setShowComments(false)}>
+                    Hide
+                  </button>
+                </div>
+                <p className="rankd-muted">No comments yet. Add the first one.</p>
+              </div>
+            ) : null}
           </div>
 
-          <aside className="section-card rankd-leaderboard-card">
-            <div className="rankd-card-heading">
-              <h2>Your Rank'd list</h2>
-              <p>{eligibleShows.length} shows loaded{backgroundLoading ? " so far" : ""}</p>
+          <div className="section-card rankd-leaderboard-card">
+            <div className="rankd-leaderboard-header">
+              <div>
+                <h2>{isLoggedIn ? "Your Top Shows" : "This Matchup"}</h2>
+                <p>
+                  {isLoggedIn
+                    ? "Your personal ladder from Rank'd decisions."
+                    : "Sign in to add these shows and build your personal ladder."}
+                </p>
+              </div>
+              <div>{leaderboard.length} shows</div>
             </div>
 
             <div className="rankd-leaderboard-list">
-              {leaderboard.slice(0, 80).map((show, index) => (
-                <div key={show.show_id} className="rankd-leaderboard-item">
-                  <span className="rankd-leaderboard-rank">#{index + 1}</span>
-                  {show.poster_url ? <img src={show.poster_url} alt="" /> : <span className="rankd-mini-poster">?</span>}
-                  <span>
-                    <strong>{show.show_name}</strong>
-                    <small>{show.rank_comparisons || 0} votes</small>
-                  </span>
-                </div>
+              {leaderboard.map((show, index) => (
+                <Link
+                  key={show.show_id}
+                  to={isLoggedIn && show.tvdb_id ? `/my-shows/${show.tvdb_id}` : "#"}
+                  className="rankd-leaderboard-row"
+                  onClick={(event) => {
+                    if (!isLoggedIn || !show.tvdb_id) event.preventDefault();
+                  }}
+                >
+                  <div className="rankd-leaderboard-poster">
+                    {show.poster_url ? <img src={show.poster_url} alt={show.show_name} /> : <span>#{index + 1}</span>}
+                  </div>
+
+                  <div>
+                    <div className="rankd-leaderboard-title">
+                      #{index + 1} {show.show_name}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="rankd-rank-button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      startFocusedRanking(show);
+                    }}
+                  >
+                    {isLoggedIn ? "Rank" : "Sign in"}
+                  </button>
+                </Link>
               ))}
             </div>
-          </aside>
+          </div>
         </div>
+
+        <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} redirectTo="/rankd" />
       </div>
-      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} redirectTo="/rankd" />
     </div>
   );
 }
