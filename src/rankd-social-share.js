@@ -137,13 +137,31 @@ function openExternalShare(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-async function copyRankdShareLink(url) {
+async function copyRankdShareLink(url, message = "Link copied") {
   try {
     await navigator.clipboard?.writeText(url);
-    showRankdCopied("Link copied");
+    showRankdCopied(message);
   } catch {
     showRankdCopied("Copy failed");
   }
+}
+
+async function shareToInstagram(title, text, url) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      closeRankdShareSheet();
+      return;
+    } catch (shareError) {
+      const isCancel = String(shareError?.name || "").toLowerCase().includes("abort");
+      if (isCancel) return;
+    }
+  }
+
+  await copyRankdShareLink(url, "Link copied - paste it into Instagram");
+  window.setTimeout(() => {
+    openExternalShare("https://www.instagram.com/");
+  }, 450);
 }
 
 function showRankdCopied(message) {
@@ -156,7 +174,7 @@ function showRankdCopied(message) {
   window.clearTimeout(rankdCopiedTimer);
   rankdCopiedTimer = window.setTimeout(() => {
     copied.hidden = true;
-  }, 1800);
+  }, 2200);
 }
 
 function closeRankdShareSheet() {
@@ -234,6 +252,12 @@ function showRankdShareSheet(url) {
       })
     );
   }
+
+  options.appendChild(
+    createShareButton("Instagram", "rankd-share-instagram", () => {
+      shareToInstagram(title, text, url);
+    })
+  );
 
   options.appendChild(
     createShareButton("WhatsApp", "rankd-share-whatsapp", () => {
