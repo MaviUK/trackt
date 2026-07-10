@@ -181,8 +181,8 @@ function submitMoveViaExistingModal(row, targetRank) {
       } else {
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       }
-    }, 40);
-  }, 80);
+    }, 140);
+  }, 120);
 }
 
 function getRankFromPointerY(pointerY, draggedRow) {
@@ -402,6 +402,8 @@ if (typeof window !== "undefined") {
   window.addEventListener(
     "click",
     (event) => {
+      if (!event.isTrusted) return;
+
       if (Date.now() < rankdSuppressClickUntil) {
         event.preventDefault();
         event.stopPropagation();
