@@ -3,9 +3,14 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const RANKD_HISTORY_FRONTLOAD_REQUESTS = 2;
-const RANKD_HISTORY_CACHE_PREFIX = "rankd-history-cache:";
-const RANKD_HISTORY_CACHE_TTL_MS = 1000 * 60 * 10;
+// Rank'd can become very slow for users with lots of shows because it tries to
+// load every eligible-season check and every historical matchup before drawing
+// the first matchup. These requests are useful, but they are not required for
+// the first screen. Return cached data when available, otherwise let Rank'd open
+// immediately and warm the cache in the background.
+const RANKD_HISTORY_FRONTLOAD_REQUESTS = 0;
+const RANKD_CACHE_PREFIX = "rankd-fast-cache:";
+const RANKD_CACHE_TTL_MS = 1000 * 60 * 10;
 
 let rankdHistoryRequestCount = 0;
 let rankdHistoryWindowStartedAt = 0;
@@ -28,14 +33,22 @@ function isRankdPage() {
   return window.location.pathname.startsWith("/rankd");
 }
 
+function getDecodedUrl(resource) {
+  const rawUrl = getRequestUrl(resource);
+  if (!rawUrl) return "";
+
+  try {
+    return decodeURIComponent(rawUrl);
+  } catch {
+    return rawUrl;
+  }
+}
+
 function isRankdHistoryRequest(resource, options) {
   if (!isRankdPage()) return false;
   if (getRequestMethod(resource, options) !== "GET") return false;
 
-  const rawUrl = getRequestUrl(resource);
-  if (!rawUrl) return false;
-
-  const decodedUrl = decodeURIComponent(rawUrl);
+  const decodedUrl = getDecodedUrl(resource);
 
   return (
     decodedUrl.includes("/rest/v1/rankd_matchups") &&
@@ -44,6 +57,29 @@ function isRankdHistoryRequest(resource, options) {
     decodedUrl.includes("show_b_id=in.(") &&
     !decodedUrl.includes("pair_key")
   );
+}
+
+function isRankdEligibilityRequest(resource, options) {
+  if (!isRankdPage()) return false;
+  if (getRequestMethod(resource, options) !== "GET") return false;
+
+  const decodedUrl = getDecodedUrl(resource);
+
+  const isEpisodeBulkCheck =
+    decodedUrl.includes("/rest/v1/episodes") &&
+    decodedUrl.includes("show_id=in.(") &&
+    decodedUrl.includes("season_number=gt.0");
+
+  const isWatchedBulkCheck =
+    decodedUrl.includes("/rest/v1/watched_episodes") &&
+    decodedUrl.includes("episode_id=in.(") &&
+    decodedUrl.includes("user_id=eq.");
+
+  return isEpisodeBulkCheck || isWatchedBulkCheck;
+}
+
+function isRankdFastBackgroundRequest(resource, options) {
+  return isRankdHistoryRequest(resource, options) || isRankdEligibilityRequest(resource, options);
 }
 
 function resetRankdHistoryCounterIfNeeded() {
@@ -74,22 +110,22 @@ function makeEmptyJsonResponse() {
   });
 }
 
-function getHistoryCacheKey(resource) {
-  return `${RANKD_HISTORY_CACHE_PREFIX}${getRequestUrl(resource)}`;
+function getCacheKey(resource) {
+  return `${RANKD_CACHE_PREFIX}${getRequestUrl(resource)}`;
 }
 
-function getCachedHistoryResponse(resource) {
+function getCachedResponse(resource) {
   if (typeof sessionStorage === "undefined") return null;
 
   try {
-    const raw = sessionStorage.getItem(getHistoryCacheKey(resource));
+    const raw = sessionStorage.getItem(getCacheKey(resource));
     if (!raw) return null;
 
     const cached = JSON.parse(raw);
     if (!cached?.body || !cached?.createdAt) return null;
 
-    if (Date.now() - cached.createdAt > RANKD_HISTORY_CACHE_TTL_MS) {
-      sessionStorage.removeItem(getHistoryCacheKey(resource));
+    if (Date.now() - cached.createdAt > RANKD_CACHE_TTL_MS) {
+      sessionStorage.removeItem(getCacheKey(resource));
       return null;
     }
 
@@ -101,19 +137,19 @@ function getCachedHistoryResponse(resource) {
       },
     });
   } catch (error) {
-    console.warn("Rankd history cache read failed:", error);
+    console.warn("Rankd fast cache read failed:", error);
     return null;
   }
 }
 
-async function cacheHistoryResponse(resource, response) {
+async function cacheResponse(resource, response) {
   if (typeof sessionStorage === "undefined") return;
   if (!response?.ok) return;
 
   try {
     const body = await response.clone().text();
     sessionStorage.setItem(
-      getHistoryCacheKey(resource),
+      getCacheKey(resource),
       JSON.stringify({
         createdAt: Date.now(),
         status: response.status,
@@ -126,36 +162,38 @@ async function cacheHistoryResponse(resource, response) {
       })
     );
   } catch (error) {
-    console.warn("Rankd history cache write failed:", error);
+    console.warn("Rankd fast cache write failed:", error);
   }
 }
 
-function fetchRankdHistoryInBackground(resource, options) {
+function fetchInBackground(resource, options, label = "Rankd background request") {
   nativeFetch(resource, options)
-    .then((response) => cacheHistoryResponse(resource, response))
+    .then((response) => cacheResponse(resource, response))
     .catch((error) => {
-      console.warn("Rankd background matchup history load failed:", error);
+      console.warn(`${label} failed:`, error);
     });
 }
 
 async function burgrsFetch(resource, options) {
-  if (!isRankdHistoryRequest(resource, options)) {
+  if (!isRankdFastBackgroundRequest(resource, options)) {
     return nativeFetch(resource, options);
   }
 
-  const cached = getCachedHistoryResponse(resource);
+  const cached = getCachedResponse(resource);
   if (cached) return cached;
 
-  resetRankdHistoryCounterIfNeeded();
-  rankdHistoryRequestCount += 1;
+  if (isRankdHistoryRequest(resource, options)) {
+    resetRankdHistoryCounterIfNeeded();
+    rankdHistoryRequestCount += 1;
 
-  if (rankdHistoryRequestCount <= RANKD_HISTORY_FRONTLOAD_REQUESTS) {
-    const response = await nativeFetch(resource, options);
-    await cacheHistoryResponse(resource, response);
-    return response;
+    if (rankdHistoryRequestCount <= RANKD_HISTORY_FRONTLOAD_REQUESTS) {
+      const response = await nativeFetch(resource, options);
+      await cacheResponse(resource, response);
+      return response;
+    }
   }
 
-  fetchRankdHistoryInBackground(resource, options);
+  fetchInBackground(resource, options, "Rankd background preload");
   return makeEmptyJsonResponse();
 }
 
