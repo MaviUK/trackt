@@ -48,8 +48,6 @@ if (typeof window !== "undefined") {
       if (!isRankdDragging()) return;
 
       event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
     },
     { capture: true, passive: false }
   );
@@ -60,7 +58,6 @@ if (typeof window !== "undefined") {
       if (!isRankdDragging()) return;
 
       event.preventDefault();
-      event.stopPropagation();
     },
     { capture: true, passive: false }
   );
