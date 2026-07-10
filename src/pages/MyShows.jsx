@@ -205,6 +205,154 @@ async function fetchAllWatchedEpisodeRows(userId) {
   return allRows;
 }
 
+function MyShowsLoading({ isMobile }) {
+  const skeletonItems = Array.from({ length: isMobile ? 20 : 15 });
+
+  return (
+    <div className="page my-shows-page my-shows-loading-page">
+      <style>{`
+        @keyframes my-shows-loader-shimmer {
+          100% { background-position: calc(100% + 180px) 0, 0 0; }
+        }
+
+        @keyframes my-shows-loader-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+      `}</style>
+
+      <div
+        style={{
+          border: "1px solid rgba(148, 163, 184, 0.16)",
+          borderRadius: 24,
+          padding: isMobile ? "18px 14px" : 22,
+          margin: "0 0 16px",
+          background:
+            "radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.26), transparent 52%), linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.66))",
+          boxShadow: "0 18px 46px rgba(0, 0, 0, 0.22)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 34,
+            lineHeight: 1,
+            marginBottom: 8,
+            animation: "my-shows-loader-float 1.7s ease-in-out infinite",
+          }}
+        >
+          🍔
+        </div>
+        <h2
+          style={{
+            margin: 0,
+            color: "#f8fafc",
+            fontSize: isMobile ? 24 : 30,
+            fontWeight: 950,
+          }}
+        >
+          Loading your shows...
+        </h2>
+        <p
+          style={{
+            margin: "8px 0 0",
+            color: "#cbd5e1",
+            fontWeight: 800,
+            fontSize: isMobile ? 14 : 16,
+          }}
+        >
+          Building your saved shows list
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 10,
+        }}
+      >
+        {Array.from({ length: isMobile ? 4 : 6 }).map((_, index) => (
+          <div
+            key={index}
+            style={{
+              width: index === 0 ? 78 : 104,
+              height: 30,
+              borderRadius: 999,
+              background:
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.075), transparent) -180px 0 / 180px 100% no-repeat, rgba(255,255,255,0.06)",
+              animation: "my-shows-loader-shimmer 1.35s linear infinite",
+            }}
+          />
+        ))}
+      </div>
+
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          height: 48,
+          borderRadius: 14,
+          marginBottom: 14,
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,255,255,0.075), transparent) -180px 0 / 180px 100% no-repeat, #182235",
+          border: "1px solid #26324a",
+          animation: "my-shows-loader-shimmer 1.35s linear infinite",
+        }}
+      />
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile
+            ? "repeat(4, minmax(0, 1fr))"
+            : "repeat(auto-fill, minmax(160px, 1fr))",
+          gap: isMobile ? 10 : 20,
+          paddingBottom: 90,
+        }}
+      >
+        {skeletonItems.map((_, index) => (
+          <div
+            key={index}
+            style={{
+              border: isMobile ? "none" : "1px solid #26324a",
+              borderRadius: isMobile ? 0 : 18,
+              padding: isMobile ? 0 : 12,
+              background: isMobile ? "transparent" : "rgba(255,255,255,0.02)",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                aspectRatio: "2 / 3",
+                borderRadius: isMobile ? 10 : 14,
+                marginBottom: isMobile ? 0 : 12,
+                background:
+                  "linear-gradient(90deg, transparent, rgba(255,255,255,0.075), transparent) -180px 0 / 180px 100% no-repeat, #111827",
+                animation: "my-shows-loader-shimmer 1.35s linear infinite",
+              }}
+            />
+
+            {!isMobile ? (
+              <div
+                style={{
+                  height: 16,
+                  width: `${62 + ((index % 3) * 12)}%`,
+                  borderRadius: 999,
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(255,255,255,0.075), transparent) -180px 0 / 180px 100% no-repeat, rgba(255,255,255,0.08)",
+                  animation: "my-shows-loader-shimmer 1.35s linear infinite",
+                }}
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MyShows() {
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -511,11 +659,7 @@ export default function MyShows() {
   ];
 
   if (loading) {
-    return (
-      <div className="page my-shows-page">
-        <p>Loading your saved shows...</p>
-      </div>
-    );
+    return <MyShowsLoading isMobile={isMobile} />;
   }
 
   return (
