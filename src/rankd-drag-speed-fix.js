@@ -25,18 +25,18 @@ function getDirection(clientY) {
 
 function getStepSize() {
   const ticks = rankdEdgeState?.ticks || 0;
-  if (ticks > 24) return 25;
-  if (ticks > 12) return 15;
-  if (ticks > 5) return 10;
-  return 5;
+  if (ticks > 28) return 8;
+  if (ticks > 16) return 5;
+  if (ticks > 7) return 3;
+  return 1;
 }
 
 function getDelay() {
   const ticks = rankdEdgeState?.ticks || 0;
-  if (ticks > 24) return 95;
-  if (ticks > 12) return 125;
-  if (ticks > 5) return 155;
-  return 210;
+  if (ticks > 28) return 130;
+  if (ticks > 16) return 165;
+  if (ticks > 7) return 205;
+  return 260;
 }
 
 function getOverlay() {
