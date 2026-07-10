@@ -78,6 +78,10 @@
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
+.rankd-share-instagram {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.24), rgba(219, 39, 119, 0.28), rgba(124, 58, 237, 0.22)) !important;
+}
+
 .rankd-share-whatsapp {
   background: rgba(34, 197, 94, 0.2) !important;
 }
