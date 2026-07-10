@@ -213,6 +213,114 @@
   }
 }
 
+.msd-page .msd-loading {
+  position: relative !important;
+  display: block !important;
+  min-height: 520px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  overflow: hidden !important;
+}
+
+.msd-page .msd-loading::before {
+  content: "🍔\A Loading show...";
+  display: flex;
+  min-height: 92px;
+  margin: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.26), transparent 52%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.66));
+  color: #f8fafc;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.25;
+  text-align: center;
+  white-space: pre;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+  animation: following-loader-float 1.7s ease-in-out infinite;
+}
+
+.msd-page .msd-loading::after {
+  content: "";
+  display: block;
+  min-height: 408px;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent) -180px 0 / 180px 100% no-repeat,
+    linear-gradient(#22304a, #22304a) 20px 22px / 156px 232px no-repeat,
+    linear-gradient(#22304a, #22304a) 198px 30px / 48% 24px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 198px 70px / 34% 14px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 198px 104px / calc(100% - 226px) 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 198px 126px / calc(100% - 260px) 12px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 198px 148px / calc(100% - 290px) 12px no-repeat,
+    linear-gradient(#22304a, #22304a) 198px 192px / 90px 58px no-repeat,
+    linear-gradient(#22304a, #22304a) 300px 192px / 90px 58px no-repeat,
+    linear-gradient(#22304a, #22304a) 402px 192px / 90px 58px no-repeat,
+    linear-gradient(#22304a, #22304a) 20px 286px / 36% 22px no-repeat,
+    linear-gradient(#1d2940, #1d2940) 20px 326px / calc(100% - 40px) 64px no-repeat,
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.72));
+  animation: show-detail-loader-shimmer 1.35s linear infinite;
+}
+
+@media (max-width: 768px) {
+  .msd-page .msd-loading {
+    min-height: 590px !important;
+    padding: 0 10px !important;
+  }
+
+  .msd-page .msd-loading::before {
+    margin-top: 0;
+  }
+
+  .msd-page .msd-loading::after {
+    min-height: 470px;
+    background:
+      linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent) -180px 0 / 180px 100% no-repeat,
+      linear-gradient(#22304a, #22304a) 0 0 / 100% 140px no-repeat,
+      linear-gradient(#22304a, #22304a) right 10px top 96px / 92px 132px no-repeat,
+      linear-gradient(#22304a, #22304a) 0 176px / 54% 24px no-repeat,
+      linear-gradient(#1d2940, #1d2940) 0 214px / 38% 12px no-repeat,
+      linear-gradient(#1d2940, #1d2940) 0 240px / 100% 12px no-repeat,
+      linear-gradient(#1d2940, #1d2940) 0 262px / 88% 12px no-repeat,
+      linear-gradient(#1d2940, #1d2940) 0 284px / 74% 12px no-repeat,
+      linear-gradient(#22304a, #22304a) 0 324px / 18% 56px no-repeat,
+      linear-gradient(#22304a, #22304a) 20.5% 324px / 18% 56px no-repeat,
+      linear-gradient(#22304a, #22304a) 41% 324px / 18% 56px no-repeat,
+      linear-gradient(#22304a, #22304a) 61.5% 324px / 18% 56px no-repeat,
+      linear-gradient(#22304a, #22304a) 82% 324px / 18% 56px no-repeat,
+      linear-gradient(#22304a, #22304a) 0 416px / 45% 20px no-repeat,
+      linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.72));
+  }
+}
+
+@keyframes show-detail-loader-shimmer {
+  100% {
+    background-position:
+      calc(100% + 180px) 0,
+      20px 22px,
+      198px 30px,
+      198px 70px,
+      198px 104px,
+      198px 126px,
+      198px 148px,
+      198px 192px,
+      300px 192px,
+      402px 192px,
+      20px 286px,
+      20px 326px,
+      0 0;
+  }
+}
+
 @keyframes following-loader-shimmer {
   100% {
     background-position:
