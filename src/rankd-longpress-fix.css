@@ -24,3 +24,8 @@ body.rankd-drag-active .rankd-page * {
 .rankd-drag-active .rankd-page .rankd-leaderboard-row {
   touch-action: none !important;
 }
+
+body.rankd-silent-move-active .login-modal-overlay {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
