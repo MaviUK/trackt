@@ -119,6 +119,10 @@
   animation: following-loader-shimmer 1.35s linear infinite;
 }
 
+.rankd-page .rankd-notice-card {
+  display: none !important;
+}
+
 @keyframes following-loader-shimmer {
   100% {
     background-position:
