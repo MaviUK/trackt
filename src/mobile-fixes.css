@@ -142,3 +142,175 @@
     transform: translateY(-3px);
   }
 }
+
+.rankd-versus {
+  width: 62px !important;
+  height: 62px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899) !important;
+  color: #fff !important;
+  font-weight: 1000 !important;
+  letter-spacing: 0.06em !important;
+  box-shadow: 0 16px 38px rgba(139, 92, 246, 0.32) !important;
+}
+
+.rankd-matchup-stats {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-top: 18px !important;
+  border: 1px solid rgba(139, 92, 246, 0.24) !important;
+  background: rgba(139, 92, 246, 0.06) !important;
+  border-radius: 20px !important;
+  padding: 14px !important;
+}
+
+.rankd-matchup-stats > div {
+  display: grid !important;
+  gap: 4px !important;
+  text-align: center !important;
+}
+
+.rankd-matchup-stats strong {
+  color: #ffffff !important;
+  font-size: 1.15rem !important;
+}
+
+.rankd-matchup-stats span {
+  color: var(--text-muted) !important;
+  font-size: 0.82rem !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.rankd-actions-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin-top: 16px !important;
+}
+
+.rankd-card-heading,
+.rankd-leaderboard-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  align-items: center !important;
+  margin-bottom: 14px !important;
+}
+
+.rankd-card-heading h2,
+.rankd-leaderboard-header h2 {
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+}
+
+.rankd-card-heading p,
+.rankd-leaderboard-header p {
+  margin: 6px 0 0 !important;
+  color: var(--text-muted) !important;
+}
+
+.rankd-leaderboard-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px !important;
+  border-radius: 16px !important;
+  text-decoration: none !important;
+  color: inherit !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.rankd-leaderboard-rank {
+  min-width: 38px !important;
+  color: #c4b5fd !important;
+  font-weight: 1000 !important;
+}
+
+.rankd-leaderboard-item img,
+.rankd-mini-poster {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 14px !important;
+  background: #111827 !important;
+  object-fit: cover !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 900 !important;
+}
+
+.rankd-leaderboard-item span:last-child {
+  display: grid !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+
+.rankd-leaderboard-item strong {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.rankd-leaderboard-item small {
+  color: var(--text-muted) !important;
+}
+
+@media (max-width: 768px) {
+  .rankd-page {
+    margin-top: -16px !important;
+    padding-bottom: 88px !important;
+  }
+
+  .rankd-page .page-shell {
+    padding-top: 0 !important;
+  }
+
+  .rankd-main-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .rankd-battle-shell {
+    padding: 14px !important;
+  }
+
+  .rankd-battle-layout {
+    gap: 8px !important;
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) !important;
+  }
+
+  .rankd-versus {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .rankd-poster-frame {
+    width: 100% !important;
+    max-width: 150px !important;
+    border-radius: 16px !important;
+  }
+
+  .rankd-card-title {
+    font-size: 0.88rem !important;
+  }
+
+  .rankd-matchup-stats {
+    margin-top: 14px !important;
+    padding: 12px !important;
+  }
+
+  .rankd-card-heading {
+    align-items: flex-start !important;
+  }
+}
