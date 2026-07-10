@@ -146,7 +146,7 @@ async function copyRankdShareLink(url, message = "Link copied") {
   }
 }
 
-async function shareToInstagram(title, text, url) {
+async function shareViaNativeOrCopy(title, text, url, platformName, fallbackUrl = "") {
   if (navigator.share) {
     try {
       await navigator.share({ title, text, url });
@@ -158,10 +158,24 @@ async function shareToInstagram(title, text, url) {
     }
   }
 
-  await copyRankdShareLink(url, "Link copied - paste it into Instagram");
-  window.setTimeout(() => {
-    openExternalShare("https://www.instagram.com/");
-  }, 450);
+  await copyRankdShareLink(url, `Link copied - paste it into ${platformName}`);
+  if (fallbackUrl) {
+    window.setTimeout(() => {
+      openExternalShare(fallbackUrl);
+    }, 450);
+  }
+}
+
+async function shareToInstagram(title, text, url) {
+  await shareViaNativeOrCopy(title, text, url, "Instagram", "https://www.instagram.com/");
+}
+
+async function shareToThreads(title, text, url) {
+  await shareViaNativeOrCopy(title, text, url, "Threads", "https://www.threads.net/");
+}
+
+async function shareToMessenger(title, text, url) {
+  await shareViaNativeOrCopy(title, text, url, "Messenger", "https://www.messenger.com/");
 }
 
 function showRankdCopied(message) {
@@ -200,6 +214,7 @@ function showRankdShareSheet(url) {
   const { title, text } = getRankdShareCopy(url);
   const encodedUrl = encodeURIComponent(url);
   const encodedText = encodeURIComponent(text);
+  const encodedTitle = encodeURIComponent(title);
   const combinedText = encodeURIComponent(`${text}\n${url}`);
 
   const overlay = document.createElement("div");
@@ -260,14 +275,14 @@ function showRankdShareSheet(url) {
   );
 
   options.appendChild(
-    createShareButton("WhatsApp", "rankd-share-whatsapp", () => {
-      openExternalShare(`https://wa.me/?text=${combinedText}`);
+    createShareButton("Threads", "rankd-share-threads", () => {
+      shareToThreads(title, text, url);
     })
   );
 
   options.appendChild(
-    createShareButton("X", "rankd-share-x", () => {
-      openExternalShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`);
+    createShareButton("WhatsApp", "rankd-share-whatsapp", () => {
+      openExternalShare(`https://wa.me/?text=${combinedText}`);
     })
   );
 
@@ -278,8 +293,32 @@ function showRankdShareSheet(url) {
   );
 
   options.appendChild(
+    createShareButton("X", "rankd-share-x", () => {
+      openExternalShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`);
+    })
+  );
+
+  options.appendChild(
+    createShareButton("Reddit", "rankd-share-reddit", () => {
+      openExternalShare(`https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`);
+    })
+  );
+
+  options.appendChild(
+    createShareButton("Messenger", "rankd-share-messenger", () => {
+      shareToMessenger(title, text, url);
+    })
+  );
+
+  options.appendChild(
     createShareButton("Telegram", "rankd-share-telegram", () => {
       openExternalShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`);
+    })
+  );
+
+  options.appendChild(
+    createShareButton("SMS", "rankd-share-sms", () => {
+      window.location.href = `sms:?body=${combinedText}`;
     })
   );
 
