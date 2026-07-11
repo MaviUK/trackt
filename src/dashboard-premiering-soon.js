@@ -1,6 +1,6 @@
 import { supabase } from "./lib/supabase";
 
-const CACHE_KEY = "trackt_premiering_s01e01_v4";
+const CACHE_KEY = "trackt_premiering_s01e01_v5";
 const CACHE_DURATION = 1000 * 60 * 30;
 
 function readCache() {
@@ -49,7 +49,8 @@ function isValidUpcomingPremiere(show) {
     days >= 0 &&
     days <= 7 &&
     Number(show?.premiere_season_number) === 1 &&
-    Number(show?.premiere_episode_number) === 1
+    Number(show?.premiere_episode_number) === 1 &&
+    Boolean(show?.tmdb_id || show?.tvdb_id)
   );
 }
 
@@ -77,7 +78,7 @@ async function loadShows() {
   if (cached) return cached.filter(isValidUpcomingPremiere);
 
   const response = await fetch(
-    `/.netlify/functions/getS01E01Premieres?v=4&t=${Date.now()}`,
+    `/.netlify/functions/getS01E01Premieres?v=5&t=${Date.now()}`,
     { cache: "no-store" }
   );
   const payload = await response.json();
@@ -93,29 +94,38 @@ async function loadShows() {
   return shows;
 }
 
-async function getSavedTmdbIds() {
+async function getSavedIds() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return new Set();
+  const empty = { tmdb: new Set(), tvdb: new Set() };
+  if (!user) return empty;
 
   const { data, error } = await supabase
     .from("user_shows_new")
-    .select("shows!inner(tmdb_id)")
+    .select("shows!inner(tmdb_id,tvdb_id)")
     .eq("user_id", user.id);
 
   if (error) {
     console.warn("Failed loading saved premiere badges", error);
-    return new Set();
+    return empty;
   }
 
-  return new Set(
-    (data || [])
-      .map((row) => row?.shows?.tmdb_id)
-      .filter(Boolean)
-      .map(String)
-  );
+  return {
+    tmdb: new Set(
+      (data || [])
+        .map((row) => row?.shows?.tmdb_id)
+        .filter(Boolean)
+        .map(String)
+    ),
+    tvdb: new Set(
+      (data || [])
+        .map((row) => row?.shows?.tvdb_id)
+        .filter(Boolean)
+        .map(String)
+    ),
+  };
 }
 
 function findSection() {
@@ -129,13 +139,21 @@ function findSection() {
   });
 }
 
-function createCard(show, savedTmdbIds) {
-  const tmdbId = show?.tmdb_id || show?.id;
-  const isSaved = savedTmdbIds.has(String(tmdbId));
+function createCard(show, savedIds) {
+  const tmdbId = show?.tmdb_id || null;
+  const tvdbId = show?.tvdb_id || null;
+  const isSaved =
+    (tmdbId && savedIds.tmdb.has(String(tmdbId))) ||
+    (tvdbId && savedIds.tvdb.has(String(tvdbId)));
   const premiereDate = show?.premiere_date || show?.first_air_date;
   const link = document.createElement("a");
   link.className = "premiere-card";
-  link.href = isSaved ? `/my-shows/tmdb/${tmdbId}` : `/show/tmdb/${tmdbId}`;
+
+  if (isSaved) {
+    link.href = tmdbId ? `/my-shows/tmdb/${tmdbId}` : `/my-shows/${tvdbId}`;
+  } else {
+    link.href = tmdbId ? `/show/tmdb/${tmdbId}` : `/show/${tvdbId}`;
+  }
 
   const posterWrap = document.createElement("div");
   posterWrap.className = "premiere-card-poster-wrap";
@@ -181,9 +199,9 @@ function createCard(show, savedTmdbIds) {
 
 async function enhanceSection() {
   const section = findSection();
-  if (!section || section.dataset.premiereEnhanced === "s01e01-v4") return;
+  if (!section || section.dataset.premiereEnhanced === "s01e01-v5") return;
 
-  section.dataset.premiereEnhanced = "s01e01-v4";
+  section.dataset.premiereEnhanced = "s01e01-v5";
   const heading = section.querySelector("h2");
   if (heading) heading.textContent = "New Shows Premiering This Week";
 
@@ -197,10 +215,7 @@ async function enhanceSection() {
   section.appendChild(loading);
 
   try {
-    const [shows, savedTmdbIds] = await Promise.all([
-      loadShows(),
-      getSavedTmdbIds(),
-    ]);
+    const [shows, savedIds] = await Promise.all([loadShows(), getSavedIds()]);
 
     loading.remove();
 
@@ -215,7 +230,7 @@ async function enhanceSection() {
 
     const row = document.createElement("div");
     row.className = "premiere-row";
-    shows.forEach((show) => row.appendChild(createCard(show, savedTmdbIds)));
+    shows.forEach((show) => row.appendChild(createCard(show, savedIds)));
     section.appendChild(row);
   } catch (error) {
     console.error("Failed enhancing Premiering Soon", error);
