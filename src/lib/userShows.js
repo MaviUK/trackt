@@ -1,6 +1,11 @@
 import { supabase } from "./supabase";
 import { saveShowToDatabase } from "./saveShowToDatabase";
 
+const MY_SHOWS_CACHE_PREFIX = "trackt_my_shows_cache_v1";
+const MY_SHOWS_LAST_CACHE_KEY = `${MY_SHOWS_CACHE_PREFIX}:last`;
+const DASHBOARD_CACHE_PREFIX = "trackt_dashboard_cache_v6_SAVED_SHOW_ID_LINKS";
+const DASHBOARD_PUBLIC_CACHE_KEY = `${DASHBOARD_CACHE_PREFIX}:public`;
+
 function normalizePositiveNumber(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === "string" && value.trim() === "") return null;
@@ -30,6 +35,22 @@ function getResolvedTmdbId(show) {
       show?.tmdb ??
       (show?.source === "tmdb" ? show?.id : null)
   );
+}
+
+export function clearUserShowCaches(userId) {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (userId) {
+      window.localStorage.removeItem(`${MY_SHOWS_CACHE_PREFIX}:${userId}`);
+      window.localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}:${userId}`);
+    }
+
+    window.localStorage.removeItem(MY_SHOWS_LAST_CACHE_KEY);
+    window.localStorage.removeItem(DASHBOARD_PUBLIC_CACHE_KEY);
+  } catch (error) {
+    console.warn("Failed clearing user show caches:", error);
+  }
 }
 
 export async function addShowToUserList(show) {
@@ -98,6 +119,8 @@ export async function addShowToUserList(show) {
   });
 
   if (error) throw error;
+
+  clearUserShowCaches(user.id);
 
   return savedShow;
 }
