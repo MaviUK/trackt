@@ -358,7 +358,9 @@ export default function Notifications() {
                       />
                     ) : null}
                   </div>
-                  {item.body ? <p>{item.body}</p> : null}
+                  {item.type !== "review_reply" && item.body ? (
+                    <p>{item.body}</p>
+                  ) : null}
                   <small>{formatDate(item.created_at)}</small>
                 </div>
               </>
