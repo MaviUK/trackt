@@ -1,7 +1,7 @@
 import { supabase } from "./lib/supabase";
 
-const CACHE_KEY = "trackt_premiering_s01e01_v3";
-const CACHE_DURATION = 1000 * 60 * 60;
+const CACHE_KEY = "trackt_premiering_s01e01_v4";
+const CACHE_DURATION = 1000 * 60 * 30;
 
 function readCache() {
   try {
@@ -31,15 +31,32 @@ function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatCountdown(value) {
+function getDaysUntil(value) {
   const date = normalizeDate(value);
-  if (!date) return "Coming soon";
+  if (!date) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const days = Math.round((date - today) / 86400000);
+  return Math.round((date - today) / 86400000);
+}
 
-  if (days <= 0) return "Today";
+function isValidUpcomingPremiere(show) {
+  const premiereDate = show?.premiere_date || show?.first_air_date;
+  const days = getDaysUntil(premiereDate);
+
+  return (
+    days != null &&
+    days >= 0 &&
+    days <= 7 &&
+    Number(show?.premiere_season_number) === 1 &&
+    Number(show?.premiere_episode_number) === 1
+  );
+}
+
+function formatCountdown(value) {
+  const days = getDaysUntil(value);
+  if (days == null) return "Coming soon";
+  if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
   return `In ${days} days`;
 }
@@ -57,16 +74,21 @@ function formatDate(value) {
 
 async function loadShows() {
   const cached = readCache();
-  if (cached) return cached;
+  if (cached) return cached.filter(isValidUpcomingPremiere);
 
-  const response = await fetch("/.netlify/functions/getPremieringSoonShows");
+  const response = await fetch(
+    `/.netlify/functions/getS01E01Premieres?v=4&t=${Date.now()}`,
+    { cache: "no-store" }
+  );
   const payload = await response.json();
 
   if (!response.ok) {
     throw new Error(payload?.message || "Failed to load upcoming premieres");
   }
 
-  const shows = Array.isArray(payload?.shows) ? payload.shows : [];
+  const shows = (Array.isArray(payload?.shows) ? payload.shows : []).filter(
+    isValidUpcomingPremiere
+  );
   writeCache(shows);
   return shows;
 }
@@ -99,7 +121,11 @@ async function getSavedTmdbIds() {
 function findSection() {
   return [...document.querySelectorAll(".trending-section")].find((section) => {
     const heading = section.querySelector("h2")?.textContent?.trim();
-    return heading === "Premiering Soon" || heading === "New Shows Coming Soon";
+    return [
+      "Premiering Soon",
+      "New Shows Coming Soon",
+      "New Shows Premiering This Week",
+    ].includes(heading);
   });
 }
 
@@ -155,9 +181,9 @@ function createCard(show, savedTmdbIds) {
 
 async function enhanceSection() {
   const section = findSection();
-  if (!section || section.dataset.premiereEnhanced === "s01e01-v3") return;
+  if (!section || section.dataset.premiereEnhanced === "s01e01-v4") return;
 
-  section.dataset.premiereEnhanced = "s01e01-v3";
+  section.dataset.premiereEnhanced = "s01e01-v4";
   const heading = section.querySelector("h2");
   if (heading) heading.textContent = "New Shows Premiering This Week";
 
@@ -181,7 +207,8 @@ async function enhanceSection() {
     if (!shows.length) {
       const message = document.createElement("p");
       message.className = "empty-state";
-      message.textContent = "No verified S01E01 premieres are scheduled in the next seven days.";
+      message.textContent =
+        "No verified S01E01 premieres are scheduled in the next seven days.";
       section.appendChild(message);
       return;
     }
