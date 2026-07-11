@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TV Tracker</title>
+    <style>
+      @media (max-width: 768px) {
+        .my-shows-page {
+          padding-bottom: calc(
+            var(--mobile-nav-height, 72px) + 32px + env(safe-area-inset-bottom)
+          ) !important;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
