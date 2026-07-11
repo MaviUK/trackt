@@ -1,0 +1,230 @@
+.dashboard-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #09101d 0%, #0b1020 100%);
+  padding: 112px 16px calc(var(--mobile-nav-height, 72px) + 28px);
+}
+
+.dashboard-loader-content {
+  width: min(100%, 1200px);
+  margin: 0 auto;
+}
+
+.dashboard-loader-hero {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  padding: 20px 16px;
+  margin-bottom: 24px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.26), transparent 52%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.66));
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+}
+
+.dashboard-loader-burger {
+  font-size: 34px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: dashboard-loader-float 1.7s ease-in-out infinite;
+}
+
+.dashboard-loader-hero h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(24px, 4vw, 30px);
+  font-weight: 950;
+}
+
+.dashboard-loader-hero p {
+  margin: 8px 0 0;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dashboard-loader-section {
+  margin-bottom: 26px;
+}
+
+.dashboard-loader-heading {
+  width: 155px;
+  height: 24px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+
+.dashboard-loader-heading-wide {
+  width: 255px;
+}
+
+.dashboard-loader-posters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dashboard-loader-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 16px;
+}
+
+.dashboard-loader-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(145px, 1fr));
+  gap: 12px;
+  overflow: hidden;
+  margin: 4px 0 28px;
+}
+
+.dashboard-loader-stat {
+  min-height: 122px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  padding: 20px;
+  background: rgba(18, 26, 43, 0.82);
+}
+
+.dashboard-loader-line,
+.dashboard-loader-value,
+.dashboard-loader-episode-poster {
+  border-radius: 999px;
+}
+
+.dashboard-loader-line-short {
+  width: 72%;
+  height: 16px;
+  margin-bottom: 18px;
+}
+
+.dashboard-loader-value {
+  width: 48%;
+  height: 34px;
+}
+
+.dashboard-loader-episodes {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-loader-episode {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 136px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 24px;
+  padding: 16px;
+  background: rgba(18, 26, 43, 0.78);
+}
+
+.dashboard-loader-episode-poster {
+  flex: 0 0 84px;
+  width: 84px;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+}
+
+.dashboard-loader-episode-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-loader-line-title {
+  width: 42%;
+  height: 20px;
+  margin-bottom: 14px;
+}
+
+.dashboard-loader-line-wide {
+  width: 82%;
+  height: 16px;
+  margin-bottom: 12px;
+}
+
+.dashboard-loader-line-medium {
+  width: 58%;
+  height: 14px;
+}
+
+.dashboard-loader-shimmer {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.085), transparent)
+      -180px 0 / 180px 100% no-repeat,
+    #182235;
+  animation: dashboard-loader-shimmer 1.35s linear infinite;
+}
+
+@keyframes dashboard-loader-shimmer {
+  100% {
+    background-position: calc(100% + 180px) 0, 0 0;
+  }
+}
+
+@keyframes dashboard-loader-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@media (min-width: 769px) {
+  .dashboard-loading-screen {
+    padding-top: 96px;
+    padding-bottom: 36px;
+  }
+
+  .dashboard-loader-posters {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .dashboard-loader-poster {
+    border-radius: 18px;
+  }
+
+  .dashboard-loader-hero p {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-loading-screen {
+    padding-top: 112px;
+  }
+
+  .dashboard-loader-hero {
+    padding: 18px 14px;
+  }
+
+  .dashboard-loader-stats {
+    display: flex;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .dashboard-loader-stat {
+    flex: 0 0 44%;
+    min-width: 44%;
+    min-height: 116px;
+    padding: 18px 16px;
+  }
+
+  .dashboard-loader-episode {
+    min-height: 122px;
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .dashboard-loader-episode-poster {
+    flex-basis: 70px;
+    width: 70px;
+  }
+}
