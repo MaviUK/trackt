@@ -6,6 +6,10 @@ const MAX_WAIT_MS = 12000;
 let activeKey = "";
 let scheduled = false;
 
+function sleep(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 function waitFor(getElement, timeout = MAX_WAIT_MS) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
@@ -78,22 +82,45 @@ function findTextElement(containerSelector, body) {
   );
 }
 
+async function expandReviewRepliesUntilVisible(body) {
+  const section = await waitFor(() =>
+    document.querySelector(".msd-reviews-section .msd-review-list")
+  );
+  if (!section) return null;
+
+  const startedAt = Date.now();
+  let quietPasses = 0;
+
+  while (Date.now() - startedAt < MAX_WAIT_MS) {
+    const target = findTextElement(".msd-reviews-section", body);
+    if (target) return target;
+
+    const collapsedButtons = [
+      ...section.querySelectorAll(".msd-review-replies-toggle"),
+    ].filter((button) =>
+      button.textContent?.trim().toLowerCase().startsWith("view")
+    );
+
+    if (collapsedButtons.length > 0) {
+      quietPasses = 0;
+      collapsedButtons.forEach((button) => button.click());
+      await sleep(220);
+      continue;
+    }
+
+    quietPasses += 1;
+    if (quietPasses >= 4) break;
+    await sleep(220);
+  }
+
+  return findTextElement(".msd-reviews-section", body);
+}
+
 async function openReviewTarget(targetId) {
   clickButtonByText(".msd-content-tab", "Reviews");
 
   const body = await getTargetBody("review_reply", targetId);
-  if (!body) return;
-
-  await waitFor(() => document.querySelector(".msd-reviews-section"));
-
-  let target = findTextElement(".msd-reviews-section", body);
-  if (!target) {
-    document.querySelectorAll(".msd-review-replies-toggle").forEach((button) => {
-      if (button.textContent?.trim().toLowerCase().startsWith("view")) button.click();
-    });
-
-    target = await waitFor(() => findTextElement(".msd-reviews-section", body));
-  }
+  const target = await expandReviewRepliesUntilVisible(body);
 
   if (target) highlightAndScroll(target);
 }
