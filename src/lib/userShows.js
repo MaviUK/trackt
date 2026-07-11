@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { saveShowToDatabase } from "./saveShowToDatabase";
+import { saveShowToDatabaseComplete } from "./saveShowToDatabaseComplete";
 
 const MY_SHOWS_CACHE_PREFIX = "trackt_my_shows_cache_v1";
 const MY_SHOWS_LAST_CACHE_KEY = `${MY_SHOWS_CACHE_PREFIX}:last`;
@@ -102,7 +102,7 @@ export async function addShowToUserList(show) {
     throw new Error("This show is missing both TVDB and TMDB IDs.");
   }
 
-  const savedShow = await saveShowToDatabase(normalizedShow);
+  const savedShow = await saveShowToDatabaseComplete(normalizedShow);
 
   if (!savedShow?.id) {
     throw new Error("Failed to save show to database.");

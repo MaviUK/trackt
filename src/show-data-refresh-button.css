@@ -1,0 +1,33 @@
+.show-data-refresh-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 18px;
+}
+
+.show-data-refresh-button {
+  appearance: none;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.14);
+  color: #f8fafc;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.show-data-refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+@media (max-width: 768px) {
+  .show-data-refresh-row {
+    justify-content: stretch;
+    margin: 0 18px 14px;
+  }
+
+  .show-data-refresh-button {
+    width: 100%;
+    min-height: 46px;
+  }
+}
