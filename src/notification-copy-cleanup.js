@@ -1,14 +1,12 @@
-function removeRedundantReviewReplyCopy() {
-  document.querySelectorAll(".notification-card .notification-body p").forEach((paragraph) => {
-    if (paragraph.textContent?.trim() === "Someone replied to your review.") {
-      paragraph.remove();
-    }
-  });
+function removeRedundantNotificationCopy() {
+  document
+    .querySelectorAll(".notification-card .notification-body > p")
+    .forEach((paragraph) => paragraph.remove());
 }
 
-const observer = new MutationObserver(removeRedundantReviewReplyCopy);
+const observer = new MutationObserver(removeRedundantNotificationCopy);
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-window.addEventListener("popstate", removeRedundantReviewReplyCopy);
-window.addEventListener("pageshow", removeRedundantReviewReplyCopy);
-removeRedundantReviewReplyCopy();
+window.addEventListener("popstate", removeRedundantNotificationCopy);
+window.addEventListener("pageshow", removeRedundantNotificationCopy);
+removeRedundantNotificationCopy();
