@@ -7,16 +7,22 @@ function buildPosterSkeletons() {
 }
 
 function buildStatSkeletons() {
-  return Array.from({ length: 4 }, () =>
-    `<div class="dashboard-loader-stat">
-      <div class="dashboard-loader-line dashboard-loader-line-short dashboard-loader-shimmer"></div>
-      <div class="dashboard-loader-value dashboard-loader-shimmer"></div>
-    </div>`
-  ).join("");
+  const labels = ["Total Shows", "In Progress", "Completed", "Time Watched"];
+
+  return labels
+    .map(
+      (label) => `
+        <div class="dashboard-loader-stat">
+          <span>${label}</span>
+          <div class="dashboard-loader-stat-value dashboard-loader-shimmer"></div>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function buildEpisodeSkeletons() {
-  return Array.from({ length: 3 }, () =>
+  return Array.from({ length: 4 }, () =>
     `<div class="dashboard-loader-episode">
       <div class="dashboard-loader-episode-poster dashboard-loader-shimmer"></div>
       <div class="dashboard-loader-episode-copy">
@@ -38,19 +44,15 @@ function createDashboardLoader() {
 
   overlay.innerHTML = `
     <div class="dashboard-loader-content">
-      <section class="dashboard-loader-hero">
-        <div class="dashboard-loader-burger" aria-hidden="true">🍔</div>
-        <h2>Loading your dashboard...</h2>
-        <p>Bringing your shows, stats and upcoming episodes together</p>
-      </section>
+      <span class="dashboard-loader-screen-reader-text">Loading dashboard...</span>
 
       <section class="dashboard-loader-section" aria-hidden="true">
-        <div class="dashboard-loader-heading dashboard-loader-shimmer"></div>
+        <h2>Trending Shows</h2>
         <div class="dashboard-loader-posters">${buildPosterSkeletons()}</div>
       </section>
 
       <section class="dashboard-loader-section" aria-hidden="true">
-        <div class="dashboard-loader-heading dashboard-loader-heading-wide dashboard-loader-shimmer"></div>
+        <h2>New Shows Premiering This Week</h2>
         <div class="dashboard-loader-posters">${buildPosterSkeletons()}</div>
       </section>
 
@@ -59,7 +61,7 @@ function createDashboardLoader() {
       </div>
 
       <section class="dashboard-loader-section dashboard-loader-airing" aria-hidden="true">
-        <div class="dashboard-loader-heading dashboard-loader-shimmer"></div>
+        <h2>Airing This Week</h2>
         <div class="dashboard-loader-episodes">${buildEpisodeSkeletons()}</div>
       </section>
     </div>
