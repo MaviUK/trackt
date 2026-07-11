@@ -12,6 +12,7 @@ import './show-data-refresh-button.css'
 import './dashboard-premiering-soon.css'
 import './dashboard-loading-screen.css'
 import './firefox-mobile-nav-fix.css'
+import './notification-alerts.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -22,6 +23,8 @@ import './public-shared-content.js'
 import './show-data-refresh-button.js'
 import './dashboard-premiering-soon.js'
 import './dashboard-loading-screen.js'
+import './notification-nav-badge.js'
+import './notification-deep-links.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
