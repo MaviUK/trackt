@@ -30,44 +30,15 @@ function clearStoredShowCaches() {
   }
 }
 
-function makeNoRowsDeletedError() {
-  return {
-    message: "The show could not be removed. No saved-show row was deleted.",
-    details: "The delete matched no user_shows_new row.",
-    hint: "Check the delete policy and the user/show IDs.",
-    code: "NO_ROWS_DELETED",
-  };
-}
-
-function wrapUserShowsMutation(builder, operation) {
+function wrapUserShowsMutation(builder) {
   return new Proxy(builder, {
     get(target, property) {
       if (property === "then") {
-        return (onFulfilled, onRejected) => {
-          const executable =
-            operation === "delete" && typeof target.select === "function"
-              ? target.select("id")
-              : target;
-
-          return executable.then((result) => {
-            let verifiedResult = result;
-
-            if (
-              operation === "delete" &&
-              !result?.error &&
-              (!Array.isArray(result?.data) || result.data.length === 0)
-            ) {
-              verifiedResult = {
-                ...result,
-                error: makeNoRowsDeletedError(),
-              };
-            }
-
-            if (!verifiedResult?.error) clearStoredShowCaches();
-
-            return onFulfilled ? onFulfilled(verifiedResult) : verifiedResult;
+        return (onFulfilled, onRejected) =>
+          target.then((result) => {
+            if (!result?.error) clearStoredShowCaches();
+            return onFulfilled ? onFulfilled(result) : result;
           }, onRejected);
-        };
       }
 
       const value = Reflect.get(target, property, target);
@@ -77,7 +48,7 @@ function wrapUserShowsMutation(builder, operation) {
       return (...args) => {
         const result = value.apply(target, args);
         return result && typeof result === "object"
-          ? wrapUserShowsMutation(result, operation)
+          ? wrapUserShowsMutation(result)
           : result;
       };
     },
@@ -145,8 +116,7 @@ client.from = (table) => {
       );
 
       if (isMutation && typeof value === "function") {
-        return (...args) =>
-          wrapUserShowsMutation(value.apply(target, args), operation);
+        return (...args) => wrapUserShowsMutation(value.apply(target, args));
       }
 
       if (property === "select" && typeof value === "function") {
