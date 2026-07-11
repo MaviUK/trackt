@@ -166,11 +166,6 @@ function createCard(show, savedIds) {
   image.decoding = "async";
   posterWrap.appendChild(image);
 
-  const episodeBadge = document.createElement("span");
-  episodeBadge.className = "premiere-episode-badge";
-  episodeBadge.textContent = "S01E01";
-  posterWrap.appendChild(episodeBadge);
-
   const countdown = document.createElement("span");
   countdown.className = "premiere-countdown";
   countdown.textContent = formatCountdown(premiereDate);
