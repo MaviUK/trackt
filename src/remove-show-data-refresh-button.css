@@ -1,0 +1,5 @@
+.show-data-refresh-button,
+.show-data-refresh-wrap,
+[data-show-data-refresh-button] {
+  display: none !important;
+}
