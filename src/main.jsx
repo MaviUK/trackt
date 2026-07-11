@@ -25,6 +25,7 @@ import './dashboard-premiering-soon.js'
 import './dashboard-loading-screen.js'
 import './notification-nav-badge.js'
 import './notification-deep-links.js'
+import './notification-copy-cleanup.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
