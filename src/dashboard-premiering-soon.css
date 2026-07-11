@@ -37,10 +37,12 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.2s ease;
 }
 
 .premiere-countdown,
-.premiere-saved-badge {
+.premiere-saved-badge,
+.premiere-episode-badge {
   position: absolute;
   left: 8px;
   border-radius: 999px;
@@ -62,6 +64,19 @@
   top: 8px;
   background: rgba(34, 197, 94, 0.92);
   color: #052e16;
+}
+
+.premiere-episode-badge {
+  top: 8px;
+  right: 8px;
+  left: auto;
+  background: rgba(124, 58, 237, 0.94);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.premiere-saved-badge + .premiere-episode-badge {
+  top: 42px;
 }
 
 .premiere-card-copy {
@@ -90,10 +105,6 @@
   transform: scale(1.02);
 }
 
-.premiere-card-image {
-  transition: transform 0.2s ease;
-}
-
 @media (max-width: 640px) {
   .premiere-row {
     gap: 10px;
@@ -109,7 +120,8 @@
   }
 
   .premiere-countdown,
-  .premiere-saved-badge {
+  .premiere-saved-badge,
+  .premiere-episode-badge {
     left: 6px;
     padding: 5px 7px;
     font-size: 10px;
@@ -121,6 +133,16 @@
 
   .premiere-saved-badge {
     top: 6px;
+  }
+
+  .premiere-episode-badge {
+    top: 6px;
+    right: 6px;
+    left: auto;
+  }
+
+  .premiere-saved-badge + .premiere-episode-badge {
+    top: 36px;
   }
 
   .premiere-card-copy strong {
