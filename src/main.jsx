@@ -14,6 +14,7 @@ import './dashboard-premiering-soon.css'
 import './dashboard-loading-screen.css'
 import './firefox-mobile-nav-fix.css'
 import './notification-alerts.css'
+import './public-show-watch-providers.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -27,6 +28,7 @@ import './dashboard-loading-screen.js'
 import './notification-nav-badge.js'
 import './notification-deep-links.js'
 import './notification-copy-cleanup.js'
+import './public-show-watch-providers.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
