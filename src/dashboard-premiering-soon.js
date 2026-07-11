@@ -1,7 +1,7 @@
 import { supabase } from "./lib/supabase";
 
-const CACHE_KEY = "trackt_premiering_soon_v2";
-const CACHE_DURATION = 1000 * 60 * 60 * 6;
+const CACHE_KEY = "trackt_premiering_s01e01_v3";
+const CACHE_DURATION = 1000 * 60 * 60;
 
 function readCache() {
   try {
@@ -49,6 +49,7 @@ function formatDate(value) {
   if (!date) return "";
 
   return date.toLocaleDateString("en-GB", {
+    weekday: "short",
     day: "numeric",
     month: "short",
   });
@@ -62,7 +63,7 @@ async function loadShows() {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(payload?.message || "Failed to load upcoming shows");
+    throw new Error(payload?.message || "Failed to load upcoming premieres");
   }
 
   const shows = Array.isArray(payload?.shows) ? payload.shows : [];
@@ -96,14 +97,16 @@ async function getSavedTmdbIds() {
 }
 
 function findSection() {
-  return [...document.querySelectorAll(".trending-section")].find(
-    (section) => section.querySelector("h2")?.textContent?.trim() === "Premiering Soon"
-  );
+  return [...document.querySelectorAll(".trending-section")].find((section) => {
+    const heading = section.querySelector("h2")?.textContent?.trim();
+    return heading === "Premiering Soon" || heading === "New Shows Coming Soon";
+  });
 }
 
 function createCard(show, savedTmdbIds) {
   const tmdbId = show?.tmdb_id || show?.id;
   const isSaved = savedTmdbIds.has(String(tmdbId));
+  const premiereDate = show?.premiere_date || show?.first_air_date;
   const link = document.createElement("a");
   link.className = "premiere-card";
   link.href = isSaved ? `/my-shows/tmdb/${tmdbId}` : `/show/tmdb/${tmdbId}`;
@@ -119,9 +122,14 @@ function createCard(show, savedTmdbIds) {
   image.decoding = "async";
   posterWrap.appendChild(image);
 
+  const episodeBadge = document.createElement("span");
+  episodeBadge.className = "premiere-episode-badge";
+  episodeBadge.textContent = "S01E01";
+  posterWrap.appendChild(episodeBadge);
+
   const countdown = document.createElement("span");
   countdown.className = "premiere-countdown";
-  countdown.textContent = formatCountdown(show?.first_air_date);
+  countdown.textContent = formatCountdown(premiereDate);
   posterWrap.appendChild(countdown);
 
   if (isSaved) {
@@ -138,7 +146,7 @@ function createCard(show, savedTmdbIds) {
   title.textContent = show?.name || "Unknown show";
 
   const date = document.createElement("span");
-  date.textContent = formatDate(show?.first_air_date);
+  date.textContent = formatDate(premiereDate);
 
   copy.append(title, date);
   link.append(posterWrap, copy);
@@ -147,20 +155,19 @@ function createCard(show, savedTmdbIds) {
 
 async function enhanceSection() {
   const section = findSection();
-  if (!section || section.dataset.premiereEnhanced === "true") return;
+  if (!section || section.dataset.premiereEnhanced === "s01e01-v3") return;
 
-  section.dataset.premiereEnhanced = "true";
+  section.dataset.premiereEnhanced = "s01e01-v3";
   const heading = section.querySelector("h2");
-  if (heading) heading.textContent = "New Shows Coming Soon";
+  if (heading) heading.textContent = "New Shows Premiering This Week";
 
-  const oldRow = section.querySelector(".trending-row");
-  const empty = section.querySelector(".empty-state");
-  if (oldRow) oldRow.remove();
-  if (empty) empty.remove();
+  section.querySelector(".trending-row")?.remove();
+  section.querySelector(".premiere-row")?.remove();
+  section.querySelector(".empty-state")?.remove();
 
   const loading = document.createElement("p");
   loading.className = "empty-state premiere-loading";
-  loading.textContent = "Loading upcoming shows...";
+  loading.textContent = "Finding new S01E01 premieres...";
   section.appendChild(loading);
 
   try {
@@ -174,7 +181,7 @@ async function enhanceSection() {
     if (!shows.length) {
       const message = document.createElement("p");
       message.className = "empty-state";
-      message.textContent = "No new shows are scheduled in the next 30 days.";
+      message.textContent = "No verified S01E01 premieres are scheduled in the next seven days.";
       section.appendChild(message);
       return;
     }
@@ -185,7 +192,7 @@ async function enhanceSection() {
     section.appendChild(row);
   } catch (error) {
     console.error("Failed enhancing Premiering Soon", error);
-    loading.textContent = "Upcoming shows could not be loaded right now.";
+    loading.textContent = "Upcoming premieres could not be loaded right now.";
   }
 }
 
