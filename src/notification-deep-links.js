@@ -3,6 +3,9 @@ import { supabase } from "./lib/supabase";
 const HIGHLIGHT_CLASS = "notification-target-highlight";
 const MAX_WAIT_MS = 12000;
 
+let activeKey = "";
+let scheduled = false;
+
 function waitFor(getElement, timeout = MAX_WAIT_MS) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
@@ -116,17 +119,38 @@ async function processNotificationDeepLink() {
   const targetId = params.get("notificationTarget");
   if (!type || !targetId) return;
 
+  const key = `${window.location.pathname}|${type}|${targetId}`;
+  if (activeKey === key) return;
+  activeKey = key;
+
   const pageReady = await waitFor(() => document.querySelector(".msd-page .msd-title"));
-  if (!pageReady) return;
+  if (!pageReady) {
+    activeKey = "";
+    return;
+  }
 
   try {
     if (type === "review_reply") await openReviewTarget(targetId);
     if (type === "chat_reply") await openChatTarget(targetId);
   } finally {
     cleanNotificationQuery();
+    activeKey = "";
   }
 }
 
-window.addEventListener("popstate", () => window.setTimeout(processNotificationDeepLink, 0));
-window.addEventListener("pageshow", () => window.setTimeout(processNotificationDeepLink, 0));
-window.setTimeout(processNotificationDeepLink, 0);
+function scheduleProcess() {
+  if (scheduled) return;
+  scheduled = true;
+
+  window.requestAnimationFrame(() => {
+    scheduled = false;
+    processNotificationDeepLink();
+  });
+}
+
+const observer = new MutationObserver(scheduleProcess);
+observer.observe(document.documentElement, { childList: true, subtree: true });
+
+window.addEventListener("popstate", scheduleProcess);
+window.addEventListener("pageshow", scheduleProcess);
+scheduleProcess();
