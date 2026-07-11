@@ -32,7 +32,8 @@ function renderBadge() {
       link.appendChild(badge);
     }
 
-    badge.textContent = currentCount > 99 ? "99+" : String(currentCount);
+    const label = currentCount > 99 ? "99+" : String(currentCount);
+    if (badge.textContent !== label) badge.textContent = label;
     link.classList.add("has-unread-alerts");
     link.setAttribute(
       "aria-label",
