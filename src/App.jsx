@@ -128,7 +128,7 @@ function DesktopNav({ session, profile }) {
           <NavLink to="/notifications" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Notifications</NavLink>
           <NavLink to="/search" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Search</NavLink>
           <NavLink to="/my-shows" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>My Shows</NavLink>
-          <NavLink to="/rankd" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Rank'd</NavLink>
+          <NavLink to="/rankd" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Rank&apos;d</NavLink>
           <NavLink to="/calendar" className={({ isActive }) => `top-tab${isActive ? " active" : ""}`}>Calendar</NavLink>
         </nav>
         <UserProfileLink session={session} profile={profile} />
@@ -147,40 +147,6 @@ function MobileTopBanner({ session, profile }) {
     <div className="mobile-top-banner-wrap">
       <BurgrsBanner />
       <UserProfileLink session={session} profile={profile} className="top-profile-link mobile-profile-link" />
-    </div>
-  );
-}
-
-function CreatorOwnerShortcuts({ session, profile }) {
-  const location = useLocation();
-  if (!session?.user?.id || !profile?.id || location.pathname === "/login") return null;
-  if (!location.pathname.startsWith("/u/")) return null;
-
-  const routeSlug = decodeURIComponent(location.pathname.replace(/^\/u\//, "").split("/")[0] || "");
-  const ownSlugs = [profile.username, profile.id].filter(Boolean).map(String);
-  const isOwnCreatorPage = ownSlugs.includes(routeSlug);
-  if (!isOwnCreatorPage) return null;
-
-  const linkStyle = {
-    flex: "1 1 0",
-    textAlign: "center",
-    padding: "10px 8px",
-    borderRadius: 14,
-    textDecoration: "none",
-    color: "#ffffff",
-    fontWeight: 900,
-    fontSize: 13,
-    background: "rgba(124,58,237,0.24)",
-    border: "1px solid rgba(196,181,253,0.26)",
-  };
-
-  return (
-    <div style={{ padding: "8px 12px 0", background: "#020617" }}>
-      <div style={{ display: "flex", gap: 8, maxWidth: 860, margin: "0 auto" }}>
-        <NavLink to="/profile/edit" style={linkStyle}>Edit profile</NavLink>
-        <NavLink to="/creator/posts/new" style={{ ...linkStyle, background: "linear-gradient(135deg, #7c3aed, #db2777)" }}>Create post</NavLink>
-        <NavLink to="/creator/lists/new" style={linkStyle}>Create list</NavLink>
-      </div>
     </div>
   );
 }
@@ -356,7 +322,6 @@ function AppLayout() {
     <>
       <ScrollToTopOnRouteChange />
       <MobileTopBanner session={session} profile={profile} />
-      <CreatorOwnerShortcuts session={session} profile={profile} />
 
       <Routes key={routeUserKey}>
         <Route path="/" element={<AuthRedirect session={session} />} />
