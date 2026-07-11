@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { markNotificationsRead, shouldIgnoreNotificationError } from "../lib/notifications";
 import "./Notifications.css";
+
+const NOTIFICATIONS_CHANGED_EVENT = "burgrs:notifications-changed";
 
 function formatDate(value) {
   if (!value) return "";
@@ -16,16 +18,36 @@ function formatDate(value) {
   });
 }
 
+function buildShowRoute(show, item) {
+  const params = new URLSearchParams({
+    notificationType: item.type,
+    notificationTarget: item.entity_id,
+  });
+
+  if (item.type === "review_reply") params.set("tab", "reviews");
+  if (item.type === "chat_reply") params.set("chat", "1");
+
+  if (show?.tmdb_id) return `/my-shows/tmdb/${show.tmdb_id}?${params.toString()}`;
+  if (show?.tvdb_id) return `/my-shows/${show.tvdb_id}?${params.toString()}`;
+  return item.url || "/notifications";
+}
+
 export default function Notifications() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
   const [tableMissing, setTableMissing] = useState(false);
+  const [openingId, setOpeningId] = useState(null);
 
   const unreadIds = useMemo(
     () => items.filter((item) => !item.read_at).map((item) => item.id),
     [items]
   );
+
+  function notifyBadgeChanged() {
+    window.dispatchEvent(new CustomEvent(NOTIFICATIONS_CHANGED_EVENT));
+  }
 
   async function loadNotifications() {
     setLoading(true);
@@ -42,7 +64,9 @@ export default function Notifications() {
 
       const { data, error: loadError } = await supabase
         .from("notifications")
-        .select("id, type, title, body, url, read_at, created_at")
+        .select(
+          "id, type, title, body, url, entity_table, entity_id, meta, read_at, created_at"
+        )
         .eq("recipient_user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(60);
@@ -75,6 +99,74 @@ export default function Notifications() {
       setItems((current) =>
         current.map((item) => (item.read_at ? item : { ...item, read_at: now }))
       );
+      notifyBadgeChanged();
+    }
+  }
+
+  async function resolveNotificationDestination(item) {
+    if (
+      !item?.entity_id ||
+      !["review_reply", "chat_reply"].includes(item.type)
+    ) {
+      return item.url || "/notifications";
+    }
+
+    const table = item.type === "chat_reply" ? "show_chat_messages" : "show_reviews";
+    const { data: targetRow, error: targetError } = await supabase
+      .from(table)
+      .select("id, show_id")
+      .eq("id", item.entity_id)
+      .maybeSingle();
+
+    if (targetError || !targetRow?.show_id) {
+      if (targetError) console.warn("Failed resolving notification target", targetError);
+      return item.url || "/notifications";
+    }
+
+    const { data: show, error: showError } = await supabase
+      .from("shows")
+      .select("id, tvdb_id, tmdb_id")
+      .eq("id", targetRow.show_id)
+      .maybeSingle();
+
+    if (showError) {
+      console.warn("Failed resolving notification show", showError);
+      return item.url || "/notifications";
+    }
+
+    return buildShowRoute(show, item);
+  }
+
+  async function openNotification(item, event) {
+    event.preventDefault();
+    if (openingId) return;
+
+    setOpeningId(item.id);
+    setError("");
+
+    try {
+      if (!item.read_at) {
+        const result = await markNotificationsRead([item.id]);
+        if (result.ok) {
+          const now = new Date().toISOString();
+          setItems((current) =>
+            current.map((currentItem) =>
+              currentItem.id === item.id
+                ? { ...currentItem, read_at: now }
+                : currentItem
+            )
+          );
+          notifyBadgeChanged();
+        }
+      }
+
+      const destination = await resolveNotificationDestination(item);
+      navigate(destination);
+    } catch (err) {
+      console.error("Failed opening notification:", err);
+      setError(err.message || "Could not open this notification.");
+    } finally {
+      setOpeningId(null);
     }
   }
 
@@ -118,14 +210,18 @@ export default function Notifications() {
               </>
             );
 
-            return item.url ? (
-              <Link key={item.id} to={item.url} className={`notification-card${item.read_at ? "" : " is-unread"}`}>
+            return (
+              <a
+                key={item.id}
+                href={item.url || "/notifications"}
+                onClick={(event) => openNotification(item, event)}
+                className={`notification-card${item.read_at ? "" : " is-unread"}${
+                  openingId === item.id ? " is-opening" : ""
+                }`}
+                aria-busy={openingId === item.id}
+              >
                 {card}
-              </Link>
-            ) : (
-              <article key={item.id} className={`notification-card${item.read_at ? "" : " is-unread"}`}>
-                {card}
-              </article>
+              </a>
             );
           })}
         </section>

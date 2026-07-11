@@ -1,0 +1,62 @@
+.mobile-nav-item {
+  position: relative;
+}
+
+.mobile-nav-item.has-unread-alerts .mobile-nav-icon {
+  color: #ff4d6d;
+  filter: drop-shadow(0 0 5px rgba(255, 59, 92, 0.95));
+  animation: mobile-alert-glow 1.8s ease-in-out infinite;
+}
+
+.mobile-alert-count-badge {
+  position: absolute;
+  top: 7px;
+  left: calc(50% + 5px);
+  z-index: 2;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #08101e;
+  border-radius: 999px;
+  background: #ef233c;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow:
+    0 0 0 2px rgba(239, 35, 60, 0.2),
+    0 0 12px rgba(239, 35, 60, 0.9);
+}
+
+.notification-target-highlight .msd-review-card {
+  border-color: rgba(239, 35, 60, 0.9) !important;
+  box-shadow:
+    0 0 0 2px rgba(239, 35, 60, 0.2),
+    0 0 24px rgba(239, 35, 60, 0.42) !important;
+  animation: notification-target-pulse 1.4s ease-in-out 2;
+}
+
+@keyframes mobile-alert-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(255, 59, 92, 0.65));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 10px rgba(255, 59, 92, 1));
+  }
+}
+
+@keyframes notification-target-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.012);
+  }
+}
