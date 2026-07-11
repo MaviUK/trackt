@@ -1,24 +1,89 @@
-async function fetchExternalIds(tmdbId) {
-  const res = await fetch(
-    `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids`,
-    {
-      headers: {
-        accept: "application/json",
-        Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
-      },
-    }
-  );
+const MAX_PAGES = 4;
+const MAX_SHOWS = 36;
 
-  if (!res.ok) return null;
-  return res.json();
+function jsonResponse(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=900, s-maxage=21600",
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 function formatDateOnly(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function buildTmdbUrl({ from, to, page }) {
+  const params = new URLSearchParams({
+    language: "en-GB",
+    sort_by: "popularity.desc",
+    first_air_date_gte: from,
+    first_air_date_lte: to,
+    include_adult: "false",
+    include_null_first_air_dates: "false",
+    page: String(page),
+  });
+
+  if (process.env.TMDB_API_KEY) {
+    params.set("api_key", process.env.TMDB_API_KEY);
+  }
+
+  return `https://api.themoviedb.org/3/discover/tv?${params.toString()}`;
+}
+
+async function fetchTmdbPage({ from, to, page }) {
+  const headers = { accept: "application/json" };
+
+  if (process.env.TMDB_BEARER_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.TMDB_BEARER_TOKEN}`;
+  }
+
+  const response = await fetch(buildTmdbUrl({ from, to, page }), { headers });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.status_message || `TMDB request failed with ${response.status}`
+    );
+  }
+
+  return payload;
+}
+
+function normalizeShow(show) {
+  if (!show?.id || !show?.first_air_date || !show?.poster_path) return null;
+
+  return {
+    id: show.id,
+    tmdb_id: show.id,
+    tvdb_id: null,
+    name: show.name || show.original_name || "Unknown title",
+    original_name: show.original_name || null,
+    image: `https://image.tmdb.org/t/p/w500${show.poster_path}`,
+    poster_url: `https://image.tmdb.org/t/p/w500${show.poster_path}`,
+    overview: show.overview || "",
+    first_air_date: show.first_air_date,
+    popularity: Number(show.popularity || 0),
+    vote_average: Number(show.vote_average || 0),
+    vote_count: Number(show.vote_count || 0),
+    original_language: show.original_language || null,
+    origin_country: Array.isArray(show.origin_country)
+      ? show.origin_country
+      : [],
+  };
+}
+
 export async function handler() {
   try {
+    if (!process.env.TMDB_BEARER_TOKEN && !process.env.TMDB_API_KEY) {
+      return jsonResponse(500, {
+        message: "Missing TMDB_BEARER_TOKEN or TMDB_API_KEY",
+      });
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -28,73 +93,59 @@ export async function handler() {
     const from = formatDateOnly(today);
     const to = formatDateOnly(in30Days);
 
-    const res = await fetch(
-      `https://api.themoviedb.org/3/discover/tv?language=en-US&sort_by=first_air_date.asc&first_air_date.gte=${from}&first_air_date.lte=${to}&page=1`,
-      {
-        headers: {
-          accept: "application/json",
-          Authorization: `Bearer ${process.env.TMDB_BEARER_TOKEN}`,
-        },
-      }
+    const firstPage = await fetchTmdbPage({ from, to, page: 1 });
+    const totalPages = Math.max(
+      1,
+      Math.min(Number(firstPage?.total_pages || 1), MAX_PAGES)
     );
 
-    const json = await res.json();
+    const remainingPages =
+      totalPages > 1
+        ? await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+              fetchTmdbPage({ from, to, page: index + 2 })
+            )
+          )
+        : [];
 
-    if (!res.ok) {
-      return {
-        statusCode: res.status,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store",
-        },
-        body: JSON.stringify(json),
-      };
-    }
+    const deduped = new Map();
 
-    const baseShows = json.results || [];
+    [firstPage, ...remainingPages].forEach((pagePayload) => {
+      (pagePayload?.results || []).forEach((rawShow) => {
+        const show = normalizeShow(rawShow);
+        if (!show) return;
 
-    const shows = (
-      await Promise.all(
-        baseShows.map(async (show) => {
-          const externalIds = await fetchExternalIds(show.id);
+        const existing = deduped.get(String(show.tmdb_id));
+        if (!existing || show.popularity > existing.popularity) {
+          deduped.set(String(show.tmdb_id), show);
+        }
+      });
+    });
 
-          return {
-            id: show.id,
-            tmdb_id: show.id,
-            tvdb_id: externalIds?.tvdb_id || null,
-            name: show.name || "Unknown title",
-            image: show.poster_path
-              ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
-              : null,
-            overview: show.overview || "",
-            first_air_date: show.first_air_date || null,
-          };
-        })
-      )
-    )
-      .filter((show) => show.tvdb_id && show.first_air_date)
-      .sort(
-        (a, b) => new Date(a.first_air_date) - new Date(b.first_air_date)
-      );
+    const shows = [...deduped.values()]
+      .sort((a, b) => {
+        if (a.first_air_date !== b.first_air_date) {
+          return a.first_air_date.localeCompare(b.first_air_date);
+        }
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
+        return b.popularity - a.popularity;
+      })
+      .slice(0, MAX_SHOWS);
+
+    return jsonResponse(200, {
+      shows,
+      meta: {
+        from,
+        to,
+        pagesFetched: totalPages,
+        count: shows.length,
       },
-      body: JSON.stringify({ shows }),
-    };
+    });
   } catch (error) {
-    return {
-      statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({
-        message: error.message || "Failed to load premiering soon shows",
-      }),
-    };
+    console.error("getPremieringSoonShows error", error);
+
+    return jsonResponse(500, {
+      message: error?.message || "Failed to load premiering soon shows",
+    });
   }
 }
