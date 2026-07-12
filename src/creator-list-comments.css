@@ -1,0 +1,116 @@
+.creator-list-actions-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 136px;
+  z-index: 4;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 12px;
+  box-sizing: border-box;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 6, 23, 0.08) 0%,
+    rgba(2, 6, 23, 0.76) 34%,
+    rgba(2, 6, 23, 0.92) 100%
+  );
+}
+
+.creator-list-actions-row .burgrs-activity-share-btn {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.creator-list-comments-toggle {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #c4b5fd;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.creator-list-comments-toggle.is-open,
+.creator-list-comments-toggle:hover,
+.creator-list-comments-toggle:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.creator-list-comments-panel {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.96);
+  color: #f8fafc;
+}
+
+.creator-list-comment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.creator-list-comment-row {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.creator-list-comment-row p,
+.creator-list-comment-muted {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.creator-list-comment-muted {
+  color: #94a3b8;
+  font-weight: 800;
+}
+
+.creator-list-comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.creator-list-comment-form textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.52);
+  color: #f8fafc;
+  font: inherit;
+}
+
+.creator-list-comment-form button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #111827;
+  font-weight: 950;
+}
+
+.creator-list-comment-form button:disabled {
+  opacity: 0.45;
+}
