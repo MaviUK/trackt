@@ -45,7 +45,6 @@ async function loadProfileHeaderData(slug, expectedRouteKey) {
     id,
     creator_tagline,
     creator_bio,
-    bio,
     instagram_url,
     x_url,
     tiktok_url,
@@ -196,7 +195,7 @@ function ensureAboutText(socialRow) {
   const handle = document.querySelector(".creator-page .creator-handle");
   if (!heroContent) return;
 
-  const text = String(profileData?.creator_bio || profileData?.bio || "")
+  const text = String(profileData?.creator_bio || "")
     .trim()
     .slice(0, ABOUT_MAX_LENGTH);
 
