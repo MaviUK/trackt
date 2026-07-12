@@ -165,9 +165,6 @@ function ensureActions(card, listKey) {
     card.querySelector(":scope > .creator-list-cover-button")?.insertAdjacentElement("afterend", actions);
   }
 
-  const share = card.querySelector(":scope > .burgrs-activity-share-btn");
-  if (share && share.parentElement !== actions) actions.appendChild(share);
-
   let comments = actions.querySelector(".creator-list-comments-toggle");
   if (!comments) {
     comments = document.createElement("button");
@@ -180,11 +177,14 @@ function ensureActions(card, listKey) {
       event.stopPropagation();
       openPanel(card, actions, comments, listKey);
     });
-    actions.appendChild(comments);
     getCount(listKey).then((count) => {
       comments.textContent = count ? `${count} comment${count === 1 ? "" : "s"}` : "Comments";
     });
   }
+
+  const share = card.querySelector(":scope > .burgrs-activity-share-btn");
+  if (share) actions.insertBefore(share, actions.firstChild);
+  actions.appendChild(comments);
 }
 
 async function install() {
