@@ -16,6 +16,7 @@ import './firefox-mobile-nav-fix.css'
 import './notification-alerts.css'
 import './public-show-watch-providers.css'
 import './creator-profile-chats.css'
+import './creator-list-comments.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -31,6 +32,7 @@ import './notification-deep-links.js'
 import './notification-copy-cleanup.js'
 import './public-show-watch-providers.js'
 import './creator-profile-chats.js'
+import './creator-list-comments.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
