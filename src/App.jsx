@@ -79,17 +79,17 @@ function BellIcon() {
 function UserProfileLink({ session, profile, className = "top-profile-link" }) {
   if (!session) return null;
 
-  const displayName =
-    profile?.username ||
+  const username =
+    profile?.username || session.user?.user_metadata?.username || "";
+  const fallbackName =
     profile?.full_name ||
-    session.user?.user_metadata?.username ||
     session.user?.user_metadata?.full_name ||
     session.user?.email?.split("@")[0] ||
     "Profile";
-
+  const displayName = username ? `@${username}` : fallbackName;
   const avatarUrl = profile?.avatar_url || session.user?.user_metadata?.avatar_url || "";
-  const profilePath = profile?.username ? `/u/${encodeURIComponent(profile.username)}` : "/profile/edit";
-  const initial = displayName.charAt(0).toUpperCase();
+  const profilePath = username ? `/u/${encodeURIComponent(username)}` : "/profile/edit";
+  const initial = (username || fallbackName).charAt(0).toUpperCase();
 
   return (
     <NavLink to={profilePath} className={className}>
@@ -222,6 +222,19 @@ function LoginRoute({ session }) {
   return <Login />;
 }
 
+function AppStartupLoading() {
+  return (
+    <main className="app-startup-loading" aria-live="polite" aria-busy="true">
+      <div className="app-startup-loading-card">
+        <div className="app-startup-loading-burger" aria-hidden="true">🍔</div>
+        <strong>Loading BURGRS...</strong>
+        <span>Getting everything ready</span>
+        <div className="app-startup-loading-bar" aria-hidden="true" />
+      </div>
+    </main>
+  );
+}
+
 function MobileOnlyScreen() {
   return (
     <div
@@ -271,51 +284,84 @@ function AppLayout() {
 
   useEffect(() => {
     let mounted = true;
-    const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (mounted) setSession(data.session ?? null);
+    let sessionResolved = false;
+
+    const failSafeTimer = window.setTimeout(() => {
+      if (!mounted || sessionResolved) return;
+      console.warn("Session loading timed out; continuing without a session.");
+      setSession(null);
+    }, 4500);
+
+    const resolveSession = (nextSession) => {
+      if (!mounted) return;
+      sessionResolved = true;
+      window.clearTimeout(failSafeTimer);
+      setSession(nextSession ?? null);
     };
+
+    const loadSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        resolveSession(data?.session ?? null);
+      } catch (error) {
+        console.error("Error loading session:", error);
+        resolveSession(null);
+      }
+    };
+
     loadSession();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
       setProfile(null);
-      setSession(nextSession ?? null);
+      resolveSession(nextSession);
     });
+
     return () => {
       mounted = false;
+      window.clearTimeout(failSafeTimer);
       subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     let active = true;
+
     async function loadProfile() {
       if (!session?.user?.id) {
         setProfile(null);
         return;
       }
+
       setProfile(null);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, username, full_name, avatar_url")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      if (!active) return;
-      if (error) {
+
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, username, full_name, avatar_url")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (active) setProfile(data || null);
+      } catch (error) {
         console.error("Error loading header profile:", error);
-        setProfile(null);
-        return;
+        if (active) setProfile(null);
       }
-      setProfile(data || null);
     }
+
     loadProfile();
+
     return () => {
       active = false;
     };
   }, [session?.user?.id]);
 
-  if (session === undefined) return null;
+  if (session === undefined) return <AppStartupLoading />;
+
   const routeUserKey = session?.user?.id || "anonymous";
 
   return (
@@ -360,8 +406,10 @@ function App() {
     function handleResize() {
       setIsMobileWidth(window.innerWidth <= 768);
     }
+
     handleResize();
     window.addEventListener("resize", handleResize);
+
     return () => {
       window.removeEventListener("resize", handleResize);
     };
