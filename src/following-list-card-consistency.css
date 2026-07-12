@@ -1,5 +1,7 @@
 .following-card-list.following-list-creator-layout .following-creator-line .following-meta-comments,
-.following-card-list.following-list-creator-layout .following-creator-line .burgrs-activity-share-btn {
+.following-card-list.following-list-creator-layout .following-creator-line .burgrs-activity-share-btn,
+.following-review-creator-layout .following-creator-line .following-meta-comments,
+.following-review-creator-layout .following-creator-line .burgrs-activity-share-btn {
   display: none !important;
 }
 
@@ -12,7 +14,9 @@
 }
 
 .following-list-actions-row .following-list-share-proxy,
-.following-list-actions-row .following-list-comments-proxy {
+.following-list-actions-row .following-list-comments-proxy,
+.following-review-actions-row .following-review-share-proxy,
+.following-review-actions-row .following-review-comments-proxy {
   pointer-events: auto;
   min-width: 0;
   min-height: 0;
@@ -30,13 +34,15 @@
   cursor: pointer;
 }
 
-.following-list-actions-row .following-list-share-proxy {
+.following-list-actions-row .following-list-share-proxy,
+.following-review-actions-row .following-review-share-proxy {
   grid-column: 1;
   justify-self: start;
   text-align: left;
 }
 
-.following-list-actions-row .following-list-comments-proxy {
+.following-list-actions-row .following-list-comments-proxy,
+.following-review-actions-row .following-review-comments-proxy {
   grid-column: 2;
   justify-self: end;
   text-align: right;
@@ -46,12 +52,28 @@
 .following-list-actions-row .following-list-share-proxy:focus-visible,
 .following-list-actions-row .following-list-comments-proxy:hover,
 .following-list-actions-row .following-list-comments-proxy:focus-visible,
-.following-list-actions-row .following-list-comments-proxy.is-open {
+.following-list-actions-row .following-list-comments-proxy.is-open,
+.following-review-actions-row .following-review-share-proxy:hover,
+.following-review-actions-row .following-review-share-proxy:focus-visible,
+.following-review-actions-row .following-review-comments-proxy:hover,
+.following-review-actions-row .following-review-comments-proxy:focus-visible,
+.following-review-actions-row .following-review-comments-proxy.is-open {
   color: #ffffff;
   text-decoration: underline;
 }
 
-.following-list-actions-row .following-list-share-proxy:disabled {
+.following-list-actions-row .following-list-share-proxy:disabled,
+.following-review-actions-row .following-review-share-proxy:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.following-review-actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 0 0;
+  box-sizing: border-box;
 }
