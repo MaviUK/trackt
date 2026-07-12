@@ -14,7 +14,10 @@
         background: #07111f;
       }
 
-      .initial-app-loader {
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
         min-height: 100svh;
         display: flex;
         align-items: center;
@@ -77,6 +80,27 @@
         animation: initial-loader-slide 1.15s ease-in-out infinite;
       }
 
+      .initial-app-loader-retry {
+        display: none;
+        width: 100%;
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #111827;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      #boot-loader.is-stalled .initial-app-loader-retry {
+        display: block;
+      }
+
+      #boot-loader.is-stalled .initial-app-loader-bar {
+        display: none;
+      }
+
       @keyframes initial-loader-float {
         0%,
         100% {
@@ -106,16 +130,56 @@
     </style>
   </head>
   <body>
-    <div id="root">
-      <main class="initial-app-loader" aria-live="polite" aria-busy="true">
-        <div class="initial-app-loader-card">
-          <div class="initial-app-loader-burger" aria-hidden="true">🍔</div>
-          <strong>Loading BURGRS...</strong>
-          <span>Getting everything ready</span>
-          <div class="initial-app-loader-bar" aria-hidden="true"></div>
-        </div>
-      </main>
+    <div id="boot-loader" aria-live="polite" aria-busy="true">
+      <div class="initial-app-loader-card">
+        <div class="initial-app-loader-burger" aria-hidden="true">🍔</div>
+        <strong id="boot-loader-title">Loading BURGRS...</strong>
+        <span id="boot-loader-copy">Getting everything ready</span>
+        <div class="initial-app-loader-bar" aria-hidden="true"></div>
+        <button
+          class="initial-app-loader-retry"
+          type="button"
+          onclick="window.location.reload()"
+        >
+          Try again
+        </button>
+      </div>
     </div>
+
+    <div id="root"></div>
+
+    <script>
+      (function () {
+        var loader = document.getElementById("boot-loader");
+        var title = document.getElementById("boot-loader-title");
+        var copy = document.getElementById("boot-loader-copy");
+
+        window.__BURGRS_BOOT_ERROR__ = function () {
+          if (!loader) return;
+          loader.classList.add("is-stalled");
+          loader.setAttribute("aria-busy", "false");
+          if (title) title.textContent = "BURGRS did not finish loading";
+          if (copy) copy.textContent = "Tap below to reload the app.";
+        };
+
+        window.addEventListener("error", function (event) {
+          if (event && event.target && event.target !== window) {
+            window.__BURGRS_BOOT_ERROR__();
+          }
+        }, true);
+
+        window.addEventListener("unhandledrejection", function () {
+          window.__BURGRS_BOOT_ERROR__();
+        });
+
+        window.setTimeout(function () {
+          if (document.getElementById("boot-loader")) {
+            window.__BURGRS_BOOT_ERROR__();
+          }
+        }, 10000);
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
