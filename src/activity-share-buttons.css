@@ -57,24 +57,24 @@
   margin-bottom: 0 !important;
 }
 
-.creator-list-card:not(.is-expanded) {
+.creator-list-card {
   position: relative !important;
 }
 
-.creator-list-card:not(.is-expanded) .creator-list-cover-button,
-.creator-list-card:not(.is-expanded) .creator-list-cover-content {
-  min-height: 214px !important;
+.creator-list-card .creator-list-cover-button,
+.creator-list-card .creator-list-cover-content {
+  min-height: 182px !important;
 }
 
-.creator-list-card:not(.is-expanded) .creator-list-cover-content {
-  padding-bottom: 58px !important;
+.creator-list-card .creator-list-cover-content {
+  padding-bottom: 62px !important;
 }
 
-.creator-list-card:not(.is-expanded) > .burgrs-activity-share-btn {
+.creator-list-card > .burgrs-activity-share-btn {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
-  bottom: 0 !important;
+  top: 136px !important;
   z-index: 3 !important;
   display: flex !important;
   align-items: center !important;
@@ -91,21 +91,6 @@
     rgba(2, 6, 23, 0.76) 34%,
     rgba(2, 6, 23, 0.92) 100%
   ) !important;
-  color: #c4b5fd !important;
-  line-height: 1.2 !important;
-  text-align: left !important;
-}
-
-.creator-list-card.is-expanded > .burgrs-activity-share-btn {
-  display: flex !important;
-  align-items: center !important;
-  width: 100% !important;
-  min-height: 46px !important;
-  margin: 0 !important;
-  padding: 10px 14px 12px !important;
-  box-sizing: border-box !important;
-  border: 0 !important;
-  background: rgba(15, 23, 42, 0.96) !important;
   color: #c4b5fd !important;
   line-height: 1.2 !important;
   text-align: left !important;
