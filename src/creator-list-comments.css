@@ -5,9 +5,9 @@
   top: 136px;
   z-index: 4;
   min-height: 46px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 10px 14px 12px;
   box-sizing: border-box;
@@ -22,15 +22,25 @@
 .creator-list-actions-row .burgrs-activity-share-btn {
   position: static !important;
   inset: auto !important;
+  grid-column: 1 !important;
+  justify-self: start !important;
+  order: 1 !important;
   width: auto !important;
+  min-width: 0 !important;
   min-height: 0 !important;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
+  text-align: left !important;
+  white-space: nowrap !important;
 }
 
 .creator-list-comments-toggle {
-  margin-left: auto;
+  grid-column: 2;
+  justify-self: end;
+  order: 2;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -39,6 +49,8 @@
   font-size: 0.78rem;
   font-weight: 800;
   line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
   cursor: pointer;
 }
 
