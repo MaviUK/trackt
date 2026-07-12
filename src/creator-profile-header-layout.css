@@ -49,16 +49,8 @@
 }
 
 .creator-page .creator-tagline,
-.creator-page .creator-niche-pill,
-.creator-page .creator-actions > a[href="/profile/edit"] {
+.creator-page .creator-niche-pill {
   display: none !important;
-}
-
-.creator-page .creator-actions:has(> a[href="/profile/edit"]) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  max-width: 430px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .creator-social-links {
