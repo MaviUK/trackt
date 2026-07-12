@@ -1,5 +1,13 @@
 let followingCardInstallQueued = false;
 
+const POST_ACTIVITY_TYPES = new Set([
+  "post",
+  "hot take",
+  "recommendation",
+  "tonight's pick",
+  "watchlist advice",
+]);
+
 function syncText(button, text) {
   if (button.textContent !== text) button.textContent = text;
 }
@@ -7,6 +15,15 @@ function syncText(button, text) {
 function syncBooleanAttribute(node, name, value) {
   const nextValue = value ? "true" : "false";
   if (node.getAttribute(name) !== nextValue) node.setAttribute(name, nextValue);
+}
+
+function getActivityType(card) {
+  return (
+    card
+      .querySelector(".following-meta-type")
+      ?.textContent?.trim()
+      .toLowerCase() || ""
+  );
 }
 
 function getShareSource(card) {
@@ -104,16 +121,22 @@ function installFollowingListCards() {
   });
 }
 
-function ensureReviewActionRow(card) {
-  let row = card.querySelector(":scope > .following-review-actions-row");
-  if (row) return row;
+function ensureBottomActionRow(card, className) {
+  let row = card.querySelector(`:scope > .${className}`);
+  const commentsPanel = card.querySelector(
+    ":scope > .feed-comments-inline-panel"
+  );
 
-  const reviewText = card.querySelector(":scope > .following-review-text");
-  if (!reviewText) return null;
+  if (!row) {
+    row = document.createElement("div");
+    row.className = className;
 
-  row = document.createElement("div");
-  row.className = "following-review-actions-row";
-  reviewText.insertAdjacentElement("afterend", row);
+    if (commentsPanel) commentsPanel.insertAdjacentElement("beforebegin", row);
+    else card.appendChild(row);
+  } else if (commentsPanel && row.nextElementSibling !== commentsPanel) {
+    commentsPanel.insertAdjacentElement("beforebegin", row);
+  }
+
   return row;
 }
 
@@ -121,16 +144,10 @@ function installFollowingReviewCards() {
   document
     .querySelectorAll(".following-card:not(.following-card-list)")
     .forEach((card) => {
-      const activityType = card
-        .querySelector(".following-meta-type")
-        ?.textContent?.trim()
-        .toLowerCase();
-
-      if (activityType !== "review") return;
+      if (getActivityType(card) !== "review") return;
 
       card.classList.add("following-review-creator-layout");
-      const row = ensureReviewActionRow(card);
-      if (!row) return;
+      const row = ensureBottomActionRow(card, "following-review-actions-row");
 
       syncShareProxy(card, row, "following-review-share-proxy");
       syncCommentsProxy(
@@ -142,10 +159,29 @@ function installFollowingReviewCards() {
     });
 }
 
+function installFollowingPostCards() {
+  document
+    .querySelectorAll(".following-card:not(.following-card-list)")
+    .forEach((card) => {
+      if (!POST_ACTIVITY_TYPES.has(getActivityType(card))) return;
+
+      card.classList.add("following-post-creator-layout");
+      const row = ensureBottomActionRow(card, "following-post-actions-row");
+
+      syncCommentsProxy(
+        card,
+        row,
+        "following-post-comments-proxy",
+        "Comments"
+      );
+    });
+}
+
 function installFollowingCardConsistency() {
   if (window.location.pathname !== "/following") return;
   installFollowingListCards();
   installFollowingReviewCards();
+  installFollowingPostCards();
 }
 
 function queueFollowingCardConsistency() {
