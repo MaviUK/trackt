@@ -1,0 +1,16 @@
+.creator-btn-rankd {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.34), rgba(91, 33, 182, 0.44));
+  color: #ede9fe;
+  border: 1px solid rgba(196, 181, 253, 0.32);
+}
+
+.creator-btn-rankd:hover,
+.creator-btn-rankd:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.5), rgba(109, 40, 217, 0.56));
+  outline: none;
+}
+
+.creator-list-card-auto {
+  scroll-margin-top: 86px;
+}
