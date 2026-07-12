@@ -43,10 +43,74 @@ import './creator-list-comments.js'
 import './following-list-card-consistency.js'
 import './creator-generated-banner.js'
 import './creator-profile-header-layout.js'
-import './header-profile-username-fix.js'
+
+function BootReady() {
+  React.useEffect(() => {
+    const loader = document.getElementById('boot-loader')
+    if (!loader) return
+
+    loader.style.opacity = '0'
+    loader.style.pointerEvents = 'none'
+    loader.style.transition = 'opacity 160ms ease'
+
+    const timer = window.setTimeout(() => loader.remove(), 180)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  return null
+}
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error, info) {
+    console.error('BURGRS render failed:', error, info)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="app-startup-loading" role="alert">
+          <div className="app-startup-loading-card">
+            <div className="app-startup-loading-burger" aria-hidden="true">🍔</div>
+            <strong>BURGRS could not load</strong>
+            <span>Please reload and try again.</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{
+                width: '100%',
+                minHeight: 44,
+                border: 0,
+                borderRadius: 999,
+                background: '#f8fafc',
+                color: '#111827',
+                fontWeight: 900,
+              }}
+            >
+              Reload
+            </button>
+          </div>
+        </main>
+      )
+    }
+
+    return this.props.children
+  }
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <BootReady />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>,
 )
