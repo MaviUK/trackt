@@ -18,6 +18,7 @@ import './public-show-watch-providers.css'
 import './creator-profile-chats.css'
 import './creator-list-comments.css'
 import './following-list-card-consistency.css'
+import './creator-generated-banner.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -35,6 +36,7 @@ import './public-show-watch-providers.js'
 import './creator-profile-chats.js'
 import './creator-list-comments.js'
 import './following-list-card-consistency.js'
+import './creator-generated-banner.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
