@@ -2,6 +2,9 @@ import { supabase } from "./lib/supabase";
 
 const BANNER_TAGLINE_ATTR = "data-creator-banner-tagline";
 const SOCIAL_LINKS_ATTR = "data-creator-social-links";
+const ABOUT_TEXT_ATTR = "data-creator-about-text";
+const ABOUT_CARD_MOVED_CLASS = "creator-about-card-moved";
+const ABOUT_MAX_LENGTH = 160;
 
 let routeKey = "";
 let profileData = null;
@@ -41,6 +44,8 @@ async function loadProfileHeaderData(slug, expectedRouteKey) {
   const fields = `
     id,
     creator_tagline,
+    creator_bio,
+    bio,
     instagram_url,
     x_url,
     tiktok_url,
@@ -130,7 +135,7 @@ function ensureBannerTagline() {
 function ensureSocialLinks() {
   const handle = document.querySelector(".creator-page .creator-handle");
   const heroContent = document.querySelector(".creator-page .creator-hero-content");
-  if (!heroContent) return;
+  if (!heroContent) return null;
 
   let row = heroContent.querySelector(`[${SOCIAL_LINKS_ATTR}]`);
 
@@ -144,7 +149,7 @@ function ensureSocialLinks() {
 
   if (!links.length) {
     row?.remove();
-    return;
+    return null;
   }
 
   if (!row) {
@@ -157,28 +162,72 @@ function ensureSocialLinks() {
   }
 
   const signature = JSON.stringify(links);
-  if (row.dataset.signature === signature) return;
+  if (row.dataset.signature !== signature) {
+    row.replaceChildren();
+    row.dataset.signature = signature;
 
-  row.replaceChildren();
-  row.dataset.signature = signature;
+    links.forEach(([type, label, href]) => {
+      const link = document.createElement("a");
+      link.className = `creator-social-link creator-social-link-${type}`;
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute("aria-label", label);
+      link.title = label;
+      link.innerHTML = iconSvg(type);
+      row.appendChild(link);
+    });
+  }
 
-  links.forEach(([type, label, href]) => {
-    const link = document.createElement("a");
-    link.className = `creator-social-link creator-social-link-${type}`;
-    link.href = href;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.setAttribute("aria-label", label);
-    link.title = label;
-    link.innerHTML = iconSvg(type);
-    row.appendChild(link);
+  return row;
+}
+
+function markOriginalAboutCardMoved() {
+  document.querySelectorAll(".creator-page > .creator-card").forEach((card) => {
+    const heading = card.querySelector(":scope > .creator-section-head h2");
+    if (heading?.textContent?.trim().toLowerCase() === "about") {
+      card.classList.add(ABOUT_CARD_MOVED_CLASS);
+    }
   });
+}
+
+function ensureAboutText(socialRow) {
+  const heroContent = document.querySelector(".creator-page .creator-hero-content");
+  const handle = document.querySelector(".creator-page .creator-handle");
+  if (!heroContent) return;
+
+  const text = String(profileData?.creator_bio || profileData?.bio || "")
+    .trim()
+    .slice(0, ABOUT_MAX_LENGTH);
+
+  let about = heroContent.querySelector(`[${ABOUT_TEXT_ATTR}]`);
+
+  if (!text) {
+    about?.remove();
+    markOriginalAboutCardMoved();
+    return;
+  }
+
+  if (!about) {
+    about = document.createElement("p");
+    about.className = "creator-about-inline";
+    about.setAttribute(ABOUT_TEXT_ATTR, "true");
+  }
+
+  const anchor = socialRow || handle || heroContent.querySelector("h1");
+  if (anchor && about.previousElementSibling !== anchor) {
+    anchor.insertAdjacentElement("afterend", about);
+  }
+
+  if (about.textContent !== text) about.textContent = text;
+  markOriginalAboutCardMoved();
 }
 
 function renderProfileHeader() {
   if (!profileData) return;
   ensureBannerTagline();
-  ensureSocialLinks();
+  const socialRow = ensureSocialLinks();
+  ensureAboutText(socialRow);
 }
 
 function syncProfileHeaderLayout() {
