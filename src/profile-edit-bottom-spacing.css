@@ -1,0 +1,15 @@
+@media (max-width: 768px) {
+  .profile-edit-page {
+    min-height: 100svh;
+    padding-bottom: calc(
+      var(--mobile-nav-height, 72px) + env(safe-area-inset-bottom, 0px) + 56px
+    ) !important;
+    scroll-padding-bottom: calc(
+      var(--mobile-nav-height, 72px) + env(safe-area-inset-bottom, 0px) + 56px
+    );
+  }
+
+  .profile-edit-page > form {
+    padding-bottom: 8px;
+  }
+}
