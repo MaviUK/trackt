@@ -1,7 +1,8 @@
 .following-card-list.following-list-creator-layout .following-creator-line .following-meta-comments,
 .following-card-list.following-list-creator-layout .following-creator-line .burgrs-activity-share-btn,
 .following-review-creator-layout .following-creator-line .following-meta-comments,
-.following-review-creator-layout .following-creator-line .burgrs-activity-share-btn {
+.following-review-creator-layout .following-creator-line .burgrs-activity-share-btn,
+.following-post-creator-layout .following-creator-line .following-meta-comments {
   display: none !important;
 }
 
@@ -16,7 +17,8 @@
 .following-list-actions-row .following-list-share-proxy,
 .following-list-actions-row .following-list-comments-proxy,
 .following-review-actions-row .following-review-share-proxy,
-.following-review-actions-row .following-review-comments-proxy {
+.following-review-actions-row .following-review-comments-proxy,
+.following-post-actions-row .following-post-comments-proxy {
   pointer-events: auto;
   min-width: 0;
   min-height: 0;
@@ -42,7 +44,8 @@
 }
 
 .following-list-actions-row .following-list-comments-proxy,
-.following-review-actions-row .following-review-comments-proxy {
+.following-review-actions-row .following-review-comments-proxy,
+.following-post-actions-row .following-post-comments-proxy {
   grid-column: 2;
   justify-self: end;
   text-align: right;
@@ -57,7 +60,10 @@
 .following-review-actions-row .following-review-share-proxy:focus-visible,
 .following-review-actions-row .following-review-comments-proxy:hover,
 .following-review-actions-row .following-review-comments-proxy:focus-visible,
-.following-review-actions-row .following-review-comments-proxy.is-open {
+.following-review-actions-row .following-review-comments-proxy.is-open,
+.following-post-actions-row .following-post-comments-proxy:hover,
+.following-post-actions-row .following-post-comments-proxy:focus-visible,
+.following-post-actions-row .following-post-comments-proxy.is-open {
   color: #ffffff;
   text-decoration: underline;
 }
@@ -68,7 +74,8 @@
   cursor: default;
 }
 
-.following-review-actions-row {
+.following-review-actions-row,
+.following-post-actions-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
