@@ -9,6 +9,8 @@ let chatCount = 0;
 let chats = [];
 let savedShowIds = new Set();
 let loadingPromise = null;
+let loadedRouteKey = "";
+let loadError = "";
 let chatsActive = false;
 let syncScheduled = false;
 
@@ -30,6 +32,8 @@ function resetForRoute(nextRouteKey) {
   chats = [];
   savedShowIds = new Set();
   loadingPromise = null;
+  loadedRouteKey = "";
+  loadError = "";
   chatsActive = false;
 }
 
@@ -99,26 +103,31 @@ async function loadCreatorChats(slug, expectedRouteKey) {
 
   profileId = profile.id;
 
-  const [{ count, error: countError }, { data: messageRows, error: messagesError }, authResult] =
-    await Promise.all([
-      supabase
-        .from("show_chat_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", profile.id),
-      supabase
-        .from("show_chat_messages")
-        .select("id, show_id, parent_id, body, created_at")
-        .eq("user_id", profile.id)
-        .order("created_at", { ascending: false })
-        .limit(40),
-      supabase.auth.getUser(),
-    ]);
+  const [
+    { count, error: countError },
+    { data: messageRows, error: messagesError },
+    authResult,
+  ] = await Promise.all([
+    supabase
+      .from("show_chat_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", profile.id),
+    supabase
+      .from("show_chat_messages")
+      .select("id, show_id, parent_id, body, created_at")
+      .eq("user_id", profile.id)
+      .order("created_at", { ascending: false })
+      .limit(40),
+    supabase.auth.getUser(),
+  ]);
 
   if (countError) throw countError;
   if (messagesError) throw messagesError;
 
   const rows = messageRows || [];
-  const showIds = Array.from(new Set(rows.map((row) => row.show_id).filter(Boolean)));
+  const showIds = Array.from(
+    new Set(rows.map((row) => row.show_id).filter(Boolean))
+  );
   let showMap = new Map();
 
   if (showIds.length) {
@@ -128,7 +137,9 @@ async function loadCreatorChats(slug, expectedRouteKey) {
       .in("id", showIds);
 
     if (showsError) throw showsError;
-    showMap = new Map((showRows || []).map((show) => [String(show.id), show]));
+    showMap = new Map(
+      (showRows || []).map((show) => [String(show.id), show])
+    );
   }
 
   const viewer = authResult?.data?.user || null;
@@ -158,13 +169,27 @@ async function loadCreatorChats(slug, expectedRouteKey) {
 }
 
 function ensureDataLoaded(slug, expectedRouteKey) {
+  if (loadedRouteKey === expectedRouteKey) {
+    return Promise.resolve();
+  }
+
   if (loadingPromise) return loadingPromise;
 
+  loadError = "";
   loadingPromise = loadCreatorChats(slug, expectedRouteKey)
+    .then(() => {
+      if (routeKey === expectedRouteKey) {
+        loadedRouteKey = expectedRouteKey;
+      }
+    })
     .catch((error) => {
       console.error("Failed loading creator chats", error);
-      chatCount = 0;
-      chats = [];
+      if (routeKey === expectedRouteKey) {
+        loadedRouteKey = expectedRouteKey;
+        loadError = error?.message || "Could not load chatboard activity.";
+        chatCount = 0;
+        chats = [];
+      }
     })
     .finally(() => {
       loadingPromise = null;
@@ -188,7 +213,8 @@ function createChatCard(chat) {
     link.appendChild(poster);
   } else {
     const placeholder = document.createElement("span");
-    placeholder.className = "creator-chat-poster creator-chat-poster-placeholder";
+    placeholder.className =
+      "creator-chat-poster creator-chat-poster-placeholder";
     placeholder.textContent = "TV";
     link.appendChild(placeholder);
   }
@@ -235,11 +261,19 @@ function renderChatsPanel() {
   head.appendChild(heading);
   panel.appendChild(head);
 
-  if (loadingPromise) {
+  if (loadingPromise && loadedRouteKey !== routeKey) {
     const loading = document.createElement("p");
     loading.className = "creator-muted";
     loading.textContent = "Loading chats...";
     panel.appendChild(loading);
+    return;
+  }
+
+  if (loadError) {
+    const error = document.createElement("p");
+    error.className = "creator-error";
+    error.textContent = loadError;
+    panel.appendChild(error);
     return;
   }
 
@@ -285,7 +319,11 @@ function ensureChatsButton(statsCard) {
   }
 
   const countElement = button.querySelector("strong");
-  const nextText = loadingPromise && !profileId ? "…" : String(chatCount);
+  const nextText =
+    loadingPromise && !profileId && loadedRouteKey !== routeKey
+      ? "…"
+      : String(chatCount);
+
   if (countElement && countElement.textContent !== nextText) {
     countElement.textContent = nextText;
   }
