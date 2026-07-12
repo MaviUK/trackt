@@ -29,6 +29,51 @@ import BurgrsBanner from "./components/BurgrsBanner";
 import { supabase } from "./lib/supabase";
 import { installMyShowWatchProgressFix } from "./lib/myShowWatchProgressFix";
 
+const HEADER_PROFILE_CACHE_PREFIX = "burgrs-header-profile:";
+
+function readCachedHeaderProfile(userId) {
+  if (!userId) return null;
+
+  try {
+    const raw = window.localStorage.getItem(`${HEADER_PROFILE_CACHE_PREFIX}${userId}`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.username) return null;
+
+    return {
+      id: parsed.id || userId,
+      username: String(parsed.username).trim(),
+      full_name: parsed.full_name || "",
+      avatar_url: parsed.avatar_url || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedHeaderProfile(profile) {
+  if (!profile?.id || !profile?.username) return;
+
+  try {
+    window.localStorage.setItem(
+      `${HEADER_PROFILE_CACHE_PREFIX}${profile.id}`,
+      JSON.stringify({
+        id: profile.id,
+        username: String(profile.username).trim(),
+        full_name: profile.full_name || "",
+        avatar_url: profile.avatar_url || "",
+      })
+    );
+  } catch {
+    // Storage can be blocked in private browsing; the live profile still works.
+  }
+}
+
+function waitFor(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function HomeIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -79,20 +124,29 @@ function BellIcon() {
 function UserProfileLink({ session, profile, className = "top-profile-link" }) {
   if (!session) return null;
 
-  const username =
-    profile?.username || session.user?.user_metadata?.username || "";
-  const fallbackName =
-    profile?.full_name ||
-    session.user?.user_metadata?.full_name ||
-    session.user?.email?.split("@")[0] ||
-    "Profile";
-  const displayName = username ? `@${username}` : fallbackName;
-  const avatarUrl = profile?.avatar_url || session.user?.user_metadata?.avatar_url || "";
-  const profilePath = username ? `/u/${encodeURIComponent(username)}` : "/profile/edit";
-  const initial = (username || fallbackName).charAt(0).toUpperCase();
+  if (!profile?.username) {
+    return (
+      <div
+        className={`${className} top-profile-link-pending`}
+        aria-label="Loading your profile"
+        aria-busy="true"
+      >
+        <div className="top-profile-avatar top-profile-avatar-loading" />
+        <span className="top-profile-text">
+          <span className="top-profile-name top-profile-name-loading" />
+        </span>
+      </div>
+    );
+  }
+
+  const username = String(profile.username).trim();
+  const displayName = `@${username}`;
+  const avatarUrl = profile.avatar_url || "";
+  const profilePath = `/u/${encodeURIComponent(username)}`;
+  const initial = username.charAt(0).toUpperCase();
 
   return (
-    <NavLink to={profilePath} className={className}>
+    <NavLink to={profilePath} className={className} aria-label={displayName}>
       {avatarUrl ? (
         <img src={avatarUrl} alt={displayName} className="top-profile-avatar" />
       ) : (
@@ -278,7 +332,8 @@ function MobileOnlyScreen() {
 
 function AppLayout() {
   const [session, setSession] = useState(undefined);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(undefined);
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
   useEffect(() => installMyShowWatchProgressFix(), []);
 
@@ -289,13 +344,22 @@ function AppLayout() {
     const failSafeTimer = window.setTimeout(() => {
       if (!mounted || sessionResolved) return;
       console.warn("Session loading timed out; continuing without a session.");
+      setProfile(null);
       setSession(null);
     }, 4500);
 
     const resolveSession = (nextSession) => {
       if (!mounted) return;
+
       sessionResolved = true;
       window.clearTimeout(failSafeTimer);
+
+      const nextUserId = nextSession?.user?.id || "";
+      setProfile((current) => {
+        if (!nextUserId) return null;
+        if (current?.id === nextUserId && current?.username) return current;
+        return readCachedHeaderProfile(nextUserId) || undefined;
+      });
       setSession(nextSession ?? null);
     };
 
@@ -315,8 +379,6 @@ function AppLayout() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
-      setProfile(null);
       resolveSession(nextSession);
     });
 
@@ -328,28 +390,98 @@ function AppLayout() {
   }, []);
 
   useEffect(() => {
+    const refreshProfile = () => {
+      setProfileRefreshKey((value) => value + 1);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshProfile();
+    };
+
+    const handleProfileUpdated = (event) => {
+      const nextProfile = event?.detail;
+      if (
+        nextProfile?.id &&
+        nextProfile?.username &&
+        nextProfile.id === session?.user?.id
+      ) {
+        const normalized = {
+          id: nextProfile.id,
+          username: String(nextProfile.username).trim(),
+          full_name: nextProfile.full_name || "",
+          avatar_url: nextProfile.avatar_url || "",
+        };
+        writeCachedHeaderProfile(normalized);
+        setProfile(normalized);
+        return;
+      }
+
+      refreshProfile();
+    };
+
+    window.addEventListener("pageshow", refreshProfile);
+    window.addEventListener("focus", refreshProfile);
+    window.addEventListener("burgrs:profile-updated", handleProfileUpdated);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("pageshow", refreshProfile);
+      window.removeEventListener("focus", refreshProfile);
+      window.removeEventListener("burgrs:profile-updated", handleProfileUpdated);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [session?.user?.id]);
+
+  useEffect(() => {
     let active = true;
 
     async function loadProfile() {
-      if (!session?.user?.id) {
+      const userId = session?.user?.id;
+
+      if (!userId) {
         setProfile(null);
         return;
       }
 
-      setProfile(null);
+      const cachedProfile = readCachedHeaderProfile(userId);
+      setProfile((current) => {
+        if (current?.id === userId && current?.username) return current;
+        return cachedProfile || undefined;
+      });
 
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, username, full_name, avatar_url")
-          .eq("id", session.user.id)
-          .maybeSingle();
+      let attempt = 0;
 
-        if (error) throw error;
-        if (active) setProfile(data || null);
-      } catch (error) {
-        console.error("Error loading header profile:", error);
-        if (active) setProfile(null);
+      while (active) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url")
+            .eq("id", userId)
+            .maybeSingle();
+
+          if (error) throw error;
+          if (!active) return;
+
+          if (data?.username) {
+            const normalized = {
+              id: data.id,
+              username: String(data.username).trim(),
+              full_name: data.full_name || "",
+              avatar_url: data.avatar_url || "",
+            };
+            writeCachedHeaderProfile(normalized);
+            setProfile(normalized);
+            return;
+          }
+        } catch (error) {
+          if (active) {
+            console.warn("Header profile load attempt failed:", error);
+          }
+        }
+
+        attempt += 1;
+        const delay = Math.min(700 * 2 ** Math.min(attempt - 1, 4), 10000);
+        await waitFor(delay);
       }
     }
 
@@ -358,7 +490,7 @@ function AppLayout() {
     return () => {
       active = false;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profileRefreshKey]);
 
   if (session === undefined) return <AppStartupLoading />;
 
