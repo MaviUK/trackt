@@ -1,0 +1,8 @@
+{
+  "appId": "com.maviuk.burgrs",
+  "appName": "BURGRS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
