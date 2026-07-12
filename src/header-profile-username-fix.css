@@ -1,0 +1,3 @@
+html.header-profile-user-resolved .top-profile-link:not([data-header-profile-ready="true"]) {
+  visibility: hidden !important;
+}
