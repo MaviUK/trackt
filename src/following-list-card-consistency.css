@@ -1,0 +1,57 @@
+.following-card-list.following-list-creator-layout .following-creator-line .following-meta-comments,
+.following-card-list.following-list-creator-layout .following-creator-line .burgrs-activity-share-btn {
+  display: none !important;
+}
+
+.following-card-list.following-list-creator-layout .following-profile-list-card {
+  position: relative;
+}
+
+.following-list-actions-row {
+  pointer-events: none;
+}
+
+.following-list-actions-row .following-list-share-proxy,
+.following-list-actions-row .following-list-comments-proxy {
+  pointer-events: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #c4b5fd;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.following-list-actions-row .following-list-share-proxy {
+  grid-column: 1;
+  justify-self: start;
+  text-align: left;
+}
+
+.following-list-actions-row .following-list-comments-proxy {
+  grid-column: 2;
+  justify-self: end;
+  text-align: right;
+}
+
+.following-list-actions-row .following-list-share-proxy:hover,
+.following-list-actions-row .following-list-share-proxy:focus-visible,
+.following-list-actions-row .following-list-comments-proxy:hover,
+.following-list-actions-row .following-list-comments-proxy:focus-visible,
+.following-list-actions-row .following-list-comments-proxy.is-open {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.following-list-actions-row .following-list-share-proxy:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
