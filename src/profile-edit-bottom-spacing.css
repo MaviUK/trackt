@@ -1,3 +1,7 @@
+.profile-edit-page .profile-edit-header {
+  display: none !important;
+}
+
 @media (max-width: 768px) {
   .profile-edit-page {
     min-height: 100svh;
