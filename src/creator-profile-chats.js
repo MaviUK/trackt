@@ -2,6 +2,7 @@ import { supabase } from "./lib/supabase";
 
 const CHAT_BUTTON_ATTR = "data-creator-chats-stat";
 const CHAT_PANEL_ATTR = "data-creator-chats-panel";
+const CHAT_EXTERNAL_PANEL_ATTR = "data-creator-chats-external-panel";
 
 let routeKey = "";
 let profileId = null;
@@ -25,7 +26,39 @@ function isUuid(value) {
   );
 }
 
+function getNativePanel() {
+  return document.querySelector(
+    `.creator-page .creator-profile-panel:not([${CHAT_EXTERNAL_PANEL_ATTR}])`
+  );
+}
+
+function getExternalPanel() {
+  return document.querySelector(`[${CHAT_EXTERNAL_PANEL_ATTR}]`);
+}
+
+function restoreNativePanel() {
+  const nativePanel = getNativePanel();
+  const externalPanel = getExternalPanel();
+
+  if (nativePanel) {
+    nativePanel.hidden = false;
+    nativePanel.removeAttribute(CHAT_PANEL_ATTR);
+  }
+
+  if (externalPanel) {
+    externalPanel.hidden = true;
+    externalPanel.setAttribute("aria-hidden", "true");
+  }
+}
+
+function removeExternalPanel() {
+  getExternalPanel()?.remove();
+}
+
 function resetForRoute(nextRouteKey) {
+  restoreNativePanel();
+  removeExternalPanel();
+
   routeKey = nextRouteKey;
   profileId = null;
   chatCount = 0;
@@ -244,14 +277,62 @@ function createChatCard(chat) {
   return link;
 }
 
-function renderChatsPanel() {
-  if (!chatsActive) return;
+function ensureExternalPanel() {
+  const nativePanel = getNativePanel();
+  if (!nativePanel) return null;
 
-  const panel = document.querySelector(".creator-profile-panel");
+  nativePanel.removeAttribute(CHAT_PANEL_ATTR);
+
+  let externalPanel = getExternalPanel();
+  if (!externalPanel) {
+    externalPanel = document.createElement("section");
+    externalPanel.setAttribute(CHAT_EXTERNAL_PANEL_ATTR, "true");
+  }
+
+  externalPanel.className = `${nativePanel.className} creator-chats-external-panel`;
+
+  if (externalPanel.previousElementSibling !== nativePanel) {
+    nativePanel.insertAdjacentElement("afterend", externalPanel);
+  }
+
+  nativePanel.hidden = chatsActive;
+  externalPanel.hidden = !chatsActive;
+  externalPanel.setAttribute("aria-hidden", chatsActive ? "false" : "true");
+
+  return externalPanel;
+}
+
+function getRenderSignature() {
+  return JSON.stringify({
+    routeKey,
+    loading: Boolean(loadingPromise && loadedRouteKey !== routeKey),
+    loadError,
+    chats: chats.map((chat) => [
+      chat.id,
+      chat.parent_id,
+      chat.body,
+      chat.created_at,
+      chat.show?.id,
+      chat.show?.name,
+      chat.show?.poster_url,
+    ]),
+  });
+}
+
+function renderChatsPanel() {
+  if (!chatsActive) {
+    restoreNativePanel();
+    return;
+  }
+
+  const panel = ensureExternalPanel();
   if (!panel) return;
 
+  const signature = getRenderSignature();
+  if (panel.dataset.renderSignature === signature) return;
+
   panel.replaceChildren();
-  panel.setAttribute(CHAT_PANEL_ATTR, "true");
+  panel.dataset.renderSignature = signature;
 
   const head = document.createElement("div");
   head.className = "creator-section-head";
@@ -302,6 +383,16 @@ function activateChats(button) {
   renderChatsPanel();
 }
 
+function deactivateChats() {
+  if (!chatsActive) return;
+
+  chatsActive = false;
+  document
+    .querySelector(`[${CHAT_BUTTON_ATTR}]`)
+    ?.classList.remove("is-active");
+  restoreNativePanel();
+}
+
 function ensureChatsButton(statsCard) {
   let button = statsCard.querySelector(`[${CHAT_BUTTON_ATTR}]`);
 
@@ -337,7 +428,10 @@ function syncCreatorChats() {
   const nextRouteKey = slug ? `profile:${slug}` : "";
 
   if (nextRouteKey !== routeKey) resetForRoute(nextRouteKey);
-  if (!slug) return;
+  if (!slug) {
+    restoreNativePanel();
+    return;
+  }
 
   const statsCard = document.querySelector(
     ".creator-stats-card.creator-stats-card-clickable"
@@ -348,6 +442,7 @@ function syncCreatorChats() {
   ensureChatsButton(statsCard);
 
   if (chatsActive) renderChatsPanel();
+  else restoreNativePanel();
 }
 
 function scheduleSync() {
@@ -368,10 +463,7 @@ document.addEventListener(
     );
     if (!button || button.hasAttribute(CHAT_BUTTON_ATTR)) return;
 
-    chatsActive = false;
-    document
-      .querySelector(`[${CHAT_BUTTON_ATTR}]`)
-      ?.classList.remove("is-active");
+    deactivateChats();
   },
   true
 );
