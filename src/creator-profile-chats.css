@@ -1,0 +1,110 @@
+.creator-stats-card.creator-stats-card-clickable {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+  padding-inline: 4px;
+}
+
+.creator-stats-card.creator-stats-card-clickable button {
+  padding-inline: 2px;
+}
+
+.creator-stats-card.creator-stats-card-clickable strong {
+  font-size: 17px;
+}
+
+.creator-stats-card.creator-stats-card-clickable span {
+  font-size: 8px;
+  letter-spacing: 0.02em;
+}
+
+.creator-chat-list {
+  display: grid;
+  gap: 10px;
+}
+
+.creator-chat-card {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: start;
+  gap: 11px;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f8fafc;
+  text-decoration: none;
+}
+
+.creator-chat-poster {
+  width: 52px;
+  height: 74px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #1e293b;
+}
+
+.creator-chat-poster-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.creator-chat-copy {
+  min-width: 0;
+}
+
+.creator-chat-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.creator-chat-topline strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.creator-chat-topline span {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.22);
+  color: #c4b5fd;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.creator-chat-copy p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 7px 0 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.creator-chat-copy small {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 380px) {
+  .creator-stats-card.creator-stats-card-clickable strong {
+    font-size: 15px;
+  }
+
+  .creator-stats-card.creator-stats-card-clickable span {
+    font-size: 7px;
+  }
+}
