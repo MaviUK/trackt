@@ -1,5 +1,6 @@
 const CREATOR_BIO_MAX = 160;
 const COUNTER_ATTR = "data-creator-bio-counter";
+const LEGACY_BIO_HIDDEN_ATTR = "data-legacy-bio-hidden";
 
 let syncQueued = false;
 
@@ -13,14 +14,29 @@ function setReactTextareaValue(textarea, value) {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function findCreatorBioTextarea() {
+function findTextareaByLabel(labelText) {
   if (window.location.pathname !== "/profile/edit") return null;
+
+  const expected = String(labelText || "").trim().toLowerCase();
 
   return Array.from(document.querySelectorAll("textarea")).find((textarea) => {
     const wrapper = textarea.closest("div");
     const label = wrapper?.querySelector(":scope > label");
-    return label?.textContent?.trim().toLowerCase() === "creator bio";
+    return label?.textContent?.trim().toLowerCase() === expected;
   });
+}
+
+function hideLegacyBioField() {
+  const textarea = findTextareaByLabel("Bio");
+  const wrapper = textarea?.closest("div");
+  if (!wrapper) return;
+
+  wrapper.hidden = true;
+  wrapper.setAttribute(LEGACY_BIO_HIDDEN_ATTR, "true");
+}
+
+function findCreatorBioTextarea() {
+  return findTextareaByLabel("Creator bio");
 }
 
 function updateCounter(textarea, counter) {
@@ -30,6 +46,8 @@ function updateCounter(textarea, counter) {
 }
 
 function installCreatorBioLimit() {
+  hideLegacyBioField();
+
   const textarea = findCreatorBioTextarea();
   if (!textarea) return;
 
