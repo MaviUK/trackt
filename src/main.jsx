@@ -24,6 +24,7 @@ import './creator-profile-header-layout.css'
 import './header-profile-username-fix.css'
 import './creator-profile-loading.css'
 import './app-startup-loading.css'
+import './creator-bio-limit.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -43,6 +44,7 @@ import './creator-list-comments.js'
 import './following-list-card-consistency.js'
 import './creator-generated-banner.js'
 import './creator-profile-header-layout.js'
+import './creator-bio-limit.js'
 
 function BootReady() {
   React.useEffect(() => {
