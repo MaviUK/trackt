@@ -21,6 +21,7 @@ import './following-list-card-consistency.css'
 import './creator-generated-banner.css'
 import './profile-edit-bottom-spacing.css'
 import './creator-profile-header-layout.css'
+import './header-profile-username-fix.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
 import './dashboard-airing-link-fix.js'
@@ -40,6 +41,7 @@ import './creator-list-comments.js'
 import './following-list-card-consistency.js'
 import './creator-generated-banner.js'
 import './creator-profile-header-layout.js'
+import './header-profile-username-fix.js'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
