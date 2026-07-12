@@ -1,4 +1,4 @@
-let followingListInstallQueued = false;
+let followingCardInstallQueued = false;
 
 function syncText(button, text) {
   if (button.textContent !== text) button.textContent = text;
@@ -9,36 +9,31 @@ function syncBooleanAttribute(node, name, value) {
   if (node.getAttribute(name) !== nextValue) node.setAttribute(name, nextValue);
 }
 
-function ensureActionRow(listCard) {
-  let row = listCard.querySelector(":scope > .following-list-actions-row");
-  if (row) return row;
-
-  const coverButton = listCard.querySelector(":scope > .creator-list-cover-button");
-  if (!coverButton) return null;
-
-  row = document.createElement("div");
-  row.className = "creator-list-actions-row following-list-actions-row";
-  coverButton.insertAdjacentElement("afterend", row);
-  return row;
-}
-
-function ensureShareProxy(card, row) {
-  const source = card.querySelector(
+function getShareSource(card) {
+  return card.querySelector(
     ".following-creator-line .burgrs-activity-share-btn"
   );
+}
+
+function getCommentsSource(card) {
+  return card.querySelector(
+    ".following-creator-line .following-meta-comments .feed-comments-inline-toggle"
+  );
+}
+
+function syncShareProxy(card, row, proxyClass) {
+  const source = getShareSource(card);
   if (!source) return;
 
-  let proxy = row.querySelector(".following-list-share-proxy");
+  let proxy = row.querySelector(`.${proxyClass}`);
   if (!proxy) {
     proxy = document.createElement("button");
     proxy.type = "button";
-    proxy.className = "following-list-share-proxy";
+    proxy.className = proxyClass;
     proxy.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      card
-        .querySelector(".following-creator-line .burgrs-activity-share-btn")
-        ?.click();
+      getShareSource(card)?.click();
     });
     row.prepend(proxy);
   }
@@ -47,30 +42,25 @@ function ensureShareProxy(card, row) {
   if (proxy.disabled !== source.disabled) proxy.disabled = source.disabled;
 }
 
-function ensureCommentsProxy(card, row) {
-  const source = card.querySelector(
-    ".following-creator-line .following-meta-comments .feed-comments-inline-toggle"
-  );
+function syncCommentsProxy(card, row, proxyClass, fallbackLabel) {
+  const source = getCommentsSource(card);
   if (!source) return;
 
-  let proxy = row.querySelector(".following-list-comments-proxy");
+  let proxy = row.querySelector(`.${proxyClass}`);
   if (!proxy) {
     proxy = document.createElement("button");
     proxy.type = "button";
-    proxy.className = "following-list-comments-proxy";
+    proxy.className = proxyClass;
     proxy.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      card
-        .querySelector(
-          ".following-creator-line .following-meta-comments .feed-comments-inline-toggle"
-        )
-        ?.click();
+      getCommentsSource(card)?.click();
     });
     row.appendChild(proxy);
   }
 
-  const label = source.querySelector("span")?.textContent?.trim() || "Comments";
+  const label =
+    source.querySelector("span")?.textContent?.trim() || fallbackLabel;
   const isOpen = source.getAttribute("aria-expanded") === "true";
 
   syncText(proxy, label);
@@ -78,42 +68,106 @@ function ensureCommentsProxy(card, row) {
   proxy.classList.toggle("is-open", isOpen);
 }
 
-function installFollowingListCardConsistency() {
-  if (window.location.pathname !== "/following") return;
+function ensureListActionRow(listCard) {
+  let row = listCard.querySelector(":scope > .following-list-actions-row");
+  if (row) return row;
 
+  const coverButton = listCard.querySelector(
+    ":scope > .creator-list-cover-button"
+  );
+  if (!coverButton) return null;
+
+  row = document.createElement("div");
+  row.className = "creator-list-actions-row following-list-actions-row";
+  coverButton.insertAdjacentElement("afterend", row);
+  return row;
+}
+
+function installFollowingListCards() {
   document.querySelectorAll(".following-card-list").forEach((card) => {
-    const listCard = card.querySelector(":scope > .following-profile-list-card");
+    const listCard = card.querySelector(
+      ":scope > .following-profile-list-card"
+    );
     if (!listCard) return;
 
     card.classList.add("following-list-creator-layout");
-    const row = ensureActionRow(listCard);
+    const row = ensureListActionRow(listCard);
     if (!row) return;
 
-    ensureShareProxy(card, row);
-    ensureCommentsProxy(card, row);
+    syncShareProxy(card, row, "following-list-share-proxy");
+    syncCommentsProxy(
+      card,
+      row,
+      "following-list-comments-proxy",
+      "Comments"
+    );
   });
 }
 
-function queueFollowingListCardConsistency() {
-  if (followingListInstallQueued) return;
-  followingListInstallQueued = true;
+function ensureReviewActionRow(card) {
+  let row = card.querySelector(":scope > .following-review-actions-row");
+  if (row) return row;
+
+  const reviewText = card.querySelector(":scope > .following-review-text");
+  if (!reviewText) return null;
+
+  row = document.createElement("div");
+  row.className = "following-review-actions-row";
+  reviewText.insertAdjacentElement("afterend", row);
+  return row;
+}
+
+function installFollowingReviewCards() {
+  document
+    .querySelectorAll(".following-card:not(.following-card-list)")
+    .forEach((card) => {
+      const activityType = card
+        .querySelector(".following-meta-type")
+        ?.textContent?.trim()
+        .toLowerCase();
+
+      if (activityType !== "review") return;
+
+      card.classList.add("following-review-creator-layout");
+      const row = ensureReviewActionRow(card);
+      if (!row) return;
+
+      syncShareProxy(card, row, "following-review-share-proxy");
+      syncCommentsProxy(
+        card,
+        row,
+        "following-review-comments-proxy",
+        "Replies"
+      );
+    });
+}
+
+function installFollowingCardConsistency() {
+  if (window.location.pathname !== "/following") return;
+  installFollowingListCards();
+  installFollowingReviewCards();
+}
+
+function queueFollowingCardConsistency() {
+  if (followingCardInstallQueued) return;
+  followingCardInstallQueued = true;
 
   window.requestAnimationFrame(() => {
-    followingListInstallQueued = false;
-    installFollowingListCardConsistency();
+    followingCardInstallQueued = false;
+    installFollowingCardConsistency();
   });
 }
 
 if (typeof window !== "undefined") {
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", queueFollowingListCardConsistency, {
+    document.addEventListener("DOMContentLoaded", queueFollowingCardConsistency, {
       once: true,
     });
   } else {
-    queueFollowingListCardConsistency();
+    queueFollowingCardConsistency();
   }
 
-  new MutationObserver(queueFollowingListCardConsistency).observe(document.body, {
+  new MutationObserver(queueFollowingCardConsistency).observe(document.body, {
     childList: true,
     subtree: true,
     characterData: true,
@@ -121,6 +175,6 @@ if (typeof window !== "undefined") {
     attributeFilter: ["aria-expanded", "disabled"],
   });
 
-  window.addEventListener("popstate", queueFollowingListCardConsistency);
-  window.addEventListener("pageshow", queueFollowingListCardConsistency);
+  window.addEventListener("popstate", queueFollowingCardConsistency);
+  window.addEventListener("pageshow", queueFollowingCardConsistency);
 }
