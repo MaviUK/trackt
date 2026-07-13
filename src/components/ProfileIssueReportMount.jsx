@@ -50,5 +50,19 @@ export default function ProfileIssueReportMount() {
     };
   }, []);
 
-  return mountNode ? createPortal(<IssueReportForm />, mountNode) : null;
+  return mountNode
+    ? createPortal(
+        <>
+          <IssueReportForm />
+          <section className="profile-legal-section" aria-labelledby="profile-legal-title">
+            <div>
+              <h2 id="profile-legal-title">Legal</h2>
+              <p>Read how BURGRS collects, uses and protects personal information.</p>
+            </div>
+            <a href="/privacy/">Privacy Policy</a>
+          </section>
+        </>,
+        mountNode
+      )
+    : null;
 }
