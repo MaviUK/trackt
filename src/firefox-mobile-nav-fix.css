@@ -1,23 +1,63 @@
 /*
- * Firefox for Android can change env(safe-area-inset-bottom) while its
- * browser chrome expands and collapses. Keeping that live inset as padding
- * inside the fixed nav makes the icons and labels jump vertically.
+ * Mobile browsers can resize the visual viewport while their browser chrome
+ * expands and collapses. A bottom: 0 fixed bar follows that changing viewport
+ * and visibly jumps. Anchor the bar to the stable small viewport instead.
  */
+:root {
+  --mobile-fixed-nav-total-height: var(--mobile-nav-height);
+}
+
 .mobile-bottom-nav {
+  position: fixed !important;
+  top: calc(100svh - var(--mobile-fixed-nav-total-height));
+  right: 0;
+  bottom: auto !important;
+  left: 0;
   box-sizing: border-box;
-  height: var(--mobile-nav-height);
-  min-height: var(--mobile-nav-height);
+  width: 100%;
+  height: var(--mobile-fixed-nav-total-height);
+  min-height: var(--mobile-fixed-nav-total-height);
   padding-bottom: 0;
+  background: #08101e !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+  will-change: transform;
+  contain: layout paint style;
   isolation: isolate;
 }
 
-/* iOS genuinely needs space above the home indicator. */
+/* Fill any temporary space revealed below the stable bar when browser chrome
+ * retracts, without moving the buttons themselves. */
+.mobile-bottom-nav::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 160px;
+  background: #08101e;
+  pointer-events: none;
+}
+
+/* iOS genuinely needs room above the home indicator. */
 @supports (-webkit-touch-callout: none) {
+  :root {
+    --mobile-fixed-nav-total-height: calc(
+      var(--mobile-nav-height) + env(safe-area-inset-bottom)
+    );
+  }
+
   .mobile-bottom-nav {
-    height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Older browsers without stable viewport units keep the original fallback. */
+@supports not (height: 100svh) {
+  .mobile-bottom-nav {
+    top: auto;
+    bottom: 0 !important;
   }
 }
