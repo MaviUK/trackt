@@ -238,7 +238,7 @@ async function uploadExport({
       headers: {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json; charset=utf-8",
+        "Content-Type": "application/json",
         "x-upsert": "true",
       },
       body: content,
