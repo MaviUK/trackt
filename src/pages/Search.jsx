@@ -1,21 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { formatDate } from "../lib/date";
 import { supabase } from "../lib/supabase";
 import { addShowToUserList } from "../lib/userShows";
 import "./Search.css";
 
+const SEARCH_MODES = [
+  { id: "title", label: "Title", placeholder: "Search for a show" },
+  { id: "genre", label: "Genre", placeholder: "e.g. Crime, Comedy, Sci-Fi" },
+  { id: "platform", label: "Platform", placeholder: "e.g. Netflix, Disney+, BBC iPlayer" },
+  { id: "studio", label: "Studio", placeholder: "e.g. HBO, A24, Warner Bros" },
+];
+
 function withTimeout(promise, ms, message) {
   let timerId;
-
   const timeoutPromise = new Promise((_, reject) => {
-    timerId = setTimeout(() => {
-      reject(new Error(message));
-    }, ms);
+    timerId = window.setTimeout(() => reject(new Error(message)), ms);
   });
 
   return Promise.race([
-    promise.finally(() => clearTimeout(timerId)),
+    Promise.resolve(promise).finally(() => window.clearTimeout(timerId)),
     timeoutPromise,
   ]);
 }
@@ -24,27 +28,7 @@ async function getCurrentUserId() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   return user?.id || null;
-}
-
-async function verifyShowWasActuallySaved(tvdbId, userId) {
-  const { data, error } = await supabase
-    .from("user_shows_new")
-    .select(
-      `
-      id,
-      shows!inner(
-        tvdb_id
-      )
-    `
-    )
-    .eq("user_id", userId)
-    .eq("shows.tvdb_id", Number(tvdbId))
-    .maybeSingle();
-
-  if (error) throw error;
-  return !!data;
 }
 
 function getBackdrop(show) {
@@ -64,12 +48,13 @@ function getPoster(show) {
 }
 
 function getFirstAired(show) {
-  return show.first_air_time || show.first_aired || null;
+  return show.first_air_time || show.first_aired || show.first_air_date || null;
 }
 
 function getTotalSeasons(show) {
   return (
     show.total_seasons ||
+    show.number_of_seasons ||
     show.seasons_count ||
     show.season_count ||
     show.seasons ||
@@ -80,6 +65,7 @@ function getTotalSeasons(show) {
 function getTotalEpisodes(show) {
   return (
     show.total_episodes ||
+    show.number_of_episodes ||
     show.episodes_count ||
     show.episode_count ||
     show.totalEpisodes ||
@@ -87,16 +73,50 @@ function getTotalEpisodes(show) {
   );
 }
 
+function getResultKey(show) {
+  if (show?.tvdb_id) return `tvdb:${show.tvdb_id}`;
+  if (show?.tmdb_id) return `tmdb:${show.tmdb_id}`;
+  if (show?.id) return `id:${show.id}`;
+  return `${show?.name || "show"}:${show?.first_aired || ""}`;
+}
+
+function getDetailHref(show, isSaved) {
+  if (show?.tvdb_id) {
+    return isSaved ? `/my-shows/${show.tvdb_id}` : `/show/${show.tvdb_id}`;
+  }
+
+  if (show?.tmdb_id) {
+    return isSaved
+      ? `/my-shows/tmdb/${show.tmdb_id}`
+      : `/show/tmdb/${show.tmdb_id}`;
+  }
+
+  return "#";
+}
+
+function listText(value, limit = 3) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return values.slice(0, limit).join(", ");
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
-
+  const [searchMode, setSearchMode] = useState("title");
   const [query, setQuery] = useState("");
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addingId, setAddingId] = useState(null);
-  const [savedIds, setSavedIds] = useState(new Set());
+  const [savedTvdbIds, setSavedTvdbIds] = useState(new Set());
+  const [savedTmdbIds, setSavedTmdbIds] = useState(new Set());
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [matchedLabel, setMatchedLabel] = useState("");
 
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
@@ -107,8 +127,13 @@ export default function Search() {
   const sourceRating = searchParams.get("sourceRating") || "";
   const sourceLanguage = searchParams.get("sourceLanguage") || "";
 
+  const currentMode = useMemo(
+    () => SEARCH_MODES.find((mode) => mode.id === searchMode) || SEARCH_MODES[0],
+    [searchMode]
+  );
+
   const isPureNetworkBrowse =
-    !!networkFilter &&
+    Boolean(networkFilter) &&
     !genreFilter &&
     !relationshipTypeFilter &&
     !settingFilter;
@@ -120,7 +145,6 @@ export default function Search() {
       const userId = await getCurrentUserId();
       if (!active) return;
       setCurrentUserId(userId);
-      setSavedIds(new Set());
     }
 
     syncUser();
@@ -129,7 +153,8 @@ export default function Search() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserId(session?.user?.id || null);
-      setSavedIds(new Set());
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
       setAddingId(null);
       setError("");
     });
@@ -141,98 +166,134 @@ export default function Search() {
   }, []);
 
   useEffect(() => {
-    if (genreFilter) setQuery(genreFilter);
-    else if (networkFilter) setQuery(networkFilter);
-    else if (relationshipTypeFilter) setQuery(relationshipTypeFilter);
-    else if (settingFilter) setQuery(settingFilter);
-    else setQuery("");
-  }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
-
-  useEffect(() => {
-    if (!shows.length) {
-      setSavedIds(new Set());
-      return;
+    if (genreFilter) {
+      setSearchMode("genre");
+      setQuery(genreFilter);
+    } else if (networkFilter) {
+      setSearchMode("platform");
+      setQuery(networkFilter);
+    } else if (relationshipTypeFilter) {
+      setSearchMode("title");
+      setQuery(relationshipTypeFilter);
+    } else if (settingFilter) {
+      setSearchMode("title");
+      setQuery(settingFilter);
     }
-
-    markAlreadySaved(shows, currentUserId);
-  }, [currentUserId]);
+  }, [genreFilter, networkFilter, relationshipTypeFilter, settingFilter]);
 
   async function markAlreadySaved(results, userIdOverride = currentUserId) {
     const userId = userIdOverride || (await getCurrentUserId());
 
     if (!userId || !results.length) {
-      setSavedIds(new Set());
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
       return;
     }
 
-    const tvdbIds = results.map((show) => Number(show.tvdb_id)).filter(Boolean);
-
-    if (!tvdbIds.length) {
-      setSavedIds(new Set());
-      return;
-    }
-
-    const { data, error } = await supabase
+    const { data, error: savedError } = await supabase
       .from("user_shows_new")
-      .select("show_id, shows!inner(tvdb_id)")
-      .eq("user_id", userId)
-      .in("shows.tvdb_id", tvdbIds);
+      .select("tmdb_id, shows!inner(tvdb_id)")
+      .eq("user_id", userId);
 
-    if (error) {
-      console.error("Failed checking saved shows:", error);
-      setSavedIds(new Set());
+    if (savedError) {
+      console.error("Failed checking saved shows:", savedError);
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
       return;
     }
 
     const latestUserId = await getCurrentUserId();
     if (latestUserId !== userId) return;
 
-    const matchedIds = new Set(
-      (data || [])
-        .map((row) => row.shows?.tvdb_id)
-        .filter((id) => tvdbIds.includes(Number(id)))
-        .map(String)
+    setSavedTvdbIds(
+      new Set(
+        (data || [])
+          .map((row) => row?.shows?.tvdb_id)
+          .filter(Boolean)
+          .map(String)
+      )
     );
-
-    setSavedIds(matchedIds);
+    setSavedTmdbIds(
+      new Set(
+        (data || [])
+          .map((row) => row?.tmdb_id)
+          .filter(Boolean)
+          .map(String)
+      )
+    );
   }
 
-  async function fetchSearch(paramsObject) {
+  useEffect(() => {
+    if (!shows.length) {
+      setSavedTvdbIds(new Set());
+      setSavedTmdbIds(new Set());
+      return;
+    }
+    markAlreadySaved(shows, currentUserId);
+  }, [currentUserId]);
+
+  async function fetchLegacySearch(paramsObject) {
     setLoading(true);
     setError("");
-    setSavedIds(new Set());
+    setMatchedLabel("");
 
     try {
       const activeUserId = await getCurrentUserId();
       setCurrentUserId(activeUserId);
 
       const params = new URLSearchParams();
-
       Object.entries(paramsObject).forEach(([key, value]) => {
-        if (value != null && value !== "") {
+        if (value !== null && value !== undefined && value !== "") {
           params.set(key, value);
         }
       });
 
-      const url = `/.netlify/functions/searchShows?${params.toString()}`;
-      const res = await fetch(url);
+      const res = await fetch(`/.netlify/functions/searchShows?${params.toString()}`);
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Search failed");
-      }
+      if (!res.ok) throw new Error(data?.message || "Search failed");
 
       const results = (Array.isArray(data) ? data : []).filter(
-        (show) => !!show.tvdb_id
+        (show) => show?.tvdb_id || show?.tmdb_id
       );
-
       setShows(results);
       await markAlreadySaved(results, activeUserId);
     } catch (err) {
       console.error("Search failed:", err);
       setError(err.message || "Search failed");
       setShows([]);
-      setSavedIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchAdvancedSearch(mode, searchQuery) {
+    setLoading(true);
+    setError("");
+    setMatchedLabel("");
+
+    try {
+      const activeUserId = await getCurrentUserId();
+      setCurrentUserId(activeUserId);
+
+      const params = new URLSearchParams({
+        mode,
+        q: searchQuery,
+        region: "GB",
+      });
+      const res = await fetch(
+        `/.netlify/functions/advancedSearchShows?${params.toString()}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Advanced search failed");
+
+      const results = Array.isArray(data?.results) ? data.results : [];
+      setShows(results);
+      setMatchedLabel(data?.matched || searchQuery);
+      await markAlreadySaved(results, activeUserId);
+    } catch (err) {
+      console.error("Advanced search failed:", err);
+      setError(err.message || "Advanced search failed");
+      setShows([]);
     } finally {
       setLoading(false);
     }
@@ -240,14 +301,14 @@ export default function Search() {
 
   useEffect(() => {
     const hasFilter =
-      !!genreFilter ||
-      !!networkFilter ||
-      !!relationshipTypeFilter ||
-      !!settingFilter;
+      Boolean(genreFilter) ||
+      Boolean(networkFilter) ||
+      Boolean(relationshipTypeFilter) ||
+      Boolean(settingFilter);
 
     if (!hasFilter) return;
 
-    fetchSearch({
+    fetchLegacySearch({
       genre: genreFilter || null,
       network: networkFilter || null,
       relationshipType: relationshipTypeFilter || null,
@@ -255,7 +316,7 @@ export default function Search() {
       sourceShowId: sourceShowId || null,
       sourceYear: isPureNetworkBrowse ? null : sourceYear || null,
       sourceRating: isPureNetworkBrowse ? null : sourceRating || null,
-      sourceLanguage: isPureNetworkBrowse ? null : sourceLanguage || null,
+      sourceLanguage: sourceLanguage || null,
     });
   }, [
     genreFilter,
@@ -271,8 +332,23 @@ export default function Search() {
 
   async function handleManualSearch() {
     const trimmedQuery = query.trim();
-    if (!trimmedQuery) return;
-    await fetchSearch({ q: trimmedQuery });
+    if (!trimmedQuery || loading) return;
+
+    if (searchMode === "title") {
+      await fetchLegacySearch({ q: trimmedQuery });
+      return;
+    }
+
+    await fetchAdvancedSearch(searchMode, trimmedQuery);
+  }
+
+  function changeMode(nextMode) {
+    if (nextMode === searchMode) return;
+    setSearchMode(nextMode);
+    setQuery("");
+    setShows([]);
+    setMatchedLabel("");
+    setError("");
   }
 
   async function handleAddShow(event, show) {
@@ -288,42 +364,34 @@ export default function Search() {
       return;
     }
 
-    setCurrentUserId(user.id);
-
-    const tvdbId = String(show.tvdb_id);
-
-    if (!tvdbId) {
-      setError("This show is missing a TVDB id and cannot be added.");
+    const addKey = getResultKey(show);
+    if (!show?.tvdb_id && !show?.tmdb_id) {
+      setError("This show is missing its database IDs and cannot be added.");
       return;
     }
 
-    setAddingId(tvdbId);
+    setCurrentUserId(user.id);
+    setAddingId(addKey);
     setError("");
 
     try {
       await withTimeout(
         addShowToUserList({
           ...show,
-          source: show.source || "tvdb",
-          tvdb_id: Number(show.tvdb_id),
+          id: show.tvdb_id || show.tmdb_id,
+          source: show.tvdb_id ? "tvdb" : "tmdb",
+          tvdb_id: show.tvdb_id ? Number(show.tvdb_id) : null,
           tmdb_id: show.tmdb_id ? Number(show.tmdb_id) : null,
           name: show.name || show.show_name || "Unknown Show",
           poster_url: show.image_url || show.poster_url || null,
           overview: show.overview || null,
-          first_air_date: show.first_air_time || show.first_aired || null,
+          first_air_date: getFirstAired(show),
+          first_aired: getFirstAired(show),
           status: show.status || null,
         }),
         120000,
         "Add show timed out while syncing data."
       );
-
-      const reallySaved = await verifyShowWasActuallySaved(tvdbId, user.id);
-
-      if (!reallySaved) {
-        throw new Error(
-          "Show sync did not finish properly. It has not been added to My Shows yet."
-        );
-      }
 
       await markAlreadySaved(shows, user.id);
     } catch (err) {
@@ -337,45 +405,77 @@ export default function Search() {
   return (
     <div className="page">
       <div className="page-shell search-shell">
+        <div className="search-mode-wrap" role="tablist" aria-label="Search by">
+          {SEARCH_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              role="tab"
+              aria-selected={searchMode === mode.id}
+              className={`search-mode-button${searchMode === mode.id ? " is-active" : ""}`}
+              onClick={() => changeMode(mode.id)}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+
         <div className="search-bar-wrap">
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleManualSearch();
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") handleManualSearch();
             }}
-            placeholder="Search for a show"
+            placeholder={currentMode.placeholder}
             className="search-page-input"
+            aria-label={`${currentMode.label} search`}
           />
 
           <button
             type="button"
             onClick={handleManualSearch}
-            disabled={loading}
+            disabled={loading || !query.trim()}
             className="msd-btn msd-btn-secondary search-page-button"
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
 
-        {error && <p className="search-error-text">{error}</p>}
+        {searchMode === "platform" ? (
+          <p className="search-mode-help">
+            Platform results use UK streaming availability.
+          </p>
+        ) : null}
+
+        {error ? <p className="search-error-text">{error}</p> : null}
+
+        {matchedLabel && !loading ? (
+          <div className="search-match-summary">
+            Showing {searchMode} results for <strong>{matchedLabel}</strong>
+          </div>
+        ) : null}
 
         <div className="search-results-list">
           {shows.map((show) => {
-            const tvdbId = String(show.tvdb_id);
-            const isSaved = savedIds.has(tvdbId);
-            const isAdding = addingId === tvdbId;
-            const detailHref = isSaved ? `/my-shows/${tvdbId}` : `/show/${tvdbId}`;
-
+            const resultKey = getResultKey(show);
+            const isSaved =
+              (show.tvdb_id && savedTvdbIds.has(String(show.tvdb_id))) ||
+              (show.tmdb_id && savedTmdbIds.has(String(show.tmdb_id)));
+            const isAdding = addingId === resultKey;
+            const detailHref = getDetailHref(show, isSaved);
             const backdrop = getBackdrop(show);
             const poster = getPoster(show);
             const firstAired = getFirstAired(show);
             const totalSeasons = getTotalSeasons(show);
             const totalEpisodes = getTotalEpisodes(show);
+            const genres = listText(show.genres);
+            const platform = show.platform || show.network || "";
+            const studio = show.studio || listText(show.studios, 2);
 
             return (
               <div
-                key={tvdbId}
+                key={resultKey}
                 className="search-result-banner-card"
                 style={
                   backdrop
@@ -406,44 +506,55 @@ export default function Search() {
                     </Link>
 
                     <div className="search-result-meta">
-                      {firstAired && (
+                      {firstAired ? (
                         <div className="search-result-meta-row">
-                          <span className="search-result-meta-label">
-                            First aired
-                          </span>
+                          <span className="search-result-meta-label">First aired</span>
                           <span className="search-result-meta-value">
                             {formatDate(firstAired)}
                           </span>
                         </div>
-                      )}
+                      ) : null}
 
-                      {totalSeasons && (
+                      {platform ? (
                         <div className="search-result-meta-row">
-                          <span className="search-result-meta-label">
-                            Total seasons
-                          </span>
-                          <span className="search-result-meta-value">
-                            {totalSeasons}
-                          </span>
+                          <span className="search-result-meta-label">Platform</span>
+                          <span className="search-result-meta-value">{platform}</span>
                         </div>
-                      )}
+                      ) : null}
 
-                      {totalEpisodes && (
+                      {studio ? (
                         <div className="search-result-meta-row">
-                          <span className="search-result-meta-label">
-                            Total episodes
-                          </span>
-                          <span className="search-result-meta-value">
-                            {totalEpisodes}
-                          </span>
+                          <span className="search-result-meta-label">Studio</span>
+                          <span className="search-result-meta-value">{studio}</span>
                         </div>
-                      )}
+                      ) : null}
+
+                      {genres ? (
+                        <div className="search-result-meta-row">
+                          <span className="search-result-meta-label">Genre</span>
+                          <span className="search-result-meta-value">{genres}</span>
+                        </div>
+                      ) : null}
+
+                      {totalSeasons ? (
+                        <div className="search-result-meta-row">
+                          <span className="search-result-meta-label">Total seasons</span>
+                          <span className="search-result-meta-value">{totalSeasons}</span>
+                        </div>
+                      ) : null}
+
+                      {totalEpisodes ? (
+                        <div className="search-result-meta-row">
+                          <span className="search-result-meta-label">Total episodes</span>
+                          <span className="search-result-meta-value">{totalEpisodes}</span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="search-result-actions">
                       <button
                         type="button"
-                        onClick={(e) => handleAddShow(e, show)}
+                        onClick={(event) => handleAddShow(event, show)}
                         disabled={isSaved || isAdding}
                         className={`search-add-btn ${isSaved ? "is-saved" : ""}`}
                       >
