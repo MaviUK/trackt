@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import IssueReportForm from "./IssueReportForm";
+import AccountDeletionSection from "./AccountDeletionSection";
 import "./ProfileLegalSection.css";
 
 const MOUNT_ID = "burgrs-issue-report-mount";
@@ -62,6 +63,7 @@ export default function ProfileIssueReportMount() {
             </div>
             <a href="/privacy/">Privacy Policy</a>
           </section>
+          <AccountDeletionSection />
         </>,
         mountNode
       )
