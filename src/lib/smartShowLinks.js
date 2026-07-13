@@ -1,5 +1,6 @@
 const SMART_SHOW_LINKS_FLAG = "__burgrsSmartShowLinksInstalled";
 const CREATOR_REVIEW_RATING_CLASS = "creator-review-rating-corner";
+const REVIEW_TAB_VALUE = "reviews";
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -28,6 +29,11 @@ function navigateWithinApp(destination) {
 
   window.history.pushState({}, "", destination);
   window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function addUrlSuffix(destination, sourceUrl) {
+  if (!destination) return destination;
+  return `${destination}${sourceUrl.search || ""}${sourceUrl.hash || ""}`;
 }
 
 async function findDatabaseShow(supabase, route) {
@@ -93,6 +99,7 @@ function positionCreatorReviewRatings(root = document) {
 
     meta.textContent = dateLabel;
     card.style.position = "relative";
+    card.style.cursor = "pointer";
 
     const showLink = card.querySelector(".creator-review-show");
     if (showLink) showLink.style.paddingRight = "68px";
@@ -131,6 +138,111 @@ function positionCreatorReviewRatings(root = document) {
   });
 }
 
+function getRequestedCommunityTab() {
+  const pathname = window.location.pathname;
+  if (!/^\/(?:show|my-shows)\//i.test(pathname)) return "";
+
+  const params = new URLSearchParams(window.location.search);
+  return String(params.get("tab") || params.get("community") || "").toLowerCase();
+}
+
+function isVisible(element) {
+  if (!element) return false;
+  const style = window.getComputedStyle(element);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
+function findCommunityTabButton(tabName) {
+  if (tabName === "reviews") {
+    const portalButton = document.getElementById("burgrs-public-show-reviews-tab");
+    if (isVisible(portalButton)) return portalButton;
+  }
+
+  if (tabName === "chatboard") {
+    const portalButton = document.getElementById("burgrs-public-show-chatboard-tab");
+    if (isVisible(portalButton)) return portalButton;
+  }
+
+  return Array.from(document.querySelectorAll(".msd-content-tab")).find(
+    (button) =>
+      isVisible(button) &&
+      String(button.textContent || "").trim().toLowerCase() === tabName
+  );
+}
+
+function scrollCommunitySectionIntoView(tabName) {
+  const selector =
+    tabName === "chatboard"
+      ? ".msd-chatboard-section, #burgrs-show-community-portal"
+      : ".msd-reviews-section, #burgrs-show-community-portal";
+
+  const section = document.querySelector(selector);
+  if (!section) return false;
+
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
+}
+
+function installRequestedCommunityTabOpening() {
+  let frameId = null;
+  let retryTimer = null;
+  let lastCompletedRequest = "";
+
+  function attemptOpenRequestedTab() {
+    const tabName = getRequestedCommunityTab();
+    if (!["reviews", "chatboard"].includes(tabName)) {
+      lastCompletedRequest = "";
+      return;
+    }
+
+    const requestKey = `${window.location.pathname}${window.location.search}`;
+    const sectionAlreadyVisible =
+      tabName === "chatboard"
+        ? Boolean(document.querySelector(".msd-chatboard-section"))
+        : Boolean(document.querySelector(".msd-reviews-section"));
+
+    if (lastCompletedRequest === requestKey && sectionAlreadyVisible) return;
+
+    const button = findCommunityTabButton(tabName);
+    if (!button) return;
+
+    if (!button.classList.contains("is-active")) {
+      button.click();
+    }
+
+    window.clearTimeout(retryTimer);
+    retryTimer = window.setTimeout(() => {
+      if (scrollCommunitySectionIntoView(tabName)) {
+        lastCompletedRequest = requestKey;
+      }
+    }, 120);
+  }
+
+  function scheduleAttempt() {
+    if (frameId !== null) return;
+    frameId = window.requestAnimationFrame(() => {
+      frameId = null;
+      attemptOpenRequestedTab();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scheduleAttempt, { once: true });
+  } else {
+    scheduleAttempt();
+  }
+
+  window.addEventListener("popstate", scheduleAttempt);
+
+  const observer = new MutationObserver(scheduleAttempt);
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style"],
+  });
+}
+
 function installCreatorReviewRatingPositioning() {
   const run = () => positionCreatorReviewRatings(document);
 
@@ -161,6 +273,7 @@ export function installSmartShowLinks(supabase) {
 
   window[SMART_SHOW_LINKS_FLAG] = true;
   installCreatorReviewRatingPositioning();
+  installRequestedCommunityTabOpening();
 
   document.addEventListener(
     "click",
@@ -168,13 +281,27 @@ export function installSmartShowLinks(supabase) {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
-      const anchor = event.target?.closest?.("a[href]");
+      const reviewCard = event.target?.closest?.(".creator-review-card");
+      let anchor = event.target?.closest?.("a[href]");
+
+      if (
+        !anchor &&
+        reviewCard &&
+        !event.target?.closest?.("button, input, textarea, select")
+      ) {
+        anchor = reviewCard.querySelector(".creator-review-show[href]");
+      }
+
       if (!anchor || anchor.hasAttribute("download")) return;
       if (anchor.target && anchor.target !== "_self") return;
 
       const url = new URL(anchor.href, window.location.origin);
       if (url.origin !== window.location.origin) return;
       if (!getShowRoute(url.pathname)) return;
+
+      if (reviewCard) {
+        url.searchParams.set("tab", REVIEW_TAB_VALUE);
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -186,7 +313,11 @@ export function installSmartShowLinks(supabase) {
           supabase,
           url.pathname
         );
-        navigateWithinApp(savedDestination || originalDestination);
+        navigateWithinApp(
+          savedDestination
+            ? addUrlSuffix(savedDestination, url)
+            : originalDestination
+        );
       } catch (error) {
         console.warn("Failed resolving smart show link:", error);
         navigateWithinApp(originalDestination);
