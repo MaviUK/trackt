@@ -6,10 +6,12 @@
 }
 
 .notifications-header {
+  position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 40px;
   margin-bottom: 16px;
 }
 
@@ -19,7 +21,10 @@
   letter-spacing: -0.05em;
 }
 
-.notifications-header p,
+.notifications-header > div:first-child > p {
+  display: none;
+}
+
 .notifications-muted {
   margin: 6px 0 0;
   color: #94a3b8;
@@ -251,11 +256,31 @@
 
 @media (max-width: 560px) {
   .notifications-header {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .notifications-header:has(.notifications-mark-read) {
+    padding-bottom: 44px;
+  }
+
+  .notifications-header .notifications-mark-read {
+    position: absolute;
+    right: 0;
+    bottom: 0;
   }
 
   .notifications-header-actions {
+    justify-content: flex-end;
+  }
+
+  .notifications-header:has(.notifications-delete-selected) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .notifications-header:has(.notifications-delete-selected) .notifications-header-actions {
+    flex: 1 0 100%;
     justify-content: flex-start;
   }
 
