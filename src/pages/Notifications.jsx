@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
+  deleteNotifications,
   markNotificationsRead,
   shouldIgnoreNotificationError,
 } from "../lib/notifications";
@@ -88,6 +89,8 @@ export default function Notifications() {
   const [error, setError] = useState("");
   const [tableMissing, setTableMissing] = useState(false);
   const [openingId, setOpeningId] = useState(null);
+  const [markingAllViewed, setMarkingAllViewed] = useState(false);
+  const [deletingIds, setDeletingIds] = useState(() => new Set());
 
   const unreadIds = useMemo(
     () => items.filter((item) => !item.read_at).map((item) => item.id),
@@ -96,6 +99,15 @@ export default function Notifications() {
 
   function notifyBadgeChanged() {
     window.dispatchEvent(new CustomEvent(NOTIFICATIONS_CHANGED_EVENT));
+  }
+
+  function setDeleting(notificationId, deleting) {
+    setDeletingIds((current) => {
+      const next = new Set(current);
+      if (deleting) next.add(notificationId);
+      else next.delete(notificationId);
+      return next;
+    });
   }
 
   async function loadNotifications() {
@@ -214,10 +226,18 @@ export default function Notifications() {
     loadNotifications();
   }, []);
 
-  async function markAllRead() {
-    if (!unreadIds.length) return;
-    const result = await markNotificationsRead(unreadIds);
-    if (result.ok) {
+  async function markAllViewed() {
+    if (!unreadIds.length || markingAllViewed) return;
+
+    setMarkingAllViewed(true);
+    setError("");
+
+    try {
+      const result = await markNotificationsRead(unreadIds);
+      if (!result.ok) {
+        throw result.error || new Error("Could not mark notifications as viewed.");
+      }
+
       const now = new Date().toISOString();
       setItems((current) =>
         current.map((item) =>
@@ -225,6 +245,38 @@ export default function Notifications() {
         )
       );
       notifyBadgeChanged();
+    } catch (err) {
+      console.error("Failed marking all notifications viewed:", err);
+      setError(err.message || "Could not mark notifications as viewed.");
+    } finally {
+      setMarkingAllViewed(false);
+    }
+  }
+
+  async function deleteNotification(item, event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!item?.id || deletingIds.has(item.id)) return;
+
+    setDeleting(item.id, true);
+    setError("");
+
+    try {
+      const result = await deleteNotifications([item.id]);
+      if (!result.ok) {
+        throw result.error || new Error("Could not delete this notification.");
+      }
+
+      setItems((current) =>
+        current.filter((currentItem) => currentItem.id !== item.id)
+      );
+      notifyBadgeChanged();
+    } catch (err) {
+      console.error("Failed deleting notification:", err);
+      setError(err.message || "Could not delete this notification.");
+    } finally {
+      setDeleting(item.id, false);
     }
   }
 
@@ -269,7 +321,7 @@ export default function Notifications() {
 
   async function openNotification(item, event) {
     event.preventDefault();
-    if (openingId) return;
+    if (openingId || deletingIds.has(item.id)) return;
 
     setOpeningId(item.id);
     setError("");
@@ -310,10 +362,11 @@ export default function Notifications() {
         {unreadIds.length ? (
           <button
             type="button"
-            onClick={markAllRead}
+            onClick={markAllViewed}
             className="notifications-mark-read"
+            disabled={markingAllViewed}
           >
-            Mark all read
+            {markingAllViewed ? "Marking..." : "Mark all as viewed"}
           </button>
         ) : null}
       </header>
@@ -333,51 +386,64 @@ export default function Notifications() {
             const actorName = getProfileName(item.actor_profile);
             const avatarUrl = item.actor_profile?.avatar_url || "";
             const initial = actorName.slice(0, 1).toUpperCase();
-            const card = (
-              <>
-                <div className="notification-icon" aria-hidden="true">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="notification-avatar"
-                    />
-                  ) : (
-                    <span className="notification-avatar-fallback">
-                      {initial}
-                    </span>
-                  )}
-                </div>
-                <div className="notification-body">
-                  <div className="notification-topline">
-                    <strong>{getNotificationTitle(item)}</strong>
-                    {!item.read_at ? (
-                      <span
-                        className="notification-unread-dot"
-                        aria-label="Unread"
-                      />
-                    ) : null}
-                  </div>
-                  {item.type !== "review_reply" && item.body ? (
-                    <p>{item.body}</p>
-                  ) : null}
-                  <small>{formatDate(item.created_at)}</small>
-                </div>
-              </>
-            );
+            const isDeleting = deletingIds.has(item.id);
 
             return (
-              <a
+              <article
                 key={item.id}
-                href={item.url || "/notifications"}
-                onClick={(event) => openNotification(item, event)}
                 className={`notification-card${
                   item.read_at ? "" : " is-unread"
-                }${openingId === item.id ? " is-opening" : ""}`}
-                aria-busy={openingId === item.id}
+                }${openingId === item.id ? " is-opening" : ""}${
+                  isDeleting ? " is-deleting" : ""
+                }`}
+                aria-busy={openingId === item.id || isDeleting}
               >
-                {card}
-              </a>
+                <button
+                  type="button"
+                  className="notification-open-button"
+                  onClick={(event) => openNotification(item, event)}
+                  disabled={isDeleting}
+                >
+                  <span className="notification-icon" aria-hidden="true">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt=""
+                        className="notification-avatar"
+                      />
+                    ) : (
+                      <span className="notification-avatar-fallback">
+                        {initial}
+                      </span>
+                    )}
+                  </span>
+                  <span className="notification-body">
+                    <span className="notification-topline">
+                      <strong>{getNotificationTitle(item)}</strong>
+                      {!item.read_at ? (
+                        <span
+                          className="notification-unread-dot"
+                          aria-label="Unread"
+                        />
+                      ) : null}
+                    </span>
+                    {item.type !== "review_reply" && item.body ? (
+                      <span className="notification-message">{item.body}</span>
+                    ) : null}
+                    <small>{formatDate(item.created_at)}</small>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="notification-delete-button"
+                  onClick={(event) => deleteNotification(item, event)}
+                  disabled={isDeleting || openingId === item.id}
+                  aria-label={`Delete notification: ${getNotificationTitle(item)}`}
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </article>
             );
           })}
         </section>
