@@ -1,25 +1,10 @@
-import { handler as legacySearchShowsHandler } from "./searchShows.js";
-
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const IMAGE_BASE = "https://image.tmdb.org/t/p";
+const TVDB_BASE = "https://api4.thetvdb.com/v4";
 const DEFAULT_REGION = "GB";
+const PAGE_SIZE = 20;
 const MAX_TMDB_PAGE = 500;
-const COMPANY_SUFFIX_WORDS = new Set([
-  "channel",
-  "company",
-  "entertainment",
-  "film",
-  "films",
-  "media",
-  "network",
-  "pictures",
-  "production",
-  "productions",
-  "studio",
-  "studios",
-  "television",
-  "tv",
-]);
+const MAX_TVDB_RESULTS = 5000;
 
 let tvdbToken = null;
 let tvdbTokenExpiresAt = 0;
@@ -59,12 +44,12 @@ async function getTvdbToken() {
   if (tvdbToken && Date.now() < tvdbTokenExpiresAt) return tvdbToken;
 
   const apiKey = process.env.TVDB_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) throw new Error("Missing TVDB API key");
 
   const payload = { apikey: apiKey };
   if (process.env.TVDB_PIN) payload.pin = process.env.TVDB_PIN;
 
-  const res = await fetch("https://api4.thetvdb.com/v4/login", {
+  const res = await fetch(`${TVDB_BASE}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -72,7 +57,9 @@ async function getTvdbToken() {
   const data = await res.json();
   const token = data?.data?.token;
 
-  if (!res.ok || !token) return null;
+  if (!res.ok || !token) {
+    throw new Error(data?.message || "TVDB login failed");
+  }
 
   tvdbToken = token;
   tvdbTokenExpiresAt = Date.now() + 27 * 24 * 60 * 60 * 1000;
@@ -101,18 +88,6 @@ function rankNameMatch(name, query) {
   const queryWords = normalizedQuery.split(" ");
   const matchedWords = queryWords.filter((word) => normalizedName.includes(word));
   return matchedWords.length * 10;
-}
-
-function isSensibleCompanyMatch(name, query) {
-  const normalizedName = normalizeText(name);
-  const normalizedQuery = normalizeText(query);
-
-  if (!normalizedName || !normalizedQuery) return false;
-  if (normalizedName === normalizedQuery) return true;
-  if (!normalizedName.startsWith(`${normalizedQuery} `)) return false;
-
-  const remainder = normalizedName.slice(normalizedQuery.length).trim().split(" ");
-  return remainder.length > 0 && remainder.every((word) => COMPANY_SUFFIX_WORDS.has(word));
 }
 
 function platformAliases(query) {
@@ -157,7 +132,7 @@ async function getGenres() {
 async function resolveGenre(query) {
   const genres = await getGenres();
   const match = bestMatch(genres, query);
-  return match?.score > 0 ? { ...match.item, allGenres: genres } : null;
+  return match?.score > 0 ? match.item : null;
 }
 
 async function resolveProvider(query, region) {
@@ -176,139 +151,150 @@ async function resolveProvider(query, region) {
   return best?.score > 0 ? best.item : null;
 }
 
-async function resolveCompanies(query) {
-  const data = await tmdbFetch("/search/company", { query, page: "1" });
-  const results = Array.isArray(data?.results) ? data.results : [];
+function normalizeGenres(value) {
+  if (!Array.isArray(value)) return [];
 
-  const exactMatches = results.filter(
-    (item) => normalizeText(item?.name) === normalizeText(query)
-  );
-  if (exactMatches.length) return exactMatches.slice(0, 4);
-
-  return results
-    .filter((item) => isSensibleCompanyMatch(item?.name, query))
-    .sort(
-      (a, b) =>
-        rankNameMatch(b?.name, query) - rankNameMatch(a?.name, query) ||
-        Number(b?.id || 0) - Number(a?.id || 0)
-    )
-    .slice(0, 4);
+  return value
+    .map((genre) => {
+      if (typeof genre === "string") return genre;
+      if (genre && typeof genre === "object") {
+        return genre.name || genre.genre || genre.value || null;
+      }
+      return null;
+    })
+    .filter(Boolean);
 }
 
-async function resolveTmdbIdFromTvdbId(tvdbId) {
+function extractRemoteId(item, wantedSource) {
+  const wanted = normalizeText(wantedSource);
+  const pools = [
+    item?.remoteIds,
+    item?.remote_ids,
+    item?.externalIds,
+    item?.external_ids,
+    item?.ids,
+  ].filter(Array.isArray);
+
+  for (const pool of pools) {
+    for (const entry of pool) {
+      const source = normalizeText(
+        entry?.sourceName ||
+          entry?.source_name ||
+          entry?.sourceType ||
+          entry?.source_type ||
+          entry?.type ||
+          entry?.name
+      );
+      if (source && !source.includes(wanted)) continue;
+
+      const value = Number(
+        entry?.id ||
+          entry?.remoteId ||
+          entry?.remote_id ||
+          entry?.value ||
+          entry?.externalId ||
+          entry?.external_id
+      );
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+  }
+
+  return null;
+}
+
+function normalizeTvdbStudioResult(item, studioName) {
+  const tvdbId = Number(item?.tvdb_id || item?.id);
+  const image = item?.image_url || item?.image || item?.thumbnail || null;
+  const firstAired = item?.first_air_time || item?.firstAired || item?.first_air_date || null;
+
+  return {
+    tvdb_id: Number.isFinite(tvdbId) && tvdbId > 0 ? tvdbId : null,
+    tmdb_id: extractRemoteId(item, "tmdb"),
+    name: item?.name || item?.seriesName || item?.title || "Unknown title",
+    overview: item?.overview || item?.description || "",
+    first_aired: firstAired,
+    first_air_time: firstAired,
+    image_url: image,
+    poster_url: image,
+    backdrop_url: item?.background || item?.background_url || null,
+    genres: normalizeGenres(item?.genres || item?.genre),
+    network: null,
+    platform: null,
+    studio: studioName,
+    studios: [studioName],
+    rating_average: Number(item?.score || item?.rating || item?.siteRating) || null,
+    rating_count: Number(item?.rating_count || item?.siteRatingCount) || 0,
+    popularity: Number(item?.score || 0),
+    original_language: item?.primary_language || item?.language || null,
+    source: "tvdb",
+  };
+}
+
+async function searchTvdbCompany(query, page) {
   const token = await getTvdbToken();
-  if (!token || !tvdbId) return null;
+  const offset = Math.max(0, (page - 1) * PAGE_SIZE);
+  const params = new URLSearchParams({
+    type: "series",
+    company: query,
+    offset: String(offset),
+    limit: String(PAGE_SIZE),
+    language: "eng",
+    meta: "translations",
+  });
 
-  try {
-    const res = await fetch(
-      `https://api4.thetvdb.com/v4/series/${encodeURIComponent(tvdbId)}/extended?language=eng&meta=translations`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          "Accept-Language": "eng",
-        },
-      }
-    );
-    const data = await res.json();
-    if (!res.ok || !data?.data) return null;
+  const res = await fetch(`${TVDB_BASE}/search?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Accept-Language": "eng",
+    },
+  });
+  const data = await res.json();
 
-    const series = data.data;
-    const direct = Number(series?.tmdb_id || series?.tmdbId || series?.themoviedb_id);
-    if (Number.isFinite(direct) && direct > 0) return direct;
-
-    const pools = [
-      series?.remoteIds,
-      series?.remote_ids,
-      series?.externalIds,
-      series?.external_ids,
-    ].filter(Array.isArray);
-
-    for (const pool of pools) {
-      for (const item of pool) {
-        const source = normalizeText(
-          item?.sourceName || item?.source_name || item?.type || item?.name
-        );
-        if (!source.includes("tmdb") && !source.includes("movie db")) continue;
-
-        const value = Number(
-          item?.id || item?.remoteId || item?.remote_id || item?.value
-        );
-        if (Number.isFinite(value) && value > 0) return value;
-      }
-    }
-  } catch (error) {
-    console.warn("Unable to resolve TMDB ID from TVDB:", error);
+  if (!res.ok) {
+    throw new Error(data?.message || "TVDB studio search failed");
   }
 
-  return null;
+  const rawResults = Array.isArray(data?.data) ? data.data : [];
+  const results = rawResults
+    .filter((item) => {
+      const type = normalizeText(item?.type);
+      return !type || type === "series";
+    })
+    .map((item) => normalizeTvdbStudioResult(item, query))
+    .filter((item) => item.tvdb_id);
+
+  const links = data?.links || {};
+  const totalCandidates = [
+    links?.total_items,
+    links?.totalItems,
+    links?.total,
+    data?.total_items,
+    data?.totalItems,
+    data?.total,
+  ];
+  const totalResults = totalCandidates
+    .map(Number)
+    .find((value) => Number.isFinite(value) && value >= 0) || 0;
+
+  const nextLink = links?.next || links?.nextPage || null;
+  const hasMore = Boolean(nextLink) || (
+    results.length === PAGE_SIZE &&
+    offset + results.length < MAX_TVDB_RESULTS &&
+    (!totalResults || offset + results.length < totalResults)
+  );
+
+  return {
+    results,
+    totalResults,
+    hasMore,
+    totalPages: totalResults
+      ? Math.ceil(Math.min(totalResults, MAX_TVDB_RESULTS) / PAGE_SIZE)
+      : page + (hasMore ? 1 : 0),
+  };
 }
 
-async function resolveSourceTmdbId(sourceShowId, sourceType) {
-  const numericId = Number(sourceShowId);
-  if (!Number.isFinite(numericId) || numericId <= 0) return null;
-
-  if (sourceType === "tmdb") return numericId;
-  if (sourceType === "tvdb") return resolveTmdbIdFromTvdbId(numericId);
-
-  try {
-    await tmdbFetch(`/tv/${numericId}`);
-    return numericId;
-  } catch {
-    return resolveTmdbIdFromTvdbId(numericId);
-  }
-}
-
-async function resolveStudioFromSource(query, sourceShowId, sourceType) {
-  const tmdbId = await resolveSourceTmdbId(sourceShowId, sourceType);
-  if (!tmdbId) return null;
-
-  try {
-    const details = await tmdbFetch(`/tv/${tmdbId}`);
-    const networks = Array.isArray(details?.networks) ? details.networks : [];
-    const companies = Array.isArray(details?.production_companies)
-      ? details.production_companies
-      : [];
-
-    const exactNetwork = networks.find(
-      (item) => normalizeText(item?.name) === normalizeText(query)
-    );
-    if (exactNetwork?.id) {
-      return { type: "network", id: exactNetwork.id, name: exactNetwork.name };
-    }
-
-    const exactCompany = companies.find(
-      (item) => normalizeText(item?.name) === normalizeText(query)
-    );
-    if (exactCompany?.id) {
-      return { type: "company", id: exactCompany.id, name: exactCompany.name };
-    }
-
-    const networkMatch = bestMatch(networks, query);
-    if (networkMatch?.score >= 45 && networkMatch?.item?.id) {
-      return {
-        type: "network",
-        id: networkMatch.item.id,
-        name: networkMatch.item.name,
-      };
-    }
-
-    const companyMatch = bestMatch(companies, query);
-    if (companyMatch?.score >= 45 && companyMatch?.item?.id) {
-      return {
-        type: "company",
-        id: companyMatch.item.id,
-        name: companyMatch.item.name,
-      };
-    }
-  } catch (error) {
-    console.warn("Unable to resolve source studio/network:", error);
-  }
-
-  return null;
-}
-
-function normalizeResult(item, context, genreMap) {
+function normalizeTmdbResult(item, context, genreMap) {
   const genreNames = (item?.genre_ids || [])
     .map((id) => genreMap.get(Number(id)))
     .filter(Boolean);
@@ -328,44 +314,14 @@ function normalizeResult(item, context, genreMap) {
     genres: genreNames,
     network: context.platformName || null,
     platform: context.platformName || null,
-    studio: context.studioName || null,
-    studios: context.studioNames || [],
+    studio: null,
+    studios: [],
     rating_average: item?.vote_average || null,
     rating_count: item?.vote_count || 0,
     popularity: item?.popularity || 0,
     original_language: item?.original_language || null,
     source: "tmdb",
   };
-}
-
-async function legacyNetworkStudioResults(query) {
-  try {
-    const legacyResponse = await legacySearchShowsHandler({
-      httpMethod: "GET",
-      queryStringParameters: {
-        network: query,
-        sourceYear: "",
-        sourceRating: "",
-        sourceLanguage: "english",
-      },
-    });
-
-    if (Number(legacyResponse?.statusCode || 500) !== 200) return [];
-
-    const parsed = JSON.parse(legacyResponse?.body || "[]");
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.map((item) => ({
-      ...item,
-      network: null,
-      platform: null,
-      studio: item?.network || query,
-      studios: [item?.network || query].filter(Boolean),
-    }));
-  } catch (error) {
-    console.warn("Studio network fallback failed:", error);
-    return [];
-  }
 }
 
 function regionLabel(region) {
@@ -385,18 +341,10 @@ export async function handler(event) {
     const region = String(event.queryStringParameters?.region || DEFAULT_REGION)
       .trim()
       .toUpperCase();
-    const sourceShowId = String(
-      event.queryStringParameters?.sourceShowId || ""
-    ).trim();
-    const sourceType = String(
-      event.queryStringParameters?.sourceType || ""
-    )
-      .trim()
-      .toLowerCase();
     const requestedPage = Number(event.queryStringParameters?.page || 1);
-    const page = Math.min(
-      MAX_TMDB_PAGE,
-      Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1)
+    const page = Math.max(
+      1,
+      Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1
     );
 
     if (!query || !["genre", "platform", "studio"].includes(mode)) {
@@ -405,16 +353,37 @@ export async function handler(event) {
       });
     }
 
+    if (mode === "studio") {
+      const studioSearch = await searchTvdbCompany(query, page);
+
+      if (!studioSearch.results.length && page === 1) {
+        return response(404, {
+          message: `No studio, network or production company matched “${query}”.`,
+        });
+      }
+
+      return response(200, {
+        mode,
+        query,
+        matched: query,
+        page,
+        totalPages: studioSearch.totalPages,
+        totalResults: studioSearch.totalResults,
+        hasMore: studioSearch.hasMore,
+        results: studioSearch.results,
+        matchType: "tvdb-company",
+      });
+    }
+
     const genres = await getGenres();
     const genreMap = new Map(genres.map((genre) => [Number(genre.id), genre.name]));
     const discoverParams = {
-      page: String(page),
+      page: String(Math.min(MAX_TMDB_PAGE, page)),
       sort_by: "popularity.desc",
       include_adult: "false",
       include_null_first_air_dates: "false",
     };
     const context = {};
-    let studioMatchType = "company";
 
     if (mode === "genre") {
       const genre = await resolveGenre(query);
@@ -437,88 +406,23 @@ export async function handler(event) {
       context.platformName = provider.provider_name;
     }
 
-    if (mode === "studio") {
-      const sourceStudio = sourceShowId
-        ? await resolveStudioFromSource(query, sourceShowId, sourceType)
-        : null;
-
-      if (sourceStudio?.type === "network") {
-        discoverParams.with_networks = String(sourceStudio.id);
-        context.studioName = sourceStudio.name;
-        context.studioNames = [sourceStudio.name];
-        studioMatchType = "network";
-      } else if (sourceStudio?.type === "company") {
-        discoverParams.with_companies = String(sourceStudio.id);
-        context.studioName = sourceStudio.name;
-        context.studioNames = [sourceStudio.name];
-        studioMatchType = "company";
-      } else {
-        const companies = await resolveCompanies(query);
-
-        if (!companies.length) {
-          const networkResults = await legacyNetworkStudioResults(query);
-          if (!networkResults.length) {
-            return response(404, {
-              message: `No studio or TV network matched “${query}”.`,
-            });
-          }
-
-          return response(200, {
-            mode,
-            query,
-            matched: query,
-            page: 1,
-            totalPages: 1,
-            totalResults: networkResults.length,
-            hasMore: false,
-            results: networkResults,
-            matchType: "network-fallback",
-          });
-        }
-
-        discoverParams.with_companies = companies
-          .map((company) => company.id)
-          .join("|");
-        context.studioNames = companies.map((company) => company.name);
-        context.studioName = companies[0].name;
-      }
-    }
-
     const discovered = await tmdbFetch("/discover/tv", discoverParams);
     const rawTotalPages = Number(discovered?.total_pages || 1);
     const totalPages = Math.min(MAX_TMDB_PAGE, Math.max(1, rawTotalPages));
     const results = (Array.isArray(discovered?.results) ? discovered.results : [])
-      .map((item) => normalizeResult(item, context, genreMap))
+      .map((item) => normalizeTmdbResult(item, context, genreMap))
       .filter((item) => item.tmdb_id);
-
-    if (mode === "studio" && results.length === 0 && page === 1) {
-      const networkResults = await legacyNetworkStudioResults(query);
-      if (networkResults.length) {
-        return response(200, {
-          mode,
-          query,
-          matched: query,
-          page: 1,
-          totalPages: 1,
-          totalResults: networkResults.length,
-          hasMore: false,
-          results: networkResults,
-          matchType: "network-fallback",
-        });
-      }
-    }
 
     return response(200, {
       mode,
       query,
-      matched:
-        context.genreName || context.platformName || context.studioName || query,
+      matched: context.genreName || context.platformName || query,
       page,
       totalPages,
       totalResults: Number(discovered?.total_results || results.length),
       hasMore: page < totalPages,
       results,
-      matchType: mode === "studio" ? studioMatchType : mode,
+      matchType: mode,
     });
   } catch (error) {
     console.error("advancedSearchShows error", error);
