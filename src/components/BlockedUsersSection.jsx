@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "./BlockedUsersSection.css";
 
@@ -226,7 +225,7 @@ export default function BlockedUsersSection() {
 
     return (
       <article className="blocked-user-row">
-        <Link to={getProfileHref(profile)} className="blocked-user-profile-link">
+        <a href={getProfileHref(profile)} className="blocked-user-profile-link">
           {profile.avatar_url ? (
             <img src={profile.avatar_url} alt="" />
           ) : (
@@ -236,7 +235,7 @@ export default function BlockedUsersSection() {
             <strong>{name}</strong>
             {profile.username ? <small>@{profile.username}</small> : null}
           </span>
-        </Link>
+        </a>
 
         <button
           type="button"
