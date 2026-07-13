@@ -14,6 +14,7 @@ function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
+
   return date.toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
@@ -68,6 +69,10 @@ function buildShowRoute(show, item) {
   }
 
   return item.url || "/notifications";
+}
+
+function isDeletedNotification(item) {
+  return Boolean(item?.meta?.deleted_at);
 }
 
 async function fetchRowsByIds(table, ids, columns) {
@@ -134,7 +139,9 @@ export default function Notifications() {
     setTableMissing(false);
 
     try {
-      const { data: authData } = await supabase.auth.getUser();
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+
       const user = authData?.user || null;
       if (!user?.id) {
         setItems([]);
@@ -152,7 +159,10 @@ export default function Notifications() {
 
       if (loadError) throw loadError;
 
-      const notificationRows = data || [];
+      const notificationRows = (data || []).filter(
+        (item) => !isDeletedNotification(item)
+      );
+
       const actorIds = Array.from(
         new Set(notificationRows.map((item) => item.actor_user_id).filter(Boolean))
       );
@@ -183,6 +193,7 @@ export default function Notifications() {
           targetShowMap.set(String(row.id), row.show_id);
         }
       });
+
       chatRows.forEach((row) => {
         if (row?.id && row?.show_id) {
           targetShowMap.set(String(row.id), row.show_id);
@@ -228,11 +239,13 @@ export default function Notifications() {
       setItems(enrichedItems);
     } catch (err) {
       console.error("Failed loading notifications:", err);
+
       if (shouldIgnoreNotificationError(err)) {
         setTableMissing(true);
         setItems([]);
         return;
       }
+
       setError(err.message || "Failed loading notifications.");
       setItems([]);
     } finally {
@@ -284,9 +297,9 @@ export default function Notifications() {
         throw result.error || new Error("Could not delete the selected notifications.");
       }
 
-      const selectedSet = new Set(ids);
+      const deletedSet = new Set(result.deletedIds || ids);
       setItems((current) =>
-        current.filter((item) => !selectedSet.has(item.id))
+        current.filter((item) => !deletedSet.has(item.id))
       );
       setSelectedIds(new Set());
       setSelectionMode(false);
@@ -382,7 +395,6 @@ export default function Notifications() {
       <header className="notifications-header">
         <div>
           <h1>Notifications</h1>
-          <p>Replies, follows, comments and other activity.</p>
         </div>
 
         <div className="notifications-header-actions">
