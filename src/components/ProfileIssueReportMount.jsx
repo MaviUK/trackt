@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import IssueReportForm from "./IssueReportForm";
+import BlockedUsersSection from "./BlockedUsersSection";
 import AccountDataExportSection from "./AccountDataExportSection";
 import AccountDeletionSection from "./AccountDeletionSection";
 import ProfileAgeRequirementGuard from "./ProfileAgeRequirementGuard";
@@ -61,6 +62,7 @@ export default function ProfileIssueReportMount() {
         ? createPortal(
             <>
               <IssueReportForm />
+              <BlockedUsersSection />
               <section className="profile-legal-section" aria-labelledby="profile-legal-title">
                 <div className="profile-legal-copy">
                   <h2 id="profile-legal-title">Legal</h2>
