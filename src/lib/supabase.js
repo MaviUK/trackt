@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { installShowCommunityPortal } from "../components/ShowCommunityPortal";
 import { installSmartShowLinks } from "./smartShowLinks";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -131,5 +132,6 @@ client.from = (table) => {
 };
 
 installSmartShowLinks(client);
+installShowCommunityPortal(client);
 
 export const supabase = client;
