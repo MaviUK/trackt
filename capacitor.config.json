@@ -3,6 +3,11 @@
   "appName": "BURGRS",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "url": "https://burgrs.co.uk",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "burgrs.co.uk",
+      "*.burgrs.co.uk"
+    ]
   }
 }
