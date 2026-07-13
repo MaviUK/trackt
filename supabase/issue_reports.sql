@@ -21,9 +21,17 @@ create table if not exists public.issue_reports (
     status in ('open', 'reviewing', 'resolved', 'closed')
   ),
   admin_notes text,
+  email_sent_at timestamptz,
+  email_delivery_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.issue_reports
+  add column if not exists email_sent_at timestamptz;
+
+alter table public.issue_reports
+  add column if not exists email_delivery_error text;
 
 create index if not exists issue_reports_user_created_idx
   on public.issue_reports (user_id, created_at desc);
@@ -47,7 +55,6 @@ create policy "Users can view their own issue reports"
   to authenticated
   using (auth.uid() = user_id);
 
--- Private storage bucket for screenshots.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'issue-screenshots',
