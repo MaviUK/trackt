@@ -10,6 +10,10 @@
   color: #e2e8f0 !important;
 }
 
+.creator-page.has-user-block .creator-actions > .creator-btn:not(.creator-profile-block-button) {
+  display: none !important;
+}
+
 .creator-profile-block-error {
   width: 100%;
   color: #fecaca;
