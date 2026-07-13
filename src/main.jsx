@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { installNativeApiBridge } from './lib/installNativeApiBridge'
+import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import './index.css'
 import './rankd-button-fixes.css'
 import './mobile-header-consistency.css'
@@ -50,6 +51,7 @@ import './creator-bio-limit.js'
 import './creator-rankd-list-button.js'
 
 installNativeApiBridge()
+installMobileOverscrollGuard()
 
 function BootReady() {
   React.useEffect(() => {
