@@ -43,6 +43,34 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+async function emailSavedReport(reportId) {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  const accessToken = sessionData?.session?.access_token || "";
+  if (!accessToken) throw new Error("Your session expired. Please log in again.");
+
+  const response = await fetch("/.netlify/functions/send-issue-report", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ reportId }),
+  });
+
+  let result = {};
+  try {
+    result = await response.json();
+  } catch {
+    result = {};
+  }
+
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.error || "The report email could not be sent.");
+  }
+}
+
 export default function IssueReportForm() {
   const [email, setEmail] = useState("");
   const [category, setCategory] = useState("bug");
@@ -165,6 +193,7 @@ export default function IssueReportForm() {
     setMessage("");
 
     let uploadedPaths = [];
+    let reportSaved = false;
 
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -192,15 +221,18 @@ export default function IssueReportForm() {
       });
 
       if (reportError) throw reportError;
+      reportSaved = true;
+
+      await emailSavedReport(reportId);
 
       setCategory("bug");
       setSubject("");
       setDescription("");
       setSteps("");
       setScreenshots([]);
-      setMessage("Your report has been sent. Thank you for helping improve BURGRS.");
+      setMessage("Your report has been emailed to info@burgrs.co.uk. Thank you for helping improve BURGRS.");
     } catch (err) {
-      if (uploadedPaths.length) {
+      if (!reportSaved && uploadedPaths.length) {
         await supabase.storage
           .from("issue-screenshots")
           .remove(uploadedPaths)
@@ -209,7 +241,9 @@ export default function IssueReportForm() {
 
       console.error("Failed submitting issue report:", err);
       setError(
-        err.message || "Your report could not be sent. Please try again."
+        reportSaved
+          ? `Your report was saved, but the email could not be delivered: ${err.message || "Unknown email error."}`
+          : err.message || "Your report could not be sent. Please try again."
       );
     } finally {
       setSubmitting(false);
@@ -233,11 +267,7 @@ export default function IssueReportForm() {
         <div className="issue-report-grid">
           <label>
             <span>Issue type</span>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              disabled={submitting}
-            >
+            <select value={category} onChange={(event) => setCategory(event.target.value)} disabled={submitting}>
               <option value="bug">Something is not working</option>
               <option value="content">Incorrect show or episode information</option>
               <option value="account">Account or login problem</option>
@@ -248,50 +278,23 @@ export default function IssueReportForm() {
 
           <label>
             <span>Contact email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              disabled={submitting}
-            />
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" disabled={submitting} />
           </label>
         </div>
 
         <label>
           <span>Subject</span>
-          <input
-            type="text"
-            value={subject}
-            onChange={(event) => setSubject(event.target.value)}
-            placeholder="Example: Episodes are not marking as watched"
-            maxLength={140}
-            disabled={submitting}
-          />
+          <input type="text" value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Example: Episodes are not marking as watched" maxLength={140} disabled={submitting} />
         </label>
 
         <label>
           <span>What happened?</span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Describe what you expected to happen and what happened instead."
-            rows={6}
-            maxLength={3000}
-            disabled={submitting}
-          />
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe what you expected to happen and what happened instead." rows={6} maxLength={3000} disabled={submitting} />
         </label>
 
         <label>
           <span>Steps to reproduce <small>(optional)</small></span>
-          <textarea
-            value={steps}
-            onChange={(event) => setSteps(event.target.value)}
-            placeholder="1. Open My Shows\n2. Tap a show\n3. Mark an episode as watched"
-            rows={4}
-            maxLength={2000}
-            disabled={submitting}
-          />
+          <textarea value={steps} onChange={(event) => setSteps(event.target.value)} placeholder="1. Open My Shows\n2. Tap a show\n3. Mark an episode as watched" rows={4} maxLength={2000} disabled={submitting} />
         </label>
 
         <div className="issue-report-screenshots">
@@ -302,13 +305,7 @@ export default function IssueReportForm() {
 
           {screenshots.length < MAX_SCREENSHOTS ? (
             <label className="issue-report-upload">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                multiple
-                onChange={handleScreenshotSelection}
-                disabled={submitting}
-              />
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={handleScreenshotSelection} disabled={submitting} />
               <strong>Add screenshots</strong>
               <span>Up to three images, maximum 5 MB each</span>
             </label>
@@ -323,12 +320,7 @@ export default function IssueReportForm() {
                     <span>{item.file.name}</span>
                     <small>{formatFileSize(item.file.size)}</small>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeScreenshot(index)}
-                    disabled={submitting}
-                    aria-label={`Remove ${item.file.name}`}
-                  >
+                  <button type="button" onClick={() => removeScreenshot(index)} disabled={submitting} aria-label={`Remove ${item.file.name}`}>
                     Remove
                   </button>
                 </div>
