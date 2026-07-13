@@ -3,6 +3,16 @@
     --mobile-fixed-header-height: 62px;
   }
 
+  html,
+  body,
+  #root {
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    overflow-anchor: none;
+  }
+
   body:has(.mobile-top-banner-wrap) {
     padding-top: calc(var(--mobile-fixed-header-height) + env(safe-area-inset-top));
   }
@@ -16,6 +26,11 @@
     padding-top: env(safe-area-inset-top);
     background: #0b1020;
     z-index: 1000;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    will-change: transform;
+    contain: layout paint style;
+    isolation: isolate;
   }
 
   .mobile-top-banner-wrap .burgrs-banner {
