@@ -1,0 +1,69 @@
+.account-export-section {
+  width: 100%;
+  max-width: 860px;
+  margin: 16px auto 0;
+  padding: 16px;
+  box-sizing: border-box;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.14), rgba(15, 23, 42, 0.92));
+  color: #f8fafc;
+}
+
+.account-export-section h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.account-export-section p {
+  margin: 7px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.account-export-section > small {
+  display: block;
+  margin-top: 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.account-export-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 0 14px;
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  border-radius: 999px;
+  background: rgba(30, 64, 175, 0.28);
+  color: #dbeafe;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.account-export-button:disabled {
+  opacity: 0.56;
+  cursor: default;
+}
+
+.account-export-alert {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.account-export-alert.is-error {
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+}
+
+.account-export-alert.is-success {
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(20, 83, 45, 0.28);
+  color: #bbf7d0;
+}
