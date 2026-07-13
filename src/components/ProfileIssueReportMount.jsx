@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import IssueReportForm from "./IssueReportForm";
+import "./ProfileLegalSection.css";
 
 const MOUNT_ID = "burgrs-issue-report-mount";
 
