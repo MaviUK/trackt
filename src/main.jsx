@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import ProfileIssueReportMount from './components/ProfileIssueReportMount'
 import { installNativeApiBridge } from './lib/installNativeApiBridge'
 import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import { installUserCacheIsolation } from './lib/installUserCacheIsolation'
@@ -122,6 +123,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BootReady />
     <AppErrorBoundary>
       <App />
+      <ProfileIssueReportMount />
     </AppErrorBoundary>
   </React.StrictMode>,
 )
