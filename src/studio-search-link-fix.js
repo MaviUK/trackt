@@ -23,6 +23,13 @@ function inferSourceType() {
   return "";
 }
 
+function inferSourceShowId() {
+  const match = window.location.pathname.match(
+    /\/(?:my-shows|show)\/(?:tmdb\/)?([^/?#]+)/
+  );
+  return match?.[1] || "";
+}
+
 function rewriteStudioLinks() {
   document
     .querySelectorAll('.msd-info-card a[href^="/search?network="]')
@@ -36,7 +43,11 @@ function rewriteStudioLinks() {
         url.searchParams.set("studio", studio);
 
         const sourceType = inferSourceType();
+        const sourceShowId =
+          url.searchParams.get("sourceShowId")?.trim() || inferSourceShowId();
+
         if (sourceType) url.searchParams.set("sourceType", sourceType);
+        if (sourceShowId) url.searchParams.set("sourceShowId", sourceShowId);
 
         link.setAttribute("href", `${url.pathname}?${url.searchParams.toString()}`);
       } catch {
@@ -59,14 +70,22 @@ function installStudioFetchBridge() {
 
         if (isStudioSearch) {
           const studioUrl = new URL(
-            "/.netlify/functions/studioSearchShows",
+            "/.netlify/functions/studioCatalogueSearch",
             window.location.origin
           );
 
+          const { sourceShowId, sourceType } = getStudioParamsFromLocation();
           const query = requestUrl.searchParams.get("q") || "";
           const page = requestUrl.searchParams.get("page") || "1";
+
           studioUrl.searchParams.set("q", query);
           studioUrl.searchParams.set("page", page);
+          if (sourceShowId) {
+            studioUrl.searchParams.set("sourceShowId", sourceShowId);
+          }
+          if (sourceType) {
+            studioUrl.searchParams.set("sourceType", sourceType);
+          }
 
           const bridgedUrl = studioUrl.pathname + studioUrl.search;
           if (typeof input === "string") return originalFetch(bridgedUrl, init);
