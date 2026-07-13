@@ -1,4 +1,5 @@
 const SMART_SHOW_LINKS_FLAG = "__burgrsSmartShowLinksInstalled";
+const CREATOR_REVIEW_RATING_CLASS = "creator-review-rating-corner";
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -74,11 +75,92 @@ async function getSavedShowDestination(supabase, pathname) {
   return null;
 }
 
+function positionCreatorReviewRatings(root = document) {
+  const cards = root.matches?.(".creator-review-card")
+    ? [root]
+    : Array.from(root.querySelectorAll?.(".creator-review-card") || []);
+
+  cards.forEach((card) => {
+    const meta = card.querySelector(".creator-review-show > div > span");
+    if (!meta) return;
+
+    const metaText = String(meta.textContent || "").trim();
+    const match = metaText.match(/^(.*?)(?:\s*[•·]\s*)(\d{1,3}%)$/);
+    if (!match) return;
+
+    const dateLabel = match[1].trim();
+    const ratingLabel = match[2].trim();
+
+    meta.textContent = dateLabel;
+    card.style.position = "relative";
+
+    const showLink = card.querySelector(".creator-review-show");
+    if (showLink) showLink.style.paddingRight = "68px";
+
+    let ratingBadge = card.querySelector(`.${CREATOR_REVIEW_RATING_CLASS}`);
+    if (!ratingBadge) {
+      ratingBadge = document.createElement("span");
+      ratingBadge.className = CREATOR_REVIEW_RATING_CLASS;
+      ratingBadge.setAttribute("aria-label", `User rating ${ratingLabel}`);
+      Object.assign(ratingBadge.style, {
+        position: "absolute",
+        top: "12px",
+        right: "12px",
+        zIndex: "2",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: "48px",
+        height: "32px",
+        padding: "0 10px",
+        borderRadius: "999px",
+        border: "1px solid rgba(196, 181, 253, 0.32)",
+        background: "rgba(124, 58, 237, 0.24)",
+        color: "#ddd6fe",
+        fontSize: "14px",
+        fontWeight: "950",
+        lineHeight: "1",
+        boxSizing: "border-box",
+        boxShadow: "0 8px 20px rgba(0, 0, 0, 0.22)",
+        pointerEvents: "none",
+      });
+      card.appendChild(ratingBadge);
+    }
+
+    ratingBadge.textContent = ratingLabel;
+  });
+}
+
+function installCreatorReviewRatingPositioning() {
+  const run = () => positionCreatorReviewRatings(document);
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", run, { once: true });
+  } else {
+    run();
+  }
+
+  let frameId = null;
+  const observer = new MutationObserver(() => {
+    if (frameId !== null) return;
+    frameId = window.requestAnimationFrame(() => {
+      frameId = null;
+      run();
+    });
+  });
+
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+}
+
 export function installSmartShowLinks(supabase) {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   if (window[SMART_SHOW_LINKS_FLAG]) return;
 
   window[SMART_SHOW_LINKS_FLAG] = true;
+  installCreatorReviewRatingPositioning();
 
   document.addEventListener(
     "click",
