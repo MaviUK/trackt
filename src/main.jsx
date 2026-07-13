@@ -5,6 +5,7 @@ import ProfileIssueReportMount from './components/ProfileIssueReportMount'
 import { installNativeApiBridge } from './lib/installNativeApiBridge'
 import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import { installUserCacheIsolation } from './lib/installUserCacheIsolation'
+import { installBlockedInteractionGuard } from './lib/installBlockedInteractionGuard'
 import './index.css'
 import './rankd-button-fixes.css'
 import './mobile-header-consistency.css'
@@ -55,6 +56,7 @@ import './creator-rankd-list-button.js'
 installNativeApiBridge()
 installMobileOverscrollGuard()
 installUserCacheIsolation()
+installBlockedInteractionGuard()
 
 function BootReady() {
   React.useEffect(() => {
