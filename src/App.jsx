@@ -26,6 +26,7 @@ import CalendarPage from "./pages/CalendarPage";
 import ActorPage from "./pages/ActorPage";
 import Rankd from "./pages/Rankd";
 import BurgrsBanner from "./components/BurgrsBanner";
+import ProfileBlockButton from "./components/ProfileBlockButton";
 import { supabase } from "./lib/supabase";
 import { installMyShowWatchProgressFix } from "./lib/myShowWatchProgressFix";
 
@@ -523,6 +524,7 @@ function AppLayout() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
+      <ProfileBlockButton />
       <MobileBottomNav session={session} />
     </>
   );
