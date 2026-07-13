@@ -54,6 +54,7 @@ import './creator-generated-banner.js'
 import './creator-profile-header-layout.js'
 import './creator-bio-limit.js'
 import './creator-rankd-list-button.js'
+import './studio-search-link-fix.js'
 
 installNativeApiBridge()
 installMobileOverscrollGuard()
