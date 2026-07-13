@@ -1,0 +1,17 @@
+.search-load-more-button {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 16px;
+  border: 1px solid rgba(167, 139, 250, 0.34);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(91, 33, 182, 0.42), rgba(76, 29, 149, 0.3));
+  color: #ffffff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.search-load-more-button:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
