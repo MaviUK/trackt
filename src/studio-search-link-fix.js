@@ -1,8 +1,26 @@
 const STUDIO_SEARCH_FLAG = "burgrs-studio-search:";
 
-function getStudioQueryFromLocation() {
-  if (window.location.pathname !== "/search") return "";
-  return new URLSearchParams(window.location.search).get("studio")?.trim() || "";
+function getStudioParamsFromLocation() {
+  if (window.location.pathname !== "/search") {
+    return { studio: "", sourceShowId: "", sourceType: "" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    studio: params.get("studio")?.trim() || "",
+    sourceShowId: params.get("sourceShowId")?.trim() || "",
+    sourceType: params.get("sourceType")?.trim() || "",
+  };
+}
+
+function inferSourceType() {
+  if (/\/(?:my-shows|show)\/tmdb\//.test(window.location.pathname)) {
+    return "tmdb";
+  }
+  if (/\/(?:my-shows|show)\//.test(window.location.pathname)) {
+    return "tvdb";
+  }
+  return "";
 }
 
 function rewriteStudioLinks() {
@@ -16,11 +34,49 @@ function rewriteStudioLinks() {
 
         url.searchParams.delete("network");
         url.searchParams.set("studio", studio);
+
+        const sourceType = inferSourceType();
+        if (sourceType) url.searchParams.set("sourceType", sourceType);
+
         link.setAttribute("href", `${url.pathname}?${url.searchParams.toString()}`);
       } catch {
         // Leave malformed links unchanged.
       }
     });
+}
+
+function installStudioFetchBridge() {
+  if (window.__burgrsStudioFetchBridgeInstalled) return;
+  window.__burgrsStudioFetchBridgeInstalled = true;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    try {
+      const rawUrl = typeof input === "string" ? input : input?.url;
+      if (rawUrl && rawUrl.includes("/.netlify/functions/advancedSearchShows")) {
+        const requestUrl = new URL(rawUrl, window.location.origin);
+        const isStudioSearch = requestUrl.searchParams.get("mode") === "studio";
+
+        if (isStudioSearch) {
+          const { sourceShowId, sourceType } = getStudioParamsFromLocation();
+          if (sourceShowId && !requestUrl.searchParams.has("sourceShowId")) {
+            requestUrl.searchParams.set("sourceShowId", sourceShowId);
+          }
+          if (sourceType && !requestUrl.searchParams.has("sourceType")) {
+            requestUrl.searchParams.set("sourceType", sourceType);
+          }
+
+          const bridgedUrl = requestUrl.pathname + requestUrl.search;
+          if (typeof input === "string") return originalFetch(bridgedUrl, init);
+          return originalFetch(new Request(bridgedUrl, input), init);
+        }
+      }
+    } catch {
+      // Fall through to the original request unchanged.
+    }
+
+    return originalFetch(input, init);
+  };
 }
 
 function setReactInputValue(input, value) {
@@ -32,7 +88,7 @@ function setReactInputValue(input, value) {
 }
 
 function runStudioSearchFromUrl() {
-  const studio = getStudioQueryFromLocation();
+  const { studio } = getStudioParamsFromLocation();
   if (!studio) return;
 
   const runKey = `${STUDIO_SEARCH_FLAG}${window.location.pathname}${window.location.search}`;
@@ -69,6 +125,8 @@ function scheduleFixes() {
     runStudioSearchFromUrl();
   });
 }
+
+installStudioFetchBridge();
 
 const observer = new MutationObserver(scheduleFixes);
 observer.observe(document.documentElement, { childList: true, subtree: true });
