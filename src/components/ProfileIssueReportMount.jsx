@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import IssueReportForm from "./IssueReportForm";
+import AccountDataExportSection from "./AccountDataExportSection";
 import AccountDeletionSection from "./AccountDeletionSection";
 import "./ProfileLegalSection.css";
 
@@ -63,6 +64,7 @@ export default function ProfileIssueReportMount() {
             </div>
             <a href="/privacy/">Privacy Policy</a>
           </section>
+          <AccountDataExportSection />
           <AccountDeletionSection />
         </>,
         mountNode
