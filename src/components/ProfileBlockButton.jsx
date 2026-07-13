@@ -19,6 +19,16 @@ function isUuid(value) {
   );
 }
 
+function clearCreatorBlockClasses() {
+  document.querySelectorAll(".creator-page").forEach((page) => {
+    page.classList.remove(
+      "has-user-block",
+      "is-blocked-by-me",
+      "is-blocked-by-them"
+    );
+  });
+}
+
 export default function ProfileBlockButton() {
   const location = useLocation();
   const [mountNode, setMountNode] = useState(null);
@@ -31,11 +41,13 @@ export default function ProfileBlockButton() {
   const [error, setError] = useState("");
 
   const isProfileRoute = location.pathname.startsWith("/u/");
+  const blockedByThem = blockedEitherWay && !blockedByMe;
 
   useEffect(() => {
     if (!isProfileRoute) {
       setMountNode(null);
       setProfile(null);
+      clearCreatorBlockClasses();
       return undefined;
     }
 
@@ -59,16 +71,25 @@ export default function ProfileBlockButton() {
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
       setMountNode(null);
+      clearCreatorBlockClasses();
     };
   }, [isProfileRoute, location.pathname]);
 
   useEffect(() => {
-    const page = document.querySelector(".creator-page");
-    if (!page) return undefined;
+    clearCreatorBlockClasses();
 
-    page.classList.toggle("has-user-block", blockedEitherWay);
-    return () => page.classList.remove("has-user-block");
-  }, [blockedEitherWay, mountNode]);
+    const page = document.querySelector(".creator-page");
+    if (!page || !blockedEitherWay) return undefined;
+
+    page.classList.add("has-user-block");
+    page.classList.toggle("is-blocked-by-me", blockedByMe);
+    page.classList.toggle("is-blocked-by-them", blockedByThem);
+
+    document.querySelector('[data-creator-rankd-list-modal="true"]')?.remove();
+    document.body.classList.remove("creator-rankd-modal-open");
+
+    return () => clearCreatorBlockClasses();
+  }, [blockedEitherWay, blockedByMe, blockedByThem, mountNode]);
 
   useEffect(() => {
     if (!isProfileRoute) return undefined;
@@ -126,12 +147,12 @@ export default function ProfileBlockButton() {
         if (!active) return;
 
         const rows = blockRows || [];
-        setBlockedByMe(
-          rows.some(
-            (row) =>
-              row.blocker_id === user.id && row.blocked_id === profileRow.id
-          )
+        const isBlockedByMe = rows.some(
+          (row) =>
+            row.blocker_id === user.id && row.blocked_id === profileRow.id
         );
+
+        setBlockedByMe(isBlockedByMe);
         setBlockedEitherWay(rows.length > 0);
       } catch (err) {
         console.error("Failed loading block state:", err);
@@ -211,7 +232,8 @@ export default function ProfileBlockButton() {
     !mountNode ||
     !profile?.id ||
     !currentUserId ||
-    currentUserId === profile.id
+    currentUserId === profile.id ||
+    blockedByThem
   ) {
     return null;
   }
@@ -224,15 +246,9 @@ export default function ProfileBlockButton() {
           blockedByMe ? " is-blocked" : ""
         }`}
         onClick={toggleBlock}
-        disabled={loading || saving || (blockedEitherWay && !blockedByMe)}
+        disabled={loading || saving}
       >
-        {saving
-          ? "Saving..."
-          : blockedByMe
-            ? "Unblock user"
-            : blockedEitherWay
-              ? "Unavailable"
-              : "Block user"}
+        {saving ? "Saving..." : blockedByMe ? "Unblock user" : "Block user"}
       </button>
       {error ? <span className="creator-profile-block-error">{error}</span> : null}
     </>,
