@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import { installNativeApiBridge } from './lib/installNativeApiBridge'
 import './index.css'
 import './rankd-button-fixes.css'
 import './mobile-header-consistency.css'
@@ -47,6 +48,8 @@ import './creator-generated-banner.js'
 import './creator-profile-header-layout.js'
 import './creator-bio-limit.js'
 import './creator-rankd-list-button.js'
+
+installNativeApiBridge()
 
 function BootReady() {
   React.useEffect(() => {
