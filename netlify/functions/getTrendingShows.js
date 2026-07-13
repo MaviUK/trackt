@@ -1,3 +1,21 @@
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
+function jsonResponse(statusCode, body, cacheControl = "no-store") {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": cacheControl,
+      ...CORS_HEADERS,
+    },
+    body: JSON.stringify(body),
+  };
+}
+
 async function fetchExternalIds(tmdbId) {
   const res = await fetch(
     `https://api.themoviedb.org/3/tv/${tmdbId}/external_ids`,
@@ -11,11 +29,18 @@ async function fetchExternalIds(tmdbId) {
 
   if (!res.ok) return null;
 
-  const json = await res.json();
-  return json;
+  return res.json();
 }
 
-export async function handler() {
+export async function handler(event) {
+  if (event?.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: CORS_HEADERS,
+      body: "",
+    };
+  }
+
   try {
     const res = await fetch(
       "https://api.themoviedb.org/3/trending/tv/week?language=en-US",
@@ -30,14 +55,7 @@ export async function handler() {
     const json = await res.json();
 
     if (!res.ok) {
-      return {
-        statusCode: res.status,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store",
-        },
-        body: JSON.stringify(json),
-      };
+      return jsonResponse(res.status, json);
     }
 
     const baseShows = json.results || [];
@@ -62,24 +80,10 @@ export async function handler() {
       )
     ).filter((show) => show.tvdb_id);
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({ shows }),
-    };
+    return jsonResponse(200, { shows });
   } catch (error) {
-    return {
-      statusCode: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-      },
-      body: JSON.stringify({
-        message: error.message || "Failed to load TMDB trending shows",
-      }),
-    };
+    return jsonResponse(500, {
+      message: error.message || "Failed to load TMDB trending shows",
+    });
   }
 }

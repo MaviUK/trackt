@@ -1,3 +1,9 @@
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+};
+
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TVDB_BASE_URL = "https://api4.thetvdb.com/v4";
 const MAX_DISCOVER_PAGES = 20;
@@ -13,6 +19,7 @@ function jsonResponse(statusCode, body) {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "public, max-age=300, s-maxage=900",
+      ...CORS_HEADERS,
     },
     body: JSON.stringify(body),
   };
@@ -345,7 +352,15 @@ function mergePremieres(items) {
     .slice(0, MAX_SHOWS);
 }
 
-export async function handler() {
+export async function handler(event) {
+  if (event?.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: CORS_HEADERS,
+      body: "",
+    };
+  }
+
   try {
     if (
       !process.env.TVDB_API_KEY &&
