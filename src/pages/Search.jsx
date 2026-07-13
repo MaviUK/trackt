@@ -80,6 +80,14 @@ function getResultKey(show) {
   return `${show?.name || "show"}:${show?.first_aired || ""}`;
 }
 
+function mergeUniqueShows(existing, incoming) {
+  const merged = new Map();
+  [...existing, ...incoming].forEach((show) => {
+    merged.set(getResultKey(show), show);
+  });
+  return Array.from(merged.values());
+}
+
 function getDetailHref(show, isSaved) {
   if (show?.tvdb_id) {
     return isSaved ? `/my-shows/${show.tvdb_id}` : `/show/${show.tvdb_id}`;
@@ -111,12 +119,18 @@ export default function Search() {
   const [query, setQuery] = useState("");
   const [shows, setShows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [addingId, setAddingId] = useState(null);
   const [savedTvdbIds, setSavedTvdbIds] = useState(new Set());
   const [savedTmdbIds, setSavedTmdbIds] = useState(new Set());
   const [currentUserId, setCurrentUserId] = useState(null);
   const [matchedLabel, setMatchedLabel] = useState("");
+  const [advancedPage, setAdvancedPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [activeAdvancedQuery, setActiveAdvancedQuery] = useState("");
+  const [activeAdvancedMode, setActiveAdvancedMode] = useState("");
 
   const genreFilter = searchParams.get("genre") || "";
   const networkFilter = searchParams.get("network") || "";
@@ -232,10 +246,19 @@ export default function Search() {
     markAlreadySaved(shows, currentUserId);
   }, [currentUserId]);
 
+  function resetPagination() {
+    setAdvancedPage(1);
+    setHasMore(false);
+    setTotalResults(0);
+    setActiveAdvancedQuery("");
+    setActiveAdvancedMode("");
+  }
+
   async function fetchLegacySearch(paramsObject) {
     setLoading(true);
     setError("");
     setMatchedLabel("");
+    resetPagination();
 
     try {
       const activeUserId = await getCurrentUserId();
@@ -266,10 +289,12 @@ export default function Search() {
     }
   }
 
-  async function fetchAdvancedSearch(mode, searchQuery) {
-    setLoading(true);
+  async function fetchAdvancedSearch(mode, searchQuery, page = 1, append = false) {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
+
     setError("");
-    setMatchedLabel("");
+    if (!append) setMatchedLabel("");
 
     try {
       const activeUserId = await getCurrentUserId();
@@ -279,6 +304,7 @@ export default function Search() {
         mode,
         q: searchQuery,
         region: "GB",
+        page: String(page),
       });
       const res = await fetch(
         `/.netlify/functions/advancedSearchShows?${params.toString()}`
@@ -287,15 +313,26 @@ export default function Search() {
       if (!res.ok) throw new Error(data?.message || "Advanced search failed");
 
       const results = Array.isArray(data?.results) ? data.results : [];
-      setShows(results);
+      const combined = append ? mergeUniqueShows(shows, results) : results;
+
+      setShows(combined);
       setMatchedLabel(data?.matched || searchQuery);
-      await markAlreadySaved(results, activeUserId);
+      setAdvancedPage(Number(data?.page || page));
+      setHasMore(Boolean(data?.hasMore));
+      setTotalResults(Number(data?.totalResults || combined.length));
+      setActiveAdvancedQuery(searchQuery);
+      setActiveAdvancedMode(mode);
+      await markAlreadySaved(combined, activeUserId);
     } catch (err) {
       console.error("Advanced search failed:", err);
       setError(err.message || "Advanced search failed");
-      setShows([]);
+      if (!append) {
+        setShows([]);
+        resetPagination();
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
@@ -332,14 +369,33 @@ export default function Search() {
 
   async function handleManualSearch() {
     const trimmedQuery = query.trim();
-    if (!trimmedQuery || loading) return;
+    if (!trimmedQuery || loading || loadingMore) return;
 
     if (searchMode === "title") {
       await fetchLegacySearch({ q: trimmedQuery });
       return;
     }
 
-    await fetchAdvancedSearch(searchMode, trimmedQuery);
+    await fetchAdvancedSearch(searchMode, trimmedQuery, 1, false);
+  }
+
+  async function handleLoadMore() {
+    if (
+      loading ||
+      loadingMore ||
+      !hasMore ||
+      !activeAdvancedQuery ||
+      !activeAdvancedMode
+    ) {
+      return;
+    }
+
+    await fetchAdvancedSearch(
+      activeAdvancedMode,
+      activeAdvancedQuery,
+      advancedPage + 1,
+      true
+    );
   }
 
   function changeMode(nextMode) {
@@ -349,6 +405,7 @@ export default function Search() {
     setShows([]);
     setMatchedLabel("");
     setError("");
+    resetPagination();
   }
 
   async function handleAddShow(event, show) {
@@ -435,7 +492,7 @@ export default function Search() {
           <button
             type="button"
             onClick={handleManualSearch}
-            disabled={loading || !query.trim()}
+            disabled={loading || loadingMore || !query.trim()}
             className="msd-btn msd-btn-secondary search-page-button"
           >
             {loading ? "Searching..." : "Search"}
@@ -452,7 +509,9 @@ export default function Search() {
 
         {matchedLabel && !loading ? (
           <div className="search-match-summary">
-            Showing {searchMode} results for <strong>{matchedLabel}</strong>
+            Showing {shows.length}
+            {totalResults > shows.length ? ` of ${totalResults}` : ""} {searchMode} results for {" "}
+            <strong>{matchedLabel}</strong>
           </div>
         ) : null}
 
@@ -567,6 +626,17 @@ export default function Search() {
             );
           })}
         </div>
+
+        {hasMore && shows.length > 0 ? (
+          <button
+            type="button"
+            className="search-load-more-button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading more shows..." : "Load more shows"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
