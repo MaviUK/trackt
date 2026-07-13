@@ -1,0 +1,19 @@
+@media (max-width: 768px) {
+  .page:has(.search-shell) {
+    padding-top: 6px;
+  }
+
+  .search-shell {
+    padding-top: 6px;
+  }
+}
+
+@media (max-width: 520px) {
+  .page:has(.search-shell) {
+    padding-top: 4px;
+  }
+
+  .search-shell {
+    padding-top: 4px;
+  }
+}
