@@ -2,14 +2,37 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./AccountDataExportSection.css";
 
-function triggerDownload(url, fileName) {
+function getDownloadUrl(url, fileName) {
+  const downloadUrl = new URL(url, window.location.origin);
+  downloadUrl.searchParams.set("download", fileName);
+  return downloadUrl.toString();
+}
+
+async function downloadFile(url, fileName) {
+  const response = await fetch(getDownloadUrl(url, fileName), {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("The secure export file could not be downloaded.");
+  }
+
+  const blob = await response.blob();
+  if (!blob.size) {
+    throw new Error("The generated data export was empty.");
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
+  link.href = objectUrl;
   link.download = fileName;
   link.rel = "noopener noreferrer";
   document.body.appendChild(link);
   link.click();
   link.remove();
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 3000);
 }
 
 export default function AccountDataExportSection() {
@@ -53,14 +76,12 @@ export default function AccountDataExportSection() {
         throw new Error(result?.error || "Your data export could not be created.");
       }
 
-      triggerDownload(
-        result.downloadUrl,
-        result.fileName || `burgrs-data-export-${new Date().toISOString().slice(0, 10)}.json`
-      );
+      const fileName =
+        result.fileName ||
+        `burgrs-data-export-${new Date().toISOString().slice(0, 10)}.json`;
 
-      setMessage(
-        "Your BURGRS data export is ready. The secure download link expires in 15 minutes."
-      );
+      await downloadFile(result.downloadUrl, fileName);
+      setMessage(`Your BURGRS data has been downloaded as ${fileName}.`);
     } catch (err) {
       console.error("Failed exporting account data:", err);
       setError(err.message || "Your data export could not be created.");
