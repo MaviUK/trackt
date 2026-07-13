@@ -26,21 +26,57 @@
   font-size: 14px;
 }
 
-.notifications-mark-read {
+.notifications-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notifications-mark-read,
+.notifications-delete-mode,
+.notifications-cancel-delete,
+.notifications-delete-selected {
   flex: 0 0 auto;
   min-height: 36px;
   padding: 0 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
   font-weight: 900;
   cursor: pointer;
 }
 
-.notifications-mark-read:disabled {
-  opacity: 0.6;
+.notifications-mark-read,
+.notifications-cancel-delete {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.notifications-delete-mode,
+.notifications-delete-selected {
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+}
+
+.notifications-mark-read:disabled,
+.notifications-delete-mode:disabled,
+.notifications-cancel-delete:disabled,
+.notifications-delete-selected:disabled {
+  opacity: 0.55;
   cursor: default;
+}
+
+.notifications-selection-help {
+  margin: -4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 14px;
+  background: rgba(76, 29, 149, 0.16);
+  color: #ddd6fe;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .notifications-error {
@@ -69,11 +105,8 @@
 
 .notification-card {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
   color: #f8fafc;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
 }
 
 .notification-card.is-unread {
@@ -81,8 +114,13 @@
   background: linear-gradient(180deg, rgba(49, 46, 129, 0.72), rgba(15, 23, 42, 0.86));
 }
 
-.notification-card.is-opening,
-.notification-card.is-deleting {
+.notification-card.is-selected {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.34), rgba(15, 23, 42, 0.92));
+  transform: scale(0.995);
+}
+
+.notification-card.is-opening {
   opacity: 0.72;
 }
 
@@ -91,6 +129,7 @@
   grid-template-columns: 48px minmax(0, 1fr);
   align-items: start;
   gap: 12px;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -100,8 +139,33 @@
   cursor: pointer;
 }
 
+.notification-open-button.is-selecting {
+  grid-template-columns: 28px 48px minmax(0, 1fr);
+  align-items: center;
+}
+
 .notification-open-button:disabled {
   cursor: default;
+}
+
+.notification-select-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(203, 213, 225, 0.48);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.notification-select-indicator.is-selected {
+  border-color: #f87171;
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
 }
 
 .notification-icon {
@@ -174,24 +238,6 @@
   box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.12);
 }
 
-.notification-delete-button {
-  align-self: center;
-  min-height: 34px;
-  padding: 0 11px;
-  border: 1px solid rgba(248, 113, 113, 0.28);
-  border-radius: 999px;
-  background: rgba(127, 29, 29, 0.24);
-  color: #fecaca;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.notification-delete-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .notifications-empty h2 {
   margin: 0;
   font-size: 20px;
@@ -209,15 +255,21 @@
     flex-direction: column;
   }
 
-  .notifications-mark-read {
-    align-self: flex-start;
+  .notifications-header-actions {
+    justify-content: flex-start;
   }
 
-  .notification-card {
-    grid-template-columns: minmax(0, 1fr);
+  .notifications-delete-selected {
+    max-width: 100%;
   }
 
-  .notification-delete-button {
-    justify-self: end;
+  .notification-open-button.is-selecting {
+    grid-template-columns: 26px 44px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .notification-open-button.is-selecting .notification-icon {
+    width: 44px;
+    height: 44px;
   }
 }
