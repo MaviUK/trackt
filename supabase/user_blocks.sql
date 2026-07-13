@@ -150,3 +150,104 @@ begin
   end if;
 end;
 $$;
+
+-- Prevent either user from replying anywhere inside a review or chat thread
+-- started by the other user. This is enforced in the database so it cannot be
+-- bypassed by calling Supabase directly.
+create or replace function public.prevent_blocked_thread_reply()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  parent_owner_id uuid;
+  root_owner_id uuid;
+begin
+  if new.parent_id is null then
+    return new;
+  end if;
+
+  execute format(
+    'select user_id from public.%I where id = $1',
+    tg_table_name
+  )
+  into parent_owner_id
+  using new.parent_id;
+
+  execute format(
+    $query$
+      with recursive thread_chain as (
+        select id, parent_id, user_id
+        from public.%I
+        where id = $1
+
+        union all
+
+        select parent_row.id, parent_row.parent_id, parent_row.user_id
+        from public.%I parent_row
+        join thread_chain child_row
+          on child_row.parent_id = parent_row.id
+      )
+      select user_id
+      from thread_chain
+      where parent_id is null
+      limit 1
+    $query$,
+    tg_table_name,
+    tg_table_name
+  )
+  into root_owner_id
+  using new.parent_id;
+
+  if parent_owner_id is not null
+    and public.users_are_blocked(new.user_id, parent_owner_id)
+  then
+    raise exception 'You cannot reply because one of you has blocked the other.'
+      using errcode = 'P0001';
+  end if;
+
+  if root_owner_id is not null
+    and public.users_are_blocked(new.user_id, root_owner_id)
+  then
+    raise exception 'You cannot reply in this thread because one of you has blocked the other.'
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if to_regclass('public.show_reviews') is not null then
+    drop trigger if exists prevent_blocked_show_review_reply_trigger
+      on public.show_reviews;
+    create trigger prevent_blocked_show_review_reply_trigger
+      before insert or update of parent_id, user_id
+      on public.show_reviews
+      for each row
+      execute function public.prevent_blocked_thread_reply();
+  end if;
+
+  if to_regclass('public.episode_reviews') is not null then
+    drop trigger if exists prevent_blocked_episode_review_reply_trigger
+      on public.episode_reviews;
+    create trigger prevent_blocked_episode_review_reply_trigger
+      before insert or update of parent_id, user_id
+      on public.episode_reviews
+      for each row
+      execute function public.prevent_blocked_thread_reply();
+  end if;
+
+  if to_regclass('public.show_chat_messages') is not null then
+    drop trigger if exists prevent_blocked_chat_reply_trigger
+      on public.show_chat_messages;
+    create trigger prevent_blocked_chat_reply_trigger
+      before insert or update of parent_id, user_id
+      on public.show_chat_messages
+      for each row
+      execute function public.prevent_blocked_thread_reply();
+  end if;
+end;
+$$;
