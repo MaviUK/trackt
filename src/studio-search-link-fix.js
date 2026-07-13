@@ -56,9 +56,9 @@ function rewriteStudioLinks() {
     });
 }
 
-function installStudioFetchBridge() {
-  if (window.__burgrsStudioFetchBridgeInstalled) return;
-  window.__burgrsStudioFetchBridgeInstalled = true;
+function installAdvancedSearchFetchBridge() {
+  if (window.__burgrsAdvancedSearchFetchBridgeInstalled) return;
+  window.__burgrsAdvancedSearchFetchBridgeInstalled = true;
 
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
@@ -66,17 +66,16 @@ function installStudioFetchBridge() {
       const rawUrl = typeof input === "string" ? input : input?.url;
       if (rawUrl && rawUrl.includes("/.netlify/functions/advancedSearchShows")) {
         const requestUrl = new URL(rawUrl, window.location.origin);
-        const isStudioSearch = requestUrl.searchParams.get("mode") === "studio";
+        const mode = requestUrl.searchParams.get("mode");
+        const query = requestUrl.searchParams.get("q") || "";
+        const page = requestUrl.searchParams.get("page") || "1";
 
-        if (isStudioSearch) {
+        if (mode === "studio") {
           const studioUrl = new URL(
             "/.netlify/functions/studioCatalogueSearch",
             window.location.origin
           );
-
           const { sourceShowId, sourceType } = getStudioParamsFromLocation();
-          const query = requestUrl.searchParams.get("q") || "";
-          const page = requestUrl.searchParams.get("page") || "1";
 
           studioUrl.searchParams.set("q", query);
           studioUrl.searchParams.set("page", page);
@@ -84,6 +83,19 @@ function installStudioFetchBridge() {
           if (sourceType) studioUrl.searchParams.set("sourceType", sourceType);
 
           const bridgedUrl = studioUrl.pathname + studioUrl.search;
+          if (typeof input === "string") return originalFetch(bridgedUrl, init);
+          return originalFetch(new Request(bridgedUrl, input), init);
+        }
+
+        if (mode === "genre") {
+          const genreUrl = new URL(
+            "/.netlify/functions/genreSearchShows",
+            window.location.origin
+          );
+          genreUrl.searchParams.set("q", query);
+          genreUrl.searchParams.set("page", page);
+
+          const bridgedUrl = genreUrl.pathname + genreUrl.search;
           if (typeof input === "string") return originalFetch(bridgedUrl, init);
           return originalFetch(new Request(bridgedUrl, input), init);
         }
@@ -143,7 +155,7 @@ function scheduleFixes() {
   });
 }
 
-installStudioFetchBridge();
+installAdvancedSearchFetchBridge();
 
 const observer = new MutationObserver(scheduleFixes);
 observer.observe(document.documentElement, { childList: true, subtree: true });
