@@ -2,26 +2,14 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./AccountDataExportSection.css";
 
-function getFileName(response) {
-  const disposition = response.headers.get("content-disposition") || "";
-  const match = disposition.match(/filename="?([^";]+)"?/i);
-  if (match?.[1]) return match[1];
-
-  const datePart = new Date().toISOString().slice(0, 10);
-  return `burgrs-data-export-${datePart}.json`;
-}
-
-function triggerDownload(blob, fileName) {
-  const url = URL.createObjectURL(blob);
+function triggerDownload(url, fileName) {
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
-  link.rel = "noopener";
+  link.rel = "noopener noreferrer";
   document.body.appendChild(link);
   link.click();
   link.remove();
-
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 export default function AccountDataExportSection() {
@@ -54,21 +42,25 @@ export default function AccountDataExportSection() {
         body: JSON.stringify({}),
       });
 
-      if (!response.ok) {
-        let result = {};
-        try {
-          result = await response.json();
-        } catch {
-          result = {};
-        }
+      let result = {};
+      try {
+        result = await response.json();
+      } catch {
+        result = {};
+      }
+
+      if (!response.ok || !result?.ok || !result?.downloadUrl) {
         throw new Error(result?.error || "Your data export could not be created.");
       }
 
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The generated data export was empty.");
+      triggerDownload(
+        result.downloadUrl,
+        result.fileName || `burgrs-data-export-${new Date().toISOString().slice(0, 10)}.json`
+      );
 
-      triggerDownload(blob, getFileName(response));
-      setMessage("Your BURGRS data export has been downloaded.");
+      setMessage(
+        "Your BURGRS data export is ready. The secure download link expires in 15 minutes."
+      );
     } catch (err) {
       console.error("Failed exporting account data:", err);
       setError(err.message || "Your data export could not be created.");
