@@ -70,15 +70,18 @@ function installStudioFetchBridge() {
 
         if (isStudioSearch) {
           const studioUrl = new URL(
-            "/.netlify/functions/studioSearchShows",
+            "/.netlify/functions/studioCatalogueSearch",
             window.location.origin
           );
 
+          const { sourceShowId, sourceType } = getStudioParamsFromLocation();
           const query = requestUrl.searchParams.get("q") || "";
           const page = requestUrl.searchParams.get("page") || "1";
 
           studioUrl.searchParams.set("q", query);
           studioUrl.searchParams.set("page", page);
+          if (sourceShowId) studioUrl.searchParams.set("sourceShowId", sourceShowId);
+          if (sourceType) studioUrl.searchParams.set("sourceType", sourceType);
 
           const bridgedUrl = studioUrl.pathname + studioUrl.search;
           if (typeof input === "string") return originalFetch(bridgedUrl, init);
