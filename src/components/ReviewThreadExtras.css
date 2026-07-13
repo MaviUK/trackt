@@ -1,0 +1,13 @@
+.msd-btn-danger {
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+}
+
+.msd-btn-danger:hover {
+  background: rgba(153, 27, 27, 0.42);
+}
+
+.msd-btn-danger:disabled {
+  opacity: 0.58;
+}
