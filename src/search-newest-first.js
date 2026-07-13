@@ -23,4 +23,49 @@ function sortSearchResultsNewestFirst() {
     child.classList?.contains('search-result-banner-card')
   );
 
-  if (cards.length
+  if (cards.length < 2) return;
+
+  const sorted = [...cards].sort((a, b) => {
+    const dateDifference = getFirstAiredTimestamp(b) - getFirstAiredTimestamp(a);
+    if (dateDifference !== 0) return dateDifference;
+
+    const aTitle = a.querySelector('.search-result-title')?.textContent?.trim() || '';
+    const bTitle = b.querySelector('.search-result-title')?.textContent?.trim() || '';
+    return aTitle.localeCompare(bTitle);
+  });
+
+  sorted.forEach((card) => list.appendChild(card));
+}
+
+let scheduled = false;
+function scheduleSearchSort() {
+  if (scheduled) return;
+  scheduled = true;
+
+  window.requestAnimationFrame(() => {
+    scheduled = false;
+    sortSearchResultsNewestFirst();
+  });
+}
+
+const observer = new MutationObserver((mutations) => {
+  const searchChanged = mutations.some((mutation) => {
+    const target = mutation.target;
+    return (
+      target instanceof Element &&
+      (target.matches('.search-results-list') || target.closest('.search-results-list'))
+    );
+  });
+
+  if (searchChanged) scheduleSearchSort();
+});
+
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+});
+
+window.addEventListener('pageshow', scheduleSearchSort);
+window.addEventListener('popstate', scheduleSearchSort);
+
+scheduleSearchSort();
