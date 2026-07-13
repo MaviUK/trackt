@@ -10,8 +10,21 @@
   color: #e2e8f0 !important;
 }
 
-.creator-page.has-user-block .creator-actions > .creator-btn:not(.creator-profile-block-button) {
+.creator-page.has-user-block .creator-actions {
   display: none !important;
+}
+
+.creator-page.has-user-block .creator-stats-card ~ * {
+  display: none !important;
+}
+
+.creator-page.has-user-block .creator-stats-card button {
+  pointer-events: auto;
+}
+
+.creator-page.has-user-block .creator-stats-card button:focus,
+.creator-page.has-user-block .creator-stats-card button:active {
+  outline: none;
 }
 
 .creator-profile-block-error {
