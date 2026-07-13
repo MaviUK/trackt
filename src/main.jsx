@@ -32,6 +32,7 @@ import './creator-bio-limit.css'
 import './creator-rankd-list-button.css'
 import './actor-page-mobile-fixes.css'
 import './search-pagination.css'
+import './search-header-spacing.css'
 import './components/ReviewThreadExtras.css'
 import './rankd-scroll-fix.js'
 import './rankd-social-share.js'
@@ -55,6 +56,7 @@ import './creator-profile-header-layout.js'
 import './creator-bio-limit.js'
 import './creator-rankd-list-button.js'
 import './studio-search-link-fix.js'
+import './search-newest-first.js'
 
 installNativeApiBridge()
 installMobileOverscrollGuard()
