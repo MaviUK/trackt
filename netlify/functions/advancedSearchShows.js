@@ -21,6 +21,9 @@ const COMPANY_SUFFIX_WORDS = new Set([
   "tv",
 ]);
 
+let tvdbToken = null;
+let tvdbTokenExpiresAt = 0;
+
 function response(statusCode, body) {
   return {
     statusCode,
@@ -50,6 +53,30 @@ async function tmdbFetch(path, params = {}) {
   }
 
   return data;
+}
+
+async function getTvdbToken() {
+  if (tvdbToken && Date.now() < tvdbTokenExpiresAt) return tvdbToken;
+
+  const apiKey = process.env.TVDB_API_KEY;
+  if (!apiKey) return null;
+
+  const payload = { apikey: apiKey };
+  if (process.env.TVDB_PIN) payload.pin = process.env.TVDB_PIN;
+
+  const res = await fetch("https://api4.thetvdb.com/v4/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  const token = data?.data?.token;
+
+  if (!res.ok || !token) return null;
+
+  tvdbToken = token;
+  tvdbTokenExpiresAt = Date.now() + 27 * 24 * 60 * 60 * 1000;
+  return token;
 }
 
 function normalizeText(value) {
@@ -168,6 +195,119 @@ async function resolveCompanies(query) {
     .slice(0, 4);
 }
 
+async function resolveTmdbIdFromTvdbId(tvdbId) {
+  const token = await getTvdbToken();
+  if (!token || !tvdbId) return null;
+
+  try {
+    const res = await fetch(
+      `https://api4.thetvdb.com/v4/series/${encodeURIComponent(tvdbId)}/extended?language=eng&meta=translations`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Accept-Language": "eng",
+        },
+      }
+    );
+    const data = await res.json();
+    if (!res.ok || !data?.data) return null;
+
+    const series = data.data;
+    const direct = Number(series?.tmdb_id || series?.tmdbId || series?.themoviedb_id);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+
+    const pools = [
+      series?.remoteIds,
+      series?.remote_ids,
+      series?.externalIds,
+      series?.external_ids,
+    ].filter(Array.isArray);
+
+    for (const pool of pools) {
+      for (const item of pool) {
+        const source = normalizeText(
+          item?.sourceName || item?.source_name || item?.type || item?.name
+        );
+        if (!source.includes("tmdb") && !source.includes("movie db")) continue;
+
+        const value = Number(
+          item?.id || item?.remoteId || item?.remote_id || item?.value
+        );
+        if (Number.isFinite(value) && value > 0) return value;
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to resolve TMDB ID from TVDB:", error);
+  }
+
+  return null;
+}
+
+async function resolveSourceTmdbId(sourceShowId, sourceType) {
+  const numericId = Number(sourceShowId);
+  if (!Number.isFinite(numericId) || numericId <= 0) return null;
+
+  if (sourceType === "tmdb") return numericId;
+  if (sourceType === "tvdb") return resolveTmdbIdFromTvdbId(numericId);
+
+  try {
+    await tmdbFetch(`/tv/${numericId}`);
+    return numericId;
+  } catch {
+    return resolveTmdbIdFromTvdbId(numericId);
+  }
+}
+
+async function resolveStudioFromSource(query, sourceShowId, sourceType) {
+  const tmdbId = await resolveSourceTmdbId(sourceShowId, sourceType);
+  if (!tmdbId) return null;
+
+  try {
+    const details = await tmdbFetch(`/tv/${tmdbId}`);
+    const networks = Array.isArray(details?.networks) ? details.networks : [];
+    const companies = Array.isArray(details?.production_companies)
+      ? details.production_companies
+      : [];
+
+    const exactNetwork = networks.find(
+      (item) => normalizeText(item?.name) === normalizeText(query)
+    );
+    if (exactNetwork?.id) {
+      return { type: "network", id: exactNetwork.id, name: exactNetwork.name };
+    }
+
+    const exactCompany = companies.find(
+      (item) => normalizeText(item?.name) === normalizeText(query)
+    );
+    if (exactCompany?.id) {
+      return { type: "company", id: exactCompany.id, name: exactCompany.name };
+    }
+
+    const networkMatch = bestMatch(networks, query);
+    if (networkMatch?.score >= 45 && networkMatch?.item?.id) {
+      return {
+        type: "network",
+        id: networkMatch.item.id,
+        name: networkMatch.item.name,
+      };
+    }
+
+    const companyMatch = bestMatch(companies, query);
+    if (companyMatch?.score >= 45 && companyMatch?.item?.id) {
+      return {
+        type: "company",
+        id: companyMatch.item.id,
+        name: companyMatch.item.name,
+      };
+    }
+  } catch (error) {
+    console.warn("Unable to resolve source studio/network:", error);
+  }
+
+  return null;
+}
+
 function normalizeResult(item, context, genreMap) {
   const genreNames = (item?.genre_ids || [])
     .map((id) => genreMap.get(Number(id)))
@@ -245,6 +385,14 @@ export async function handler(event) {
     const region = String(event.queryStringParameters?.region || DEFAULT_REGION)
       .trim()
       .toUpperCase();
+    const sourceShowId = String(
+      event.queryStringParameters?.sourceShowId || ""
+    ).trim();
+    const sourceType = String(
+      event.queryStringParameters?.sourceType || ""
+    )
+      .trim()
+      .toLowerCase();
     const requestedPage = Number(event.queryStringParameters?.page || 1);
     const page = Math.min(
       MAX_TMDB_PAGE,
@@ -266,6 +414,7 @@ export async function handler(event) {
       include_null_first_air_dates: "false",
     };
     const context = {};
+    let studioMatchType = "company";
 
     if (mode === "genre") {
       const genre = await resolveGenre(query);
@@ -289,32 +438,50 @@ export async function handler(event) {
     }
 
     if (mode === "studio") {
-      const companies = await resolveCompanies(query);
+      const sourceStudio = sourceShowId
+        ? await resolveStudioFromSource(query, sourceShowId, sourceType)
+        : null;
 
-      if (!companies.length) {
-        const networkResults = await legacyNetworkStudioResults(query);
-        if (!networkResults.length) {
-          return response(404, {
-            message: `No studio or TV network matched “${query}”.`,
+      if (sourceStudio?.type === "network") {
+        discoverParams.with_networks = String(sourceStudio.id);
+        context.studioName = sourceStudio.name;
+        context.studioNames = [sourceStudio.name];
+        studioMatchType = "network";
+      } else if (sourceStudio?.type === "company") {
+        discoverParams.with_companies = String(sourceStudio.id);
+        context.studioName = sourceStudio.name;
+        context.studioNames = [sourceStudio.name];
+        studioMatchType = "company";
+      } else {
+        const companies = await resolveCompanies(query);
+
+        if (!companies.length) {
+          const networkResults = await legacyNetworkStudioResults(query);
+          if (!networkResults.length) {
+            return response(404, {
+              message: `No studio or TV network matched “${query}”.`,
+            });
+          }
+
+          return response(200, {
+            mode,
+            query,
+            matched: query,
+            page: 1,
+            totalPages: 1,
+            totalResults: networkResults.length,
+            hasMore: false,
+            results: networkResults,
+            matchType: "network-fallback",
           });
         }
 
-        return response(200, {
-          mode,
-          query,
-          matched: query,
-          page: 1,
-          totalPages: 1,
-          totalResults: networkResults.length,
-          hasMore: false,
-          results: networkResults,
-          matchType: "network",
-        });
+        discoverParams.with_companies = companies
+          .map((company) => company.id)
+          .join("|");
+        context.studioNames = companies.map((company) => company.name);
+        context.studioName = companies[0].name;
       }
-
-      discoverParams.with_companies = companies.map((company) => company.id).join("|");
-      context.studioNames = companies.map((company) => company.name);
-      context.studioName = companies[0].name;
     }
 
     const discovered = await tmdbFetch("/discover/tv", discoverParams);
@@ -336,7 +503,7 @@ export async function handler(event) {
           totalResults: networkResults.length,
           hasMore: false,
           results: networkResults,
-          matchType: "network",
+          matchType: "network-fallback",
         });
       }
     }
@@ -351,7 +518,7 @@ export async function handler(event) {
       totalResults: Number(discovered?.total_results || results.length),
       hasMore: page < totalPages,
       results,
-      matchType: mode === "studio" ? "company" : mode,
+      matchType: mode === "studio" ? studioMatchType : mode,
     });
   } catch (error) {
     console.error("advancedSearchShows error", error);
