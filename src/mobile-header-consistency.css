@@ -3,16 +3,6 @@
     --mobile-fixed-header-height: 62px;
   }
 
-  html,
-  body,
-  #root {
-    overscroll-behavior-y: none;
-  }
-
-  body {
-    overflow-anchor: none;
-  }
-
   body:has(.mobile-top-banner-wrap) {
     padding-top: calc(var(--mobile-fixed-header-height) + env(safe-area-inset-top));
   }
