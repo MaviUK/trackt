@@ -1,4 +1,6 @@
 const PAGE_SIZE = 1000;
+const EXPORT_BUCKET = "account-exports";
+const DOWNLOAD_LINK_SECONDS = 15 * 60;
 
 function jsonResponse(statusCode, body) {
   return {
@@ -36,6 +38,13 @@ function isMissingRelationError(data) {
     message.includes("schema cache") ||
     message.includes("could not find")
   );
+}
+
+function encodeStoragePath(path) {
+  return String(path || "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 async function getAuthenticatedUser({ supabaseUrl, anonKey, accessToken }) {
@@ -122,41 +131,40 @@ function dedupeRows(rows, keyFields = ["id"]) {
   });
 }
 
-async function fetchByIds({
+async function fetchRowsByValues({
   supabaseUrl,
   serviceRoleKey,
   table,
-  ids,
-  idColumn = "id",
+  column,
+  values,
+  select = "*",
 }) {
-  const uniqueIds = Array.from(new Set((ids || []).filter(Boolean).map(String)));
-  if (!uniqueIds.length) return { rows: [], unavailable: false, error: null };
+  const uniqueValues = Array.from(
+    new Set((values || []).filter(Boolean).map(String))
+  );
+  if (!uniqueValues.length) {
+    return { rows: [], unavailable: false, error: null };
+  }
 
-  const allRows = [];
-  let unavailable = false;
-  let error = null;
+  const rows = [];
 
-  for (let index = 0; index < uniqueIds.length; index += 100) {
-    const batch = uniqueIds.slice(index, index + 100);
+  for (let index = 0; index < uniqueValues.length; index += 100) {
+    const batch = uniqueValues.slice(index, index + 100);
     const result = await fetchAllRows({
       supabaseUrl,
       serviceRoleKey,
       table,
+      select,
       filters: {
-        [idColumn]: `in.(${batch.join(",")})`,
+        [column]: `in.(${batch.join(",")})`,
       },
     });
 
-    if (result.unavailable) {
-      unavailable = true;
-      error = result.error;
-      break;
-    }
-
-    allRows.push(...result.rows);
+    if (result.unavailable) return result;
+    rows.push(...result.rows);
   }
 
-  return { rows: dedupeRows(allRows), unavailable, error };
+  return { rows: dedupeRows(rows), unavailable: false, error: null };
 }
 
 function safeAuthUser(user) {
@@ -175,6 +183,101 @@ function safeAuthUser(user) {
       ? user.identities.map((identity) => identity?.provider).filter(Boolean)
       : [],
   };
+}
+
+async function ensureExportBucket({ supabaseUrl, serviceRoleKey }) {
+  const existingResponse = await fetch(
+    `${supabaseUrl}/storage/v1/bucket/${EXPORT_BUCKET}`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+    }
+  );
+
+  if (existingResponse.ok) return;
+
+  const createResponse = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
+    method: "POST",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: EXPORT_BUCKET,
+      name: EXPORT_BUCKET,
+      public: false,
+      file_size_limit: 52428800,
+      allowed_mime_types: ["application/json"],
+    }),
+  });
+
+  if (!createResponse.ok) {
+    const data = await readJson(createResponse);
+    const message = String(data?.message || data?.error || "").toLowerCase();
+    if (!message.includes("already exists") && !message.includes("duplicate")) {
+      throw new Error(data?.message || "The private export storage could not be prepared.");
+    }
+  }
+}
+
+async function uploadExport({
+  supabaseUrl,
+  serviceRoleKey,
+  filePath,
+  content,
+}) {
+  const response = await fetch(
+    `${supabaseUrl}/storage/v1/object/${EXPORT_BUCKET}/${encodeStoragePath(
+      filePath
+    )}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json; charset=utf-8",
+        "x-upsert": "true",
+      },
+      body: content,
+    }
+  );
+
+  if (!response.ok) {
+    const data = await readJson(response);
+    throw new Error(data?.message || "The data export file could not be stored.");
+  }
+}
+
+async function createSignedDownloadUrl({
+  supabaseUrl,
+  serviceRoleKey,
+  filePath,
+}) {
+  const response = await fetch(
+    `${supabaseUrl}/storage/v1/object/sign/${EXPORT_BUCKET}/${encodeStoragePath(
+      filePath
+    )}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ expiresIn: DOWNLOAD_LINK_SECONDS }),
+    }
+  );
+
+  const data = await readJson(response);
+  if (!response.ok || !data?.signedURL) {
+    throw new Error(data?.message || "A secure download link could not be created.");
+  }
+
+  if (/^https?:\/\//i.test(data.signedURL)) return data.signedURL;
+  return `${supabaseUrl}/storage/v1${data.signedURL}`;
 }
 
 exports.handler = async function handler(event) {
@@ -242,15 +345,16 @@ exports.handler = async function handler(event) {
     ];
 
     const results = await Promise.all(
-      specs.map(async ([key, table, filters]) => {
-        const result = await fetchAllRows({
+      specs.map(async ([key, table, filters]) => ({
+        key,
+        table,
+        ...(await fetchAllRows({
           supabaseUrl,
           serviceRoleKey,
           table,
           filters,
-        });
-        return { key, table, ...result };
-      })
+        })),
+      }))
     );
 
     const sections = {};
@@ -267,50 +371,58 @@ exports.handler = async function handler(event) {
       }
     });
 
-    const [followsAsFollower, followsAsFollowing, notificationsReceived, notificationsActed, subscriptionsAsSubscriber, subscriptionsAsCreator] =
-      await Promise.all([
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "user_follows",
-          filters: { follower_id: `eq.${userId}` },
-        }),
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "user_follows",
-          filters: { following_id: `eq.${userId}` },
-        }),
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "notifications",
-          filters: { recipient_user_id: `eq.${userId}` },
-        }),
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "notifications",
-          filters: { actor_user_id: `eq.${userId}` },
-        }),
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "creator_subscriptions",
-          filters: { subscriber_id: `eq.${userId}` },
-        }),
-        fetchAllRows({
-          supabaseUrl,
-          serviceRoleKey,
-          table: "creator_subscriptions",
-          filters: { creator_id: `eq.${userId}` },
-        }),
-      ]);
+    const relatedResults = await Promise.all([
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "user_follows",
+        filters: { follower_id: `eq.${userId}` },
+      }),
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "user_follows",
+        filters: { following_id: `eq.${userId}` },
+      }),
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "notifications",
+        filters: { recipient_user_id: `eq.${userId}` },
+      }),
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "notifications",
+        filters: { actor_user_id: `eq.${userId}` },
+      }),
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "creator_subscriptions",
+        filters: { subscriber_id: `eq.${userId}` },
+      }),
+      fetchAllRows({
+        supabaseUrl,
+        serviceRoleKey,
+        table: "creator_subscriptions",
+        filters: { creator_id: `eq.${userId}` },
+      }),
+    ]);
 
-    sections.follows = dedupeRows([
-      ...followsAsFollower.rows,
-      ...followsAsFollowing.rows,
-    ], ["follower_id", "following_id"]);
+    const [
+      followsAsFollower,
+      followsAsFollowing,
+      notificationsReceived,
+      notificationsActed,
+      subscriptionsAsSubscriber,
+      subscriptionsAsCreator,
+    ] = relatedResults;
+
+    sections.follows = dedupeRows(
+      [...followsAsFollower.rows, ...followsAsFollowing.rows],
+      ["follower_id", "following_id"]
+    );
     sections.notifications = dedupeRows([
       ...notificationsReceived.rows,
       ...notificationsActed.rows,
@@ -328,18 +440,21 @@ exports.handler = async function handler(event) {
       ["creator_subscriptions", subscriptionsAsSubscriber, "creator_subscriptions"],
       ["creator_subscriptions", subscriptionsAsCreator, "creator_subscriptions"],
     ].forEach(([section, result, table]) => {
-      if (result.unavailable && !unavailableSections.some((item) => item.section === section)) {
+      if (
+        result.unavailable &&
+        !unavailableSections.some((item) => item.section === section)
+      ) {
         unavailableSections.push({ section, table, reason: result.error });
       }
     });
 
     const creatorListIds = (sections.creator_lists || []).map((row) => row.id);
-    const creatorListItems = await fetchByIds({
+    const creatorListItems = await fetchRowsByValues({
       supabaseUrl,
       serviceRoleKey,
       table: "creator_list_items",
-      ids: creatorListIds,
-      idColumn: "list_id",
+      column: "list_id",
+      values: creatorListIds,
     });
     sections.creator_list_items = creatorListItems.rows;
     if (creatorListItems.unavailable) {
@@ -363,51 +478,27 @@ exports.handler = async function handler(event) {
       )
     );
 
-    const episodeIds = Array.from(
-      new Set(
-        [
-          ...(sections.watched_episodes || []).map((row) => row.episode_id),
-          ...(sections.episode_ratings || []).map((row) => row.episode_id),
-          ...(sections.episode_reviews || []).map((row) => row.episode_id),
-        ].filter(Boolean)
-      )
-    );
-
-    const [showDetails, episodeDetails] = await Promise.all([
-      fetchByIds({
-        supabaseUrl,
-        serviceRoleKey,
-        table: "shows",
-        ids: showIds,
-      }),
-      fetchByIds({
-        supabaseUrl,
-        serviceRoleKey,
-        table: "episodes",
-        ids: episodeIds,
-      }),
-    ]);
-
-    sections.referenced_shows = showDetails.rows;
-    sections.referenced_episodes = episodeDetails.rows;
-
-    if (showDetails.unavailable) {
+    const referencedShows = await fetchRowsByValues({
+      supabaseUrl,
+      serviceRoleKey,
+      table: "shows",
+      column: "id",
+      values: showIds,
+      select: "id,name,tvdb_id,tmdb_id,first_aired,status",
+    });
+    sections.referenced_shows = referencedShows.rows;
+    if (referencedShows.unavailable) {
       unavailableSections.push({
         section: "referenced_shows",
         table: "shows",
-        reason: showDetails.error,
-      });
-    }
-    if (episodeDetails.unavailable) {
-      unavailableSections.push({
-        section: "referenced_episodes",
-        table: "episodes",
-        reason: episodeDetails.error,
+        reason: referencedShows.error,
       });
     }
 
     const exportedAt = new Date();
     const datePart = exportedAt.toISOString().slice(0, 10);
+    const fileName = `burgrs-data-export-${datePart}.json`;
+    const filePath = `${userId}/latest.json`;
     const exportDocument = {
       export_information: {
         service: "BURGRS",
@@ -420,17 +511,28 @@ exports.handler = async function handler(event) {
       data: sections,
       unavailable_sections: unavailableSections,
     };
+    const exportContent = JSON.stringify(exportDocument, null, 2);
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": `attachment; filename="burgrs-data-export-${datePart}.json"`,
-        "Cache-Control": "no-store, private",
-        "X-Content-Type-Options": "nosniff",
-      },
-      body: JSON.stringify(exportDocument, null, 2),
-    };
+    await ensureExportBucket({ supabaseUrl, serviceRoleKey });
+    await uploadExport({
+      supabaseUrl,
+      serviceRoleKey,
+      filePath,
+      content: exportContent,
+    });
+    const downloadUrl = await createSignedDownloadUrl({
+      supabaseUrl,
+      serviceRoleKey,
+      filePath,
+    });
+
+    return jsonResponse(200, {
+      ok: true,
+      downloadUrl,
+      fileName,
+      expiresInSeconds: DOWNLOAD_LINK_SECONDS,
+      sizeBytes: Buffer.byteLength(exportContent, "utf8"),
+    });
   } catch (error) {
     console.error("Failed exporting BURGRS account data:", error);
     return jsonResponse(500, {
