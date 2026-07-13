@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getProfileDisplayName, getProfileHref } from "../lib/profileLinks";
+import { getRootOwnerId, loadBlockedUserIds, usersAreBlocked } from "../lib/userBlocks";
 import ReviewVotes from "./ReviewVotes";
 
 function formatDateTime(value) {
@@ -28,7 +29,16 @@ function buildTree(rows) {
   return roots;
 }
 
-function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChanged, depth = 0 }) {
+function ChatItem({
+  message,
+  currentUserId,
+  blockedUserIds,
+  rootOwnerId,
+  onReply,
+  savingReplyId,
+  onVoteChanged,
+  depth = 0,
+}) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const profile = message.profile || {};
@@ -40,7 +50,17 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
   const profileUrl = getProfileHref(profile, message.user_id);
   const username = profile.username || "";
   const isSaving = savingReplyId === message.id;
-  const canReply = currentUserId && String(message.user_id) !== String(currentUserId);
+  const isOwnMessage = currentUserId && String(message.user_id) === String(currentUserId);
+  const blockedDirectly = blockedUserIds.has(String(message.user_id));
+  const blockedRoot = rootOwnerId && blockedUserIds.has(String(rootOwnerId));
+  const canReply = Boolean(currentUserId && !isOwnMessage && !blockedDirectly && !blockedRoot);
+
+  useEffect(() => {
+    if (!canReply && replyOpen) {
+      setReplyOpen(false);
+      setReplyBody("");
+    }
+  }, [canReply, replyOpen]);
 
   async function submitReply(event) {
     event.preventDefault();
@@ -68,13 +88,9 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
               )}
             </Link>
             <div className="msd-review-user-line">
-              <Link to={profileUrl} className="msd-review-username">
-                {displayName}
-              </Link>
+              <Link to={profileUrl} className="msd-review-username">{displayName}</Link>
               {username && displayName !== username ? (
-                <Link to={profileUrl} className="msd-review-handle">
-                  @{username}
-                </Link>
+                <Link to={profileUrl} className="msd-review-handle">@{username}</Link>
               ) : null}
             </div>
             <span className="msd-review-date">{formatDateTime(message.created_at)}</span>
@@ -127,6 +143,8 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
                 key={reply.id}
                 message={reply}
                 currentUserId={currentUserId}
+                blockedUserIds={blockedUserIds}
+                rootOwnerId={rootOwnerId}
                 onReply={onReply}
                 savingReplyId={savingReplyId}
                 onVoteChanged={onVoteChanged}
@@ -142,6 +160,7 @@ function ChatItem({ message, currentUserId, onReply, savingReplyId, onVoteChange
 
 export default function ShowChatBoard({ showId, currentUserId }) {
   const [messages, setMessages] = useState([]);
+  const [blockedUserIds, setBlockedUserIds] = useState(new Set());
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -153,14 +172,20 @@ export default function ShowChatBoard({ showId, currentUserId }) {
     setLoading(true);
     setError("");
     try {
-      const { data: rows, error: rowsError } = await supabase
-        .from("show_chat_messages")
-        .select("id, show_id, user_id, parent_id, body, created_at, updated_at")
-        .eq("show_id", showId)
-        .order("created_at", { ascending: true });
-      if (rowsError) throw rowsError;
+      const [messageResult, blockedIds] = await Promise.all([
+        supabase
+          .from("show_chat_messages")
+          .select("id, show_id, user_id, parent_id, body, created_at, updated_at")
+          .eq("show_id", showId)
+          .order("created_at", { ascending: true }),
+        loadBlockedUserIds(currentUserId),
+      ]);
 
-      const userIds = Array.from(new Set((rows || []).map((row) => row.user_id).filter(Boolean)));
+      if (messageResult.error) throw messageResult.error;
+      const rows = messageResult.data || [];
+      setBlockedUserIds(blockedIds);
+
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
       let profileMap = new Map();
       if (userIds.length) {
         const { data: profiles, error: profileError } = await supabase
@@ -171,7 +196,7 @@ export default function ShowChatBoard({ showId, currentUserId }) {
         profileMap = new Map((profiles || []).map((profile) => [String(profile.id), profile]));
       }
 
-      const messageIds = (rows || []).map((row) => row.id).filter(Boolean);
+      const messageIds = rows.map((row) => row.id).filter(Boolean);
       let voteMap = new Map();
       let myVoteMap = new Map();
       if (messageIds.length) {
@@ -192,7 +217,7 @@ export default function ShowChatBoard({ showId, currentUserId }) {
         });
       }
 
-      setMessages((rows || []).map((row) => ({
+      setMessages(rows.map((row) => ({
         ...row,
         profile: profileMap.get(String(row.user_id)) || { id: row.user_id },
         up_count: voteMap.get(String(row.id))?.up || 0,
@@ -203,6 +228,7 @@ export default function ShowChatBoard({ showId, currentUserId }) {
       console.error("Failed loading chatboard:", err);
       setError(err.message || "Failed loading chatboard");
       setMessages([]);
+      setBlockedUserIds(new Set());
     } finally {
       setLoading(false);
     }
@@ -240,6 +266,17 @@ export default function ShowChatBoard({ showId, currentUserId }) {
     else setSaving(true);
     setError("");
     try {
+      if (parentId) {
+        const parentMessage = messages.find((item) => String(item.id) === String(parentId));
+        const rootOwnerId = getRootOwnerId(messages, parentId);
+        const blocked = await usersAreBlocked(currentUserId, [parentMessage?.user_id, rootOwnerId]);
+        if (blocked) {
+          setBlockedUserIds(await loadBlockedUserIds(currentUserId));
+          setError("You cannot reply because one of you has blocked the other.");
+          return false;
+        }
+      }
+
       const { error: insertError } = await supabase.from("show_chat_messages").insert({
         show_id: showId,
         user_id: currentUserId,
@@ -267,7 +304,6 @@ export default function ShowChatBoard({ showId, currentUserId }) {
 
   return (
     <section className="msd-reviews-section msd-chatboard-section">
-
       {currentUserId ? (
         <form className="msd-review-form msd-chat-compose-form" onSubmit={handleSubmit}>
           <textarea
@@ -299,6 +335,8 @@ export default function ShowChatBoard({ showId, currentUserId }) {
               key={message.id}
               message={message}
               currentUserId={currentUserId}
+              blockedUserIds={blockedUserIds}
+              rootOwnerId={message.user_id}
               onReply={postMessage}
               savingReplyId={savingReplyId}
               onVoteChanged={loadMessages}
