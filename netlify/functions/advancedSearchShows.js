@@ -1,6 +1,7 @@
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const IMAGE_BASE = "https://image.tmdb.org/t/p";
 const DEFAULT_REGION = "GB";
+const MAX_TMDB_PAGE = 500;
 
 function response(statusCode, body) {
   return {
@@ -134,29 +135,13 @@ async function resolveCompanies(query) {
     .map((entry) => entry.item);
 }
 
-async function enrichExternalIds(items) {
-  return Promise.all(
-    (items || []).map(async (item) => {
-      try {
-        const ids = await tmdbFetch(`/tv/${item.id}/external_ids`);
-        return {
-          ...item,
-          tvdb_id: ids?.tvdb_id || null,
-        };
-      } catch {
-        return { ...item, tvdb_id: null };
-      }
-    })
-  );
-}
-
 function normalizeResult(item, context, genreMap) {
   const genreNames = (item?.genre_ids || [])
     .map((id) => genreMap.get(Number(id)))
     .filter(Boolean);
 
   return {
-    tvdb_id: item?.tvdb_id || null,
+    tvdb_id: null,
     tmdb_id: item?.id || null,
     name: item?.name || item?.original_name || "Unknown title",
     overview: item?.overview || "",
@@ -193,6 +178,11 @@ export async function handler(event) {
     const region = String(event.queryStringParameters?.region || DEFAULT_REGION)
       .trim()
       .toUpperCase();
+    const requestedPage = Number(event.queryStringParameters?.page || 1);
+    const page = Math.min(
+      MAX_TMDB_PAGE,
+      Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1)
+    );
 
     if (!query || !["genre", "platform", "studio"].includes(mode)) {
       return response(400, {
@@ -203,7 +193,7 @@ export async function handler(event) {
     const genres = await getGenres();
     const genreMap = new Map(genres.map((genre) => [Number(genre.id), genre.name]));
     const discoverParams = {
-      page: "1",
+      page: String(page),
       sort_by: "popularity.desc",
       include_adult: "false",
       include_null_first_air_dates: "false",
@@ -242,24 +232,21 @@ export async function handler(event) {
     }
 
     const discovered = await tmdbFetch("/discover/tv", discoverParams);
-    const baseResults = Array.isArray(discovered?.results)
-      ? discovered.results.slice(0, 30)
-      : [];
-    const enriched = await enrichExternalIds(baseResults);
-    const results = enriched
+    const rawTotalPages = Number(discovered?.total_pages || 1);
+    const totalPages = Math.min(MAX_TMDB_PAGE, Math.max(1, rawTotalPages));
+    const results = (Array.isArray(discovered?.results) ? discovered.results : [])
       .map((item) => normalizeResult(item, context, genreMap))
-      .filter((item) => item.tmdb_id)
-      .sort(
-        (a, b) =>
-          Number(b.popularity || 0) - Number(a.popularity || 0) ||
-          Number(b.rating_average || 0) - Number(a.rating_average || 0)
-      );
+      .filter((item) => item.tmdb_id);
 
     return response(200, {
       mode,
       query,
       matched:
         context.genreName || context.platformName || context.studioName || query,
+      page,
+      totalPages,
+      totalResults: Number(discovered?.total_results || results.length),
+      hasMore: page < totalPages,
       results,
     });
   } catch (error) {
