@@ -28,6 +28,15 @@ function getPublicShowRoute(pathname) {
   };
 }
 
+function getRequestedCommunityTab() {
+  const params = new URLSearchParams(window.location.search);
+  const requested = String(
+    params.get("tab") || params.get("community") || ""
+  ).toLowerCase();
+
+  return ["reviews", "chatboard"].includes(requested) ? requested : "";
+}
+
 async function findDatabaseShow(supabase, route) {
   if (!route) return null;
 
@@ -155,10 +164,11 @@ export function installShowCommunityPortal(supabase) {
   let root = null;
   let host = null;
   let activeCommunityTab = "reviews";
-  let renderedPathname = "";
+  let renderedLocation = "";
   let renderedTab = "";
   let frameId = null;
   let communityAvailable = false;
+  let autoOpenTimer = null;
 
   function setNativePanelVisible(visible) {
     const nativePanel = document.querySelector(
@@ -190,42 +200,11 @@ export function installShowCommunityPortal(supabase) {
     }
   }
 
-  function handleAvailabilityChange(available) {
-    communityAvailable = Boolean(available);
-    updateButtonState();
-
-    if (!communityAvailable) {
-      setCommunityVisible(false);
-      setNativePanelVisible(true);
-    }
-  }
-
-  function renderPortal(force = false) {
-    if (!root) return;
-
-    const pathname = window.location.pathname;
-    if (
-      !force &&
-      renderedPathname === pathname &&
-      renderedTab === activeCommunityTab
-    ) {
+  function selectCommunityTab(tabName, shouldScroll = true) {
+    if (!communityAvailable || !["reviews", "chatboard"].includes(tabName)) {
       return;
     }
 
-    renderedPathname = pathname;
-    renderedTab = activeCommunityTab;
-
-    root.render(
-      <ShowCommunityPanel
-        supabase={supabase}
-        pathname={pathname}
-        activeTab={activeCommunityTab}
-        onAvailabilityChange={handleAvailabilityChange}
-      />
-    );
-  }
-
-  function selectCommunityTab(tabName) {
     activeCommunityTab = tabName;
 
     const tabList = document.querySelector(
@@ -240,7 +219,71 @@ export function installShowCommunityPortal(supabase) {
     updateButtonState();
     renderPortal(true);
 
-    host?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (shouldScroll) {
+      window.setTimeout(() => {
+        host?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  }
+
+  function openRequestedCommunityTab(shouldScroll = true) {
+    const requestedTab = getRequestedCommunityTab();
+    if (!communityAvailable || !requestedTab) return;
+
+    if (
+      activeCommunityTab === requestedTab &&
+      host &&
+      host.style.display !== "none"
+    ) {
+      if (shouldScroll) {
+        host.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
+
+    window.clearTimeout(autoOpenTimer);
+    autoOpenTimer = window.setTimeout(() => {
+      selectCommunityTab(requestedTab, shouldScroll);
+    }, 0);
+  }
+
+  function handleAvailabilityChange(available) {
+    communityAvailable = Boolean(available);
+    updateButtonState();
+
+    if (!communityAvailable) {
+      setCommunityVisible(false);
+      setNativePanelVisible(true);
+      return;
+    }
+
+    openRequestedCommunityTab(true);
+  }
+
+  function renderPortal(force = false) {
+    if (!root) return;
+
+    const pathname = window.location.pathname;
+    const locationKey = `${pathname}${window.location.search}`;
+    if (
+      !force &&
+      renderedLocation === locationKey &&
+      renderedTab === activeCommunityTab
+    ) {
+      return;
+    }
+
+    renderedLocation = locationKey;
+    renderedTab = activeCommunityTab;
+
+    root.render(
+      <ShowCommunityPanel
+        supabase={supabase}
+        pathname={pathname}
+        activeTab={activeCommunityTab}
+        onAvailabilityChange={handleAvailabilityChange}
+      />
+    );
   }
 
   function createCommunityButton(id, label, tabName) {
@@ -301,6 +344,8 @@ export function installShowCommunityPortal(supabase) {
   }
 
   function removePortal() {
+    window.clearTimeout(autoOpenTimer);
+
     if (root) root.unmount();
     root = null;
 
@@ -310,7 +355,7 @@ export function installShowCommunityPortal(supabase) {
     document.getElementById(REVIEWS_BUTTON_ID)?.remove();
     document.getElementById(CHATBOARD_BUTTON_ID)?.remove();
 
-    renderedPathname = "";
+    renderedLocation = "";
     renderedTab = "";
     communityAvailable = false;
   }
@@ -334,7 +379,7 @@ export function installShowCommunityPortal(supabase) {
       host.style.display = "none";
       tabSection.insertAdjacentElement("afterend", host);
       root = createRoot(host);
-      renderedPathname = "";
+      renderedLocation = "";
       renderedTab = "";
     } else if (host.previousElementSibling !== tabSection) {
       tabSection.insertAdjacentElement("afterend", host);
@@ -342,6 +387,7 @@ export function installShowCommunityPortal(supabase) {
 
     ensureCommunityButtons(tabList);
     renderPortal();
+    openRequestedCommunityTab(true);
   }
 
   function scheduleSync() {
