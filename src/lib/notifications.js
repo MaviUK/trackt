@@ -95,3 +95,20 @@ export async function markNotificationsRead(notificationIds) {
 
   return { ok: true };
 }
+
+export async function deleteNotifications(notificationIds) {
+  const ids = (notificationIds || []).filter(Boolean);
+  if (!ids.length) return { ok: true };
+
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .in("id", ids);
+
+  if (error) {
+    if (isNotificationsMissing(error)) return { ok: false, missingTable: true };
+    return { ok: false, error };
+  }
+
+  return { ok: true };
+}
