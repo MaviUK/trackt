@@ -38,6 +38,12 @@ create policy "Users can mark their own notifications read"
   using (auth.uid() = recipient_user_id)
   with check (auth.uid() = recipient_user_id);
 
+drop policy if exists "Users can delete their own notifications" on public.notifications;
+create policy "Users can delete their own notifications"
+  on public.notifications
+  for delete
+  using (auth.uid() = recipient_user_id);
+
 drop policy if exists "Authenticated users can create notifications as actor" on public.notifications;
 create policy "Authenticated users can create notifications as actor"
   on public.notifications
