@@ -13,6 +13,12 @@ function getName(profile) {
   );
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
+}
+
 export default function ProfileBlockButton() {
   const location = useLocation();
   const [mountNode, setMountNode] = useState(null);
@@ -57,10 +63,18 @@ export default function ProfileBlockButton() {
   }, [isProfileRoute, location.pathname]);
 
   useEffect(() => {
+    const page = document.querySelector(".creator-page");
+    if (!page) return undefined;
+
+    page.classList.toggle("has-user-block", blockedEitherWay);
+    return () => page.classList.remove("has-user-block");
+  }, [blockedEitherWay, mountNode]);
+
+  useEffect(() => {
     if (!isProfileRoute) return undefined;
 
     let active = true;
-    const username = decodeURIComponent(location.pathname.split("/u/")[1] || "")
+    const slug = decodeURIComponent(location.pathname.split("/u/")[1] || "")
       .split("/")[0]
       .replace(/^@/, "");
 
@@ -69,17 +83,23 @@ export default function ProfileBlockButton() {
       setError("");
 
       try {
-        const [{ data: authData, error: authError }, profileResult] =
-          await Promise.all([
-            supabase.auth.getUser(),
-            supabase
-              .from("profiles")
-              .select("id, username, full_name, display_name")
-              .eq("username", username)
-              .maybeSingle(),
-          ]);
-
+        const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
+
+        let profileResult = await supabase
+          .from("profiles")
+          .select("id, username, full_name, display_name")
+          .eq("username", slug)
+          .maybeSingle();
+
+        if (!profileResult.data && !profileResult.error && isUuid(slug)) {
+          profileResult = await supabase
+            .from("profiles")
+            .select("id, username, full_name, display_name")
+            .eq("id", slug)
+            .maybeSingle();
+        }
+
         if (profileResult.error) throw profileResult.error;
         if (!active) return;
 
