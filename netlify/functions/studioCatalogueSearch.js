@@ -20,6 +20,7 @@ const COMMON_COUNTRIES = [
 let cachedToken = null;
 let tokenExpiresAt = 0;
 const catalogueCache = new Map();
+const companyResolutionCache = new Map();
 
 function response(statusCode, body) {
   return {
@@ -162,7 +163,62 @@ function companyNameFromSearchResult(item) {
   return item?.name || item?.title || item?.company || "";
 }
 
+async function getCompanyDetails(token, candidate, query) {
+  try {
+    const details = await tvdbGet(token, `/companies/${candidate.id}`);
+    const company = details?.data || {};
+    return {
+      id: candidate.id,
+      name: company?.name || candidate.name || query,
+      country: company?.country || candidate.item?.country || "",
+      nameScore: candidate.score,
+    };
+  } catch (error) {
+    console.warn("TVDB company details failed:", error.message);
+    return {
+      id: candidate.id,
+      name: candidate.name || query,
+      country: candidate.item?.country || "",
+      nameScore: candidate.score,
+    };
+  }
+}
+
+async function sampleCompanySize(token, company) {
+  const primaryCountry = normalizeCountry(company.country);
+  const countries = Array.from(
+    new Set([primaryCountry, "usa", "gbr", "can"].filter(Boolean))
+  );
+
+  let total = 0;
+  for (const country of countries) {
+    try {
+      const data = await tvdbGet(token, "/series/filter", {
+        company: company.id,
+        country,
+        lang: "eng",
+        sort: "score",
+        sortType: "desc",
+      });
+      total += Array.isArray(data?.data) ? data.data.length : 0;
+    } catch (error) {
+      console.warn(
+        `TVDB company sample failed for ${company.name} in ${country}:`,
+        error.message
+      );
+    }
+  }
+
+  return total;
+}
+
 async function resolveCompany(token, query) {
+  const cacheKey = normalizeText(query);
+  const cached = companyResolutionCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
+    return cached.company;
+  }
+
   const searchData = await tvdbGet(token, "/search", {
     query,
     type: "company",
@@ -177,29 +233,38 @@ async function resolveCompany(token, query) {
       name: companyNameFromSearchResult(item),
       score: rankName(companyNameFromSearchResult(item), query),
     }))
-    .filter((entry) => entry.id && entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    .filter((entry) => entry.id && entry.score >= 50)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 10);
 
   if (!candidates.length) return null;
 
-  const best = candidates[0];
+  const detailed = await Promise.all(
+    candidates.map((candidate) => getCompanyDetails(token, candidate, query))
+  );
 
-  try {
-    const details = await tvdbGet(token, `/companies/${best.id}`);
-    const company = details?.data || {};
-    return {
-      id: best.id,
-      name: company?.name || best.name || query,
-      country: company?.country || best.item?.country || "",
-    };
-  } catch (error) {
-    console.warn("TVDB company details failed:", error.message);
-    return {
-      id: best.id,
-      name: best.name || query,
-      country: best.item?.country || "",
-    };
+  const measured = [];
+  for (const company of detailed) {
+    const catalogueSize = await sampleCompanySize(token, company);
+    measured.push({ company, catalogueSize });
   }
+
+  measured.sort(
+    (a, b) =>
+      b.catalogueSize - a.catalogueSize ||
+      b.company.nameScore - a.company.nameScore ||
+      a.company.name.localeCompare(b.company.name)
+  );
+
+  const selected = measured[0]?.company || detailed[0] || null;
+  if (selected) {
+    companyResolutionCache.set(cacheKey, {
+      createdAt: Date.now(),
+      company: selected,
+    });
+  }
+
+  return selected;
 }
 
 function normalizeSeries(series, companyName) {
@@ -377,7 +442,7 @@ export async function handler(event) {
       totalResults: catalogue.length,
       hasMore: offset + results.length < catalogue.length,
       results,
-      matchType: "tvdb-company-id",
+      matchType: "tvdb-company-id-largest-catalogue",
     });
   } catch (error) {
     console.error("studioCatalogueSearch error", error);
