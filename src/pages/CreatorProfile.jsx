@@ -29,6 +29,12 @@ function formatDate(value) {
   });
 }
 
+function formatRating(value) {
+  const rating = Number(value);
+  if (!Number.isFinite(rating)) return "";
+  return `${Math.round(rating)}%`;
+}
+
 function formatPostType(value) {
   const labels = {
     post: "Post",
@@ -42,8 +48,10 @@ function formatPostType(value) {
 
 function showHref(show) {
   if (!show) return "#";
+  const databaseShowId = show.show_id || show.id;
+  if (databaseShowId) return `/show/${databaseShowId}`;
   if (show.tmdb_id) return `/show/tmdb/${show.tmdb_id}`;
-  return `/show/${show.id || show.show_id}`;
+  return "#";
 }
 
 function creatorProfileHref(profile) {
@@ -640,7 +648,35 @@ export default function CreatorProfile() {
         .limit(20);
 
       if (reviewsError) throw reviewsError;
-      setReviews(reviewRows || []);
+
+      const rows = reviewRows || [];
+      const reviewShowIds = Array.from(
+        new Set(rows.map((review) => review.show_id).filter(Boolean))
+      );
+      let ratingMap = new Map();
+
+      if (reviewShowIds.length) {
+        const { data: ratingRows, error: ratingsError } = await supabase
+          .from("burgr_ratings")
+          .select("show_id, rating")
+          .eq("user_id", profileRow.id)
+          .in("show_id", reviewShowIds);
+
+        if (ratingsError) {
+          console.warn("Creator review ratings fetch error:", ratingsError);
+        } else {
+          ratingMap = new Map(
+            (ratingRows || []).map((row) => [String(row.show_id), row.rating])
+          );
+        }
+      }
+
+      setReviews(
+        rows.map((review) => ({
+          ...review,
+          user_rating: ratingMap.get(String(review.show_id)) ?? null,
+        }))
+      );
     } catch (err) {
       console.error("Failed loading creator profile:", err);
       setError(err.message || "Failed loading creator profile.");
@@ -1050,7 +1086,11 @@ export default function CreatorProfile() {
                       )}
                       <div>
                         <strong>{review.shows?.name || "Show review"}</strong>
-                        <span>{formatDate(review.created_at)}</span>
+                        <span>
+                          {[formatDate(review.created_at), formatRating(review.user_rating)]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </span>
                       </div>
                     </Link>
                     <p>{review.body}</p>
