@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import IssueReportForm from "./IssueReportForm";
 import AccountDataExportSection from "./AccountDataExportSection";
 import AccountDeletionSection from "./AccountDeletionSection";
+import ProfileAgeRequirementGuard from "./ProfileAgeRequirementGuard";
 import "./ProfileLegalSection.css";
 
 const MOUNT_ID = "burgrs-issue-report-mount";
@@ -53,25 +54,31 @@ export default function ProfileIssueReportMount() {
     };
   }, []);
 
-  return mountNode
-    ? createPortal(
-        <>
-          <IssueReportForm />
-          <section className="profile-legal-section" aria-labelledby="profile-legal-title">
-            <div className="profile-legal-copy">
-              <h2 id="profile-legal-title">Legal</h2>
-              <p>Read the policies and rules that apply when using BURGRS.</p>
-            </div>
-            <div className="profile-legal-links">
-              <a href="/privacy/">Privacy Policy</a>
-              <a href="/terms/">Terms of Use</a>
-              <a href="/community-guidelines/">Community Guidelines</a>
-            </div>
-          </section>
-          <AccountDataExportSection />
-          <AccountDeletionSection />
-        </>,
-        mountNode
-      )
-    : null;
+  return (
+    <>
+      <ProfileAgeRequirementGuard />
+      {mountNode
+        ? createPortal(
+            <>
+              <IssueReportForm />
+              <section className="profile-legal-section" aria-labelledby="profile-legal-title">
+                <div className="profile-legal-copy">
+                  <h2 id="profile-legal-title">Legal</h2>
+                  <p>Read the policies and rules that apply when using BURGRS.</p>
+                </div>
+                <div className="profile-legal-links">
+                  <a href="/privacy/">Privacy Policy</a>
+                  <a href="/terms/">Terms of Use</a>
+                  <a href="/community-guidelines/">Community Guidelines</a>
+                  <a href="/age-and-children/">Age &amp; Children</a>
+                </div>
+              </section>
+              <AccountDataExportSection />
+              <AccountDeletionSection />
+            </>,
+            mountNode
+          )
+        : null}
+    </>
+  );
 }
