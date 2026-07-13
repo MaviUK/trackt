@@ -256,7 +256,7 @@ export default function BlockedUsersSection() {
   return (
     <section className="blocked-users-section" aria-labelledby="blocked-users-title">
       <div className="blocked-users-heading">
-        <h2 id="blocked-users-title">Blocked users</h2>
+        <h2 id="blocked-users-title">Find and block users</h2>
         <p>
           Find and block another user, or manage people you have already blocked.
         </p>
