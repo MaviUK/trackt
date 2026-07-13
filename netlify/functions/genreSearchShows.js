@@ -148,7 +148,7 @@ export async function handler(event) {
 
     const discoverParams = {
       page: String(page),
-      sort_by: "popularity.desc",
+      sort_by: "first_air_date.desc",
       include_adult: "false",
       include_null_first_air_dates: "false",
     };
