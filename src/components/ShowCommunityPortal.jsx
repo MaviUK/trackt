@@ -75,6 +75,7 @@ function ShowCommunityContent({ supabase, route, activeTab }) {
         ]);
 
         if (cancelled) return;
+
         setCurrentUserId(sessionData?.session?.user?.id || null);
         setDatabaseShow(showRow);
 
@@ -83,6 +84,7 @@ function ShowCommunityContent({ supabase, route, activeTab }) {
         }
       } catch (loadError) {
         if (cancelled) return;
+
         console.warn("Failed loading show community:", loadError);
         setDatabaseShow(null);
         setError(loadError?.message || "Failed loading show community.");
@@ -166,7 +168,7 @@ export function installShowCommunityPortal(supabase) {
     const tabList = tabSection?.querySelector(".msd-content-tabs");
     const nativePanel = tabSection?.querySelector(".msd-tab-panel");
 
-    return { route, shell, tabSection, tabList, nativePanel };
+    return { route, tabSection, tabList, nativePanel };
   }
 
   function ensureHost(tabSection) {
@@ -198,6 +200,7 @@ export function installShowCommunityPortal(supabase) {
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
     url.searchParams.delete("community");
+    url.searchParams.delete("reviewer");
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
@@ -218,11 +221,11 @@ export function installShowCommunityPortal(supabase) {
     activeButton?.classList.add("is-active");
   }
 
-  function renderCommunity(route, force = false) {
+  function renderCommunity(route) {
     if (!root || !route) return;
 
     const nextKey = `${route.source}:${route.value}:${activeTab}`;
-    if (!force && renderedKey === nextKey) return;
+    if (renderedKey === nextKey) return;
 
     renderedKey = nextKey;
     root.render(
@@ -235,7 +238,10 @@ export function installShowCommunityPortal(supabase) {
   }
 
   function openCommunity(tabName, { updateUrl = true, scroll = true } = {}) {
+    const previousTab = activeTab;
+    const wasOpen = communityOpen;
     const { route, tabSection, tabList, nativePanel } = getPageParts();
+
     if (!route || !tabSection || !tabList) return;
     if (!ensureHost(tabSection)) return;
 
@@ -248,9 +254,10 @@ export function installShowCommunityPortal(supabase) {
     host.style.display = "";
 
     updateButtonState(tabList);
-    renderCommunity(route, true);
+    renderCommunity(route);
 
-    if (scroll) {
+    const shouldScroll = scroll && (!wasOpen || previousTab !== activeTab);
+    if (shouldScroll) {
       window.clearTimeout(scrollTimer);
       scrollTimer = window.setTimeout(() => {
         host?.scrollIntoView({ behavior: "smooth", block: "start" });
