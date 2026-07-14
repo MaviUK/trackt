@@ -55,7 +55,7 @@ async function findDatabaseShow(supabase, route) {
   return data || null;
 }
 
-function ShowCommunityOverlay({ supabase, route, activeTab, onClose }) {
+function ShowCommunityContent({ supabase, route, activeTab }) {
   const [databaseShow, setDatabaseShow] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,74 +105,42 @@ function ShowCommunityOverlay({ supabase, route, activeTab, onClose }) {
     };
   }, [supabase, route.source, route.value]);
 
-  useEffect(() => {
-    const scrollY = window.scrollY;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyWidth = document.body.style.width;
+  if (loading) {
+    return (
+      <section className="msd-panel msd-community-panel">
+        <p className="msd-muted">
+          {activeTab === "chatboard"
+            ? "Loading chatboard..."
+            : "Loading reviews..."}
+        </p>
+      </section>
+    );
+  }
 
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.top = previousBodyTop;
-      document.body.style.width = previousBodyWidth;
-      window.scrollTo(0, scrollY);
-    };
-  }, []);
-
-  const title = databaseShow?.name || "Show community";
-  const isChatboard = activeTab === "chatboard";
+  if (error || !databaseShow?.id) {
+    return (
+      <section className="msd-panel msd-community-panel">
+        <div className="msd-review-error">{error || "Show not found."}</div>
+      </section>
+    );
+  }
 
   return (
-    <section
-      className="msd-chatboard-screen"
-      aria-label={isChatboard ? "Show chatboard" : "Show reviews"}
-    >
-      <div className="msd-chatboard-screen-head">
-        <div>
-          <p className="msd-chatboard-screen-kicker">
-            {isChatboard ? "Live chatboard" : "Reviews"}
-          </p>
-          <h2>{title}</h2>
-        </div>
-        <button
-          type="button"
-          className="msd-chatboard-close"
-          onClick={onClose}
-          aria-label={isChatboard ? "Close chatboard" : "Close reviews"}
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="msd-chatboard-screen-body">
-        {loading ? (
-          <p className="msd-muted">
-            {isChatboard ? "Loading chatboard..." : "Loading reviews..."}
-          </p>
-        ) : error || !databaseShow?.id ? (
-          <div className="msd-review-error">{error || "Show not found."}</div>
-        ) : isChatboard ? (
+    <section className="msd-panel msd-community-panel" aria-label="Show community">
+      {activeTab === "chatboard" ? (
+        <>
+          <h2 className="msd-section-title">Chatboard</h2>
           <ShowChatBoard
             showId={databaseShow.id}
             currentUserId={currentUserId}
           />
-        ) : (
-          <ShowReviews
-            showId={databaseShow.id}
-            currentUserId={currentUserId}
-          />
-        )}
-      </div>
+        </>
+      ) : (
+        <ShowReviews
+          showId={databaseShow.id}
+          currentUserId={currentUserId}
+        />
+      )}
     </section>
   );
 }
@@ -186,22 +154,37 @@ export function installShowCommunityPortal(supabase) {
   let host = null;
   let root = null;
   let activeTab = "reviews";
-  let activeRouteKey = "";
-  let overlayOpen = false;
+  let communityOpen = false;
+  let renderedKey = "";
   let frameId = null;
+  let scrollTimer = null;
 
-  function ensureHost() {
-    if (host?.isConnected && root) return;
+  function getPageParts() {
+    const route = getPublicShowRoute(window.location.pathname);
+    const shell = document.querySelector(".msd-page .msd-shell");
+    const tabSection = shell?.querySelector(".msd-content-tabs-section");
+    const tabList = tabSection?.querySelector(".msd-content-tabs");
+    const nativePanel = tabSection?.querySelector(".msd-tab-panel");
 
-    host = document.getElementById(HOST_ID);
-    if (!host) {
+    return { route, shell, tabSection, tabList, nativePanel };
+  }
+
+  function ensureHost(tabSection) {
+    if (!tabSection) return false;
+
+    if (!host || !host.isConnected) {
       host = document.createElement("div");
       host.id = HOST_ID;
       host.className = "msd-community-portal-host";
-      document.body.appendChild(host);
+      host.style.display = "none";
+      tabSection.insertAdjacentElement("afterend", host);
+      root = createRoot(host);
+      renderedKey = "";
+    } else if (host.previousElementSibling !== tabSection) {
+      tabSection.insertAdjacentElement("afterend", host);
     }
 
-    root = createRoot(host);
+    return true;
   }
 
   function updateUrlTab(tabName) {
@@ -218,50 +201,85 @@ export function installShowCommunityPortal(supabase) {
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
-  function updateButtonState() {
-    const reviewsButton = document.getElementById(REVIEWS_BUTTON_ID);
-    const chatboardButton = document.getElementById(CHATBOARD_BUTTON_ID);
+  function updateButtonState(tabList) {
+    if (!tabList) return;
 
-    reviewsButton?.classList.toggle(
-      "is-active",
-      overlayOpen && activeTab === "reviews"
-    );
-    chatboardButton?.classList.toggle(
-      "is-active",
-      overlayOpen && activeTab === "chatboard"
-    );
+    tabList
+      .querySelectorAll(".msd-content-tab")
+      .forEach((button) => button.classList.remove("is-active"));
+
+    if (!communityOpen) return;
+
+    const activeButton =
+      activeTab === "chatboard"
+        ? document.getElementById(CHATBOARD_BUTTON_ID)
+        : document.getElementById(REVIEWS_BUTTON_ID);
+
+    activeButton?.classList.add("is-active");
   }
 
-  function closeOverlay({ clearQuery = true } = {}) {
-    if (clearQuery) clearUrlTab();
-    overlayOpen = false;
-    activeRouteKey = "";
-    root?.render(null);
-    updateButtonState();
-  }
+  function renderCommunity(route, force = false) {
+    if (!root || !route) return;
 
-  function openOverlay(tabName, { updateUrl = true } = {}) {
-    const route = getPublicShowRoute(window.location.pathname);
-    if (!route) return;
+    const nextKey = `${route.source}:${route.value}:${activeTab}`;
+    if (!force && renderedKey === nextKey) return;
 
-    ensureHost();
-
-    activeTab = tabName === "chatboard" ? "chatboard" : "reviews";
-    activeRouteKey = `${route.source}:${route.value}`;
-    overlayOpen = true;
-
-    if (updateUrl) updateUrlTab(activeTab);
-
+    renderedKey = nextKey;
     root.render(
-      <ShowCommunityOverlay
+      <ShowCommunityContent
         supabase={supabase}
         route={route}
         activeTab={activeTab}
-        onClose={() => closeOverlay({ clearQuery: true })}
       />
     );
+  }
 
-    updateButtonState();
+  function openCommunity(tabName, { updateUrl = true, scroll = true } = {}) {
+    const { route, tabSection, tabList, nativePanel } = getPageParts();
+    if (!route || !tabSection || !tabList) return;
+    if (!ensureHost(tabSection)) return;
+
+    activeTab = tabName === "chatboard" ? "chatboard" : "reviews";
+    communityOpen = true;
+
+    if (updateUrl) updateUrlTab(activeTab);
+
+    if (nativePanel) nativePanel.style.display = "none";
+    host.style.display = "";
+
+    updateButtonState(tabList);
+    renderCommunity(route, true);
+
+    if (scroll) {
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        host?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+    }
+  }
+
+  function closeCommunity({ clearQuery = true } = {}) {
+    const { tabList, nativePanel } = getPageParts();
+
+    communityOpen = false;
+    if (clearQuery) clearUrlTab();
+
+    if (host) host.style.display = "none";
+    if (nativePanel) nativePanel.style.display = "";
+
+    if (tabList) {
+      tabList
+        .querySelectorAll(".msd-content-tab")
+        .forEach((button) => button.classList.remove("is-active"));
+
+      const seasonsButton = Array.from(
+        tabList.querySelectorAll(".msd-content-tab")
+      ).find(
+        (button) =>
+          String(button.textContent || "").trim().toLowerCase() === "seasons"
+      );
+      seasonsButton?.classList.add("is-active");
+    }
   }
 
   function createCommunityButton(id, label, tabName) {
@@ -273,22 +291,13 @@ export function installShowCommunityPortal(supabase) {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openOverlay(tabName, { updateUrl: true });
+      openCommunity(tabName, { updateUrl: true, scroll: true });
     });
     return button;
   }
 
-  function ensureCommunityButtons() {
-    const route = getPublicShowRoute(window.location.pathname);
-    const tabList = document.querySelector(
-      ".msd-page .msd-content-tabs-section .msd-content-tabs"
-    );
-
-    if (!route || !tabList) {
-      document.getElementById(REVIEWS_BUTTON_ID)?.remove();
-      document.getElementById(CHATBOARD_BUTTON_ID)?.remove();
-      return;
-    }
+  function ensureButtons(tabList) {
+    if (!tabList) return;
 
     if (!document.getElementById(REVIEWS_BUTTON_ID)) {
       tabList.appendChild(
@@ -302,28 +311,64 @@ export function installShowCommunityPortal(supabase) {
       );
     }
 
-    updateButtonState();
+    if (!tabList.dataset.burgrsCommunityNativeTabs) {
+      tabList.dataset.burgrsCommunityNativeTabs = "1";
+      tabList.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        if (
+          button.id === REVIEWS_BUTTON_ID ||
+          button.id === CHATBOARD_BUTTON_ID
+        ) {
+          return;
+        }
+
+        closeCommunity({ clearQuery: true });
+      });
+    }
+  }
+
+  function removePortal() {
+    window.clearTimeout(scrollTimer);
+
+    if (root) root.unmount();
+    root = null;
+
+    if (host?.isConnected) host.remove();
+    host = null;
+
+    document.getElementById(REVIEWS_BUTTON_ID)?.remove();
+    document.getElementById(CHATBOARD_BUTTON_ID)?.remove();
+
+    communityOpen = false;
+    renderedKey = "";
   }
 
   function sync() {
-    const route = getPublicShowRoute(window.location.pathname);
-    ensureCommunityButtons();
+    const { route, tabSection, tabList, nativePanel } = getPageParts();
 
-    if (!route) {
-      if (overlayOpen) closeOverlay({ clearQuery: false });
+    if (!route || !tabSection || !tabList) {
+      if (!route) removePortal();
       return;
     }
 
-    const requestedTab = getRequestedCommunityTab();
-    if (!requestedTab) return;
+    ensureHost(tabSection);
+    ensureButtons(tabList);
 
-    const routeKey = `${route.source}:${route.value}`;
-    if (
-      !overlayOpen ||
-      activeRouteKey !== routeKey ||
-      activeTab !== requestedTab
-    ) {
-      openOverlay(requestedTab, { updateUrl: false });
+    const requestedTab = getRequestedCommunityTab();
+    if (requestedTab) {
+      openCommunity(requestedTab, {
+        updateUrl: false,
+        scroll: !communityOpen,
+      });
+      return;
+    }
+
+    if (communityOpen) {
+      if (nativePanel) nativePanel.style.display = "none";
+      if (host) host.style.display = "";
+      updateButtonState(tabList);
+      renderCommunity(route);
     }
   }
 
@@ -336,9 +381,7 @@ export function installShowCommunityPortal(supabase) {
   }
 
   function start() {
-    ensureHost();
     scheduleSync();
-
     window.addEventListener("popstate", scheduleSync);
 
     const observer = new MutationObserver(scheduleSync);
