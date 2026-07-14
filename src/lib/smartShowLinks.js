@@ -1,6 +1,7 @@
 const SMART_SHOW_LINKS_FLAG = "__burgrsSmartShowLinksInstalled";
 const CREATOR_REVIEW_RATING_CLASS = "creator-review-rating-corner";
 const REVIEW_TAB_VALUE = "reviews";
+const REVIEWER_QUERY_KEY = "reviewer";
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -146,6 +147,11 @@ function getRequestedCommunityTab() {
   return String(params.get("tab") || params.get("community") || "").toLowerCase();
 }
 
+function getRequestedReviewer() {
+  const params = new URLSearchParams(window.location.search);
+  return String(params.get(REVIEWER_QUERY_KEY) || "").trim();
+}
+
 function isVisible(element) {
   if (!element) return false;
   const style = window.getComputedStyle(element);
@@ -183,6 +189,153 @@ function scrollCommunitySectionIntoView(tabName) {
   return true;
 }
 
+function getUsernameFromProfileHref(href) {
+  if (!href) return "";
+
+  try {
+    const url = new URL(href, window.location.origin);
+    const match = url.pathname.match(/^\/u\/([^/?#]+)\/?$/i);
+    return match ? decodeURIComponent(match[1]).replace(/^@/, "").trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function getReviewCardReviewer(reviewCard) {
+  if (!reviewCard) return "";
+
+  const profileLink = reviewCard.querySelector(
+    '.following-creator-name-link[href], .following-avatar-link[href], .msd-review-username[href], .creator-review-username[href]'
+  );
+  const linkedUsername = getUsernameFromProfileHref(profileLink?.href);
+  if (linkedUsername) return linkedUsername;
+
+  if (reviewCard.classList.contains("creator-review-card")) {
+    const currentProfileMatch = window.location.pathname.match(/^\/u\/([^/?#]+)\/?$/i);
+    if (currentProfileMatch) {
+      return decodeURIComponent(currentProfileMatch[1]).replace(/^@/, "").trim();
+    }
+  }
+
+  return "";
+}
+
+function isFollowingReviewCard(card) {
+  if (!card?.classList?.contains("following-card")) return false;
+  const typeLabel = String(
+    card.querySelector(".following-meta-type")?.textContent || ""
+  )
+    .trim()
+    .toLowerCase();
+  return typeLabel === "review";
+}
+
+function findReviewItemForReviewer(reviewer) {
+  const normalizedReviewer = String(reviewer || "")
+    .replace(/^@/, "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedReviewer) return null;
+
+  const rootReviewItems = Array.from(
+    document.querySelectorAll(".msd-review-list > .msd-review-item")
+  );
+
+  return rootReviewItems.find((item) => {
+    const profileLink = item.querySelector(
+      '.msd-review-username[href], .msd-review-avatar-link[href]'
+    );
+    const hrefUsername = getUsernameFromProfileHref(profileLink?.href).toLowerCase();
+    if (hrefUsername && hrefUsername === normalizedReviewer) return true;
+
+    const handle = String(item.querySelector(".msd-review-handle")?.textContent || "")
+      .replace(/^@/, "")
+      .trim()
+      .toLowerCase();
+    return Boolean(handle && handle === normalizedReviewer);
+  });
+}
+
+function highlightAndScrollToReview(item) {
+  if (!item) return false;
+
+  document
+    .querySelectorAll('[data-burgrs-target-review="true"]')
+    .forEach((element) => {
+      element.removeAttribute("data-burgrs-target-review");
+      element.style.removeProperty("outline");
+      element.style.removeProperty("outline-offset");
+      element.style.removeProperty("border-radius");
+      element.style.removeProperty("transition");
+    });
+
+  item.setAttribute("data-burgrs-target-review", "true");
+  item.style.outline = "2px solid rgba(167, 139, 250, 0.9)";
+  item.style.outlineOffset = "5px";
+  item.style.borderRadius = "18px";
+  item.style.transition = "outline-color 220ms ease";
+  item.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  window.setTimeout(() => {
+    if (item.getAttribute("data-burgrs-target-review") !== "true") return;
+    item.style.outline = "2px solid transparent";
+  }, 2600);
+
+  return true;
+}
+
+function installRequestedReviewFocus() {
+  let frameId = null;
+  let retryTimer = null;
+  let lastFocusedRequest = "";
+
+  function attemptFocusReview() {
+    const tabName = getRequestedCommunityTab();
+    const reviewer = getRequestedReviewer();
+
+    if (tabName !== "reviews" || !reviewer) {
+      lastFocusedRequest = "";
+      return;
+    }
+
+    const requestKey = `${window.location.pathname}${window.location.search}`;
+    if (lastFocusedRequest === requestKey) return;
+
+    const reviewItem = findReviewItemForReviewer(reviewer);
+    if (!reviewItem) {
+      window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(scheduleAttempt, 180);
+      return;
+    }
+
+    if (highlightAndScrollToReview(reviewItem)) {
+      lastFocusedRequest = requestKey;
+    }
+  }
+
+  function scheduleAttempt() {
+    if (frameId !== null) return;
+    frameId = window.requestAnimationFrame(() => {
+      frameId = null;
+      attemptFocusReview();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scheduleAttempt, { once: true });
+  } else {
+    scheduleAttempt();
+  }
+
+  window.addEventListener("popstate", scheduleAttempt);
+
+  const observer = new MutationObserver(scheduleAttempt);
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+}
+
 function installRequestedCommunityTabOpening() {
   let frameId = null;
   let retryTimer = null;
@@ -212,6 +365,11 @@ function installRequestedCommunityTabOpening() {
 
     window.clearTimeout(retryTimer);
     retryTimer = window.setTimeout(() => {
+      if (getRequestedReviewer() && tabName === "reviews") {
+        lastCompletedRequest = requestKey;
+        return;
+      }
+
       if (scrollCommunitySectionIntoView(tabName)) {
         lastCompletedRequest = requestKey;
       }
@@ -274,6 +432,7 @@ export function installSmartShowLinks(supabase) {
   window[SMART_SHOW_LINKS_FLAG] = true;
   installCreatorReviewRatingPositioning();
   installRequestedCommunityTabOpening();
+  installRequestedReviewFocus();
 
   document.addEventListener(
     "click",
@@ -281,7 +440,13 @@ export function installSmartShowLinks(supabase) {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
-      const reviewCard = event.target?.closest?.(".creator-review-card");
+      const creatorReviewCard = event.target?.closest?.(".creator-review-card");
+      const followingCard = event.target?.closest?.(".following-card");
+      const followingReviewCard = isFollowingReviewCard(followingCard)
+        ? followingCard
+        : null;
+      const reviewCard = creatorReviewCard || followingReviewCard;
+
       let anchor = event.target?.closest?.("a[href]");
 
       if (
@@ -289,7 +454,9 @@ export function installSmartShowLinks(supabase) {
         reviewCard &&
         !event.target?.closest?.("button, input, textarea, select")
       ) {
-        anchor = reviewCard.querySelector(".creator-review-show[href]");
+        anchor = creatorReviewCard
+          ? creatorReviewCard.querySelector(".creator-review-show[href]")
+          : followingReviewCard.querySelector(".following-show-card[href]");
       }
 
       if (!anchor || anchor.hasAttribute("download")) return;
@@ -301,6 +468,8 @@ export function installSmartShowLinks(supabase) {
 
       if (reviewCard) {
         url.searchParams.set("tab", REVIEW_TAB_VALUE);
+        const reviewer = getReviewCardReviewer(reviewCard);
+        if (reviewer) url.searchParams.set(REVIEWER_QUERY_KEY, reviewer);
       }
 
       event.preventDefault();
