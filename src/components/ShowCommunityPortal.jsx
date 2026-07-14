@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import ShowChatBoard from "./ShowChatBoard";
 import ShowReviews from "./ShowReviews";
 
@@ -229,11 +230,13 @@ export function installShowCommunityPortal(supabase) {
 
     renderedKey = nextKey;
     root.render(
-      <ShowCommunityContent
-        supabase={supabase}
-        route={route}
-        activeTab={activeTab}
-      />
+      <BrowserRouter>
+        <ShowCommunityContent
+          supabase={supabase}
+          route={route}
+          activeTab={activeTab}
+        />
+      </BrowserRouter>
     );
   }
 
