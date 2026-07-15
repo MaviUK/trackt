@@ -23,6 +23,21 @@ function installLockedReviewStyles() {
     ${LOCKED_REVIEWS_SELECTOR} > .${MOVED_TITLE_CLASS} {
       margin: 0 0 18px;
     }
+
+    @media (max-width: 768px) {
+      #burgrs-show-community-portal {
+        margin-top: -8px;
+      }
+
+      #burgrs-show-community-portal > .msd-panel {
+        margin-top: 0 !important;
+      }
+
+      #burgrs-show-community-portal + .msd-panel,
+      #burgrs-show-community-portal + .msd-panel-spaced {
+        margin-top: 12px !important;
+      }
+    }
   `;
   document.head.appendChild(style);
 }
