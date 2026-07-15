@@ -26,7 +26,7 @@ function installLockedReviewStyles() {
 
     @media (max-width: 768px) {
       ${LOCKED_REVIEWS_SELECTOR} > .msd-reviews-section {
-        margin-top: -14px;
+        margin-top: 10px;
       }
     }
   `;
