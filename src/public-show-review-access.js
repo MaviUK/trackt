@@ -1,6 +1,7 @@
 const LOCKED_REVIEWS_SELECTOR =
   '#burgrs-show-community-portal [data-burgrs-replies-locked="true"]';
 const LOCKED_MESSAGE = 'Add this show to My Shows to write reviews/replies';
+const MOVED_TITLE_CLASS = 'burgrs-locked-review-title';
 
 function installLockedReviewStyles() {
   if (document.getElementById('burgrs-public-review-access-styles')) return;
@@ -13,6 +14,14 @@ function installLockedReviewStyles() {
     ${LOCKED_REVIEWS_SELECTOR} .msd-review-reply-action,
     ${LOCKED_REVIEWS_SELECTOR} .msd-review-reply-form {
       display: none !important;
+    }
+
+    ${LOCKED_REVIEWS_SELECTOR} .msd-reviews-section > .msd-section-title {
+      display: none !important;
+    }
+
+    ${LOCKED_REVIEWS_SELECTOR} > .${MOVED_TITLE_CLASS} {
+      margin: 0 0 18px;
     }
   `;
   document.head.appendChild(style);
@@ -31,6 +40,29 @@ function syncLockedReviewMessage(root = document) {
     if (directNotice && directNotice.textContent !== LOCKED_MESSAGE) {
       directNotice.textContent = LOCKED_MESSAGE;
     }
+
+    const originalTitle = section.querySelector(
+      '.msd-reviews-section > .msd-section-title'
+    );
+    let movedTitle = Array.from(section.children).find((child) =>
+      child.classList?.contains(MOVED_TITLE_CLASS)
+    );
+
+    if (originalTitle && directNotice) {
+      if (!movedTitle) {
+        movedTitle = document.createElement('h2');
+        movedTitle.className = `msd-section-title ${MOVED_TITLE_CLASS}`;
+        movedTitle.textContent = originalTitle.textContent || 'Reviews';
+      }
+
+      if (movedTitle.nextElementSibling !== directNotice) {
+        section.insertBefore(movedTitle, directNotice);
+      }
+    }
+  });
+
+  document.querySelectorAll(`.${MOVED_TITLE_CLASS}`).forEach((title) => {
+    if (!title.closest(LOCKED_REVIEWS_SELECTOR)) title.remove();
   });
 }
 
