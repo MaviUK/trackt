@@ -23,6 +23,12 @@ function installLockedReviewStyles() {
     ${LOCKED_REVIEWS_SELECTOR} > .${MOVED_TITLE_CLASS} {
       margin: 0 0 18px;
     }
+
+    @media (max-width: 768px) {
+      ${LOCKED_REVIEWS_SELECTOR} > .msd-reviews-section {
+        margin-top: -14px;
+      }
+    }
   `;
   document.head.appendChild(style);
 }
