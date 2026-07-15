@@ -56,18 +56,44 @@ async function findDatabaseShow(supabase, route) {
   return data || null;
 }
 
+async function userHasShow(supabase, userId, showId) {
+  if (!userId || !showId) return false;
+
+  const { data, error } = await supabase
+    .from("user_shows_new")
+    .select("show_id")
+    .eq("user_id", userId)
+    .eq("show_id", showId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Failed checking My Shows membership:", error);
+    return false;
+  }
+
+  return Boolean(data?.show_id);
+}
+
 function ShowCommunityContent({ supabase, route, activeTab }) {
   const [databaseShow, setDatabaseShow] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [isInMyShows, setIsInMyShows] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
+    let loadedShowId = null;
+
+    async function updateMembership(userId, showId = loadedShowId) {
+      const hasShow = await userHasShow(supabase, userId, showId);
+      if (!cancelled) setIsInMyShows(hasShow);
+    }
 
     async function loadCommunity() {
       setLoading(true);
       setError("");
+      setIsInMyShows(false);
 
       try {
         const [{ data: sessionData }, showRow] = await Promise.all([
@@ -77,17 +103,24 @@ function ShowCommunityContent({ supabase, route, activeTab }) {
 
         if (cancelled) return;
 
-        setCurrentUserId(sessionData?.session?.user?.id || null);
+        const userId = sessionData?.session?.user?.id || null;
+        loadedShowId = showRow?.id || null;
+
+        setCurrentUserId(userId);
         setDatabaseShow(showRow);
 
         if (!showRow?.id) {
           setError("This show is not linked to the BURGRS database yet.");
+          return;
         }
+
+        await updateMembership(userId, showRow.id);
       } catch (loadError) {
         if (cancelled) return;
 
         console.warn("Failed loading show community:", loadError);
         setDatabaseShow(null);
+        setIsInMyShows(false);
         setError(loadError?.message || "Failed loading show community.");
       } finally {
         if (!cancelled) setLoading(false);
@@ -99,7 +132,11 @@ function ShowCommunityContent({ supabase, route, activeTab }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!cancelled) setCurrentUserId(session?.user?.id || null);
+      const userId = session?.user?.id || null;
+      if (cancelled) return;
+
+      setCurrentUserId(userId);
+      updateMembership(userId);
     });
 
     return () => {
@@ -139,10 +176,24 @@ function ShowCommunityContent({ supabase, route, activeTab }) {
           />
         </>
       ) : (
-        <ShowReviews
-          showId={databaseShow.id}
-          currentUserId={currentUserId}
-        />
+        <div data-burgrs-replies-locked={isInMyShows ? "false" : "true"}>
+          <style>{`
+            [data-burgrs-replies-locked="true"] .msd-review-reply-action {
+              display: none !important;
+            }
+          `}</style>
+
+          {currentUserId && !isInMyShows ? (
+            <div className="msd-review-login-note">
+              Add this show to My Shows to reply to reviews.
+            </div>
+          ) : null}
+
+          <ShowReviews
+            showId={databaseShow.id}
+            currentUserId={currentUserId}
+          />
+        </div>
       )}
     </section>
   );
