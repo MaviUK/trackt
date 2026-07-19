@@ -1,0 +1,28 @@
+name: Apply Rankd stats RPC update
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-rankd-stats-rpc.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Update Rankd stats loading
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          rankd_path = Path("src/pages/Rankd
