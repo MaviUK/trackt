@@ -1,20 +1,16 @@
 name: Restore focused Rankd ranking
-on:
-  workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/apply-rankd-stats-rpc.yml
-permissions:
-  contents: write
+on: {workflow_dispatch: {}}
+permissions: {contents: write}
 jobs:
   restore:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+        with: {node-version: 22, cache: npm}
       - name: Restore focused ranking
         run: |
-          python3 <<
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('src
