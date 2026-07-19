@@ -1,6 +1,7 @@
 name: Apply Rankd stats RPC update
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - .github/workflows/apply-rankd-stats-rpc.yml
