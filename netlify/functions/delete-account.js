@@ -1,3 +1,5 @@
+const { createClient } = require("@supabase/supabase-js");
+
 function jsonResponse(statusCode, body) {
   return {
     statusCode,
@@ -34,6 +36,77 @@ async function getAuthenticatedUser({ supabaseUrl, anonKey, accessToken }) {
   }
 
   return data;
+}
+
+function isMissingBucketError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("bucket not found") || message.includes("not found");
+}
+
+async function listStorageFiles(storageBucket, folder) {
+  const filePaths = [];
+  let offset = 0;
+  const limit = 1000;
+
+  while (true) {
+    const { data, error } = await storageBucket.list(folder, {
+      limit,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
+
+    if (error) throw error;
+
+    const entries = Array.isArray(data) ? data : [];
+    for (const entry of entries) {
+      const entryPath = folder ? `${folder}/${entry.name}` : entry.name;
+
+      if (entry.id) {
+        filePaths.push(entryPath);
+      } else {
+        const nestedPaths = await listStorageFiles(storageBucket, entryPath);
+        filePaths.push(...nestedPaths);
+      }
+    }
+
+    if (entries.length < limit) break;
+    offset += limit;
+  }
+
+  return filePaths;
+}
+
+async function deleteStorageFolder(supabaseAdmin, bucketName, userId) {
+  const storageBucket = supabaseAdmin.storage.from(bucketName);
+  let filePaths;
+
+  try {
+    filePaths = await listStorageFiles(storageBucket, userId);
+  } catch (error) {
+    if (isMissingBucketError(error)) return;
+    throw new Error(`Could not inspect ${bucketName} uploads: ${error.message}`);
+  }
+
+  for (let index = 0; index < filePaths.length; index += 100) {
+    const batch = filePaths.slice(index, index + 100);
+    const { error } = await storageBucket.remove(batch);
+
+    if (error) {
+      throw new Error(`Could not remove ${bucketName} uploads: ${error.message}`);
+    }
+  }
+}
+
+async function deleteUserStorage({ supabaseUrl, serviceRoleKey, userId }) {
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  await deleteStorageFolder(supabaseAdmin, "creator-posts", userId);
+  await deleteStorageFolder(supabaseAdmin, "issue-screenshots", userId);
 }
 
 async function deleteAccountData({ supabaseUrl, serviceRoleKey, userId }) {
@@ -124,6 +197,12 @@ exports.handler = async function handler(event) {
       supabaseUrl,
       anonKey,
       accessToken,
+    });
+
+    await deleteUserStorage({
+      supabaseUrl,
+      serviceRoleKey,
+      userId: user.id,
     });
 
     await deleteAccountData({

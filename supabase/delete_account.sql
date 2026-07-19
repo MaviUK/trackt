@@ -1,12 +1,13 @@
 -- BURGRS account deletion cleanup
--- Run this file once in Supabase SQL Editor.
+-- Run this file once in Supabase SQL Editor after deployment.
+-- Uploaded files are removed by the Netlify function through the Storage API.
 -- The function is callable only by the service role used by the Netlify function.
 
 create or replace function public.delete_account_data(p_user_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public, auth, storage
+set search_path = public, auth
 as $$
 declare
   target record;
@@ -14,15 +15,6 @@ begin
   if p_user_id is null then
     raise exception 'A user id is required.';
   end if;
-
-  -- Remove private uploaded files before the Auth user disappears.
-  begin
-    delete from storage.objects
-    where bucket_id in ('creator-posts', 'issue-screenshots')
-      and name like p_user_id::text || '/%';
-  exception
-    when undefined_table then null;
-  end;
 
   -- Remove votes and other child rows first.
   for target in
