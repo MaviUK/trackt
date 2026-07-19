@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase'
 import { installNativeApiBridge } from './lib/installNativeApiBridge'
 import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import { installUserCacheIsolation } from './lib/installUserCacheIsolation'
+import { installDeletedUserRedirect } from './lib/installDeletedUserRedirect'
 import './index.css'
 import './rankd-button-fixes.css'
 import './mobile-header-consistency.css'
@@ -67,6 +68,7 @@ import './search-newest-first.js'
 installNativeApiBridge()
 installMobileOverscrollGuard()
 installUserCacheIsolation()
+installDeletedUserRedirect(supabase)
 installShowCommunityPortal(supabase)
 
 function BootReady() {
