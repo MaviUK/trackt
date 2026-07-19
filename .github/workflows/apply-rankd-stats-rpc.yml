@@ -1,0 +1,116 @@
+name: Apply Rankd stats RPC update
+
+on:
+  push:
+    paths:
+      - .github/workflows/apply-rankd-stats-rpc.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Patch Rankd files
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          rankd = Path('src/pages/Rankd.jsx')
+          text = rankd.read_text()
+
+          replacement = '''async function fetchPairAndOverallStats(firstShowId, secondShowId) {
+            const { data, error } = await supabase
+              .rpc("get_rankd_pair_stats", {
+                p_show_1_id: firstShowId,
+                p_show_2_id: secondShowId,
+              })
+              .single();
+
+            if (error) throw error;
+
+            const firstId = String(data.show_1_id);
+            const secondId = String(data.show_2_id);
+
+            return {
+              matchupStats: {
+                show_a_id: data.show_1_id,
+                show_b_id: data.show_2_id,
+                show_a_wins: Number(data.show_1_matchup_wins || 0),
+                show_b_wins: Number(data.show_2_matchup_wins || 0),
+                times_matched: Number(data.times_matched || 0),
+              },
+              overallStats: {
+                [firstId]: {
+                  wins: Number(data.show_1_overall_wins || 0),
+                  total: Number(data.show_1_overall_total || 0),
+                },
+                [secondId]: {
+                  wins: Number(data.show_2_overall_wins || 0),
+                  total: Number(data.show_2_overall_total || 0),
+                },
+              },
+            };
+          }'''
+
+          pattern = re.compile(
+            r'async function fetchMatchupStatsForPair\(firstShowId, secondShowId\) \{.*?\n\}\n\nasync function fetchOverallStatsForShows\(showIds\) \{.*?\n\}',
+            re.S,
+          )
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+            raise SystemExit('Could not replace old Rankd stats functions')
+
+          old_load = '''const [pairStats, overallStats] = await Promise.all([
+                  fetchMatchupStatsForPair(pair[0].show_id, pair[1].show_id),
+                  fetchOverallStatsForShows([pair[0].show_id, pair[1].show_id]),
+                ]);
+
+                if (pairStatsRequestRef.current !== requestId) return;
+
+                setMatchupStats(pairStats);
+                setOverallStatsByShow(overallStats);'''
+          new_load = '''const { matchupStats: nextMatchupStats, overallStats } =
+                  await fetchPairAndOverallStats(
+                    pair[0].show_id,
+                    pair[1].show_id
+                  );
+
+                if (pairStatsRequestRef.current !== requestId) return;
+
+                setMatchupStats(nextMatchupStats);
+                setOverallStatsByShow(overallStats);'''
+          if old_load not in text:
+            raise SystemExit('Could not replace loadCurrentPairStats block')
+          rankd.write_text(text.replace(old_load, new_load, 1))
+
+          main = Path('src/main.jsx')
+          main_text = main.read_text()
+          import_line = "import './rankd-shared-stats-fix.js'\n"
+          if import_line not in main_text:
+            raise SystemExit('Shared stats import was not found')
+          main.write_text(main_text.replace(import_line, '', 1))
+          PY
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit changes
+        run: |
+          rm .github/workflows/apply-rankd-stats-rpc.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/Rankd.jsx src/main.jsx .github/workflows/apply-rankd-stats-rpc.yml
+          git commit -m "Speed up Rankd matchup statistics"
+          git push
