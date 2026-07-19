@@ -1,92 +1,20 @@
 name: Restore focused Rankd ranking
-on: {workflow_dispatch: {}}
-permissions: {contents: write}
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/apply-rankd-stats-rpc.yml
+permissions:
+  contents: write
 jobs:
   restore:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: 22, cache: npm}
+        with:
+          node-version: 22
+          cache: npm
       - name: Restore focused ranking
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('src/pages/Rankd.jsx'); s=p.read_text()
-          helpers='''function isFocusSettled(items, focus) {
-            if (!focus) return false;
-            const sorted = [...items].sort(sortByLadder);
-            const i = sorted.findIndex((show) => String(show.show_id) === String(focus.showId));
-            if (i < 0) return false;
-            const above = sorted[i - 1];
-            const below = sorted[i + 1];
-            return (!above || (focus.lostToIds || []).includes(String(above.show_id))) &&
-              (!below || (focus.beatenIds || []).includes(String(below.show_id)));
-          }
-
-          function getFocusedPair(items, focusShowId, focus = null) {
-            const sorted = [...items].sort(sortByLadder);
-            const i = sorted.findIndex((show) => String(show.show_id) === String(focusShowId));
-            if (i < 0) return [];
-            const tested = new Set((focus?.testedIds || []).map(String));
-            const offsets = [-1,1,-2,2,-4,4,-3,3,-6,6,-5,5,-8,8,-10,10];
-            let opponent = offsets.map((n) => sorted[i+n]).find((show) => show && String(show.show_id) !== String(focusShowId) && !tested.has(String(show.show_id)));
-            opponent ||= sorted.find((show) => String(show.show_id) !== String(focusShowId) && !tested.has(String(show.show_id)));
-            if (!opponent) return [];
-            return Math.random() > 0.5 ? [sorted[i], opponent] : [opponent, sorted[i]];
-          }
-
-          '''
-          if 'function isFocusSettled(' not in s:
-            s=s.replace('function moveShowToRank(shows, showId, targetRank) {',helpers+'function moveShowToRank(shows, showId, targetRank) {',1)
-          if 'const [rankFocus, setRankFocus]' not in s:
-            s=s.replace('  const [currentPair, setCurrentPair] = useState([]);','  const [currentPair, setCurrentPair] = useState([]);\n  const [rankFocus, setRankFocus] = useState(null);',1)
-          start='''  function startFocusedRanking(show) {
-            if (!isLoggedIn) { setShowLoginModal(true); return; }
-            const focus = { showId: show.show_id, showName: show.show_name, testedIds: [], beatenIds: [], lostToIds: [] };
-            const pair = getFocusedPair(eligibleShows, show.show_id, focus);
-            if (pair.length !== 2) { setNotice("No untested shows are available for this title."); return; }
-            setRankFocus(focus);
-            setCurrentPair(pair);
-            setNotice(`Ranking ${show.show_name}. Keep choosing until its position is confirmed.`);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }'''
-          s,n=re.subn(r'  function startFocusedRanking\(show\) \{.*?\n  \}',start,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('startFocusedRanking not found')
-          old=r'''    const previousPairKey = currentPairKey;\n    const nextPair = chooseFastPair\(\n      updatedLadder,\n      previousPairKey,\n      recentShowIdsRef\.current,\n      \[previousPairKey, \.\.\.recentPairKeysRef\.current\]\n    \);'''
-          new='''    const previousPairKey = currentPairKey;
-            let nextFocus = rankFocus;
-            let nextPair = [];
-            if (rankFocus?.showId) {
-              const focusWon = String(winner.show_id) === String(rankFocus.showId);
-              const opponent = focusWon ? loser : winner;
-              nextFocus = {
-                ...rankFocus,
-                testedIds: [...new Set([...(rankFocus.testedIds || []), String(opponent.show_id)])],
-                beatenIds: focusWon ? [...new Set([...(rankFocus.beatenIds || []), String(opponent.show_id)])] : rankFocus.beatenIds || [],
-                lostToIds: !focusWon ? [...new Set([...(rankFocus.lostToIds || []), String(opponent.show_id)])] : rankFocus.lostToIds || [],
-              };
-              if (isFocusSettled(updatedLadder, nextFocus)) {
-                setRankFocus(null); nextFocus = null;
-                setNotice(`${rankFocus.showName || "This show"} is now in its confirmed position.`);
-              } else {
-                nextPair = getFocusedPair(updatedLadder, nextFocus.showId, nextFocus);
-                if (nextPair.length === 2) setRankFocus(nextFocus);
-                else { setRankFocus(null); nextFocus = null; }
-              }
-            }
-            if (!nextFocus) nextPair = chooseFastPair(updatedLadder, previousPairKey, recentShowIdsRef.current, [previousPairKey, ...recentPairKeysRef.current]);'''
-          s,n=re.subn(old,new,s,count=1)
-          if n!=1: raise SystemExit('next pair block not found')
-          p.write_text(s)
-          PY
-      - run: npm ci && npm run build
-      - name: Commit restoration
-        run: |
-          rm .github/workflows/apply-rankd-stats-rpc.yml
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/pages/Rankd.jsx .github/workflows/apply-rankd-stats-rpc.yml
-          git commit -m "Restore focused Rankd ranking"
-          git push
+          python3 <<
