@@ -17,7 +17,6 @@ begin
     raise exception 'A user id is required.';
   end if;
 
-  -- Remove votes and other child rows first.
   for target in
     select * from (values
       ('show_review_votes', 'user_id'),
@@ -30,20 +29,26 @@ begin
     ) as rows_to_delete(table_name, column_name)
   loop
     begin
-      execute format(
-        'delete from public.%I where %I = $1',
-        target.table_name,
-        target.column_name
-      ) using p_user_id;
+      execute format('delete from public.%I where %I = $1', target.table_name, target.column_name)
+      using p_user_id;
     exception
       when undefined_table or undefined_column then null;
     end;
   end loop;
 
-  -- Detach replies made by other users from content that is about to be removed.
+  -- Replies to a deleted review cannot always become top-level reviews because
+  -- each user may have only one main review per show or episode. Remove those
+  -- reply branches with the deleted review instead of violating that constraint.
   begin
-    update public.show_reviews
-    set parent_id = null
+    delete from public.show_review_votes
+    where review_id in (
+      select reply.id
+      from public.show_reviews reply
+      join public.show_reviews parent on parent.id = reply.parent_id
+      where parent.user_id = p_user_id
+    );
+
+    delete from public.show_reviews
     where parent_id in (
       select id from public.show_reviews where user_id = p_user_id
     );
@@ -52,8 +57,15 @@ begin
   end;
 
   begin
-    update public.episode_reviews
-    set parent_id = null
+    delete from public.episode_review_votes
+    where review_id in (
+      select reply.id
+      from public.episode_reviews reply
+      join public.episode_reviews parent on parent.id = reply.parent_id
+      where parent.user_id = p_user_id
+    );
+
+    delete from public.episode_reviews
     where parent_id in (
       select id from public.episode_reviews where user_id = p_user_id
     );
@@ -81,7 +93,6 @@ begin
     when undefined_table or undefined_column then null;
   end;
 
-  -- Delete votes attached to content owned by this account.
   begin
     delete from public.show_review_votes
     where review_id in (
@@ -109,7 +120,6 @@ begin
     when undefined_table or undefined_column then null;
   end;
 
-  -- Remove creator-list children before deleting the lists themselves.
   begin
     delete from public.creator_list_comments
     where list_key in (
@@ -138,7 +148,6 @@ begin
     when undefined_table or undefined_column then null;
   end;
 
-  -- Remove rows directly owned by or connected to the account.
   for target in
     select * from (values
       ('notifications', 'recipient_user_id'),
@@ -166,30 +175,22 @@ begin
     ) as rows_to_delete(table_name, column_name)
   loop
     begin
-      execute format(
-        'delete from public.%I where %I = $1',
-        target.table_name,
-        target.column_name
-      ) using p_user_id;
+      execute format('delete from public.%I where %I = $1', target.table_name, target.column_name)
+      using p_user_id;
     exception
       when undefined_table or undefined_column then null;
     end;
   end loop;
 
-  -- Catch any other direct foreign-key references to auth.users that may have
-  -- been added later. Known child tables have already been cleaned above.
   for target in
     select
       namespace.nspname as schema_name,
       relation.relname as table_name,
       attribute.attname as column_name
     from pg_constraint constraint_row
-    join pg_class relation
-      on relation.oid = constraint_row.conrelid
-    join pg_namespace namespace
-      on namespace.oid = relation.relnamespace
-    join unnest(constraint_row.conkey) with ordinality as key_column(attnum, position)
-      on true
+    join pg_class relation on relation.oid = constraint_row.conrelid
+    join pg_namespace namespace on namespace.oid = relation.relnamespace
+    join unnest(constraint_row.conkey) with ordinality as key_column(attnum, position) on true
     join unnest(constraint_row.confkey) with ordinality as referenced_column(attnum, position)
       on referenced_column.position = key_column.position
     join pg_attribute attribute
@@ -200,17 +201,11 @@ begin
       and namespace.nspname not in ('auth', 'storage')
   loop
     begin
-      execute format(
-        'delete from %I.%I where %I = $1',
-        target.schema_name,
-        target.table_name,
-        target.column_name
-      ) using p_user_id;
+      execute format('delete from %I.%I where %I = $1', target.schema_name, target.table_name, target.column_name)
+      using p_user_id;
     exception
       when foreign_key_violation then
-        raise warning 'Could not automatically delete rows from %.%',
-          target.schema_name,
-          target.table_name;
+        raise warning 'Could not automatically delete rows from %.%', target.schema_name, target.table_name;
       when undefined_table or undefined_column then null;
     end;
   end loop;
