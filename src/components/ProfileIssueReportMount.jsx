@@ -66,13 +66,14 @@ export default function ProfileIssueReportMount() {
               <section className="profile-legal-section" aria-labelledby="profile-legal-title">
                 <div className="profile-legal-copy">
                   <h2 id="profile-legal-title">Legal</h2>
-                  <p>Read the policies and rules that apply when using BURGRS.</p>
+                  <p>Read the policies, rules and data-source credits that apply when using BURGRS.</p>
                 </div>
                 <div className="profile-legal-links">
                   <a href="/privacy/">Privacy Policy</a>
                   <a href="/terms/">Terms of Use</a>
                   <a href="/community-guidelines/">Community Guidelines</a>
                   <a href="/age-and-children/">Age &amp; Children</a>
+                  <a href="/credits/">Data Sources &amp; Credits</a>
                 </div>
               </section>
               <AccountDataExportSection />
