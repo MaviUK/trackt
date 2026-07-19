@@ -1,16 +1,41 @@
 name: Restore focused Rankd ranking
-on: {workflow_dispatch: {}}
-permissions: {contents: write}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   restore:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: {node-version: 22, cache: npm}
+        with:
+          node-version: 22
+          cache: npm
+
       - name: Restore focused ranking
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('src
+          python3 scripts/restore-rankd-focus-helpers.py
+          python3 scripts/restore-rankd-focus-start.py
+          python3 scripts/restore-rankd-focus-choice.py
+
+      - name: Install and build
+        run: |
+          npm install
+          npm run build
+
+      - name: Commit restoration
+        run: |
+          rm .github/workflows/apply-rankd-stats-rpc.yml
+          rm scripts/restore-rankd-focus-helpers.py
+          rm scripts/restore-rankd-focus-start.py
+          rm scripts/restore-rankd-focus-choice.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/Rankd.jsx package-lock.json .github/workflows/apply-rankd-stats-rpc.yml scripts
+          git commit -m "Restore focused Rankd ranking"
+          git push
