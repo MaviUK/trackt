@@ -77,7 +77,8 @@
   }
 }
 
-.notifications-page .notifications-muted {
+.notifications-page .notifications-muted,
+.following-page .following-muted {
   width: min(100%, 360px);
   min-height: 0;
   margin: 42px auto 0;
@@ -95,7 +96,8 @@
   text-align: center;
 }
 
-.notifications-page .notifications-muted::before {
+.notifications-page .notifications-muted::before,
+.following-page .following-muted::before {
   content: "🍔";
   width: auto;
   height: auto;
@@ -108,7 +110,8 @@
   animation: app-startup-float 1.5s ease-in-out infinite;
 }
 
-.notifications-page .notifications-muted::after {
+.notifications-page .notifications-muted::after,
+.following-page .following-muted::after {
   content: "";
   display: block;
   width: 42%;
@@ -130,7 +133,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .notifications-page .notifications-muted::before,
-  .notifications-page .notifications-muted::after {
+  .notifications-page .notifications-muted::after,
+  .following-page .following-muted::before,
+  .following-page .following-muted::after {
     animation-duration: 2.4s;
   }
 }
