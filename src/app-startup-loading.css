@@ -76,3 +76,61 @@
     transform: translateX(340%);
   }
 }
+
+.notifications-page .notifications-muted {
+  width: min(100%, 360px);
+  min-height: 0;
+  margin: 42px auto 0;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 26px 22px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.76));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+  color: #a5b4cc;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.notifications-page .notifications-muted::before {
+  content: "🍔";
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 42px;
+  line-height: 1;
+  animation: app-startup-float 1.5s ease-in-out infinite;
+}
+
+.notifications-page .notifications-muted::after {
+  content: "";
+  display: block;
+  width: 42%;
+  height: 8px;
+  justify-self: stretch;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #db2777);
+  animation: notifications-burgr-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes notifications-burgr-slide {
+  0% {
+    transform: translateX(-10%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notifications-page .notifications-muted::before,
+  .notifications-page .notifications-muted::after {
+    animation-duration: 2.4s;
+  }
+}
