@@ -67,6 +67,62 @@ function applyLadderWin(shows, winnerId, loserId) {
   }));
 }
 
+function isFocusSettled(items, focus) {
+  if (!focus) return false;
+  const sorted = [...items].sort(sortByLadder);
+  const index = sorted.findIndex(
+    (show) => String(show.show_id) === String(focus.showId)
+  );
+  if (index === -1) return false;
+
+  const above = sorted[index - 1];
+  const below = sorted[index + 1];
+  const lostToAbove =
+    !above || (focus.lostToIds || []).includes(String(above.show_id));
+  const beatBelow =
+    !below || (focus.beatenIds || []).includes(String(below.show_id));
+
+  return lostToAbove && beatBelow;
+}
+
+function getFocusedPair(items, focusShowId, focus = null) {
+  const sorted = [...items].sort(sortByLadder);
+  const focusIndex = sorted.findIndex(
+    (show) => String(show.show_id) === String(focusShowId)
+  );
+  if (focusIndex === -1) return [];
+
+  const focusShow = sorted[focusIndex];
+  const testedIds = new Set((focus?.testedIds || []).map(String));
+  const offsets = [-1, 1, -2, 2, -4, 4, -3, 3, -6, 6, -5, 5, -8, 8, -10, 10];
+
+  let opponent = null;
+  for (const offset of offsets) {
+    const candidate = sorted[focusIndex + offset];
+    if (
+      candidate &&
+      String(candidate.show_id) !== String(focusShowId) &&
+      !testedIds.has(String(candidate.show_id))
+    ) {
+      opponent = candidate;
+      break;
+    }
+  }
+
+  if (!opponent) {
+    opponent = sorted.find(
+      (show) =>
+        String(show.show_id) !== String(focusShowId) &&
+        !testedIds.has(String(show.show_id))
+    );
+  }
+
+  if (!opponent) return [];
+  return Math.random() > 0.5
+    ? [focusShow, opponent]
+    : [opponent, focusShow];
+}
+
 function moveShowToRank(shows, showId, targetRank) {
   const ranked = [...shows].sort(sortByLadder);
   const fromIndex = ranked.findIndex((show) => String(show.show_id) === String(showId));
@@ -347,6 +403,7 @@ export default function Rankd() {
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [eligibleShows, setEligibleShows] = useState([]);
   const [currentPair, setCurrentPair] = useState([]);
+  const [rankFocus, setRankFocus] = useState(null);
   const [matchupStats, setMatchupStats] = useState(null);
   const [overallStatsByShow, setOverallStatsByShow] = useState({});
   const [error, setError] = useState("");
@@ -728,12 +785,67 @@ export default function Rankd() {
     writeRecentShows(activeUserId, recentShowIdsRef.current);
 
     const previousPairKey = currentPairKey;
-    const nextPair = chooseFastPair(
-      updatedLadder,
-      previousPairKey,
-      recentShowIdsRef.current,
-      [previousPairKey, ...recentPairKeysRef.current]
-    );
+    let nextFocus = rankFocus;
+    let nextPair = [];
+
+    if (rankFocus?.showId) {
+      const focusWon = String(winner.show_id) === String(rankFocus.showId);
+      const opponent = focusWon ? loser : winner;
+
+      nextFocus = {
+        ...rankFocus,
+        testedIds: [
+          ...new Set([
+            ...(rankFocus.testedIds || []),
+            String(opponent.show_id),
+          ]),
+        ],
+        beatenIds: focusWon
+          ? [
+              ...new Set([
+                ...(rankFocus.beatenIds || []),
+                String(opponent.show_id),
+              ]),
+            ]
+          : rankFocus.beatenIds || [],
+        lostToIds: !focusWon
+          ? [
+              ...new Set([
+                ...(rankFocus.lostToIds || []),
+                String(opponent.show_id),
+              ]),
+            ]
+          : rankFocus.lostToIds || [],
+      };
+
+      if (isFocusSettled(updatedLadder, nextFocus)) {
+        nextFocus = null;
+        setRankFocus(null);
+        setNotice(
+          `${rankFocus.showName || "This show"} is now in its confirmed position.`
+        );
+      } else {
+        nextPair = getFocusedPair(updatedLadder, nextFocus.showId, nextFocus);
+        if (nextPair.length === 2) {
+          setRankFocus(nextFocus);
+        } else {
+          nextFocus = null;
+          setRankFocus(null);
+          setNotice(
+            `${rankFocus.showName || "This show"} has no more untested opponents.`
+          );
+        }
+      }
+    }
+
+    if (!nextFocus) {
+      nextPair = chooseFastPair(
+        updatedLadder,
+        previousPairKey,
+        recentShowIdsRef.current,
+        [previousPairKey, ...recentPairKeysRef.current]
+      );
+    }
 
     const nextPairKey = nextPair.length === 2 ? makePairKey(nextPair[0].show_id, nextPair[1].show_id) : "";
     recentPairKeysRef.current = [nextPairKey, previousPairKey, ...recentPairKeysRef.current]
@@ -839,7 +951,30 @@ export default function Rankd() {
   }
 
   function startFocusedRanking(show) {
-    setNotice(`${show.show_name || "This show"} focused ranking is being reconnected.`);
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const focus = {
+      showId: show.show_id,
+      showName: show.show_name,
+      testedIds: [],
+      beatenIds: [],
+      lostToIds: [],
+    };
+
+    const pair = getFocusedPair(eligibleShows, show.show_id, focus);
+    if (pair.length !== 2) {
+      setNotice("No untested shows are available for this title.");
+      return;
+    }
+
+    setRankFocus(focus);
+    setCurrentPair(pair);
+    setNotice(
+      `Ranking ${show.show_name}. Keep choosing until its position is confirmed.`
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
