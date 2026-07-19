@@ -8,6 +8,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public, auth
+set statement_timeout = '45s'
 as $$
 declare
   target record;
