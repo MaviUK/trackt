@@ -9,60 +9,119 @@ let loadPromise = null;
 let syncQueued = false;
 let retryTimer = null;
 
-function profileHref(username) {
-  return `/u/${encodeURIComponent(username)}`;
+function getProfileView(profile) {
+  const username = String(profile?.username || "").trim();
+  const emailName = String(profile?.email || "")
+    .split("@")[0]
+    .trim();
+
+  if (username) {
+    return {
+      href: `/u/${encodeURIComponent(username)}`,
+      label: `@${username}`,
+      initial: username.slice(0, 1).toUpperCase() || "U",
+      isComplete: true,
+    };
+  }
+
+  return {
+    href: "/profile/edit",
+    label: "Profile",
+    initial: emailName.slice(0, 1).toUpperCase() || "U",
+    isComplete: false,
+  };
 }
 
-function createAvatarElement(profile) {
+function createAvatarElement(profile, view) {
   if (profile.avatar_url) {
     const image = document.createElement("img");
     image.src = profile.avatar_url;
-    image.alt = `@${profile.username}`;
+    image.alt = view.label;
     image.className = "top-profile-avatar";
     return image;
   }
 
   const fallback = document.createElement("div");
   fallback.className = "top-profile-avatar top-profile-avatar-placeholder";
-  fallback.textContent = profile.username.slice(0, 1).toUpperCase();
+  fallback.textContent = view.initial;
   return fallback;
 }
 
-function syncAvatar(link, profile) {
+function syncAvatar(link, profile, view) {
   const currentAvatar = link.querySelector(":scope > .top-profile-avatar");
 
   if (profile.avatar_url && currentAvatar?.tagName === "IMG") {
     if (currentAvatar.getAttribute("src") !== profile.avatar_url) {
       currentAvatar.setAttribute("src", profile.avatar_url);
     }
-    currentAvatar.setAttribute("alt", `@${profile.username}`);
+    currentAvatar.setAttribute("alt", view.label);
+    currentAvatar.classList.remove("top-profile-avatar-loading");
     return;
   }
 
   if (!profile.avatar_url && currentAvatar?.tagName === "DIV") {
-    const initial = profile.username.slice(0, 1).toUpperCase();
-    if (currentAvatar.textContent !== initial) currentAvatar.textContent = initial;
+    currentAvatar.classList.remove("top-profile-avatar-loading");
+    currentAvatar.classList.add("top-profile-avatar-placeholder");
+    if (currentAvatar.textContent !== view.initial) {
+      currentAvatar.textContent = view.initial;
+    }
     return;
   }
 
-  currentAvatar?.replaceWith(createAvatarElement(profile));
+  const nextAvatar = createAvatarElement(profile, view);
+
+  if (currentAvatar) {
+    currentAvatar.replaceWith(nextAvatar);
+  } else {
+    link.prepend(nextAvatar);
+  }
+}
+
+function makeLinkInteractive(link, href) {
+  if (link.tagName === "A") {
+    if (link.getAttribute("href") !== href) link.setAttribute("href", href);
+    link.removeAttribute("role");
+    link.removeAttribute("tabindex");
+    link.onclick = null;
+    link.onkeydown = null;
+    return;
+  }
+
+  link.setAttribute("role", "link");
+  link.setAttribute("tabindex", "0");
+
+  link.onclick = () => {
+    window.location.assign(href);
+  };
+
+  link.onkeydown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      window.location.assign(href);
+    }
+  };
 }
 
 function applyHeaderProfile() {
-  if (!headerProfile?.username) return;
+  if (!headerProfile?.id) return;
 
-  const displayName = `@${headerProfile.username}`;
-  const href = profileHref(headerProfile.username);
+  const view = getProfileView(headerProfile);
 
   document.querySelectorAll(".top-profile-link").forEach((link) => {
-    if (link.getAttribute("href") !== href) link.setAttribute("href", href);
+    makeLinkInteractive(link, view.href);
 
     const name = link.querySelector(".top-profile-name");
-    if (name && name.textContent !== displayName) name.textContent = displayName;
+    if (name) {
+      name.classList.remove("top-profile-name-loading");
+      if (name.textContent !== view.label) name.textContent = view.label;
+    }
 
-    syncAvatar(link, headerProfile);
+    syncAvatar(link, headerProfile, view);
+
+    link.classList.remove("top-profile-link-pending");
     link.setAttribute(READY_ATTR, "true");
-    link.setAttribute("aria-label", displayName);
+    link.setAttribute("aria-label", view.isComplete ? view.label : "Set up your profile");
+    link.setAttribute("aria-busy", "false");
   });
 }
 
@@ -100,28 +159,24 @@ async function loadHeaderProfile(force = false) {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, username, avatar_url")
+      .select("id, username, avatar_url, email")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error) throw error;
 
-    if (!data?.username) {
-      headerProfile = null;
-      scheduleRetry();
-      return;
-    }
-
     headerProfile = {
-      id: data.id,
-      username: String(data.username).trim(),
-      avatar_url: data.avatar_url || "",
+      id: data?.id || user.id,
+      username: String(data?.username || "").trim(),
+      avatar_url: data?.avatar_url || "",
+      email: data?.email || user.email || "",
     };
 
     applyHeaderProfile();
   })()
     .catch((error) => {
-      console.warn("Failed loading header username:", error);
+      console.warn("Failed loading header profile:", error);
+
       if (currentUserId) {
         document.documentElement.classList.add(AUTHENTICATED_CLASS);
         scheduleRetry();
@@ -152,15 +207,21 @@ if (typeof window !== "undefined") {
     characterData: true,
   });
 
-  supabase.auth.onAuthStateChange(() => {
-    headerProfile = null;
-    currentUserId = "";
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const nextUserId = session?.user?.id || "";
+
+    if (nextUserId !== currentUserId) {
+      headerProfile = null;
+      currentUserId = nextUserId;
+    }
+
     document.documentElement.classList.remove(AUTHENTICATED_CLASS);
     loadHeaderProfile(true);
   });
 
   window.addEventListener("pageshow", () => loadHeaderProfile(true));
   window.addEventListener("popstate", queueHeaderProfileSync);
+  window.addEventListener("burgrs:profile-updated", () => loadHeaderProfile(true));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") loadHeaderProfile(true);
   });
