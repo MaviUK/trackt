@@ -11,12 +11,44 @@ function clearLocalAccountData() {
   }
 }
 
+async function callDeletionFunction(path, accessToken, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const responseText = await response.text();
+  let result = {};
+
+  if (responseText) {
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      result = {};
+    }
+  }
+
+  if (!response.ok || !result?.ok) {
+    const platformMessage = responseText && !result?.error
+      ? `Deletion service failed (${response.status}).`
+      : "";
+    throw new Error(result?.error || platformMessage || "Your account could not be deleted.");
+  }
+
+  return result;
+}
+
 export default function AccountDeletionSection() {
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const [deletionStage, setDeletionStage] = useState("");
 
   const canDelete =
     confirmation.trim().toUpperCase() === "DELETE" && understood && !deleting;
@@ -27,6 +59,7 @@ export default function AccountDeletionSection() {
     setConfirmation("");
     setUnderstood(false);
     setError("");
+    setDeletionStage("");
   }
 
   async function deleteAccount(event) {
@@ -35,6 +68,7 @@ export default function AccountDeletionSection() {
 
     setDeleting(true);
     setError("");
+    setDeletionStage("Removing uploaded files...");
 
     try {
       const { data, error: sessionError } = await supabase.auth.getSession();
@@ -45,25 +79,19 @@ export default function AccountDeletionSection() {
         throw new Error("Your session expired. Please log in again.");
       }
 
-      const response = await fetch("/.netlify/functions/delete-account", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ confirmation: confirmation.trim() }),
-      });
+      await callDeletionFunction(
+        "/.netlify/functions/delete-account-storage",
+        accessToken,
+        { confirmation: confirmation.trim() }
+      );
 
-      let result = {};
-      try {
-        result = await response.json();
-      } catch {
-        result = {};
-      }
+      setDeletionStage("Removing account data...");
 
-      if (!response.ok || !result?.ok) {
-        throw new Error(result?.error || "Your account could not be deleted.");
-      }
+      await callDeletionFunction(
+        "/.netlify/functions/delete-account",
+        accessToken,
+        { confirmation: confirmation.trim() }
+      );
 
       await supabase.auth.signOut({ scope: "local" }).catch(() => {});
       clearLocalAccountData();
@@ -71,6 +99,7 @@ export default function AccountDeletionSection() {
     } catch (err) {
       console.error("Failed deleting account:", err);
       setError(err.message || "Your account could not be deleted.");
+      setDeletionStage("");
       setDeleting(false);
     }
   }
@@ -124,6 +153,12 @@ export default function AccountDeletionSection() {
               disabled={deleting}
             />
           </label>
+
+          {deletionStage ? (
+            <div className="account-delete-progress" role="status">
+              {deletionStage}
+            </div>
+          ) : null}
 
           {error ? <div className="account-delete-error">{error}</div> : null}
 
