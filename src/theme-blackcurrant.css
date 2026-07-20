@@ -1,0 +1,132 @@
+:root {
+  --bg: #120b20;
+  --bg-elevated: #17112f;
+  --panel: #1d1842;
+  --panel-soft: #28214f;
+  --panel-hover: #35285d;
+  --border: #4a3158;
+  --border-strong: #7c3b5d;
+  --text: #fff7f7;
+  --text-muted: #d7abb9;
+  --text-soft: #ffe1e1;
+  --accent: #8e0d3c;
+  --accent-hover: #ef3b33;
+  --accent-secondary: #fda1a2;
+  --accent-warm: #ef3b33;
+  --shadow: 0 10px 30px rgba(10, 4, 20, 0.42);
+}
+
+html {
+  background: #120b20;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(142, 13, 60, 0.34), transparent 34rem),
+    radial-gradient(circle at 100% 0%, rgba(239, 59, 51, 0.12), transparent 28rem),
+    linear-gradient(180deg, #120b20 0%, #1d1842 100%);
+}
+
+::selection {
+  background: rgba(239, 59, 51, 0.72);
+  color: #fff;
+}
+
+.nav-wrap {
+  background: rgba(29, 24, 66, 0.94);
+  border-bottom-color: rgba(253, 161, 162, 0.14);
+}
+
+.top-tab {
+  background: rgba(253, 161, 162, 0.05);
+  border-color: rgba(253, 161, 162, 0.18);
+}
+
+.top-tab:hover {
+  background: rgba(142, 13, 60, 0.22);
+  border-color: rgba(253, 161, 162, 0.36);
+}
+
+.top-tab.active {
+  background: linear-gradient(135deg, #8e0d3c, #ef3b33);
+  border-color: #ef3b33;
+  box-shadow: 0 8px 22px rgba(142, 13, 60, 0.32);
+}
+
+.top-profile-avatar-placeholder {
+  background: linear-gradient(135deg, #8e0d3c 0%, #ef3b33 100%);
+}
+
+.mobile-top-banner-wrap {
+  background: #1d1842;
+}
+
+.burgrs-banner {
+  background:
+    radial-gradient(circle at top, rgba(239, 59, 51, 0.27), transparent 42%),
+    linear-gradient(180deg, #2a1642 0%, #1d1842 100%);
+  border-bottom-color: rgba(253, 161, 162, 0.14);
+}
+
+.burgrs-banner-overlay {
+  background: linear-gradient(
+    90deg,
+    rgba(29, 24, 66, 0.94),
+    rgba(142, 13, 60, 0.16),
+    rgba(29, 24, 66, 0.94)
+  );
+}
+
+.burgrs-banner-title {
+  text-shadow:
+    0 2px 0 rgba(29, 24, 66, 0.72),
+    0 10px 28px rgba(142, 13, 60, 0.52);
+}
+
+.mobile-bottom-nav {
+  background: rgba(18, 11, 32, 0.97);
+  border-top-color: rgba(253, 161, 162, 0.16);
+  box-shadow: 0 -10px 30px rgba(10, 4, 20, 0.46);
+}
+
+.mobile-nav-item.active {
+  background: rgba(142, 13, 60, 0.28);
+}
+
+.mobile-nav-item.active .mobile-nav-icon {
+  color: #fda1a2;
+}
+
+.rankd-battle-vs,
+.rankd-versus {
+  background: linear-gradient(135deg, #8e0d3c, #ef3b33);
+  box-shadow: 0 16px 38px rgba(142, 13, 60, 0.38);
+}
+
+.rankd-matchup-dashboard,
+.rankd-matchup-stats {
+  border-color: rgba(253, 161, 162, 0.28);
+  background: rgba(142, 13, 60, 0.12);
+}
+
+.rankd-win-row i {
+  background: linear-gradient(90deg, #8e0d3c, #ef3b33, #fda1a2);
+}
+
+.rankd-notice-card {
+  background: rgba(239, 59, 51, 0.12);
+  border-color: rgba(253, 161, 162, 0.35);
+  color: #ffd7d7;
+}
+
+.rankd-notice-card strong {
+  color: #fda1a2;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: #fda1a2;
+}
