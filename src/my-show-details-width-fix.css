@@ -1,0 +1,32 @@
+/* Keep the mobile show header aligned with Reviews and the other detail sections. */
+@media (max-width: 768px) {
+  .msd-page .msd-hero {
+    width: 100% !important;
+    margin: 0 0 14px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+
+  .msd-page .msd-hero-main-mobile {
+    width: calc(100% - (var(--msd-mobile-gutter, 18px) * 2)) !important;
+    margin: 0 auto !important;
+    padding: 18px 0 0 !important;
+    box-sizing: border-box;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  .msd-page .msd-mobile-top-row,
+  .msd-page .msd-overview-wrapper,
+  .msd-page .msd-stats-row,
+  .msd-page .msd-stat-box-full,
+  .msd-page .msd-watch-dropdown {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+}
