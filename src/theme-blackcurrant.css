@@ -1,11 +1,10 @@
 /*
  * BURGRS four-colour theme
- * The interface palette is intentionally limited to:
- *   Deep red:    #8E0D3C
- *   Blackcurrant:#1D1842
- *   Orange:      #EF3B33
- *   Rose pink:   #FDA1A2
- * Opacity variants below are derived only from these four colours.
+ * Interface palette only:
+ * Deep red     #8E0D3C
+ * Blackcurrant #1D1842
+ * Orange       #EF3B33
+ * Rose pink    #FDA1A2
  */
 
 :root {
@@ -19,14 +18,14 @@
   --surface: var(--blackcurrant);
   --surface-raised: var(--deep-red);
   --panel: var(--blackcurrant);
-  --panel-soft: var(--deep-red);
+  --panel-soft: rgba(142, 13, 60, 0.55);
   --panel-hover: var(--deep-red);
-  --border: var(--deep-red);
-  --border-strong: var(--orange);
+  --border: rgba(253, 161, 162, 0.34);
+  --border-strong: var(--deep-red);
 
   --text: var(--rose-pink);
   --text-main: var(--rose-pink);
-  --text-muted: var(--rose-pink);
+  --text-muted: rgba(253, 161, 162, 0.76);
   --text-soft: var(--rose-pink);
 
   --primary: var(--orange);
@@ -40,34 +39,55 @@
   --success: var(--orange);
   --success-soft: rgba(239, 59, 51, 0.16);
   --danger: var(--deep-red);
-  --danger-soft: rgba(142, 13, 60, 0.22);
+  --danger-soft: rgba(142, 13, 60, 0.24);
   --warning: var(--rose-pink);
-  --warning-soft: rgba(253, 161, 162, 0.14);
+  --warning-soft: rgba(253, 161, 162, 0.16);
 
-  --shadow: 0 10px 30px rgba(29, 24, 66, 0.72);
+  --shadow: 0 16px 38px rgba(29, 24, 66, 0.7);
   color-scheme: dark;
   accent-color: var(--orange);
 }
 
 html,
 body,
-#root,
-.app-shell {
-  background: var(--blackcurrant) !important;
-  color: var(--rose-pink) !important;
+#root {
+  min-height: 100%;
+  background-color: var(--blackcurrant) !important;
+  color: var(--rose-pink);
 }
 
 body {
   background-image:
-    radial-gradient(circle at 18% -8%, rgba(239, 59, 51, 0.32), transparent 32rem),
-    radial-gradient(circle at 92% 8%, rgba(253, 161, 162, 0.16), transparent 26rem),
-    linear-gradient(145deg, var(--blackcurrant) 0%, var(--deep-red) 150%) !important;
+    linear-gradient(
+      132deg,
+      transparent 0%,
+      transparent 48%,
+      rgba(142, 13, 60, 0.92) 48%,
+      rgba(142, 13, 60, 0.92) 65%,
+      rgba(239, 59, 51, 0.9) 65%,
+      rgba(239, 59, 51, 0.9) 73%,
+      rgba(253, 161, 162, 0.82) 73%,
+      rgba(253, 161, 162, 0.82) 77%,
+      transparent 77%,
+      transparent 100%
+    ),
+    linear-gradient(160deg, var(--blackcurrant) 0%, var(--deep-red) 145%) !important;
   background-attachment: fixed !important;
+  background-size: cover !important;
 }
 
-body * {
-  color: var(--rose-pink) !important;
-  scrollbar-color: var(--deep-red) var(--blackcurrant);
+.app-shell,
+.page,
+.login-page {
+  background: transparent !important;
+}
+
+body :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--orange) !important;
+}
+
+body :where(p, label, small, li, dt, dd) {
+  color: var(--rose-pink);
 }
 
 ::selection {
@@ -92,27 +112,29 @@ body * {
 .mobile-top-banner-wrap,
 .mobile-bottom-nav {
   background: rgba(29, 24, 66, 0.96) !important;
-  border-color: rgba(142, 13, 60, 0.78) !important;
+  border-color: var(--deep-red) !important;
   box-shadow: 0 10px 30px rgba(29, 24, 66, 0.72) !important;
 }
 
 .top-tab,
 .mobile-nav-item {
   background: transparent !important;
-  border-color: rgba(142, 13, 60, 0.76) !important;
+  border-color: rgba(253, 161, 162, 0.28) !important;
+  color: var(--rose-pink) !important;
 }
 
 .top-tab:hover,
 .mobile-nav-item:hover {
-  background: rgba(142, 13, 60, 0.56) !important;
+  background: var(--deep-red) !important;
   border-color: var(--orange) !important;
 }
 
 .top-tab.active,
 .mobile-nav-item.active {
-  background: linear-gradient(135deg, var(--deep-red), var(--orange)) !important;
+  background: var(--orange) !important;
   border-color: var(--orange) !important;
   box-shadow: 0 8px 22px rgba(142, 13, 60, 0.62) !important;
+  color: var(--blackcurrant) !important;
 }
 
 .top-tab.active *,
@@ -123,23 +145,23 @@ body * {
 
 .top-profile-avatar,
 .top-profile-avatar-placeholder {
-  background: linear-gradient(135deg, var(--deep-red), var(--orange)) !important;
-  border-color: var(--rose-pink) !important;
+  background: var(--deep-red) !important;
+  border-color: var(--orange) !important;
 }
 
 .burgrs-banner {
   background:
-    radial-gradient(circle at top, rgba(239, 59, 51, 0.52), transparent 44%),
-    linear-gradient(135deg, var(--blackcurrant), var(--deep-red)) !important;
-  border-color: var(--deep-red) !important;
+    radial-gradient(circle at 50% 18%, rgba(253, 161, 162, 0.42), transparent 31%),
+    linear-gradient(110deg, var(--blackcurrant) 0 24%, var(--deep-red) 24% 68%, var(--orange) 68% 84%, var(--blackcurrant) 84% 100%) !important;
+  border-color: var(--orange) !important;
 }
 
 .burgrs-banner-overlay {
   background: linear-gradient(
     90deg,
-    rgba(29, 24, 66, 0.96),
-    rgba(142, 13, 60, 0.36),
-    rgba(29, 24, 66, 0.96)
+    rgba(29, 24, 66, 0.86),
+    rgba(142, 13, 60, 0.16),
+    rgba(29, 24, 66, 0.86)
   ) !important;
 }
 
@@ -147,7 +169,63 @@ body * {
   color: var(--rose-pink) !important;
   text-shadow:
     0 2px 0 var(--deep-red),
-    0 10px 28px rgba(239, 59, 51, 0.5) !important;
+    0 10px 28px rgba(29, 24, 66, 0.74) !important;
+}
+
+/* Clean structural surfaces only. Poster/media cards are deliberately excluded. */
+.dashboard-card,
+.section-card,
+.modal,
+.modal-content,
+.dialog,
+.panel,
+.login-copy,
+.login-form-card,
+.login-trending-section {
+  background: var(--blackcurrant) !important;
+  border-color: var(--deep-red) !important;
+  box-shadow: 0 18px 42px rgba(29, 24, 66, 0.76) !important;
+}
+
+.login-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at -4% 22%, rgba(253, 161, 162, 0.64) 0 7rem, transparent 7.1rem),
+    radial-gradient(circle at 104% 38%, rgba(239, 59, 51, 0.7) 0 11rem, transparent 11.1rem),
+    linear-gradient(145deg, var(--blackcurrant) 0 42%, var(--deep-red) 42% 72%, var(--orange) 72% 86%, var(--rose-pink) 86% 100%) !important;
+  background-attachment: fixed !important;
+}
+
+.login-shell {
+  background: transparent !important;
+}
+
+.login-form-card,
+.login-trending-section {
+  border: 2px solid var(--deep-red) !important;
+}
+
+.login-label,
+.login-form-kicker,
+.login-kicker {
+  color: var(--orange) !important;
+}
+
+.login-mode-tabs {
+  background: var(--blackcurrant) !important;
+  border-color: var(--deep-red) !important;
+}
+
+.login-form-card .login-mode-tabs button {
+  background: transparent !important;
+  color: var(--rose-pink) !important;
+}
+
+.login-form-card .login-mode-tabs button:hover,
+.login-form-card .login-mode-tabs button.is-active {
+  background: var(--deep-red) !important;
+  color: var(--rose-pink) !important;
+  box-shadow: inset 0 0 0 1px var(--orange) !important;
 }
 
 button,
@@ -161,7 +239,14 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-  color: rgba(253, 161, 162, 0.68) !important;
+  color: rgba(253, 161, 162, 0.62) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--orange) !important;
+  box-shadow: 0 0 0 4px rgba(239, 59, 51, 0.22) !important;
 }
 
 button:hover,
@@ -178,9 +263,10 @@ button[type="submit"],
 .msd-btn-primary,
 a.primary-button,
 a.btn-primary {
-  background: linear-gradient(135deg, var(--deep-red), var(--orange)) !important;
+  background: var(--orange) !important;
   border-color: var(--orange) !important;
   color: var(--blackcurrant) !important;
+  box-shadow: 0 12px 28px rgba(142, 13, 60, 0.58) !important;
 }
 
 button[type="submit"] *,
@@ -192,26 +278,20 @@ a.btn-primary * {
   color: var(--blackcurrant) !important;
 }
 
+button[type="submit"]:hover,
+.primary-button:hover,
+.btn-primary:hover,
+.msd-btn-primary:hover {
+  background: var(--rose-pink) !important;
+  color: var(--deep-red) !important;
+}
+
 a:not(.top-tab):not(.mobile-nav-item) {
-  color: var(--orange) !important;
+  color: var(--orange);
 }
 
 hr {
   border-color: var(--deep-red) !important;
-}
-
-.card,
-.dashboard-card,
-.section-card,
-.modal,
-.modal-content,
-.dialog,
-.panel,
-[class*="-card"],
-[class*="__card"] {
-  background-color: rgba(29, 24, 66, 0.94) !important;
-  border-color: rgba(142, 13, 60, 0.82) !important;
-  box-shadow: 0 12px 30px rgba(29, 24, 66, 0.68) !important;
 }
 
 .badge,
@@ -225,9 +305,26 @@ hr {
   color: var(--rose-pink) !important;
 }
 
+.login-trending-card {
+  border-color: var(--deep-red) !important;
+  background: var(--blackcurrant) !important;
+}
+
+.login-trending-overlay {
+  background: linear-gradient(180deg, transparent 0%, var(--blackcurrant) 100%) !important;
+}
+
+.login-trending-overlay strong {
+  color: var(--rose-pink) !important;
+}
+
+.login-trending-overlay span {
+  color: var(--orange) !important;
+}
+
 .rankd-battle-vs,
 .rankd-versus {
-  background: linear-gradient(135deg, var(--deep-red), var(--orange)) !important;
+  background: var(--orange) !important;
   border-color: var(--rose-pink) !important;
   box-shadow: 0 16px 38px rgba(142, 13, 60, 0.62) !important;
   color: var(--blackcurrant) !important;
@@ -235,7 +332,7 @@ hr {
 
 .rankd-matchup-dashboard,
 .rankd-matchup-stats {
-  background: rgba(142, 13, 60, 0.34) !important;
+  background: rgba(142, 13, 60, 0.54) !important;
   border-color: var(--orange) !important;
 }
 
@@ -248,9 +345,12 @@ hr {
 }
 
 .rankd-notice-card,
-.rankd-error-card {
-  background: rgba(142, 13, 60, 0.38) !important;
+.rankd-error-card,
+.login-success,
+.login-error {
+  background: var(--deep-red) !important;
   border-color: var(--orange) !important;
+  color: var(--rose-pink) !important;
 }
 
 svg [fill]:not([fill="none"]) {
