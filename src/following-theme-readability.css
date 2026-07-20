@@ -1,0 +1,175 @@
+/* Following feed refinements for the dark-pink / white theme. */
+
+.following-page {
+  min-height: 100vh;
+  background: #ffffff !important;
+  color: #970747 !important;
+}
+
+.following-page .following-header h1,
+.following-page .following-card h2,
+.following-page .following-empty h2,
+.following-page .following-post-title,
+.following-page .following-show-card strong,
+.following-page .following-list-card h2,
+.following-page .following-creator-line strong {
+  color: #970747 !important;
+}
+
+.following-page .following-header p,
+.following-page .following-muted,
+.following-page .following-empty p,
+.following-page .following-show-card span,
+.following-page .following-list-card p,
+.following-page .following-review-text,
+.following-page .following-meta-left,
+.following-page .following-meta-type {
+  color: rgba(151, 7, 71, 0.72) !important;
+}
+
+.following-page .following-filter-row {
+  gap: 7px;
+}
+
+.following-page .following-filter-chip {
+  min-height: 34px;
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.42) !important;
+  box-shadow: none !important;
+}
+
+.following-page .following-filter-chip:hover,
+.following-page .following-filter-chip:focus-visible {
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: #970747 !important;
+}
+
+.following-page .following-filter-chip.is-active {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.following-page .following-card,
+.following-page .following-empty {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.28) !important;
+  box-shadow: 0 10px 28px rgba(151, 7, 71, 0.09) !important;
+}
+
+.following-page .following-empty {
+  padding: 22px !important;
+}
+
+.following-page .following-empty h2 {
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.following-page .following-empty p {
+  margin: 10px 0 18px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.following-page .following-empty-btn,
+.following-page .following-video-link {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: none !important;
+}
+
+.following-page .following-empty-btn:hover,
+.following-page .following-video-link:hover {
+  opacity: 0.88;
+}
+
+.following-page .following-creator-line,
+.following-page .following-avatar-link,
+.following-page .following-creator-name-link {
+  color: #970747 !important;
+}
+
+.following-page .following-avatar,
+.following-page .following-avatar-fallback,
+.following-page .following-poster-fallback,
+.following-page .following-list-preview-item {
+  background: rgba(151, 7, 71, 0.09) !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.22) !important;
+}
+
+.following-page .following-avatar-fallback {
+  background: #970747 !important;
+  color: #ffffff !important;
+}
+
+.following-page .following-meta-dot {
+  color: rgba(151, 7, 71, 0.46) !important;
+}
+
+.following-page .following-creator-meta-row .feed-comments-inline-toggle {
+  color: #970747 !important;
+}
+
+.following-page .following-show-card,
+.following-page .following-list-card,
+.following-page .following-view-profile {
+  background: rgba(151, 7, 71, 0.045) !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.2) !important;
+}
+
+.following-page .following-show-card:hover,
+.following-page .following-list-card:hover,
+.following-page .following-view-profile:hover {
+  background: rgba(151, 7, 71, 0.08) !important;
+  border-color: rgba(151, 7, 71, 0.42) !important;
+}
+
+.following-page .following-type-pill,
+.following-page .following-rating-pill,
+.following-page .following-show-card .following-rating-pill {
+  background: rgba(151, 7, 71, 0.08) !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.28) !important;
+}
+
+.following-page .following-list-preview-item span {
+  background: #970747 !important;
+  color: #ffffff !important;
+}
+
+.following-page .following-post-image,
+.following-page .following-video {
+  background: #ffffff !important;
+  border-color: rgba(151, 7, 71, 0.2) !important;
+}
+
+.following-page .following-error {
+  background: rgba(151, 7, 71, 0.08) !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.36) !important;
+}
+
+@media (max-width: 640px) {
+  .following-page {
+    padding: 10px 12px calc(var(--mobile-nav-height, 72px) + 28px + env(safe-area-inset-bottom));
+  }
+
+  .following-page .following-empty {
+    padding: 18px !important;
+    border-radius: 20px;
+  }
+
+  .following-page .following-empty h2 {
+    font-size: 20px;
+  }
+
+  .following-page .following-empty p {
+    font-size: 15px;
+  }
+}
