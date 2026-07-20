@@ -1,0 +1,381 @@
+/*
+ * BURGRS pink / teal / cream theme
+ * Inspired by the supplied reference image.
+ */
+
+:root {
+  --theme-pink: #ff78ac;
+  --theme-teal: #a8d5e3;
+  --theme-cream: #f2f0ea;
+  --theme-ink: #211d20;
+  --theme-white: #ffffff;
+
+  --bg: var(--theme-cream);
+  --bg-elevated: var(--theme-white);
+  --surface: var(--theme-white);
+  --surface-raised: var(--theme-white);
+  --panel: var(--theme-white);
+  --panel-soft: rgba(168, 213, 227, 0.22);
+  --panel-hover: rgba(255, 120, 172, 0.12);
+
+  --border: rgba(33, 29, 32, 0.16);
+  --border-strong: var(--theme-teal);
+
+  --text: var(--theme-ink);
+  --text-main: var(--theme-ink);
+  --text-soft: rgba(33, 29, 32, 0.84);
+  --text-muted: rgba(33, 29, 32, 0.62);
+
+  --primary: var(--theme-pink);
+  --primary-hover: #ee649c;
+  --secondary: var(--theme-teal);
+  --accent: var(--theme-pink);
+  --accent-hover: #ee649c;
+  --accent-secondary: var(--theme-teal);
+  --accent-warm: var(--theme-pink);
+
+  --success: #5d9f86;
+  --success-soft: rgba(168, 213, 227, 0.3);
+  --danger: #c94b79;
+  --danger-soft: rgba(255, 120, 172, 0.16);
+  --warning: #c98132;
+  --warning-soft: rgba(255, 120, 172, 0.1);
+
+  --shadow: 0 14px 34px rgba(33, 29, 32, 0.1);
+  color-scheme: light;
+  accent-color: var(--theme-pink);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: var(--theme-cream) !important;
+  color: var(--theme-ink) !important;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 0 0, rgba(168, 213, 227, 0.38), transparent 28rem),
+    radial-gradient(circle at 100% 12%, rgba(255, 120, 172, 0.16), transparent 24rem) !important;
+  background-attachment: fixed !important;
+}
+
+.app-shell,
+.page,
+.page-shell,
+.login-page,
+main {
+  color: var(--theme-ink);
+}
+
+::selection {
+  background: var(--theme-pink);
+  color: var(--theme-ink);
+}
+
+/* Header and navigation */
+.nav-wrap,
+.mobile-top-banner-wrap,
+.mobile-bottom-nav {
+  background: rgba(168, 213, 227, 0.96) !important;
+  border-color: rgba(33, 29, 32, 0.13) !important;
+  box-shadow: 0 8px 24px rgba(33, 29, 32, 0.1) !important;
+}
+
+.top-tab,
+.mobile-nav-item {
+  color: var(--theme-ink) !important;
+  background: rgba(242, 240, 234, 0.68) !important;
+  border-color: rgba(33, 29, 32, 0.14) !important;
+}
+
+.top-tab:hover,
+.mobile-nav-item:hover {
+  color: var(--theme-ink) !important;
+  background: rgba(255, 120, 172, 0.3) !important;
+  border-color: var(--theme-pink) !important;
+}
+
+.top-tab.active,
+.mobile-nav-item.active {
+  color: var(--theme-ink) !important;
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-pink) !important;
+  box-shadow: 0 8px 20px rgba(255, 120, 172, 0.24) !important;
+}
+
+.top-tab.active *,
+.mobile-nav-item.active *,
+.mobile-nav-item.active .mobile-nav-icon,
+.top-profile-name,
+.mobile-nav-label,
+.mobile-nav-icon {
+  color: var(--theme-ink) !important;
+}
+
+.top-profile-avatar-placeholder {
+  background: var(--theme-pink) !important;
+  color: var(--theme-ink) !important;
+}
+
+/* Mobile/brand banner */
+.burgrs-banner {
+  background:
+    radial-gradient(circle at 50% 12%, rgba(242, 240, 234, 0.72), transparent 34%),
+    linear-gradient(105deg, var(--theme-teal) 0 42%, var(--theme-pink) 42% 68%, var(--theme-teal) 68% 100%) !important;
+  border-bottom-color: rgba(33, 29, 32, 0.16) !important;
+}
+
+.burgrs-banner-overlay {
+  background: linear-gradient(
+    90deg,
+    rgba(168, 213, 227, 0.48),
+    rgba(255, 120, 172, 0.08),
+    rgba(168, 213, 227, 0.48)
+  ) !important;
+}
+
+.burgrs-banner-title {
+  color: var(--theme-ink) !important;
+  text-shadow: 0 3px 0 rgba(242, 240, 234, 0.72) !important;
+}
+
+/* Common structural surfaces */
+.dashboard-card,
+.section-card,
+.modal,
+.modal-content,
+.dialog,
+.panel,
+.login-copy,
+.login-form-card,
+.login-trending-section,
+.rankd-battle-shell,
+.rankd-matchup-dashboard,
+.rankd-matchup-stats,
+.app-startup-loading-card,
+.notification-card,
+.profile-card,
+.creator-card,
+.feed-card,
+.review-card,
+.comment-card {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(168, 213, 227, 0.9) !important;
+  color: var(--theme-ink) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.page-header h1,
+.page-header h2,
+.page-header h3,
+.login-form-card h1,
+.login-form-card h2,
+.login-trending-section h2 {
+  color: var(--theme-ink) !important;
+}
+
+.page-header p,
+.rankd-muted,
+.login-muted,
+.login-help-text,
+.login-form-card p {
+  color: var(--text-muted) !important;
+}
+
+/* Forms */
+input,
+select,
+textarea,
+.login-form-card input {
+  color: var(--theme-ink) !important;
+  background: var(--theme-cream) !important;
+  border-color: rgba(33, 29, 32, 0.18) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(33, 29, 32, 0.46) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.login-form-card input:focus {
+  border-color: var(--theme-pink) !important;
+  box-shadow: 0 0 0 4px rgba(255, 120, 172, 0.2) !important;
+}
+
+.login-mode-tabs {
+  background: rgba(168, 213, 227, 0.34) !important;
+  border-color: var(--theme-teal) !important;
+}
+
+.login-form-card .login-mode-tabs button {
+  background: transparent !important;
+  color: var(--theme-ink) !important;
+  box-shadow: none !important;
+}
+
+.login-form-card .login-mode-tabs button:hover,
+.login-form-card .login-mode-tabs button.is-active {
+  background: var(--theme-pink) !important;
+  color: var(--theme-ink) !important;
+  box-shadow: none !important;
+}
+
+/* Buttons and links */
+button,
+.button,
+.btn,
+.msd-btn {
+  border-color: rgba(33, 29, 32, 0.16) !important;
+}
+
+button[type="submit"],
+.primary-button,
+.btn-primary,
+.msd-btn-primary,
+a.primary-button,
+a.btn-primary,
+.login-form-card > button[type="submit"] {
+  color: var(--theme-ink) !important;
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-pink) !important;
+  box-shadow: 0 10px 22px rgba(255, 120, 172, 0.22) !important;
+}
+
+button[type="submit"] *,
+.primary-button *,
+.btn-primary *,
+.msd-btn-primary *,
+a.primary-button *,
+a.btn-primary * {
+  color: var(--theme-ink) !important;
+}
+
+button[type="submit"]:hover,
+.primary-button:hover,
+.btn-primary:hover,
+.msd-btn-primary:hover {
+  background: #ee649c !important;
+  border-color: #ee649c !important;
+}
+
+.secondary-button,
+.btn-secondary,
+.login-form-card .login-secondary-action {
+  color: var(--theme-ink) !important;
+  background: var(--theme-teal) !important;
+  border-color: var(--theme-teal) !important;
+}
+
+a:not(.top-tab):not(.mobile-nav-item) {
+  color: #b92f68;
+}
+
+a:not(.top-tab):not(.mobile-nav-item):hover {
+  color: var(--theme-pink);
+}
+
+/* Tabs, pills and small controls */
+.page-tabs button,
+.page-tabs a,
+.badge,
+.pill,
+.chip,
+[class*="-badge"],
+[class*="-pill"],
+[class*="-chip"] {
+  color: var(--theme-ink) !important;
+  background: rgba(168, 213, 227, 0.28) !important;
+  border-color: var(--theme-teal) !important;
+}
+
+.page-tabs button.active,
+.page-tabs a.active,
+.page-tabs button[aria-selected="true"] {
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-pink) !important;
+}
+
+/* Rankd */
+.rankd-battle-vs,
+.rankd-versus {
+  color: var(--theme-ink) !important;
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-teal) !important;
+  box-shadow: 0 14px 30px rgba(255, 120, 172, 0.26) !important;
+}
+
+.rankd-matchup-dashboard,
+.rankd-matchup-stats {
+  background: rgba(168, 213, 227, 0.24) !important;
+  border-color: var(--theme-teal) !important;
+}
+
+.rankd-win-row > div {
+  background: rgba(168, 213, 227, 0.42) !important;
+}
+
+.rankd-win-row i {
+  background: linear-gradient(90deg, var(--theme-teal), var(--theme-pink)) !important;
+}
+
+.rankd-notice-card {
+  color: var(--theme-ink) !important;
+  background: rgba(255, 120, 172, 0.12) !important;
+  border-color: var(--theme-pink) !important;
+}
+
+/* Status messages */
+.login-success,
+.success,
+.success-message {
+  color: var(--theme-ink) !important;
+  background: rgba(168, 213, 227, 0.32) !important;
+  border-color: var(--theme-teal) !important;
+}
+
+.login-error,
+.error,
+.error-message,
+.rankd-error-card {
+  color: #8f2451 !important;
+  background: rgba(255, 120, 172, 0.14) !important;
+  border-color: var(--theme-pink) !important;
+}
+
+/* Preserve poster and profile artwork colours. */
+img,
+.login-trending-card,
+.rankd-poster-frame {
+  color: initial;
+}
+
+.login-trending-card,
+.rankd-poster-frame {
+  border-color: rgba(33, 29, 32, 0.14) !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--theme-pink) !important;
+  outline-offset: 3px !important;
+}
+
+@media (max-width: 768px) {
+  .page,
+  .login-page {
+    background: transparent !important;
+  }
+
+  .mobile-bottom-nav {
+    background: rgba(168, 213, 227, 0.98) !important;
+  }
+}
