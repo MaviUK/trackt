@@ -1,47 +1,44 @@
 /*
- * BURGRS pink / teal / cream theme
- * Inspired by the supplied reference image.
+ * BURGRS dark-pink / white theme
+ * Visual direction based on the supplied reference template.
  */
 
 :root {
-  --theme-pink: #ff78ac;
-  --theme-teal: #a8d5e3;
-  --theme-cream: #f2f0ea;
-  --theme-ink: #211d20;
+  --theme-pink: #970747;
   --theme-white: #ffffff;
 
-  --bg: var(--theme-cream);
+  --bg: var(--theme-white);
   --bg-elevated: var(--theme-white);
   --surface: var(--theme-white);
   --surface-raised: var(--theme-white);
   --panel: var(--theme-white);
-  --panel-soft: rgba(168, 213, 227, 0.22);
-  --panel-hover: rgba(255, 120, 172, 0.12);
+  --panel-soft: rgba(151, 7, 71, 0.06);
+  --panel-hover: rgba(151, 7, 71, 0.1);
 
-  --border: rgba(33, 29, 32, 0.16);
-  --border-strong: var(--theme-teal);
+  --border: rgba(151, 7, 71, 0.22);
+  --border-strong: var(--theme-pink);
 
-  --text: var(--theme-ink);
-  --text-main: var(--theme-ink);
-  --text-soft: rgba(33, 29, 32, 0.84);
-  --text-muted: rgba(33, 29, 32, 0.62);
+  --text: var(--theme-pink);
+  --text-main: var(--theme-pink);
+  --text-soft: rgba(151, 7, 71, 0.84);
+  --text-muted: rgba(151, 7, 71, 0.68);
 
   --primary: var(--theme-pink);
-  --primary-hover: #ee649c;
-  --secondary: var(--theme-teal);
+  --primary-hover: var(--theme-pink);
+  --secondary: var(--theme-white);
   --accent: var(--theme-pink);
-  --accent-hover: #ee649c;
-  --accent-secondary: var(--theme-teal);
+  --accent-hover: var(--theme-pink);
+  --accent-secondary: var(--theme-white);
   --accent-warm: var(--theme-pink);
 
-  --success: #5d9f86;
-  --success-soft: rgba(168, 213, 227, 0.3);
-  --danger: #c94b79;
-  --danger-soft: rgba(255, 120, 172, 0.16);
-  --warning: #c98132;
-  --warning-soft: rgba(255, 120, 172, 0.1);
+  --success: var(--theme-pink);
+  --success-soft: rgba(151, 7, 71, 0.08);
+  --danger: var(--theme-pink);
+  --danger-soft: rgba(151, 7, 71, 0.1);
+  --warning: var(--theme-pink);
+  --warning-soft: rgba(151, 7, 71, 0.08);
 
-  --shadow: 0 14px 34px rgba(33, 29, 32, 0.1);
+  --shadow: 0 14px 34px rgba(151, 7, 71, 0.12);
   color-scheme: light;
   accent-color: var(--theme-pink);
 }
@@ -50,14 +47,14 @@ html,
 body,
 #root {
   min-height: 100%;
-  background: var(--theme-cream) !important;
-  color: var(--theme-ink) !important;
+  background: var(--theme-white) !important;
+  color: var(--theme-pink) !important;
 }
 
 body {
   background-image:
-    radial-gradient(circle at 0 0, rgba(168, 213, 227, 0.38), transparent 28rem),
-    radial-gradient(circle at 100% 12%, rgba(255, 120, 172, 0.16), transparent 24rem) !important;
+    radial-gradient(circle at 92% 9%, rgba(151, 7, 71, 0.08), transparent 24rem),
+    radial-gradient(circle at 8% 90%, rgba(151, 7, 71, 0.05), transparent 28rem) !important;
   background-attachment: fixed !important;
 }
 
@@ -66,82 +63,100 @@ body {
 .page-shell,
 .login-page,
 main {
-  color: var(--theme-ink);
+  color: var(--theme-pink);
 }
 
 ::selection {
   background: var(--theme-pink);
-  color: var(--theme-ink);
+  color: var(--theme-white);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--theme-white);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(151, 7, 71, 0.62);
+  border-color: var(--theme-white);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-pink);
 }
 
 /* Header and navigation */
 .nav-wrap,
 .mobile-top-banner-wrap,
 .mobile-bottom-nav {
-  background: rgba(168, 213, 227, 0.96) !important;
-  border-color: rgba(33, 29, 32, 0.13) !important;
-  box-shadow: 0 8px 24px rgba(33, 29, 32, 0.1) !important;
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-pink) !important;
+  box-shadow: 0 8px 24px rgba(151, 7, 71, 0.2) !important;
 }
 
 .top-tab,
 .mobile-nav-item {
-  color: var(--theme-ink) !important;
-  background: rgba(242, 240, 234, 0.68) !important;
-  border-color: rgba(33, 29, 32, 0.14) !important;
+  color: var(--theme-white) !important;
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
 }
 
 .top-tab:hover,
 .mobile-nav-item:hover {
-  color: var(--theme-ink) !important;
-  background: rgba(255, 120, 172, 0.3) !important;
-  border-color: var(--theme-pink) !important;
+  color: var(--theme-white) !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: var(--theme-white) !important;
 }
 
 .top-tab.active,
 .mobile-nav-item.active {
-  color: var(--theme-ink) !important;
-  background: var(--theme-pink) !important;
-  border-color: var(--theme-pink) !important;
-  box-shadow: 0 8px 20px rgba(255, 120, 172, 0.24) !important;
+  color: var(--theme-pink) !important;
+  background: var(--theme-white) !important;
+  border-color: var(--theme-white) !important;
+  box-shadow: none !important;
 }
 
 .top-tab.active *,
 .mobile-nav-item.active *,
-.mobile-nav-item.active .mobile-nav-icon,
+.mobile-nav-item.active .mobile-nav-icon {
+  color: var(--theme-pink) !important;
+}
+
 .top-profile-name,
 .mobile-nav-label,
 .mobile-nav-icon {
-  color: var(--theme-ink) !important;
+  color: var(--theme-white) !important;
 }
 
+.top-profile-avatar,
 .top-profile-avatar-placeholder {
-  background: var(--theme-pink) !important;
-  color: var(--theme-ink) !important;
+  background: var(--theme-white) !important;
+  color: var(--theme-pink) !important;
+  border-color: var(--theme-white) !important;
 }
 
-/* Mobile/brand banner */
+/* Branded banner */
 .burgrs-banner {
   background:
-    radial-gradient(circle at 50% 12%, rgba(242, 240, 234, 0.72), transparent 34%),
-    linear-gradient(105deg, var(--theme-teal) 0 42%, var(--theme-pink) 42% 68%, var(--theme-teal) 68% 100%) !important;
-  border-bottom-color: rgba(33, 29, 32, 0.16) !important;
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.2), transparent 34%),
+    var(--theme-pink) !important;
+  border-bottom-color: var(--theme-pink) !important;
 }
 
 .burgrs-banner-overlay {
   background: linear-gradient(
     90deg,
-    rgba(168, 213, 227, 0.48),
-    rgba(255, 120, 172, 0.08),
-    rgba(168, 213, 227, 0.48)
+    rgba(151, 7, 71, 0.96),
+    rgba(151, 7, 71, 0.62),
+    rgba(151, 7, 71, 0.96)
   ) !important;
 }
 
 .burgrs-banner-title {
-  color: var(--theme-ink) !important;
-  text-shadow: 0 3px 0 rgba(242, 240, 234, 0.72) !important;
+  color: var(--theme-white) !important;
+  text-shadow: 0 3px 16px rgba(151, 7, 71, 0.4) !important;
 }
 
-/* Common structural surfaces */
+/* Structural surfaces */
 .dashboard-card,
 .section-card,
 .modal,
@@ -161,9 +176,9 @@ main {
 .feed-card,
 .review-card,
 .comment-card {
-  background: rgba(255, 255, 255, 0.92) !important;
-  border-color: rgba(168, 213, 227, 0.9) !important;
-  color: var(--theme-ink) !important;
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(151, 7, 71, 0.24) !important;
+  color: var(--theme-pink) !important;
   box-shadow: var(--shadow) !important;
 }
 
@@ -172,8 +187,10 @@ main {
 .page-header h3,
 .login-form-card h1,
 .login-form-card h2,
-.login-trending-section h2 {
-  color: var(--theme-ink) !important;
+.login-trending-section h2,
+.dashboard-card h2,
+.section-card h2 {
+  color: var(--theme-pink) !important;
 }
 
 .page-header p,
@@ -189,14 +206,14 @@ input,
 select,
 textarea,
 .login-form-card input {
-  color: var(--theme-ink) !important;
-  background: var(--theme-cream) !important;
-  border-color: rgba(33, 29, 32, 0.18) !important;
+  color: var(--theme-pink) !important;
+  background: var(--theme-white) !important;
+  border-color: rgba(151, 7, 71, 0.32) !important;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: rgba(33, 29, 32, 0.46) !important;
+  color: rgba(151, 7, 71, 0.5) !important;
 }
 
 input:focus,
@@ -204,24 +221,24 @@ select:focus,
 textarea:focus,
 .login-form-card input:focus {
   border-color: var(--theme-pink) !important;
-  box-shadow: 0 0 0 4px rgba(255, 120, 172, 0.2) !important;
+  box-shadow: 0 0 0 4px rgba(151, 7, 71, 0.12) !important;
 }
 
 .login-mode-tabs {
-  background: rgba(168, 213, 227, 0.34) !important;
-  border-color: var(--theme-teal) !important;
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: rgba(151, 7, 71, 0.28) !important;
 }
 
 .login-form-card .login-mode-tabs button {
   background: transparent !important;
-  color: var(--theme-ink) !important;
+  color: var(--theme-pink) !important;
   box-shadow: none !important;
 }
 
 .login-form-card .login-mode-tabs button:hover,
 .login-form-card .login-mode-tabs button.is-active {
   background: var(--theme-pink) !important;
-  color: var(--theme-ink) !important;
+  color: var(--theme-white) !important;
   box-shadow: none !important;
 }
 
@@ -230,7 +247,7 @@ button,
 .button,
 .btn,
 .msd-btn {
-  border-color: rgba(33, 29, 32, 0.16) !important;
+  border-color: rgba(151, 7, 71, 0.3) !important;
 }
 
 button[type="submit"],
@@ -240,10 +257,10 @@ button[type="submit"],
 a.primary-button,
 a.btn-primary,
 .login-form-card > button[type="submit"] {
-  color: var(--theme-ink) !important;
+  color: var(--theme-white) !important;
   background: var(--theme-pink) !important;
   border-color: var(--theme-pink) !important;
-  box-shadow: 0 10px 22px rgba(255, 120, 172, 0.22) !important;
+  box-shadow: 0 10px 22px rgba(151, 7, 71, 0.2) !important;
 }
 
 button[type="submit"] *,
@@ -252,31 +269,33 @@ button[type="submit"] *,
 .msd-btn-primary *,
 a.primary-button *,
 a.btn-primary * {
-  color: var(--theme-ink) !important;
+  color: var(--theme-white) !important;
 }
 
 button[type="submit"]:hover,
 .primary-button:hover,
 .btn-primary:hover,
 .msd-btn-primary:hover {
-  background: #ee649c !important;
-  border-color: #ee649c !important;
+  background: var(--theme-pink) !important;
+  border-color: var(--theme-pink) !important;
+  filter: brightness(0.92);
 }
 
 .secondary-button,
 .btn-secondary,
 .login-form-card .login-secondary-action {
-  color: var(--theme-ink) !important;
-  background: var(--theme-teal) !important;
-  border-color: var(--theme-teal) !important;
+  color: var(--theme-pink) !important;
+  background: var(--theme-white) !important;
+  border-color: var(--theme-pink) !important;
 }
 
 a:not(.top-tab):not(.mobile-nav-item) {
-  color: #b92f68;
+  color: var(--theme-pink);
 }
 
 a:not(.top-tab):not(.mobile-nav-item):hover {
   color: var(--theme-pink);
+  opacity: 0.76;
 }
 
 /* Tabs, pills and small controls */
@@ -288,14 +307,15 @@ a:not(.top-tab):not(.mobile-nav-item):hover {
 [class*="-badge"],
 [class*="-pill"],
 [class*="-chip"] {
-  color: var(--theme-ink) !important;
-  background: rgba(168, 213, 227, 0.28) !important;
-  border-color: var(--theme-teal) !important;
+  color: var(--theme-pink) !important;
+  background: rgba(151, 7, 71, 0.07) !important;
+  border-color: rgba(151, 7, 71, 0.3) !important;
 }
 
 .page-tabs button.active,
 .page-tabs a.active,
 .page-tabs button[aria-selected="true"] {
+  color: var(--theme-white) !important;
   background: var(--theme-pink) !important;
   border-color: var(--theme-pink) !important;
 }
@@ -303,51 +323,40 @@ a:not(.top-tab):not(.mobile-nav-item):hover {
 /* Rankd */
 .rankd-battle-vs,
 .rankd-versus {
-  color: var(--theme-ink) !important;
+  color: var(--theme-white) !important;
   background: var(--theme-pink) !important;
-  border-color: var(--theme-teal) !important;
-  box-shadow: 0 14px 30px rgba(255, 120, 172, 0.26) !important;
+  border-color: var(--theme-pink) !important;
+  box-shadow: 0 14px 30px rgba(151, 7, 71, 0.22) !important;
 }
 
 .rankd-matchup-dashboard,
 .rankd-matchup-stats {
-  background: rgba(168, 213, 227, 0.24) !important;
-  border-color: var(--theme-teal) !important;
+  background: rgba(151, 7, 71, 0.05) !important;
+  border-color: rgba(151, 7, 71, 0.28) !important;
 }
 
 .rankd-win-row > div {
-  background: rgba(168, 213, 227, 0.42) !important;
+  background: rgba(151, 7, 71, 0.12) !important;
 }
 
 .rankd-win-row i {
-  background: linear-gradient(90deg, var(--theme-teal), var(--theme-pink)) !important;
+  background: var(--theme-pink) !important;
 }
 
-.rankd-notice-card {
-  color: var(--theme-ink) !important;
-  background: rgba(255, 120, 172, 0.12) !important;
-  border-color: var(--theme-pink) !important;
-}
-
-/* Status messages */
+.rankd-notice-card,
+.rankd-error-card,
 .login-success,
-.success,
-.success-message {
-  color: var(--theme-ink) !important;
-  background: rgba(168, 213, 227, 0.32) !important;
-  border-color: var(--theme-teal) !important;
-}
-
 .login-error,
+.success,
 .error,
-.error-message,
-.rankd-error-card {
-  color: #8f2451 !important;
-  background: rgba(255, 120, 172, 0.14) !important;
-  border-color: var(--theme-pink) !important;
+.success-message,
+.error-message {
+  color: var(--theme-pink) !important;
+  background: rgba(151, 7, 71, 0.07) !important;
+  border-color: rgba(151, 7, 71, 0.34) !important;
 }
 
-/* Preserve poster and profile artwork colours. */
+/* Preserve media artwork. */
 img,
 .login-trending-card,
 .rankd-poster-frame {
@@ -356,7 +365,7 @@ img,
 
 .login-trending-card,
 .rankd-poster-frame {
-  border-color: rgba(33, 29, 32, 0.14) !important;
+  border-color: rgba(151, 7, 71, 0.24) !important;
 }
 
 button:focus-visible,
@@ -370,12 +379,7 @@ textarea:focus-visible,
 }
 
 @media (max-width: 768px) {
-  .page,
-  .login-page {
-    background: transparent !important;
-  }
-
   .mobile-bottom-nav {
-    background: rgba(168, 213, 227, 0.98) !important;
+    background: var(--theme-pink) !important;
   }
 }
