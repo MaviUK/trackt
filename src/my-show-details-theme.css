@@ -167,14 +167,44 @@
 }
 
 @media (max-width: 768px) {
+  .msd-page {
+    --msd-mobile-gutter: 18px;
+  }
+
+  .msd-page .msd-mobile-banner-wrap {
+    width: 100%;
+    margin: 0 !important;
+    overflow: hidden;
+  }
+
+  .msd-page .msd-mobile-banner,
+  .msd-page .msd-mobile-banner-fallback {
+    width: 100%;
+    height: auto !important;
+    min-height: 210px;
+    aspect-ratio: 16 / 9;
+    background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+  }
+
   .msd-page .msd-hero {
+    width: calc(100% - (var(--msd-mobile-gutter) * 2)) !important;
+    margin: -30px auto 14px !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+    border-radius: 22px 22px 0 0 !important;
+    overflow: visible;
     background: #ffffff !important;
   }
 
   .msd-page .msd-hero-main-mobile {
+    width: 100%;
+    margin-top: 0 !important;
+    padding: 18px var(--msd-mobile-gutter) 0;
+    box-sizing: border-box;
     background: #ffffff;
-    border-radius: 20px 20px 0 0;
-    padding: 16px 10px 0;
+    border-radius: 22px 22px 0 0;
   }
 
   .msd-page .msd-title,
@@ -189,10 +219,22 @@
     box-shadow: 0 10px 24px rgba(151, 7, 71, 0.16) !important;
   }
 
+  .msd-page .msd-mobile-top-row,
+  .msd-page .msd-overview-wrapper,
+  .msd-page .msd-stats-row,
+  .msd-page .msd-rating-slider-wrap {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
   .msd-page .msd-stats-row {
     grid-template-columns: repeat(5, max-content) !important;
+    gap: 8px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     overflow-x: auto;
-    padding-bottom: 6px;
+    padding: 0 0 6px;
     scrollbar-width: none;
   }
 
@@ -205,7 +247,29 @@
     padding: 9px 11px !important;
   }
 
+  .msd-page .msd-content-tabs-section,
+  .msd-page .msd-panel,
+  .msd-page .msd-panel-spaced {
+    width: calc(100% - (var(--msd-mobile-gutter) * 2)) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box;
+  }
+
+  .msd-page .msd-content-tabs-section {
+    margin-top: 14px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .msd-page .msd-panel,
+  .msd-page .msd-panel-spaced {
+    margin-top: 18px !important;
+  }
+
   .msd-page .msd-bottom-action-bar {
+    padding-left: var(--msd-mobile-gutter) !important;
+    padding-right: var(--msd-mobile-gutter) !important;
+    box-sizing: border-box;
     background: #ffffff !important;
   }
 }
