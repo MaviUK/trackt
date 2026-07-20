@@ -15,11 +15,11 @@
 
 .dashboard-page .stat-card,
 .dashboard-page .stat-card-link {
-  width: 112px;
-  min-width: 112px;
-  max-width: 112px;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
   min-height: 74px;
-  flex: 0 0 112px !important;
+  flex: 0 0 auto !important;
   padding: 10px 12px;
   box-sizing: border-box;
   display: flex;
@@ -109,12 +109,12 @@
 
   .dashboard-page .stat-card,
   .dashboard-page .stat-card-link {
-    width: 96px !important;
-    min-width: 96px !important;
-    max-width: 96px !important;
-    height: 64px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
     min-height: 64px !important;
-    flex: 0 0 96px !important;
+    flex: 0 0 auto !important;
     padding: 8px 10px !important;
     border-radius: 11px;
   }
