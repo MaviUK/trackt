@@ -1,0 +1,211 @@
+/* My Shows detail page refinements for the dark-pink / white theme. */
+
+.msd-page {
+  background: #ffffff !important;
+  color: #970747 !important;
+}
+
+.msd-page .msd-title,
+.msd-page .msd-section-title,
+.msd-page .msd-season-title,
+.msd-page .msd-episode-title,
+.msd-page .msd-cast-name,
+.msd-page .msd-rating-slider-row strong,
+.msd-page .msd-info-card strong,
+.msd-page h1,
+.msd-page h2,
+.msd-page h3 {
+  color: #970747 !important;
+}
+
+.msd-page .msd-overview,
+.msd-page .msd-meta,
+.msd-page .msd-mobile-year,
+.msd-page .msd-mobile-first-aired,
+.msd-page .msd-season-subtitle,
+.msd-page .msd-episode-date,
+.msd-page .msd-episode-overview,
+.msd-page .msd-muted,
+.msd-page .msd-burgr-current,
+.msd-page .msd-rating-slider-row {
+  color: rgba(151, 7, 71, 0.74) !important;
+}
+
+.msd-page .msd-hero,
+.msd-page .msd-empty,
+.msd-page .msd-panel,
+.msd-page .msd-season-card,
+.msd-page .msd-episode-card,
+.msd-page .msd-info-card {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.24) !important;
+  box-shadow: 0 10px 28px rgba(151, 7, 71, 0.08) !important;
+}
+
+.msd-page .msd-stat-box {
+  background: #ffffff !important;
+  border: 1px solid rgba(151, 7, 71, 0.34) !important;
+  color: #970747 !important;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.07) !important;
+}
+
+.msd-page .msd-stat-label {
+  color: rgba(151, 7, 71, 0.7) !important;
+}
+
+.msd-page .msd-stat-value,
+.msd-page .msd-link,
+.msd-page .msd-back-link {
+  color: #970747 !important;
+}
+
+.msd-page .msd-progress {
+  background: rgba(151, 7, 71, 0.09) !important;
+  border-color: rgba(151, 7, 71, 0.24) !important;
+}
+
+.msd-page .msd-progress-fill {
+  background: #970747 !important;
+}
+
+.msd-page .msd-content-tab {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.35) !important;
+}
+
+.msd-page .msd-content-tab:hover {
+  background: rgba(151, 7, 71, 0.06) !important;
+  color: #970747 !important;
+}
+
+.msd-page .msd-content-tab.is-active {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+  box-shadow: none !important;
+}
+
+.msd-page .msd-btn-secondary,
+.msd-page .msd-bottom-action-btn {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.44) !important;
+}
+
+.msd-page .msd-btn-secondary:hover,
+.msd-page .msd-bottom-action-btn:hover {
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: #970747 !important;
+}
+
+.msd-page .msd-btn-primary,
+.msd-page .msd-bottom-action-btn-primary {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.msd-page .msd-btn-success,
+.msd-page .msd-watched-pill,
+.msd-page .msd-season-badge {
+  background: rgba(151, 7, 71, 0.08) !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.3) !important;
+}
+
+.msd-page .msd-season-complete,
+.msd-page .msd-episode-watched {
+  border-color: rgba(151, 7, 71, 0.34) !important;
+  background: rgba(151, 7, 71, 0.035) !important;
+}
+
+.msd-page .msd-season-chevron,
+.msd-page .msd-overview-dots {
+  color: rgba(151, 7, 71, 0.72) !important;
+}
+
+.msd-page .msd-episode-rating-box {
+  border-top-color: rgba(151, 7, 71, 0.16) !important;
+}
+
+.msd-page .msd-mobile-rating-option {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.3) !important;
+}
+
+.msd-page .msd-mobile-rating-option.is-selected {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.msd-page .msd-rating-slider::-webkit-slider-runnable-track,
+.msd-page .msd-rating-slider::-moz-range-track {
+  background: linear-gradient(90deg, rgba(151, 7, 71, 0.18), #970747) !important;
+  box-shadow: inset 0 0 0 1px rgba(151, 7, 71, 0.18) !important;
+}
+
+.msd-page .msd-rating-slider::-webkit-slider-thumb,
+.msd-page .msd-rating-slider::-moz-range-thumb {
+  background-color: #ffffff !important;
+  border-color: #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.22) !important;
+}
+
+.msd-page .episode-highlight {
+  box-shadow: 0 0 0 2px rgba(151, 7, 71, 0.42),
+    0 0 24px rgba(151, 7, 71, 0.12) !important;
+}
+
+.msd-bottom-action-bar {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-top: 1px solid rgba(151, 7, 71, 0.2) !important;
+  box-shadow: 0 -8px 24px rgba(151, 7, 71, 0.1) !important;
+}
+
+@media (max-width: 768px) {
+  .msd-page .msd-hero {
+    background: #ffffff !important;
+  }
+
+  .msd-page .msd-hero-main-mobile {
+    background: #ffffff;
+    border-radius: 20px 20px 0 0;
+    padding: 16px 10px 0;
+  }
+
+  .msd-page .msd-title,
+  .msd-page .msd-mobile-year,
+  .msd-page .msd-mobile-first-aired,
+  .msd-page .msd-overview-mobile {
+    color: #970747 !important;
+  }
+
+  .msd-page .msd-mobile-thumb {
+    border-color: #ffffff !important;
+    box-shadow: 0 10px 24px rgba(151, 7, 71, 0.16) !important;
+  }
+
+  .msd-page .msd-stats-row {
+    grid-template-columns: repeat(5, max-content) !important;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+
+  .msd-page .msd-stats-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .msd-page .msd-stat-box {
+    min-width: max-content;
+    padding: 9px 11px !important;
+  }
+
+  .msd-page .msd-bottom-action-bar {
+    background: #ffffff !important;
+  }
+}
