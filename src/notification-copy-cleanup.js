@@ -2,6 +2,18 @@ function removeRedundantNotificationCopy() {
   document
     .querySelectorAll(".notification-card .notification-body > p")
     .forEach((paragraph) => paragraph.remove());
+
+  document.querySelectorAll(".notification-card").forEach((card) => {
+    const title = card.querySelector(".notification-topline strong");
+    const message = card.querySelector(".notification-message");
+
+    if (
+      title?.textContent?.trim().toLowerCase().endsWith("started following you") &&
+      message
+    ) {
+      message.remove();
+    }
+  });
 }
 
 const observer = new MutationObserver(removeRedundantNotificationCopy);
