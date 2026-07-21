@@ -1,6 +1,7 @@
-/* Keep the show synopsis neutral and highly readable on white. */
+/* Keep show and episode synopsis text neutral and highly readable on white. */
 .msd-page .msd-overview,
 .msd-page .msd-overview-mobile,
-.msd-page .msd-overview-wrapper {
+.msd-page .msd-overview-wrapper,
+.msd-page .msd-episode-overview {
   color: #000000 !important;
 }
