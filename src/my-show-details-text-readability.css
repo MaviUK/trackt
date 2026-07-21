@@ -1,0 +1,6 @@
+/* Keep the show synopsis neutral and highly readable on white. */
+.msd-page .msd-overview,
+.msd-page .msd-overview-mobile,
+.msd-page .msd-overview-wrapper {
+  color: #000000 !important;
+}
