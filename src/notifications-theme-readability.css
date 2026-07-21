@@ -1,0 +1,139 @@
+/* Notifications page refinements for the dark-pink / white theme. */
+
+.notifications-page {
+  min-height: 100vh;
+  background: #ffffff !important;
+  color: #970747 !important;
+}
+
+.notifications-header h1,
+.notifications-empty h2,
+.notification-topline strong {
+  color: #970747 !important;
+}
+
+.notifications-mark-read,
+.notifications-delete-mode,
+.notifications-cancel-delete,
+.notifications-delete-selected {
+  min-height: 38px;
+  box-shadow: none !important;
+}
+
+.notifications-mark-read {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+}
+
+.notifications-delete-mode,
+.notifications-cancel-delete {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.42) !important;
+}
+
+.notifications-delete-selected {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+}
+
+.notifications-mark-read:hover,
+.notifications-delete-selected:hover {
+  opacity: 0.88;
+}
+
+.notifications-delete-mode:hover,
+.notifications-cancel-delete:hover {
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: #970747 !important;
+}
+
+.notifications-selection-help,
+.notifications-error {
+  background: rgba(151, 7, 71, 0.06) !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.28) !important;
+}
+
+.notifications-muted {
+  color: rgba(151, 7, 71, 0.68) !important;
+}
+
+.notifications-muted::before {
+  border-color: rgba(151, 7, 71, 0.16) !important;
+  border-top-color: #970747 !important;
+  box-shadow: 0 0 20px rgba(151, 7, 71, 0.12) !important;
+}
+
+.notification-card,
+.notifications-empty {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.22) !important;
+  box-shadow: 0 10px 28px rgba(151, 7, 71, 0.08) !important;
+}
+
+.notification-card.is-unread {
+  background: rgba(151, 7, 71, 0.04) !important;
+  border-color: rgba(151, 7, 71, 0.48) !important;
+}
+
+.notification-card.is-selected {
+  background: rgba(151, 7, 71, 0.09) !important;
+  border-color: #970747 !important;
+}
+
+.notification-open-button {
+  color: #970747 !important;
+}
+
+.notification-icon {
+  background: #970747 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(151, 7, 71, 0.14) !important;
+}
+
+.notification-message {
+  color: rgba(151, 7, 71, 0.72) !important;
+  font-weight: 600;
+}
+
+.notification-body small,
+.notifications-empty p {
+  color: rgba(151, 7, 71, 0.58) !important;
+}
+
+.notification-unread-dot {
+  background: #970747 !important;
+  box-shadow: 0 0 0 4px rgba(151, 7, 71, 0.12) !important;
+}
+
+.notification-select-indicator {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.42) !important;
+}
+
+.notification-select-indicator.is-selected {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+  box-shadow: 0 0 0 4px rgba(151, 7, 71, 0.1) !important;
+}
+
+@media (max-width: 560px) {
+  .notifications-page {
+    padding: 18px 18px calc(var(--mobile-nav-height, 72px) + 28px + env(safe-area-inset-bottom));
+  }
+
+  .notifications-header {
+    margin-bottom: 18px;
+  }
+
+  .notification-card,
+  .notifications-empty {
+    border-radius: 20px;
+  }
+}
