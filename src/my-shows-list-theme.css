@@ -1,0 +1,83 @@
+/* My Shows list refinements for the dark-pink / white theme. */
+
+.my-shows-page {
+  background: #ffffff !important;
+  color: #970747 !important;
+}
+
+/* Filter row rendered as the first child of the page. */
+.my-shows-page > div:first-child {
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+
+.my-shows-page > div:first-child > button {
+  min-height: 36px;
+  padding: 8px 12px !important;
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.34) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  font-weight: 800 !important;
+}
+
+.my-shows-page > div:first-child > button:hover,
+.my-shows-page > div:first-child > button:focus-visible {
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: #970747 !important;
+  outline: none;
+}
+
+/* React writes the selected filter's original indigo value inline. */
+.my-shows-page > div:first-child > button[style*="99, 102, 241"],
+.my-shows-page > div:first-child > button[style*="99,102,241"] {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.my-shows-page input[placeholder="Search my shows..."] {
+  width: 100% !important;
+  min-height: 48px;
+  padding: 12px 16px !important;
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.42) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 5px 16px rgba(151, 7, 71, 0.06) !important;
+}
+
+.my-shows-page input[placeholder="Search my shows..."]::placeholder {
+  color: rgba(151, 7, 71, 0.55) !important;
+  opacity: 1;
+}
+
+.my-shows-page input[placeholder="Search my shows..."]:focus {
+  border-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.1) !important;
+  outline: none !important;
+}
+
+.my-shows-page .show-card {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: rgba(151, 7, 71, 0.24) !important;
+}
+
+@media (max-width: 640px) {
+  .my-shows-page {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .my-shows-page > div:first-child {
+    gap: 7px !important;
+  }
+
+  .my-shows-page > div:first-child > button {
+    min-height: 34px;
+    padding: 7px 10px !important;
+    font-size: 12px !important;
+  }
+}
