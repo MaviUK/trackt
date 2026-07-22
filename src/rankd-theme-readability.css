@@ -1,0 +1,262 @@
+/* Rank'd page refinements for the dark-pink / white theme. */
+
+.rankd-page {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+.rankd-page .rankd-matchup-number {
+  color: #970747 !important;
+}
+
+.rankd-page .rankd-battle-shell,
+.rankd-page .rankd-leaderboard-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(151, 7, 71, 0.22) !important;
+  box-shadow: 0 8px 24px rgba(151, 7, 71, 0.07) !important;
+}
+
+.rankd-page .rankd-card-title,
+.rankd-page .rankd-leaderboard-title,
+.rankd-page .rankd-card-heading h2,
+.rankd-page .rankd-leaderboard-header h2,
+.rankd-page .rankd-comments-header h2 {
+  color: #970747 !important;
+}
+
+.rankd-page .rankd-poster-frame {
+  border: 1px solid rgba(151, 7, 71, 0.34) !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 22px rgba(151, 7, 71, 0.11) !important;
+}
+
+.rankd-page .rankd-battle-vs,
+.rankd-page .rankd-versus {
+  background: #970747 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(151, 7, 71, 0.2) !important;
+}
+
+.rankd-page .rankd-matchup-dashboard,
+.rankd-page .rankd-matchup-stats {
+  background: #ffffff !important;
+  border: 1px solid rgba(151, 7, 71, 0.3) !important;
+  box-shadow: 0 7px 20px rgba(151, 7, 71, 0.06) !important;
+}
+
+.rankd-page .rankd-win-row > span {
+  color: #111111 !important;
+  font-weight: 800;
+}
+
+.rankd-page .rankd-win-summary {
+  display: grid;
+  gap: 3px;
+  color: #111111 !important;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.rankd-page .rankd-win-summary span:first-child {
+  color: #111111 !important;
+}
+
+.rankd-page .rankd-win-summary span:last-child {
+  color: #970747 !important;
+}
+
+.rankd-page .rankd-win-row > div {
+  background: rgba(151, 7, 71, 0.12) !important;
+}
+
+.rankd-page .rankd-win-row i {
+  background: #970747 !important;
+}
+
+.rankd-page .rankd-comment-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.rankd-page .rankd-outline-button {
+  width: 100% !important;
+  min-height: 44px;
+  padding: 10px 12px !important;
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid rgba(151, 7, 71, 0.38) !important;
+  box-shadow: none !important;
+  font-size: 0.92rem;
+}
+
+.rankd-page .rankd-outline-button:hover,
+.rankd-page .rankd-outline-button:focus-visible {
+  background: rgba(151, 7, 71, 0.06) !important;
+  border-color: #970747 !important;
+}
+
+.rankd-page .rankd-comment-form textarea {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid rgba(151, 7, 71, 0.38) !important;
+  box-shadow: none !important;
+}
+
+.rankd-page .rankd-comment-form textarea::placeholder {
+  color: rgba(151, 7, 71, 0.58) !important;
+}
+
+.rankd-page .rankd-comment-form textarea:focus {
+  border-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.1) !important;
+}
+
+.rankd-page .rankd-comment-form button[type="submit"] {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: none !important;
+}
+
+.rankd-page .rankd-muted,
+.rankd-page .rankd-card-heading p,
+.rankd-page .rankd-leaderboard-header p,
+.rankd-page .rankd-comment-meta,
+.rankd-page .rankd-leaderboard-item small {
+  color: rgba(17, 17, 17, 0.68) !important;
+}
+
+.rankd-page .rankd-comment-item,
+.rankd-page .rankd-leaderboard-row,
+.rankd-page .rankd-leaderboard-item {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border-color: rgba(151, 7, 71, 0.22) !important;
+}
+
+.rankd-page .rankd-comment-item p {
+  color: #111111 !important;
+}
+
+.rankd-page .rankd-text-button,
+.rankd-page .rankd-rank-button,
+.rankd-page .rankd-leaderboard-rank {
+  color: #970747 !important;
+}
+
+@media (max-width: 760px) {
+  .rankd-page {
+    margin-top: 0 !important;
+    padding-bottom: calc(var(--mobile-nav-height, 72px) + 28px) !important;
+  }
+
+  .rankd-page .page-shell {
+    width: 100%;
+    padding: 12px 12px calc(var(--mobile-nav-height, 72px) + 28px) !important;
+    box-sizing: border-box;
+  }
+
+  .rankd-page .rankd-main-grid {
+    gap: 18px;
+  }
+
+  .rankd-page .rankd-battle-shell {
+    padding: 12px !important;
+    border-radius: 20px !important;
+  }
+
+  .rankd-page .rankd-battle-layout {
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) !important;
+    gap: 10px !important;
+    align-items: center;
+  }
+
+  .rankd-page .rankd-poster-button {
+    gap: 9px;
+  }
+
+  .rankd-page .rankd-poster-frame {
+    width: 100% !important;
+    max-width: 230px;
+    border-radius: 18px !important;
+  }
+
+  .rankd-page .rankd-card-title {
+    font-size: 0.95rem !important;
+    line-height: 1.2;
+  }
+
+  .rankd-page .rankd-matchup-dashboard {
+    margin-top: 20px !important;
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .rankd-page .rankd-win-bars {
+    gap: 18px !important;
+  }
+
+  .rankd-page .rankd-win-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px 12px !important;
+    align-items: start;
+    font-size: 0.88rem;
+  }
+
+  .rankd-page .rankd-win-row > span {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    line-height: 1.25;
+  }
+
+  .rankd-page .rankd-win-summary {
+    text-align: right !important;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .rankd-page .rankd-win-row > div {
+    grid-column: 1 / -1 !important;
+    order: 3;
+    height: 9px !important;
+  }
+
+  .rankd-page .rankd-comment-form {
+    margin-top: 16px !important;
+    gap: 12px !important;
+  }
+
+  .rankd-page .rankd-comment-form textarea {
+    min-height: 96px;
+    border-radius: 18px !important;
+    padding: 14px !important;
+    font-size: 1rem;
+  }
+
+  .rankd-page .rankd-comment-form button[type="submit"] {
+    min-height: 44px;
+  }
+
+  .rankd-page .rankd-leaderboard-card {
+    padding: 14px !important;
+    border-radius: 20px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .rankd-page .rankd-comment-actions {
+    gap: 8px;
+  }
+
+  .rankd-page .rankd-outline-button {
+    padding: 9px 8px !important;
+    font-size: 0.84rem;
+  }
+
+  .rankd-page .rankd-win-summary {
+    font-size: 0.76rem;
+  }
+}
