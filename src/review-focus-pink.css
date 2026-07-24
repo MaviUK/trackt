@@ -1,0 +1,35 @@
+/* Match review composer focus states to the deep-pink app navigation. */
+
+.msd-page .msd-review-form textarea,
+.msd-page .msd-review-reply-form textarea,
+.msd-reviews-section .msd-review-form textarea,
+.msd-reviews-section .msd-review-reply-form textarea {
+  border-color: rgba(151, 7, 71, 0.72) !important;
+  outline: none !important;
+  caret-color: #970747 !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.msd-page .msd-review-form textarea:focus,
+.msd-page .msd-review-form textarea:focus-visible,
+.msd-page .msd-review-reply-form textarea:focus,
+.msd-page .msd-review-reply-form textarea:focus-visible,
+.msd-reviews-section .msd-review-form textarea:focus,
+.msd-reviews-section .msd-review-form textarea:focus-visible,
+.msd-reviews-section .msd-review-reply-form textarea:focus,
+.msd-reviews-section .msd-review-reply-form textarea:focus-visible {
+  border-color: #970747 !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 2px #970747,
+    0 0 0 5px rgba(151, 7, 71, 0.24) !important;
+}
+
+.msd-page .msd-review-form:focus-within,
+.msd-page .msd-review-reply-form:focus-within,
+.msd-reviews-section .msd-review-form:focus-within,
+.msd-reviews-section .msd-review-reply-form:focus-within {
+  border-color: rgba(151, 7, 71, 0.55) !important;
+  outline-color: #970747 !important;
+}
