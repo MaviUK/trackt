@@ -207,7 +207,6 @@ button[aria-pressed="true"].button,
 .search-add-btn:disabled,
 .search-page-button:disabled,
 .search-load-more-button:disabled,
-.rankd-comment-form button[type="submit"]:disabled,
 button:disabled.btn,
 button:disabled.button {
   background: rgba(151, 7, 71, 0.48) !important;
@@ -215,6 +214,22 @@ button:disabled.button {
   border-color: transparent !important;
   box-shadow: none !important;
   opacity: 1 !important;
+}
+
+/* Rank'd uses exactly the same pink for VS, percentage bars and comment action. */
+.rankd-page .rankd-battle-vs,
+.rankd-page .rankd-versus,
+.rankd-page .rankd-win-row i,
+.rankd-page .rankd-comment-form button[type="submit"],
+.rankd-page .rankd-comment-form button[type="submit"]:disabled {
+  background: var(--burgrs-menu-pink) !important;
+  color: var(--burgrs-menu-white) !important;
+  border-color: var(--burgrs-menu-pink) !important;
+}
+
+.rankd-page .rankd-comment-form button[type="submit"]:disabled {
+  opacity: 0.62 !important;
+  box-shadow: none !important;
 }
 
 /* Keep artwork, card-openers and navigation controls visually untouched. */
