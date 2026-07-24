@@ -1,0 +1,32 @@
+/* Final notification accent overrides after the restored dark content theme. */
+
+.notifications-page .notification-card,
+.notifications-page .notification-card.is-unread,
+.notifications-page .notification-card.is-selected {
+  border-color: #970747 !important;
+  box-shadow: 0 8px 24px rgba(151, 7, 71, 0.12) !important;
+}
+
+.notifications-page .notification-icon,
+.notifications-page .notification-unread-dot,
+.notifications-page .notification-select-indicator.is-selected {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.notifications-page .notification-icon {
+  box-shadow: 0 0 0 2px rgba(151, 7, 71, 0.22) !important;
+}
+
+.notifications-page .notification-unread-dot {
+  box-shadow: 0 0 0 4px rgba(151, 7, 71, 0.16) !important;
+}
+
+.notifications-page .notification-card.is-unread {
+  background: rgba(151, 7, 71, 0.06) !important;
+}
+
+.notifications-page .notification-card.is-selected {
+  background: rgba(151, 7, 71, 0.12) !important;
+}
