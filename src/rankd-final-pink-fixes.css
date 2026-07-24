@@ -45,6 +45,27 @@
   box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.24) !important;
 }
 
+/* The comments-panel Hide control is a plain text action. */
+.rankd-page .rankd-comments-header .rankd-text-button,
+.rankd-page .rankd-comments-header .rankd-text-button:hover,
+.rankd-page .rankd-comments-header .rankd-text-button:focus,
+.rankd-page .rankd-comments-header .rankd-text-button:focus-visible,
+.rankd-page .rankd-comments-header .rankd-text-button:active {
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+
 .rankd-page .rankd-rank-button,
 .rankd-page .rankd-move-button,
 .rankd-page .rankd-leaderboard-row .rankd-rank-button {
