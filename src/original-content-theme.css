@@ -1,0 +1,803 @@
+/*
+ * Restore the original BURGRS navy / purple content theme.
+ * The current dark-pink header and bottom navigation are intentionally retained.
+ */
+
+:root {
+  --bg: #0b1020;
+  --bg-elevated: #0f172a;
+  --surface: #121a2b;
+  --surface-raised: #182235;
+  --panel: #121a2b;
+  --panel-soft: #182235;
+  --panel-hover: #1d2940;
+  --border: #26324a;
+  --border-strong: #334468;
+  --text: #f8fafc;
+  --text-main: #f8fafc;
+  --text-muted: #a5b4cc;
+  --text-soft: #d7dfef;
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --secondary: #182235;
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --accent-secondary: #c4b5fd;
+  --accent-warm: #f59e0b;
+  --success: #22c55e;
+  --success-soft: rgba(34, 197, 94, 0.12);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.12);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  color-scheme: dark;
+  accent-color: #8b5cf6;
+}
+
+html,
+body,
+#root {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+body {
+  background-image: linear-gradient(180deg, #09101d 0%, #0b1020 100%) !important;
+  background-attachment: fixed !important;
+}
+
+.app-shell,
+.page,
+.page-shell,
+.login-page,
+main {
+  color: #f8fafc !important;
+}
+
+::selection {
+  background: #8b5cf6;
+  color: #ffffff;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b1020;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334468;
+  border-color: #0b1020;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6;
+}
+
+/* Shared content surfaces. */
+.dashboard-card,
+.section-card,
+.modal,
+.modal-content,
+.dialog,
+.panel,
+.login-copy,
+.login-form-card,
+.login-trending-section,
+.rankd-battle-shell,
+.rankd-matchup-dashboard,
+.rankd-matchup-stats,
+.app-startup-loading-card,
+.notification-card,
+.profile-card,
+.creator-card,
+.feed-card,
+.review-card,
+.comment-card {
+  background: #121a2b !important;
+  border-color: #26324a !important;
+  color: #f8fafc !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.page-header h1,
+.page-header h2,
+.page-header h3,
+.login-form-card h1,
+.login-form-card h2,
+.login-trending-section h2,
+.dashboard-card h2,
+.section-card h2 {
+  color: #f8fafc !important;
+}
+
+.page-header p,
+.rankd-muted,
+.login-muted,
+.login-help-text,
+.login-form-card p {
+  color: #a5b4cc !important;
+}
+
+/* Forms and general controls. */
+input,
+select,
+textarea,
+.login-form-card input {
+  color: #f8fafc !important;
+  background: #0f172a !important;
+  border-color: #334468 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #7f8ca6 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.login-form-card input:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.16) !important;
+}
+
+.login-mode-tabs {
+  background: #182235 !important;
+  border-color: #334468 !important;
+}
+
+.login-form-card .login-mode-tabs button {
+  background: transparent !important;
+  color: #d7dfef !important;
+}
+
+.login-form-card .login-mode-tabs button:hover,
+.login-form-card .login-mode-tabs button.is-active {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+}
+
+button[type="submit"],
+.primary-button,
+.btn-primary,
+.msd-btn-primary,
+a.primary-button,
+a.btn-primary,
+.login-form-card > button[type="submit"] {
+  color: #ffffff !important;
+  background: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 10px 22px rgba(139, 92, 246, 0.2) !important;
+}
+
+button[type="submit"] *,
+.primary-button *,
+.btn-primary *,
+.msd-btn-primary *,
+a.primary-button *,
+a.btn-primary * {
+  color: #ffffff !important;
+}
+
+button[type="submit"]:hover,
+.primary-button:hover,
+.btn-primary:hover,
+.msd-btn-primary:hover {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+}
+
+.secondary-button,
+.btn-secondary,
+.login-form-card .login-secondary-action {
+  color: #f8fafc !important;
+  background: #182235 !important;
+  border-color: #334468 !important;
+}
+
+.page a:not(.top-tab):not(.mobile-nav-item),
+main a:not(.top-tab):not(.mobile-nav-item) {
+  color: inherit;
+}
+
+.page-tabs button,
+.page-tabs a,
+.badge,
+.pill,
+.chip,
+[class*="-badge"],
+[class*="-pill"],
+[class*="-chip"] {
+  color: #d7dfef !important;
+  background: #182235 !important;
+  border-color: #334468 !important;
+}
+
+.page-tabs button.active,
+.page-tabs a.active,
+.page-tabs button[aria-selected="true"] {
+  color: #ffffff !important;
+  background: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+}
+
+/* Dashboard: retain compact sizing, restore original colours. */
+.dashboard-page {
+  background: transparent !important;
+  color: #f8fafc !important;
+}
+
+.dashboard-page .stat-card,
+.dashboard-page .stat-card-link {
+  background: #121a2b !important;
+  border-color: #26324a !important;
+  color: #f8fafc !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22) !important;
+}
+
+.dashboard-page .stat-card-link:hover,
+.dashboard-page .stat-card-link:focus-visible {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.dashboard-page .stat-label {
+  color: #a5b4cc !important;
+}
+
+.dashboard-page .stat-value,
+.dashboard-page .trending-header h2,
+.dashboard-page .dashboard-card > .card-header h2,
+.dashboard-page .premiere-card-copy strong,
+.dashboard-page .dashboard-list-copy strong,
+.dashboard-page .dashboard-item-info strong {
+  color: #f8fafc !important;
+}
+
+.dashboard-page .premiere-card-copy span,
+.dashboard-page .dashboard-list-copy span,
+.dashboard-page .dashboard-item-info span {
+  color: #d7dfef !important;
+}
+
+.dashboard-page .dashboard-list-copy small,
+.dashboard-page .dashboard-item-info small,
+.dashboard-page .empty-state {
+  color: #a5b4cc !important;
+}
+
+.dashboard-page .dashboard-list-item,
+.dashboard-page .dashboard-item {
+  background: #121a2b !important;
+  border-color: #26324a !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dashboard-page .dashboard-list-item:hover,
+.dashboard-page .dashboard-item:hover {
+  background: #1d2940 !important;
+  border-color: #334468 !important;
+}
+
+/* Following feed. */
+.following-page {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+.following-page .following-header h1,
+.following-page .following-card h2,
+.following-page .following-empty h2,
+.following-page .following-post-title,
+.following-page .following-show-card strong,
+.following-page .following-list-card h2,
+.following-page .following-creator-line strong {
+  color: #f8fafc !important;
+}
+
+.following-page .following-header p,
+.following-page .following-muted,
+.following-page .following-empty p,
+.following-page .following-show-card span,
+.following-page .following-list-card p,
+.following-page .following-review-text,
+.following-page .following-meta-left,
+.following-page .following-meta-type {
+  color: #a5b4cc !important;
+}
+
+.following-page .following-filter-chip {
+  background: #121a2b !important;
+  color: #d7dfef !important;
+  border-color: #26324a !important;
+}
+
+.following-page .following-filter-chip:hover,
+.following-page .following-filter-chip:focus-visible {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.following-page .following-filter-chip.is-active {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.following-page .following-card,
+.following-page .following-empty {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #26324a !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.following-page .following-empty-btn,
+.following-page .following-video-link {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.following-page .following-creator-line,
+.following-page .following-avatar-link,
+.following-page .following-creator-name-link,
+.following-page .following-creator-meta-row .feed-comments-inline-toggle {
+  color: #c4b5fd !important;
+}
+
+.following-page .following-avatar,
+.following-page .following-avatar-fallback,
+.following-page .following-poster-fallback,
+.following-page .following-list-preview-item,
+.following-page .following-show-card,
+.following-page .following-list-card,
+.following-page .following-view-profile,
+.following-page .following-type-pill,
+.following-page .following-rating-pill {
+  background: #182235 !important;
+  color: #d7dfef !important;
+  border-color: #26324a !important;
+}
+
+.following-page .following-avatar-fallback,
+.following-page .following-list-preview-item span {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+}
+
+/* Notifications. */
+.notifications-page {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+.notifications-header h1,
+.notifications-empty h2,
+.notification-topline strong {
+  color: #f8fafc !important;
+}
+
+.notifications-mark-read,
+.notifications-delete-selected {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.notifications-delete-mode,
+.notifications-cancel-delete {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #334468 !important;
+}
+
+.notifications-selection-help,
+.notifications-error {
+  background: #182235 !important;
+  color: #d7dfef !important;
+  border-color: #334468 !important;
+}
+
+.notifications-muted,
+.notification-message,
+.notification-body small,
+.notifications-empty p {
+  color: #a5b4cc !important;
+}
+
+.notification-card,
+.notifications-empty {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #26324a !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.notification-card.is-unread {
+  background: #182235 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.notification-card.is-selected {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.notification-open-button {
+  color: #f8fafc !important;
+}
+
+.notification-icon,
+.notification-unread-dot,
+.notification-select-indicator.is-selected {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.notification-select-indicator {
+  background: #121a2b !important;
+  color: #c4b5fd !important;
+  border-color: #334468 !important;
+}
+
+/* My Shows list. */
+.my-shows-page {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+.my-shows-page > div:first-child > button {
+  background: #121a2b !important;
+  color: #d7dfef !important;
+  border-color: #334468 !important;
+}
+
+.my-shows-page > div:first-child > button:hover,
+.my-shows-page > div:first-child > button:focus-visible {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.my-shows-page > div:first-child > button[style*="99, 102, 241"],
+.my-shows-page > div:first-child > button[style*="99,102,241"] {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.my-shows-page input[placeholder="Search my shows..."] {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #334468 !important;
+  box-shadow: none !important;
+}
+
+.my-shows-page input[placeholder="Search my shows..."]::placeholder {
+  color: #7f8ca6 !important;
+}
+
+.my-shows-page input[placeholder="Search my shows..."]:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.16) !important;
+}
+
+.my-shows-page .show-card {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #26324a !important;
+}
+
+/* My Show details: retain all newer layout work, restore original colours. */
+.msd-page {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+.msd-page .msd-title,
+.msd-page .msd-section-title,
+.msd-page .msd-season-title,
+.msd-page .msd-episode-title,
+.msd-page .msd-cast-name,
+.msd-page .msd-rating-slider-row strong,
+.msd-page .msd-info-card strong,
+.msd-page h1,
+.msd-page h2,
+.msd-page h3 {
+  color: #f8fafc !important;
+}
+
+.msd-page .msd-overview,
+.msd-page .msd-overview-mobile,
+.msd-page .msd-overview-wrapper,
+.msd-page .msd-meta,
+.msd-page .msd-mobile-year,
+.msd-page .msd-mobile-first-aired,
+.msd-page .msd-season-subtitle,
+.msd-page .msd-episode-date,
+.msd-page .msd-episode-overview,
+.msd-page .msd-muted,
+.msd-page .msd-burgr-current,
+.msd-page .msd-rating-slider-row {
+  color: #d7dfef !important;
+}
+
+.msd-page .msd-hero,
+.msd-page .msd-empty,
+.msd-page .msd-panel,
+.msd-page .msd-season-card,
+.msd-page .msd-episode-card,
+.msd-page .msd-info-card {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #26324a !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.msd-page .msd-hero,
+.msd-page .msd-hero-main-mobile {
+  background: transparent !important;
+}
+
+.msd-page .msd-mobile-thumb {
+  border-color: #0b1020 !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34) !important;
+}
+
+.msd-page .msd-stat-box {
+  background: #182235 !important;
+  border-color: #334468 !important;
+  color: #f8fafc !important;
+  box-shadow: none !important;
+}
+
+.msd-page .msd-stat-label {
+  color: #a5b4cc !important;
+}
+
+.msd-page .msd-stat-value,
+.msd-page .msd-link,
+.msd-page .msd-back-link {
+  color: #f8fafc !important;
+}
+
+.msd-page .msd-progress {
+  background: #182235 !important;
+  border-color: #334468 !important;
+}
+
+.msd-page .msd-progress-fill {
+  background: #8b5cf6 !important;
+}
+
+.msd-page .msd-content-tab,
+.msd-page .msd-btn-secondary,
+.msd-page .msd-bottom-action-btn,
+.msd-page .msd-mobile-rating-option {
+  background: #182235 !important;
+  color: #d7dfef !important;
+  border-color: #334468 !important;
+}
+
+.msd-page .msd-content-tab:hover,
+.msd-page .msd-btn-secondary:hover,
+.msd-page .msd-bottom-action-btn:hover {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.msd-page .msd-content-tab.is-active,
+.msd-page .msd-btn-primary,
+.msd-page .msd-bottom-action-btn-primary,
+.msd-page .msd-mobile-rating-option.is-selected {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.msd-page .msd-btn-success,
+.msd-page .msd-watched-pill,
+.msd-page .msd-season-badge {
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #86efac !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+.msd-page .msd-season-complete,
+.msd-page .msd-episode-watched {
+  background: rgba(34, 197, 94, 0.05) !important;
+  border-color: rgba(34, 197, 94, 0.26) !important;
+}
+
+.msd-page .msd-season-chevron,
+.msd-page .msd-overview-dots {
+  color: #a5b4cc !important;
+}
+
+.msd-bottom-action-bar,
+.msd-page .msd-bottom-action-bar {
+  background: transparent !important;
+  border-top: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Rank'd: preserve layout cleanup, restore the original palette. */
+.rankd-page {
+  background: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+.rankd-page .rankd-matchup-number,
+.rankd-page .rankd-card-title,
+.rankd-page .rankd-leaderboard-title,
+.rankd-page .rankd-card-heading h2,
+.rankd-page .rankd-leaderboard-header h2,
+.rankd-page .rankd-comments-header h2 {
+  color: #f8fafc !important;
+}
+
+.rankd-page .rankd-battle-shell,
+.rankd-page .rankd-leaderboard-card,
+.rankd-page .rankd-matchup-dashboard,
+.rankd-page .rankd-matchup-stats,
+.rankd-page .rankd-comment-item,
+.rankd-page .rankd-leaderboard-row,
+.rankd-page .rankd-leaderboard-item {
+  background: #121a2b !important;
+  color: #f8fafc !important;
+  border-color: #26324a !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.rankd-page .rankd-poster-frame {
+  background: #0f172a !important;
+  border-color: #334468 !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28) !important;
+}
+
+.rankd-page .rankd-battle-vs,
+.rankd-page .rankd-versus {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.24) !important;
+}
+
+.rankd-page .rankd-win-row > span,
+.rankd-page .rankd-win-summary,
+.rankd-page .rankd-win-summary span:first-child,
+.rankd-page .rankd-comment-item p {
+  color: #d7dfef !important;
+}
+
+.rankd-page .rankd-win-summary span:last-child,
+.rankd-page .rankd-text-button,
+.rankd-page .rankd-rank-button,
+.rankd-page .rankd-leaderboard-rank {
+  color: #c4b5fd !important;
+}
+
+.rankd-page .rankd-win-row > div {
+  background: #26324a !important;
+}
+
+.rankd-page .rankd-win-row i {
+  background: #8b5cf6 !important;
+}
+
+.rankd-page .rankd-outline-button {
+  background: #182235 !important;
+  color: #f8fafc !important;
+  border-color: #334468 !important;
+}
+
+.rankd-page .rankd-outline-button:hover,
+.rankd-page .rankd-outline-button:focus-visible {
+  background: #1d2940 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.rankd-page .rankd-comment-form textarea {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334468 !important;
+}
+
+.rankd-page .rankd-comment-form textarea::placeholder {
+  color: #7f8ca6 !important;
+}
+
+.rankd-page .rankd-comment-form button[type="submit"] {
+  background: #8b5cf6 !important;
+  color: #ffffff !important;
+  border-color: #8b5cf6 !important;
+}
+
+.rankd-page .rankd-muted,
+.rankd-page .rankd-card-heading p,
+.rankd-page .rankd-leaderboard-header p,
+.rankd-page .rankd-comment-meta,
+.rankd-page .rankd-leaderboard-item small {
+  color: #a5b4cc !important;
+}
+
+/* Keep the current header and footer navigation exactly as requested. */
+.nav-wrap,
+.mobile-top-banner-wrap,
+.mobile-bottom-nav {
+  background: #970747 !important;
+  border-color: #970747 !important;
+  box-shadow: 0 8px 24px rgba(151, 7, 71, 0.2) !important;
+}
+
+.top-tab,
+.mobile-nav-item {
+  color: #ffffff !important;
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.top-tab:hover,
+.mobile-nav-item:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: #ffffff !important;
+}
+
+.top-tab.active,
+.mobile-nav-item.active {
+  color: #970747 !important;
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.top-tab.active *,
+.mobile-nav-item.active *,
+.mobile-nav-item.active .mobile-nav-icon {
+  color: #970747 !important;
+}
+
+.top-profile-name,
+.mobile-nav-label,
+.mobile-nav-icon {
+  color: #ffffff !important;
+}
+
+.top-profile-avatar,
+.top-profile-avatar-placeholder {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: #ffffff !important;
+}
+
+.burgrs-banner {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.2), transparent 34%),
+    #970747 !important;
+  border-bottom-color: #970747 !important;
+}
+
+.burgrs-banner-overlay {
+  background: linear-gradient(
+    90deg,
+    rgba(151, 7, 71, 0.96),
+    rgba(151, 7, 71, 0.62),
+    rgba(151, 7, 71, 0.96)
+  ) !important;
+}
+
+.burgrs-banner-title {
+  color: #ffffff !important;
+  text-shadow: 0 3px 16px rgba(151, 7, 71, 0.4) !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline-color: #8b5cf6 !important;
+}
