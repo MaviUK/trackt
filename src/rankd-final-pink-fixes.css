@@ -1,4 +1,4 @@
-/* Final Rank'd colour alignment with the deep-pink navigation theme. */
+/* Final Rank'd colour and mobile layout alignment. */
 
 .rankd-page .rankd-comment-form textarea {
   border: 1px solid #970747 !important;
@@ -36,4 +36,32 @@
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   border-color: #7f063c !important;
+}
+
+@media (max-width: 760px) {
+  /* Remove the outer page padding so Rank'd uses the same 12px gutters as other pages. */
+  .rankd-page {
+    width: 100% !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+  }
+
+  .rankd-page > .page-shell {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 10px 12px calc(var(--mobile-nav-height, 72px) + 28px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .rankd-page .rankd-matchup-number {
+    margin: 0 0 12px !important;
+  }
+
+  .rankd-page .rankd-main-grid,
+  .rankd-page .rankd-battle-shell,
+  .rankd-page .rankd-leaderboard-card {
+    width: 100% !important;
+    max-width: none !important;
+  }
 }
