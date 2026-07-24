@@ -1,14 +1,16 @@
-/* Match review composer focus states to the deep-pink app navigation. */
+/* Match review and Rank'd comment composer focus states to the deep-pink app navigation. */
 
 .msd-page .msd-review-form textarea,
 .msd-page .msd-review-reply-form textarea,
 .msd-reviews-section .msd-review-form textarea,
-.msd-reviews-section .msd-review-reply-form textarea {
+.msd-reviews-section .msd-review-reply-form textarea,
+.rankd-page .rankd-comment-form textarea {
   border-color: rgba(151, 7, 71, 0.72) !important;
   outline: none !important;
   caret-color: #970747 !important;
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease !important;
 }
 
 .msd-page .msd-review-form textarea:focus,
@@ -18,7 +20,9 @@
 .msd-reviews-section .msd-review-form textarea:focus,
 .msd-reviews-section .msd-review-form textarea:focus-visible,
 .msd-reviews-section .msd-review-reply-form textarea:focus,
-.msd-reviews-section .msd-review-reply-form textarea:focus-visible {
+.msd-reviews-section .msd-review-reply-form textarea:focus-visible,
+.rankd-page .rankd-comment-form textarea:focus,
+.rankd-page .rankd-comment-form textarea:focus-visible {
   border-color: #970747 !important;
   outline: none !important;
   box-shadow:
@@ -29,7 +33,8 @@
 .msd-page .msd-review-form:focus-within,
 .msd-page .msd-review-reply-form:focus-within,
 .msd-reviews-section .msd-review-form:focus-within,
-.msd-reviews-section .msd-review-reply-form:focus-within {
+.msd-reviews-section .msd-review-reply-form:focus-within,
+.rankd-page .rankd-comment-form:focus-within {
   border-color: rgba(151, 7, 71, 0.55) !important;
   outline-color: #970747 !important;
 }
