@@ -44,3 +44,48 @@
   color: #970747 !important;
   border-color: #ffffff !important;
 }
+
+/* Following filters and My Show content tabs use the same menu treatment. */
+.following-page .following-filter-chip,
+.msd-page .msd-content-tab {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: none !important;
+}
+
+.following-page .following-filter-chip *,
+.msd-page .msd-content-tab * {
+  color: #ffffff !important;
+}
+
+.following-page .following-filter-chip:hover,
+.following-page .following-filter-chip:focus-visible,
+.msd-page .msd-content-tab:hover,
+.msd-page .msd-content-tab:focus-visible {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  border-color: #7f063c !important;
+}
+
+.following-page .following-filter-chip.is-active,
+.msd-page .msd-content-tab.is-active {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.18) !important;
+}
+
+.following-page .following-filter-chip.is-active *,
+.msd-page .msd-content-tab.is-active * {
+  color: #970747 !important;
+}
+
+.following-page .following-filter-chip.is-active:hover,
+.following-page .following-filter-chip.is-active:focus-visible,
+.msd-page .msd-content-tab.is-active:hover,
+.msd-page .msd-content-tab.is-active:focus-visible {
+  background: #f7edf2 !important;
+  color: #970747 !important;
+  border-color: #ffffff !important;
+}
