@@ -1,0 +1,39 @@
+/* Final Rank'd colour alignment with the deep-pink navigation theme. */
+
+.rankd-page .rankd-comment-form textarea {
+  border: 1px solid #970747 !important;
+  box-shadow: 0 0 0 1px rgba(151, 7, 71, 0.22) !important;
+}
+
+.rankd-page .rankd-comment-form textarea:focus,
+.rankd-page .rankd-comment-form textarea:focus-visible {
+  outline: none !important;
+  border-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28) !important;
+}
+
+.rankd-page .rankd-rank-button,
+.rankd-page .rankd-move-button,
+.rankd-page .rankd-leaderboard-row .rankd-rank-button {
+  background: #970747 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #970747 !important;
+}
+
+.rankd-page .rankd-rank-button *,
+.rankd-page .rankd-move-button *,
+.rankd-page .rankd-leaderboard-row .rankd-rank-button * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.rankd-page .rankd-rank-button:hover,
+.rankd-page .rankd-rank-button:focus-visible,
+.rankd-page .rankd-move-button:hover,
+.rankd-page .rankd-move-button:focus-visible {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+}
