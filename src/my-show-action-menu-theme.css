@@ -1,0 +1,46 @@
+/* Match the fixed My Show action buttons to the pink / white bottom navigation. */
+
+.msd-page .msd-bottom-action-btn,
+.msd-bottom-action-bar .msd-bottom-action-btn {
+  background: #970747 !important;
+  color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 7px 18px rgba(151, 7, 71, 0.2) !important;
+}
+
+.msd-page .msd-bottom-action-btn *,
+.msd-bottom-action-bar .msd-bottom-action-btn * {
+  color: #ffffff !important;
+}
+
+.msd-page .msd-bottom-action-btn:hover,
+.msd-page .msd-bottom-action-btn:focus-visible,
+.msd-bottom-action-bar .msd-bottom-action-btn:hover,
+.msd-bottom-action-bar .msd-bottom-action-btn:focus-visible {
+  background: #7f063c !important;
+  border-color: #7f063c !important;
+  color: #ffffff !important;
+}
+
+/* The main Watch action mirrors the selected bottom-navigation item. */
+.msd-page .msd-bottom-action-btn-primary,
+.msd-bottom-action-bar .msd-bottom-action-btn-primary {
+  background: #ffffff !important;
+  color: #970747 !important;
+  border: 1px solid #ffffff !important;
+  box-shadow: 0 7px 18px rgba(151, 7, 71, 0.22) !important;
+}
+
+.msd-page .msd-bottom-action-btn-primary *,
+.msd-bottom-action-bar .msd-bottom-action-btn-primary * {
+  color: #970747 !important;
+}
+
+.msd-page .msd-bottom-action-btn-primary:hover,
+.msd-page .msd-bottom-action-btn-primary:focus-visible,
+.msd-bottom-action-bar .msd-bottom-action-btn-primary:hover,
+.msd-bottom-action-bar .msd-bottom-action-btn-primary:focus-visible {
+  background: #f7edf2 !important;
+  color: #970747 !important;
+  border-color: #ffffff !important;
+}
