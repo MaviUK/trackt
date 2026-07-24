@@ -1,0 +1,230 @@
+/*
+ * Use the current header/footer navigation palette for app controls.
+ * Default buttons are dark pink with white text; selected controls invert to white.
+ */
+
+:root {
+  --burgrs-menu-pink: #970747;
+  --burgrs-menu-pink-hover: #7f063c;
+  --burgrs-menu-white: #ffffff;
+  --burgrs-menu-selected-hover: #f7edf2;
+}
+
+/* Primary app controls and page-specific buttons. */
+.search-mode-button,
+.search-page-button,
+.search-add-btn,
+.search-load-more-button,
+.following-filter-chip,
+.following-empty-btn,
+.following-video-link,
+.notifications-mark-read,
+.notifications-delete-mode,
+.notifications-cancel-delete,
+.notifications-delete-selected,
+.rankd-outline-button,
+.rankd-comment-form button[type="submit"],
+.rankd-rank-button,
+.rankd-move-button,
+.rankd-text-button,
+.rankd-focus-button,
+.rankd-submit-button,
+.my-shows-page > div:first-child > button,
+.msd-page .msd-btn,
+.msd-page .msd-content-tab,
+.msd-page .msd-bottom-action-btn,
+.msd-page .msd-mobile-rating-option,
+.page-tabs button,
+.page-tabs a,
+.primary-button,
+.secondary-button,
+.btn,
+.button,
+a.btn,
+a.button,
+button[class*="creator-"][class*="button"],
+a[class*="creator-"][class*="button"],
+button[class*="profile-"][class*="button"],
+a[class*="profile-"][class*="button"] {
+  background: var(--burgrs-menu-pink) !important;
+  color: var(--burgrs-menu-white) !important;
+  border-color: var(--burgrs-menu-pink) !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.18) !important;
+}
+
+.search-mode-button *,
+.search-page-button *,
+.search-add-btn *,
+.search-load-more-button *,
+.following-filter-chip *,
+.following-empty-btn *,
+.following-video-link *,
+.notifications-mark-read *,
+.notifications-delete-mode *,
+.notifications-cancel-delete *,
+.notifications-delete-selected *,
+.rankd-outline-button *,
+.rankd-comment-form button[type="submit"] *,
+.rankd-rank-button *,
+.rankd-move-button *,
+.rankd-text-button *,
+.rankd-focus-button *,
+.rankd-submit-button *,
+.my-shows-page > div:first-child > button *,
+.msd-page .msd-btn *,
+.msd-page .msd-content-tab *,
+.msd-page .msd-bottom-action-btn *,
+.msd-page .msd-mobile-rating-option *,
+.page-tabs button *,
+.page-tabs a *,
+.primary-button *,
+.secondary-button *,
+.btn *,
+.button * {
+  color: inherit !important;
+}
+
+.search-mode-button:hover,
+.search-mode-button:focus-visible,
+.search-page-button:hover,
+.search-page-button:focus-visible,
+.search-add-btn:hover,
+.search-add-btn:focus-visible,
+.search-load-more-button:hover,
+.search-load-more-button:focus-visible,
+.following-filter-chip:hover,
+.following-filter-chip:focus-visible,
+.following-empty-btn:hover,
+.following-empty-btn:focus-visible,
+.following-video-link:hover,
+.following-video-link:focus-visible,
+.notifications-mark-read:hover,
+.notifications-mark-read:focus-visible,
+.notifications-delete-mode:hover,
+.notifications-delete-mode:focus-visible,
+.notifications-cancel-delete:hover,
+.notifications-cancel-delete:focus-visible,
+.notifications-delete-selected:hover,
+.notifications-delete-selected:focus-visible,
+.rankd-outline-button:hover,
+.rankd-outline-button:focus-visible,
+.rankd-comment-form button[type="submit"]:hover,
+.rankd-comment-form button[type="submit"]:focus-visible,
+.rankd-rank-button:hover,
+.rankd-rank-button:focus-visible,
+.rankd-move-button:hover,
+.rankd-move-button:focus-visible,
+.rankd-text-button:hover,
+.rankd-text-button:focus-visible,
+.rankd-focus-button:hover,
+.rankd-focus-button:focus-visible,
+.rankd-submit-button:hover,
+.rankd-submit-button:focus-visible,
+.my-shows-page > div:first-child > button:hover,
+.my-shows-page > div:first-child > button:focus-visible,
+.msd-page .msd-btn:hover,
+.msd-page .msd-btn:focus-visible,
+.msd-page .msd-content-tab:hover,
+.msd-page .msd-content-tab:focus-visible,
+.msd-page .msd-bottom-action-btn:hover,
+.msd-page .msd-bottom-action-btn:focus-visible,
+.msd-page .msd-mobile-rating-option:hover,
+.msd-page .msd-mobile-rating-option:focus-visible,
+.page-tabs button:hover,
+.page-tabs button:focus-visible,
+.page-tabs a:hover,
+.page-tabs a:focus-visible,
+.primary-button:hover,
+.primary-button:focus-visible,
+.secondary-button:hover,
+.secondary-button:focus-visible,
+.btn:hover,
+.btn:focus-visible,
+.button:hover,
+.button:focus-visible {
+  background: var(--burgrs-menu-pink-hover) !important;
+  color: var(--burgrs-menu-white) !important;
+  border-color: var(--burgrs-menu-pink-hover) !important;
+}
+
+/* Active/selected controls mirror the selected bottom-navigation item. */
+.search-mode-button.is-active,
+.search-mode-button[aria-selected="true"],
+.following-filter-chip.is-active,
+.msd-page .msd-content-tab.is-active,
+.msd-page .msd-mobile-rating-option.is-selected,
+.page-tabs button.active,
+.page-tabs a.active,
+.page-tabs button[aria-selected="true"],
+button[aria-pressed="true"].btn,
+button[aria-pressed="true"].button,
+.my-shows-page > div:first-child > button[style*="99, 102, 241"],
+.my-shows-page > div:first-child > button[style*="99,102,241"] {
+  background: var(--burgrs-menu-white) !important;
+  color: var(--burgrs-menu-pink) !important;
+  border-color: var(--burgrs-menu-white) !important;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.18) !important;
+}
+
+.search-mode-button.is-active *,
+.search-mode-button[aria-selected="true"] *,
+.following-filter-chip.is-active *,
+.msd-page .msd-content-tab.is-active *,
+.msd-page .msd-mobile-rating-option.is-selected *,
+.page-tabs button.active *,
+.page-tabs a.active *,
+.page-tabs button[aria-selected="true"] *,
+.my-shows-page > div:first-child > button[style*="99, 102, 241"] *,
+.my-shows-page > div:first-child > button[style*="99,102,241"] * {
+  color: var(--burgrs-menu-pink) !important;
+}
+
+.search-mode-button.is-active:hover,
+.search-mode-button.is-active:focus-visible,
+.search-mode-button[aria-selected="true"]:hover,
+.search-mode-button[aria-selected="true"]:focus-visible,
+.following-filter-chip.is-active:hover,
+.following-filter-chip.is-active:focus-visible,
+.msd-page .msd-content-tab.is-active:hover,
+.msd-page .msd-content-tab.is-active:focus-visible,
+.msd-page .msd-mobile-rating-option.is-selected:hover,
+.msd-page .msd-mobile-rating-option.is-selected:focus-visible,
+.page-tabs button.active:hover,
+.page-tabs button.active:focus-visible,
+.page-tabs a.active:hover,
+.page-tabs a.active:focus-visible,
+.page-tabs button[aria-selected="true"]:hover,
+.page-tabs button[aria-selected="true"]:focus-visible,
+.my-shows-page > div:first-child > button[style*="99, 102, 241"]:hover,
+.my-shows-page > div:first-child > button[style*="99,102,241"]:hover {
+  background: var(--burgrs-menu-selected-hover) !important;
+  color: var(--burgrs-menu-pink) !important;
+  border-color: var(--burgrs-menu-white) !important;
+}
+
+/* Saved/disabled controls remain readable but clearly unavailable. */
+.search-add-btn.is-saved,
+.search-add-btn:disabled,
+.search-page-button:disabled,
+.search-load-more-button:disabled,
+.rankd-comment-form button[type="submit"]:disabled,
+button:disabled.btn,
+button:disabled.button {
+  background: rgba(151, 7, 71, 0.48) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+/* Keep artwork, card-openers and navigation controls visually untouched. */
+.rankd-poster-button,
+.notification-open-button,
+.mobile-nav-item,
+.top-tab,
+.mobile-profile-link,
+.search-result-poster-link,
+.following-avatar-link,
+.following-creator-name-link {
+  box-shadow: none !important;
+}
