@@ -1,0 +1,113 @@
+/* Final profile-page button alignment with the deep-pink navigation theme. */
+
+/* Edit Profile main tabs and history tabs. */
+.profile-edit-page .profile-edit-header > div > button,
+.profile-edit-page .profile-comment-history-card button {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #970747 !important;
+  box-shadow: none !important;
+}
+
+/* React serialises the active inline purple in different formats across browsers. */
+.profile-edit-page .profile-edit-header > div > button[style*="#4f46e5"],
+.profile-edit-page .profile-edit-header > div > button[style*="79, 70, 229"],
+.profile-edit-page .profile-edit-header > div > button[style*="#818cf8"],
+.profile-edit-page .profile-edit-header > div > button[style*="129, 140, 248"],
+.profile-edit-page .profile-comment-history-card button[style*="#4f46e5"],
+.profile-edit-page .profile-comment-history-card button[style*="79, 70, 229"],
+.profile-edit-page .profile-comment-history-card button[style*="#818cf8"],
+.profile-edit-page .profile-comment-history-card button[style*="129, 140, 248"] {
+  background: #ffffff !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.18) !important;
+}
+
+/* Save Profile and Publish Post use the standard deep-pink action style. */
+.profile-edit-page .profile-edit-actions button[type="submit"],
+.profile-edit-page .profile-edit-card section > div > button {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.18) !important;
+}
+
+.profile-edit-page .profile-edit-header > div > button:hover,
+.profile-edit-page .profile-edit-header > div > button:focus-visible,
+.profile-edit-page .profile-comment-history-card button:hover,
+.profile-edit-page .profile-comment-history-card button:focus-visible,
+.profile-edit-page .profile-edit-actions button[type="submit"]:hover,
+.profile-edit-page .profile-edit-actions button[type="submit"]:focus-visible,
+.profile-edit-page .profile-edit-card section > div > button:hover,
+.profile-edit-page .profile-edit-card section > div > button:focus-visible {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22) !important;
+}
+
+.profile-edit-page .profile-edit-header > div > button[style*="#4f46e5"]:hover,
+.profile-edit-page .profile-edit-header > div > button[style*="79, 70, 229"]:hover,
+.profile-edit-page .profile-edit-header > div > button[style*="#818cf8"]:hover,
+.profile-edit-page .profile-edit-header > div > button[style*="129, 140, 248"]:hover,
+.profile-edit-page .profile-comment-history-card button[style*="#4f46e5"]:hover,
+.profile-edit-page .profile-comment-history-card button[style*="79, 70, 229"]:hover,
+.profile-edit-page .profile-comment-history-card button[style*="#818cf8"]:hover,
+.profile-edit-page .profile-comment-history-card button[style*="129, 140, 248"]:hover {
+  background: #f7edf2 !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border-color: #ffffff !important;
+}
+
+.profile-edit-page button:disabled {
+  opacity: 0.62 !important;
+}
+
+/* Public creator-profile actions follow the same menu pattern. */
+.creator-page .creator-actions .creator-btn,
+.creator-page .creator-btn-secondary,
+.creator-page .creator-btn-locked {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.18) !important;
+}
+
+.creator-page .creator-actions .creator-btn-primary {
+  background: #ffffff !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border-color: #ffffff !important;
+}
+
+.creator-page .creator-actions .creator-btn:hover,
+.creator-page .creator-actions .creator-btn:focus-visible,
+.creator-page .creator-btn-secondary:hover,
+.creator-page .creator-btn-secondary:focus-visible,
+.creator-page .creator-btn-locked:hover,
+.creator-page .creator-btn-locked:focus-visible {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+}
+
+.creator-page .creator-actions .creator-btn-primary:hover,
+.creator-page .creator-actions .creator-btn-primary:focus-visible {
+  background: #f7edf2 !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border-color: #ffffff !important;
+}
