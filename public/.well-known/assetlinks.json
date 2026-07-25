@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.maviuk.burgrs",
+      "sha256_cert_fingerprints": [
+        "32:FD:17:76:15:31:E1:92:B5:77:C0:2F:ED:D8:24:D4:08:B7:BE:4D:D0:F6:B2:8A:4E:FC:A1:B0:2E:46:71:B9"
+      ]
+    }
+  }
+]
