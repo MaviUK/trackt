@@ -30,3 +30,16 @@
   border-color: #7f063c !important;
   box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22) !important;
 }
+
+/* Review ratings are plain white text, not a coloured pill. */
+.following-page .following-rating-pill {
+  min-width: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
