@@ -1,7 +1,8 @@
 /* Final profile tools button alignment with the deep-pink navigation theme. */
 
 .issue-report-section .issue-report-submit,
-.blocked-users-section .blocked-user-unblock {
+.blocked-users-section .blocked-user-unblock,
+.change-password-section .change-password-form button[type="submit"] {
   background: #970747 !important;
   background-image: none !important;
   color: #ffffff !important;
@@ -13,8 +14,11 @@
 .issue-report-section .issue-report-submit:hover,
 .issue-report-section .issue-report-submit:focus-visible,
 .blocked-users-section .blocked-user-unblock:hover,
-.blocked-users-section .blocked-user-unblock:focus-visible {
+.blocked-users-section .blocked-user-unblock:focus-visible,
+.change-password-section .change-password-form button[type="submit"]:hover,
+.change-password-section .change-password-form button[type="submit"]:focus-visible {
   background: #7f063c !important;
+  background-image: none !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   border-color: #7f063c !important;
@@ -23,10 +27,21 @@
 }
 
 .issue-report-section .issue-report-submit:disabled,
-.blocked-users-section .blocked-user-unblock:disabled {
+.blocked-users-section .blocked-user-unblock:disabled,
+.change-password-section .change-password-form button[type="submit"]:disabled {
   background: rgba(151, 7, 71, 0.55) !important;
+  background-image: none !important;
   color: rgba(255, 255, 255, 0.8) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.8) !important;
   border-color: transparent !important;
   box-shadow: none !important;
   opacity: 1 !important;
+}
+
+.change-password-section .change-password-form input:focus,
+.change-password-section .change-password-form input:focus-visible {
+  border-color: #970747 !important;
+  outline: none !important;
+  caret-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28) !important;
 }
