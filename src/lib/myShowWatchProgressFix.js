@@ -1,5 +1,8 @@
 import { supabase } from "./supabase";
 
+let cachedWatchState = null;
+let watchStateRefreshFrame = null;
+
 function chunkArray(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
@@ -10,6 +13,18 @@ function chunkArray(items, size) {
 
 function isMyShowDetailsPage() {
   return window.location.pathname.startsWith("/my-shows/");
+}
+
+function setTextIfChanged(element, text) {
+  if (element && element.textContent !== text) element.textContent = text;
+}
+
+function rememberWatchState(episodes, watchedIds) {
+  cachedWatchState = {
+    pathname: window.location.pathname,
+    episodes: [...(episodes || [])],
+    watchedIds: new Set(Array.from(watchedIds || []).map(String)),
+  };
 }
 
 function getEpisodeIdFromButton(button) {
@@ -163,7 +178,7 @@ function setButtonWatchedState(card, watched) {
   if (!button) return;
 
   button.disabled = false;
-  button.textContent = watched ? "Unwatch" : "Watch";
+  setTextIfChanged(button, watched ? "Unwatch" : "Watch");
   button.classList.toggle("msd-btn-primary", !watched);
   button.classList.toggle("msd-btn-secondary", watched);
   delete button.dataset.originalText;
@@ -187,30 +202,99 @@ function ensureSeasonBadge(section, complete) {
 }
 
 function updateStats(watchedCount, totalCount) {
-  const statBoxes = Array.from(document.querySelectorAll(".msd-stats-row-five .msd-stat-box"));
+  const statBoxes = Array.from(
+    document.querySelectorAll(".msd-stats-row-five .msd-stat-box")
+  );
   const pct = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
 
   const watchedValue = statBoxes[0]?.querySelector(".msd-stat-value");
   const totalValue = statBoxes[1]?.querySelector(".msd-stat-value");
   const progressValue = statBoxes[2]?.querySelector(".msd-stat-value");
 
-  if (watchedValue) watchedValue.textContent = String(watchedCount);
-  if (totalValue) totalValue.textContent = String(totalCount);
-  if (progressValue) progressValue.textContent = `${pct}%`;
+  setTextIfChanged(watchedValue, String(watchedCount));
+  setTextIfChanged(totalValue, String(totalCount));
+  setTextIfChanged(progressValue, `${pct}%`);
+}
+
+async function handleRecreatedBottomWatchClick(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const button = event.currentTarget;
+  const state = cachedWatchState;
+  const episodeId = button?.dataset?.episodeId;
+
+  if (!state || state.pathname !== window.location.pathname || !episodeId) return;
+
+  const nextEpisode = state.episodes.find(
+    (ep) => String(ep.id) === String(episodeId)
+  );
+  if (!nextEpisode) return;
+
+  const previousText = button.textContent || "";
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Please log in again.");
+
+    await upsertWatchedRows([
+      {
+        user_id: userId,
+        episode_id: nextEpisode.id,
+      },
+    ]);
+
+    const nextWatchedIds = new Set(state.watchedIds);
+    nextWatchedIds.add(String(nextEpisode.id));
+
+    const showId = nextEpisode.show_id || state.episodes[0]?.show_id;
+    if (showId) {
+      await updateShowStatus(
+        userId,
+        showId,
+        nextWatchedIds.size,
+        state.episodes.length
+      );
+    }
+
+    applyWatchedDomState(state.episodes, nextWatchedIds);
+  } catch (error) {
+    console.error("Failed marking next episode watched:", error);
+    button.disabled = false;
+    button.textContent = previousText;
+    alert(error.message || "Failed updating watched status");
+  }
 }
 
 function updateBottomWatchButton(episodes, watchedIds) {
-  const existing = document.querySelector(".msd-bottom-action-btn-primary");
-  if (!existing) return;
+  rememberWatchState(episodes, watchedIds);
 
+  const actionBar = document.querySelector(".msd-bottom-action-bar");
+  if (!actionBar) return;
+
+  let existing = actionBar.querySelector(".msd-bottom-action-btn-primary");
   const nextEpisode = episodes.find((ep) => !watchedIds.has(String(ep.id)));
+
   if (!nextEpisode) {
-    existing.remove();
+    if (existing) existing.remove();
     return;
   }
 
+  if (!existing) {
+    existing = document.createElement("button");
+    existing.type = "button";
+    existing.className =
+      "msd-bottom-action-btn msd-bottom-action-btn-primary";
+    existing.dataset.watchProgressRecreated = "true";
+    existing.addEventListener("click", handleRecreatedBottomWatchClick);
+    actionBar.appendChild(existing);
+  }
+
+  existing.dataset.episodeId = String(nextEpisode.id);
   existing.disabled = false;
-  existing.textContent = `Watch ${episodeCode(nextEpisode)}`;
+  setTextIfChanged(existing, `Watch ${episodeCode(nextEpisode)}`);
 }
 
 function applyWatchedDomState(episodes, watchedIds) {
@@ -248,7 +332,7 @@ function applyWatchedDomState(episodes, watchedIds) {
     section.classList.toggle("msd-season-complete", complete);
 
     const subtitle = section.querySelector(".msd-season-subtitle");
-    if (subtitle) subtitle.textContent = `${stats.watched}/${stats.total} watched`;
+    setTextIfChanged(subtitle, `${stats.watched}/${stats.total} watched`);
 
     ensureSeasonBadge(section, complete);
   });
@@ -277,7 +361,9 @@ async function handleUnwatchEpisode(userId, episodeId) {
     await deleteWatchedRows(userId, [episodeId]);
     await updateShowStatus(userId, showId, materializedRows.length, episodes.length);
 
-    nextWatchedIds = new Set(materializedRows.map((row) => String(row.episode_id)));
+    nextWatchedIds = new Set(
+      materializedRows.map((row) => String(row.episode_id))
+    );
   } else {
     await deleteWatchedRows(userId, [episodeId]);
 
@@ -287,7 +373,9 @@ async function handleUnwatchEpisode(userId, episodeId) {
     );
 
     await updateShowStatus(userId, showId, remainingRows.length, episodes.length);
-    nextWatchedIds = new Set(remainingRows.map((row) => String(row.episode_id)));
+    nextWatchedIds = new Set(
+      remainingRows.map((row) => String(row.episode_id))
+    );
   }
 
   applyWatchedDomState(episodes, nextWatchedIds);
@@ -295,7 +383,9 @@ async function handleUnwatchEpisode(userId, episodeId) {
 
 async function handleWatchUpToHere(userId, episodeId) {
   const { episodes, showId } = await fetchEpisodeAndShowEpisodes(episodeId);
-  const targetIndex = episodes.findIndex((ep) => String(ep.id) === String(episodeId));
+  const targetIndex = episodes.findIndex(
+    (ep) => String(ep.id) === String(episodeId)
+  );
   if (targetIndex < 0) throw new Error("Episode not found in show.");
 
   const episodesToWatch = episodes.slice(0, targetIndex + 1);
@@ -310,7 +400,12 @@ async function handleWatchUpToHere(userId, episodeId) {
     userId,
     episodesToUnwatch.map((ep) => ep.id)
   );
-  await updateShowStatus(userId, showId, episodesToWatch.length, episodes.length);
+  await updateShowStatus(
+    userId,
+    showId,
+    episodesToWatch.length,
+    episodes.length
+  );
 
   applyWatchedDomState(
     episodes,
@@ -338,6 +433,8 @@ function unlockButton(button) {
 }
 
 export function installMyShowWatchProgressFix() {
+  let observedPathname = window.location.pathname;
+
   async function handleClick(event) {
     if (!isMyShowDetailsPage()) return;
 
@@ -373,9 +470,54 @@ export function installMyShowWatchProgressFix() {
     }
   }
 
+  const observer = new MutationObserver(() => {
+    const pathname = window.location.pathname;
+
+    if (pathname !== observedPathname) {
+      observedPathname = pathname;
+      cachedWatchState = null;
+    }
+
+    if (
+      !cachedWatchState ||
+      !isMyShowDetailsPage() ||
+      cachedWatchState.pathname !== pathname ||
+      watchStateRefreshFrame != null
+    ) {
+      return;
+    }
+
+    watchStateRefreshFrame = window.requestAnimationFrame(() => {
+      watchStateRefreshFrame = null;
+
+      if (
+        cachedWatchState &&
+        cachedWatchState.pathname === window.location.pathname &&
+        isMyShowDetailsPage()
+      ) {
+        applyWatchedDomState(
+          cachedWatchState.episodes,
+          new Set(cachedWatchState.watchedIds)
+        );
+      }
+    });
+  });
+
   document.addEventListener("click", handleClick, true);
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
   return () => {
     document.removeEventListener("click", handleClick, true);
+    observer.disconnect();
+
+    if (watchStateRefreshFrame != null) {
+      window.cancelAnimationFrame(watchStateRefreshFrame);
+      watchStateRefreshFrame = null;
+    }
+
+    cachedWatchState = null;
   };
 }
