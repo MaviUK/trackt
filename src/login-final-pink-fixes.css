@@ -1,0 +1,78 @@
+/* Final login/home-page controls aligned with the deep-pink navigation theme. */
+
+.login-page .login-form-card > button[type="submit"] {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.2) !important;
+}
+
+.login-page .login-form-card > button[type="submit"]:hover,
+.login-page .login-form-card > button[type="submit"]:focus-visible,
+.login-page .login-form-card > button[type="submit"]:active {
+  background: #7f063c !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.24) !important;
+}
+
+.login-page .login-mode-tabs button {
+  background: transparent !important;
+  background-image: none !important;
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.login-page .login-mode-tabs button.is-active,
+.login-page .login-mode-tabs button.is-active:hover,
+.login-page .login-mode-tabs button.is-active:focus-visible {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #970747 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px rgba(151, 7, 71, 0.3) !important;
+}
+
+.login-page .login-mode-tabs button:not(.is-active):hover,
+.login-page .login-mode-tabs button:not(.is-active):focus-visible {
+  background: rgba(151, 7, 71, 0.14) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.login-page .login-form-card input:focus,
+.login-page .login-form-card input:focus-visible {
+  border-color: #970747 !important;
+  outline: none !important;
+  caret-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22) !important;
+}
+
+.login-page .login-form-card .login-secondary-action {
+  background: transparent !important;
+  background-image: none !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border: 1px solid #970747 !important;
+  box-shadow: none !important;
+}
+
+.login-page .login-form-card .login-secondary-action:hover,
+.login-page .login-form-card .login-secondary-action:focus-visible {
+  background: rgba(151, 7, 71, 0.14) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.2) !important;
+}
