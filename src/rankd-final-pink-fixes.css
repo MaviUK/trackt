@@ -12,6 +12,13 @@
   box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28) !important;
 }
 
+/* Matchup percentages use the same deep pink as the navigation theme. */
+.rankd-page .rankd-win-summary > span:last-child,
+.rankd-page .rankd-win-summary > span:nth-child(2) {
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+}
+
 /* Remove the remaining purple highlight from the matchup action buttons. */
 .rankd-page .rankd-comment-actions .rankd-outline-button,
 .rankd-page .rankd-outline-button {
