@@ -26,9 +26,11 @@ export default function BlockedUsersSection() {
   const [results, setResults] = useState([]);
   const [blockedProfiles, setBlockedProfiles] = useState([]);
   const [blockedIds, setBlockedIds] = useState(() => new Set());
+  const [followingIds, setFollowingIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [savingId, setSavingId] = useState("");
+  const [followSavingId, setFollowSavingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -112,6 +114,7 @@ export default function BlockedUsersSection() {
     const cleanQuery = normalizeSearch(query);
     if (cleanQuery.length < 2 || !currentUserId) {
       setResults([]);
+      setFollowingIds(new Set());
       setSearching(false);
       return undefined;
     }
@@ -133,7 +136,33 @@ export default function BlockedUsersSection() {
           .limit(12);
 
         if (searchError) throw searchError;
-        if (active) setResults(data || []);
+
+        const profiles = data || [];
+        if (active) setResults(profiles);
+
+        const profileIds = profiles.map((profile) => profile.id).filter(Boolean);
+        if (!profileIds.length) {
+          if (active) setFollowingIds(new Set());
+          return;
+        }
+
+        const { data: followRows, error: followError } = await supabase
+          .from("user_follows")
+          .select("following_id")
+          .eq("follower_id", currentUserId)
+          .in("following_id", profileIds);
+
+        if (followError) {
+          console.warn("Failed loading follow state for user search:", followError);
+          if (active) setFollowingIds(new Set());
+          return;
+        }
+
+        if (active) {
+          setFollowingIds(
+            new Set((followRows || []).map((row) => row.following_id).filter(Boolean))
+          );
+        }
       } catch (err) {
         console.error("Failed searching users:", err);
         if (active) setError(err.message || "Users could not be searched.");
@@ -148,8 +177,68 @@ export default function BlockedUsersSection() {
     };
   }, [query, currentUserId]);
 
+  async function toggleFollow(profile) {
+    if (
+      !currentUserId ||
+      !profile?.id ||
+      savingId ||
+      followSavingId ||
+      blockedIds.has(profile.id)
+    ) {
+      return;
+    }
+
+    const isFollowing = followingIds.has(profile.id);
+    setFollowSavingId(profile.id);
+    setError("");
+    setMessage("");
+
+    try {
+      if (isFollowing) {
+        const { error: unfollowError } = await supabase
+          .from("user_follows")
+          .delete()
+          .eq("follower_id", currentUserId)
+          .eq("following_id", profile.id);
+
+        if (unfollowError) throw unfollowError;
+      } else {
+        const { error: followError } = await supabase.from("user_follows").insert({
+          follower_id: currentUserId,
+          following_id: profile.id,
+        });
+
+        if (followError && followError.code !== "23505") throw followError;
+      }
+
+      setFollowingIds((current) => {
+        const next = new Set(current);
+        if (isFollowing) next.delete(profile.id);
+        else next.add(profile.id);
+        return next;
+      });
+
+      setMessage(
+        isFollowing
+          ? `You unfollowed ${getName(profile)}.`
+          : `You are now following ${getName(profile)}.`
+      );
+
+      window.dispatchEvent(
+        new CustomEvent("burgrs:user-follows-changed", {
+          detail: { followedUserId: profile.id, isFollowing: !isFollowing },
+        })
+      );
+    } catch (err) {
+      console.error("Failed updating follow:", err);
+      setError(err.message || "This follow could not be updated.");
+    } finally {
+      setFollowSavingId("");
+    }
+  }
+
   async function blockUser(profile) {
-    if (!currentUserId || !profile?.id || savingId) return;
+    if (!currentUserId || !profile?.id || savingId || followSavingId) return;
 
     const confirmed = window.confirm(
       `Block ${getName(profile)}? You will unfollow each other and they will no longer be able to follow or notify you.`
@@ -169,6 +258,11 @@ export default function BlockedUsersSection() {
       if (blockError && blockError.code !== "23505") throw blockError;
 
       await loadBlockedUsers(currentUserId);
+      setFollowingIds((current) => {
+        const next = new Set(current);
+        next.delete(profile.id);
+        return next;
+      });
       setResults((current) =>
         current.map((item) =>
           item.id === profile.id ? { ...item, is_blocked: true } : item
@@ -189,7 +283,7 @@ export default function BlockedUsersSection() {
   }
 
   async function unblockUser(profile) {
-    if (!currentUserId || !profile?.id || savingId) return;
+    if (!currentUserId || !profile?.id || savingId || followSavingId) return;
 
     setSavingId(profile.id);
     setError("");
@@ -222,6 +316,9 @@ export default function BlockedUsersSection() {
   function UserRow({ profile, blocked }) {
     const name = getName(profile);
     const initial = name.slice(0, 1).toUpperCase();
+    const isFollowing = followingIds.has(profile.id);
+    const isBlockSaving = savingId === profile.id;
+    const isFollowSaving = followSavingId === profile.id;
 
     return (
       <article className="blocked-user-row">
@@ -237,18 +334,27 @@ export default function BlockedUsersSection() {
           </span>
         </a>
 
-        <button
-          type="button"
-          className={blocked ? "blocked-user-unblock" : "blocked-user-block"}
-          onClick={() => (blocked ? unblockUser(profile) : blockUser(profile))}
-          disabled={savingId === profile.id}
-        >
-          {savingId === profile.id
-            ? "Saving..."
-            : blocked
-              ? "Unblock"
-              : "Block"}
-        </button>
+        <div className={`blocked-user-actions${blocked ? " is-blocked" : ""}`}>
+          {!blocked ? (
+            <button
+              type="button"
+              className={`blocked-user-follow${isFollowing ? " is-following" : ""}`}
+              onClick={() => toggleFollow(profile)}
+              disabled={isBlockSaving || isFollowSaving}
+            >
+              {isFollowSaving ? "Saving..." : isFollowing ? "Following" : "Follow"}
+            </button>
+          ) : null}
+
+          <button
+            type="button"
+            className={blocked ? "blocked-user-unblock" : "blocked-user-block"}
+            onClick={() => (blocked ? unblockUser(profile) : blockUser(profile))}
+            disabled={isBlockSaving || isFollowSaving}
+          >
+            {isBlockSaving ? "Saving..." : blocked ? "Unblock" : "Block"}
+          </button>
+        </div>
       </article>
     );
   }
