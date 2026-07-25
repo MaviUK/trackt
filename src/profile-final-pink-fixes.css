@@ -72,6 +72,62 @@
   opacity: 0.62 !important;
 }
 
+/* The live /profile/edit route uses ProfileEditMerged. */
+.profile-edit-page > form > section:last-child > button[type="submit"] {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.2) !important;
+}
+
+.profile-edit-page > form > section:last-child > a {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border: 1px solid #ffffff !important;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.16) !important;
+}
+
+.profile-edit-page > form > section:last-child > button[type="button"] {
+  background: rgba(127, 29, 29, 0.18) !important;
+  background-image: none !important;
+  color: #fecaca !important;
+  -webkit-text-fill-color: #fecaca !important;
+  border: 1px solid rgba(239, 68, 68, 0.48) !important;
+  box-shadow: none !important;
+}
+
+.profile-edit-page > form > section:last-child > button[type="submit"]:hover,
+.profile-edit-page > form > section:last-child > button[type="submit"]:focus-visible {
+  background: #7f063c !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.24) !important;
+}
+
+.profile-edit-page > form > section:last-child > a:hover,
+.profile-edit-page > form > section:last-child > a:focus-visible {
+  background: #f7edf2 !important;
+  color: #970747 !important;
+  -webkit-text-fill-color: #970747 !important;
+  border-color: #ffffff !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.2) !important;
+}
+
+.profile-edit-page > form > section:last-child > button[type="button"]:hover,
+.profile-edit-page > form > section:last-child > button[type="button"]:focus-visible {
+  background: rgba(127, 29, 29, 0.34) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #ef4444 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+}
+
 /* Public creator-profile actions follow the same menu pattern. */
 .creator-page .creator-actions .creator-btn,
 .creator-page .creator-btn-secondary,
