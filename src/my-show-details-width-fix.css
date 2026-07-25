@@ -4,6 +4,21 @@
     --msd-mobile-gutter: 12px;
   }
 
+  /* Reduce the show banner from 210px to 140px while retaining its full width. */
+  .msd-page .msd-mobile-banner-wrap {
+    height: 140px !important;
+    min-height: 140px !important;
+  }
+
+  .msd-page .msd-mobile-banner,
+  .msd-page .msd-mobile-banner-fallback {
+    height: 140px !important;
+    min-height: 140px !important;
+    aspect-ratio: auto !important;
+    background-size: cover !important;
+    background-position: center center !important;
+  }
+
   .msd-page .msd-hero {
     width: 100% !important;
     margin: 0 0 14px !important;
