@@ -168,14 +168,13 @@ export default function ShowReviews({ showId, currentUserId }) {
   const activeSort = sortOptions.find((option) => option.value === sortOrder) || sortOptions[0];
 
   return (
-    <div ref={sectionRef}>
+    <div ref={sectionRef} style={{ position: "relative" }}>
       <div
         ref={sortMenuRef}
         style={{
-          position: "relative",
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: "12px",
+          position: "absolute",
+          top: "-3px",
+          right: 0,
           zIndex: 5,
         }}
       >
@@ -198,6 +197,7 @@ export default function ShowReviews({ showId, currentUserId }) {
             fontWeight: 800,
             cursor: "pointer",
             boxShadow: "0 8px 20px rgba(0, 0, 0, 0.2)",
+            whiteSpace: "nowrap",
           }}
         >
           <span aria-hidden="true">⇅</span>
