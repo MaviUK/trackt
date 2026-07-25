@@ -85,14 +85,13 @@
     box-sizing: border-box;
   }
 
-  /* Public show stats gain a fifth Watch card after loading. Bleed the row
-     through the hero's 12px inner gutters so it matches the page width. */
+  /* Keep the stats aligned with the same 12px body gutters as the sections below. */
   .msd-page .msd-stats-row-top,
   .msd-page .public-watch-stats-row {
-    width: calc(100% + (var(--msd-mobile-gutter, 12px) * 2)) !important;
-    max-width: none !important;
-    margin-left: calc(var(--msd-mobile-gutter, 12px) * -1) !important;
-    margin-right: calc(var(--msd-mobile-gutter, 12px) * -1) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
     box-sizing: border-box !important;
