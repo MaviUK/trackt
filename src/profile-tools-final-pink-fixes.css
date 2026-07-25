@@ -1,0 +1,32 @@
+/* Final profile tools button alignment with the deep-pink navigation theme. */
+
+.issue-report-section .issue-report-submit,
+.blocked-users-section .blocked-user-unblock {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.2) !important;
+}
+
+.issue-report-section .issue-report-submit:hover,
+.issue-report-section .issue-report-submit:focus-visible,
+.blocked-users-section .blocked-user-unblock:hover,
+.blocked-users-section .blocked-user-unblock:focus-visible {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.24) !important;
+}
+
+.issue-report-section .issue-report-submit:disabled,
+.blocked-users-section .blocked-user-unblock:disabled {
+  background: rgba(151, 7, 71, 0.55) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
