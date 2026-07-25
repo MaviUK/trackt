@@ -225,6 +225,12 @@
 }
 
 @media (max-width: 768px) {
+  /* The global .page rule is 100vh. On Search that was added below the
+     92px mobile header, creating a false scroll area even with no results. */
+  .page:has(> .search-shell) {
+    min-height: calc(100dvh - var(--mobile-top-banner-height)) !important;
+  }
+
   .search-shell {
     padding-top: 24px;
   }
