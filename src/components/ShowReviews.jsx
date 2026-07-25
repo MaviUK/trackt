@@ -173,7 +173,7 @@ export default function ShowReviews({ showId, currentUserId }) {
         ref={sortMenuRef}
         style={{
           position: "absolute",
-          top: "-3px",
+          top: "7px",
           right: 0,
           zIndex: 5,
         }}
@@ -184,26 +184,22 @@ export default function ShowReviews({ showId, currentUserId }) {
           aria-expanded={sortOpen}
           onClick={() => setSortOpen((open) => !open)}
           style={{
-            minHeight: "42px",
-            border: "1px solid rgba(190, 24, 93, 0.7)",
-            borderRadius: "999px",
-            background: sortOpen ? "#fdf2f8" : "#ad0050",
-            color: sortOpen ? "#9d174d" : "#ffffff",
-            padding: "9px 15px",
+            border: 0,
+            background: "transparent",
+            color: "#c4b5fd",
+            padding: "4px 0 4px 12px",
             display: "inline-flex",
             alignItems: "center",
-            gap: "8px",
+            gap: "6px",
             font: "inherit",
+            fontSize: "0.95rem",
             fontWeight: 800,
             cursor: "pointer",
-            boxShadow: "0 8px 20px rgba(0, 0, 0, 0.2)",
             whiteSpace: "nowrap",
           }}
         >
-          <span aria-hidden="true">⇅</span>
-          <span>Sort</span>
-          <span style={{ opacity: 0.82, fontSize: "0.86em" }}>{activeSort.label}</span>
-          <span aria-hidden="true" style={{ fontSize: "0.78em" }}>
+          <span>Sort: {activeSort.label}</span>
+          <span aria-hidden="true" style={{ fontSize: "0.72em" }}>
             {sortOpen ? "▲" : "▼"}
           </span>
         </button>
