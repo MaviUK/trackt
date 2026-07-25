@@ -83,6 +83,7 @@ import './creator-bio-limit.js'
 import './creator-rankd-list-button.js'
 import './studio-search-link-fix.js'
 import './search-newest-first.js'
+import './following-find-creators-link.js'
 
 installNativeApiBridge()
 installMobileOverscrollGuard()
