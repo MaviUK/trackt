@@ -51,9 +51,12 @@
   outline: none;
 }
 
-.blocked-users-search input:focus {
-  border-color: rgba(167, 139, 250, 0.66);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+.blocked-users-search input:focus,
+.blocked-users-search input:focus-visible {
+  border-color: #970747;
+  outline: none;
+  caret-color: #970747;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28);
 }
 
 .blocked-users-list {
@@ -97,7 +100,7 @@
 .blocked-user-avatar-fallback {
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #7c3aed, #db2777);
+  background: #970747;
   color: #ffffff;
   font-weight: 950;
 }
@@ -119,6 +122,19 @@
   color: #94a3b8;
 }
 
+.blocked-user-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 220px;
+}
+
+.blocked-user-actions.is-blocked {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 108px;
+}
+
+.blocked-user-follow,
 .blocked-user-block,
 .blocked-user-unblock {
   min-height: 38px;
@@ -128,6 +144,35 @@
   cursor: pointer;
 }
 
+.blocked-user-follow {
+  border: 1px solid #970747;
+  background: #970747;
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(151, 7, 71, 0.18);
+}
+
+.blocked-user-follow.is-following {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #970747;
+}
+
+.blocked-user-follow:hover,
+.blocked-user-follow:focus-visible {
+  border-color: #7f063c;
+  background: #7f063c;
+  color: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22);
+}
+
+.blocked-user-follow.is-following:hover,
+.blocked-user-follow.is-following:focus-visible {
+  border-color: #ffffff;
+  background: #f7edf2;
+  color: #970747;
+}
+
 .blocked-user-block {
   border: 1px solid rgba(248, 113, 113, 0.34);
   background: rgba(127, 29, 29, 0.28);
@@ -135,13 +180,14 @@
 }
 
 .blocked-user-unblock {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  border: 1px solid #970747;
+  background: #970747;
+  color: #ffffff;
 }
 
 .blocked-user-block:disabled,
-.blocked-user-unblock:disabled {
+.blocked-user-unblock:disabled,
+.blocked-user-follow:disabled {
   opacity: 0.55;
   cursor: default;
 }
@@ -202,6 +248,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .blocked-user-actions {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .blocked-user-actions.is-blocked {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .blocked-user-follow,
   .blocked-user-block,
   .blocked-user-unblock {
     width: 100%;
