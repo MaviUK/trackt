@@ -173,7 +173,7 @@ export default function ShowReviews({ showId, currentUserId }) {
         ref={sortMenuRef}
         style={{
           position: "absolute",
-          top: "7px",
+          top: "0",
           right: 0,
           zIndex: 5,
         }}
@@ -186,14 +186,15 @@ export default function ShowReviews({ showId, currentUserId }) {
           style={{
             border: 0,
             background: "transparent",
-            color: "#c4b5fd",
-            padding: "4px 0 4px 12px",
+            color: "#f8fafc",
+            padding: "3px 0 3px 12px",
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
             font: "inherit",
-            fontSize: "0.95rem",
-            fontWeight: 800,
+            fontSize: "0.92rem",
+            fontWeight: 700,
+            lineHeight: 1.2,
             cursor: "pointer",
             whiteSpace: "nowrap",
           }}
