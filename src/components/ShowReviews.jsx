@@ -5,10 +5,10 @@ import ReviewThread from "./ReviewThread";
 const REVIEW_SORT_STORAGE_KEY = "burgrs-show-review-sort";
 
 const sortOptions = [
-  { value: "newest", label: "Newest first" },
-  { value: "oldest", label: "Oldest first" },
-  { value: "rating-high", label: "Highest rated" },
-  { value: "rating-low", label: "Lowest rated" },
+  { value: "newest", label: "Newest", icon: "📅" },
+  { value: "oldest", label: "Oldest", icon: "📅" },
+  { value: "rating-high", label: "Highest rated", icon: "🍔" },
+  { value: "rating-low", label: "Lowest rated", icon: "🍔" },
 ];
 
 const config = {
@@ -84,7 +84,9 @@ export default function ShowReviews({ showId, currentUserId }) {
   const [canInteract, setCanInteract] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(Boolean(currentUserId && showId));
   const [sortOrder, setSortOrder] = useState(getInitialSort);
+  const [sortOpen, setSortOpen] = useState(false);
   const sectionRef = useRef(null);
+  const sortMenuRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,51 +144,124 @@ export default function ShowReviews({ showId, currentUserId }) {
     return () => observer.disconnect();
   }, [sortOrder, showId]);
 
+  useEffect(() => {
+    if (!sortOpen) return undefined;
+
+    function closeSortMenu(event) {
+      if (!sortMenuRef.current?.contains(event.target)) setSortOpen(false);
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === "Escape") setSortOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeSortMenu);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeSortMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sortOpen]);
+
   const interactionUserId = !checkingAccess && canInteract ? currentUserId : null;
+  const activeSort = sortOptions.find((option) => option.value === sortOrder) || sortOptions[0];
 
   return (
     <div ref={sectionRef}>
       <div
+        ref={sortMenuRef}
         style={{
+          position: "relative",
           display: "flex",
           justifyContent: "flex-end",
-          alignItems: "center",
           marginBottom: "12px",
+          zIndex: 5,
         }}
       >
-        <label
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={sortOpen}
+          onClick={() => setSortOpen((open) => !open)}
           style={{
-            display: "flex",
+            minHeight: "42px",
+            border: "1px solid rgba(190, 24, 93, 0.7)",
+            borderRadius: "999px",
+            background: sortOpen ? "#fdf2f8" : "#ad0050",
+            color: sortOpen ? "#9d174d" : "#ffffff",
+            padding: "9px 15px",
+            display: "inline-flex",
             alignItems: "center",
             gap: "8px",
-            color: "#cbd5e1",
-            fontSize: "0.9rem",
-            fontWeight: 700,
+            font: "inherit",
+            fontWeight: 800,
+            cursor: "pointer",
+            boxShadow: "0 8px 20px rgba(0, 0, 0, 0.2)",
           }}
         >
-          Sort
-          <select
+          <span aria-hidden="true">⇅</span>
+          <span>Sort</span>
+          <span style={{ opacity: 0.82, fontSize: "0.86em" }}>{activeSort.label}</span>
+          <span aria-hidden="true" style={{ fontSize: "0.78em" }}>
+            {sortOpen ? "▲" : "▼"}
+          </span>
+        </button>
+
+        {sortOpen ? (
+          <div
+            role="menu"
             aria-label="Sort reviews"
-            value={sortOrder}
-            onChange={(event) => setSortOrder(event.target.value)}
             style={{
-              minHeight: "40px",
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              right: 0,
+              width: "min(250px, calc(100vw - 44px))",
+              padding: "8px",
               border: "1px solid #2b3954",
-              borderRadius: "12px",
-              background: "#182235",
-              color: "#f8fafc",
-              padding: "8px 34px 8px 12px",
-              font: "inherit",
-              fontWeight: 700,
+              borderRadius: "16px",
+              background: "#121a2b",
+              boxShadow: "0 18px 40px rgba(0, 0, 0, 0.42)",
             }}
           >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            {sortOptions.map((option) => {
+              const selected = option.value === sortOrder;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  onClick={() => {
+                    setSortOrder(option.value);
+                    setSortOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    border: selected ? "1px solid rgba(190, 24, 93, 0.72)" : "1px solid transparent",
+                    borderRadius: "12px",
+                    background: selected ? "rgba(190, 24, 93, 0.18)" : "transparent",
+                    color: selected ? "#fbcfe8" : "#f8fafc",
+                    padding: "11px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    textAlign: "left",
+                    font: "inherit",
+                    fontWeight: selected ? 800 : 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: "22px", textAlign: "center" }}>
+                    {option.icon}
+                  </span>
+                  <span style={{ flex: 1 }}>{option.label}</span>
+                  {selected ? <span aria-hidden="true">✓</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <ReviewThread
