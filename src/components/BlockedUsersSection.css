@@ -51,12 +51,14 @@
   outline: none;
 }
 
-.blocked-users-search input:focus,
-.blocked-users-search input:focus-visible {
-  border-color: #970747;
-  outline: none;
-  caret-color: #970747;
-  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28);
+.profile-edit-page .blocked-users-section .blocked-users-search input:focus,
+.profile-edit-page .blocked-users-section .blocked-users-search input:focus-visible,
+.blocked-users-section .blocked-users-search input:focus,
+.blocked-users-section .blocked-users-search input:focus-visible {
+  border-color: #970747 !important;
+  outline: none !important;
+  caret-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.32) !important;
 }
 
 .blocked-users-list {
