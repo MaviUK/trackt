@@ -1,0 +1,87 @@
+.native-push-prompt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: end center;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  background: rgba(3, 7, 18, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.native-push-prompt {
+  width: min(100%, 430px);
+  box-sizing: border-box;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  background: #0f172a;
+  color: #f8fafc;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+.native-push-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  background: rgba(151, 7, 71, 0.22);
+  font-size: 28px;
+}
+
+.native-push-prompt h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+}
+
+.native-push-prompt p {
+  margin: 0 0 18px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.native-push-message {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.native-push-enable,
+.native-push-later {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  font-weight: 900;
+}
+
+.native-push-enable {
+  border: 1px solid #970747;
+  background: #970747;
+  color: #ffffff;
+}
+
+.native-push-enable:hover,
+.native-push-enable:focus-visible {
+  background: #7f063c;
+  border-color: #7f063c;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.24);
+}
+
+.native-push-later {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.native-push-enable:disabled,
+.native-push-later:disabled {
+  opacity: 0.58;
+}
