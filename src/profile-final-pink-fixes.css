@@ -14,8 +14,6 @@
 /* React serialises the active inline purple in different formats across browsers. */
 .profile-edit-page .profile-edit-header > div > button[style*="#4f46e5"],
 .profile-edit-page .profile-edit-header > div > button[style*="79, 70, 229"],
-.profile-edit-page .profile-edit-header > div > button[style*="#818cf8"],
-.profile-edit-page .profile-edit-header > div > button[style*="129, 140, 248"],
 .profile-edit-page .profile-comment-history-card button[style*="#4f46e5"],
 .profile-edit-page .profile-comment-history-card button[style*="79, 70, 229"],
 .profile-edit-page .profile-comment-history-card button[style*="#818cf8"],
@@ -150,6 +148,34 @@ main > form > section:last-of-type + button[type="submit"]:active {
   border-color: #7f063c !important;
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22) !important;
+}
+
+/* All Create List form fields use the deep-pink focus treatment. */
+main > form input:focus,
+main > form input:focus-visible,
+main > form textarea:focus,
+main > form textarea:focus-visible,
+main > form select:focus,
+main > form select:focus-visible {
+  border-color: #970747 !important;
+  outline: none !important;
+  caret-color: #970747 !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.28) !important;
+}
+
+/* Replace the remaining purple active list-idea and Add badges. */
+main > form button[type="button"][style*="124, 58, 237"],
+main > form button[type="button"][style*="167, 139, 250"] {
+  background: rgba(151, 7, 71, 0.34) !important;
+  border-color: #970747 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+main > form span[style*="124, 58, 237"] {
+  background: rgba(151, 7, 71, 0.22) !important;
+  color: #f8dce8 !important;
+  -webkit-text-fill-color: #f8dce8 !important;
 }
 
 /* Public creator-profile actions follow the same menu pattern. */
