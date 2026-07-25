@@ -131,6 +131,27 @@
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
 }
 
+/* Create List uses an inline-styled page without the profile-edit class. */
+main > form > section:last-of-type + button[type="submit"] {
+  background: #970747 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #970747 !important;
+  box-shadow: 0 6px 16px rgba(151, 7, 71, 0.18) !important;
+}
+
+main > form > section:last-of-type + button[type="submit"]:hover,
+main > form > section:last-of-type + button[type="submit"]:focus-visible,
+main > form > section:last-of-type + button[type="submit"]:active {
+  background: #7f063c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #7f063c !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(151, 7, 71, 0.22) !important;
+}
+
 /* Public creator-profile actions follow the same menu pattern. */
 .creator-page .creator-actions .creator-btn,
 .creator-page .creator-btn-secondary,
