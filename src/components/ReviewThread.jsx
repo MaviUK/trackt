@@ -62,6 +62,7 @@ function ReviewItem({
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(review.body || "");
   const [showReplies, setShowReplies] = useState(false);
+  const [showFullText, setShowFullText] = useState(false);
 
   const profile = review.profile || {};
   const displayName = getProfileDisplayName(profile, "User");
@@ -79,6 +80,11 @@ function ReviewItem({
   const isSavingReply = savingReplyId === review.id;
   const isSavingEdit = savingEditId === review.id;
   const isDeleting = deletingId === review.id;
+  const hasLongText = String(review.body || "").trim().length > 220;
+
+  useEffect(() => {
+    setShowFullText(false);
+  }, [review.id, review.body]);
 
   useEffect(() => {
     if (!canReply && replyOpen) {
@@ -203,7 +209,41 @@ function ReviewItem({
               </div>
             </form>
           ) : (
-            <p className="msd-review-text">{review.body}</p>
+            <>
+              <p
+                className="msd-review-text"
+                style={
+                  hasLongText && !showFullText
+                    ? {
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 4,
+                        overflow: "hidden",
+                      }
+                    : undefined
+                }
+              >
+                {review.body}
+              </p>
+              {hasLongText ? (
+                <button
+                  type="button"
+                  onClick={() => setShowFullText((visible) => !visible)}
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    color: "#f8fafc",
+                    padding: "4px 0 0",
+                    font: "inherit",
+                    fontSize: "0.9rem",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  {showFullText ? "Show less" : "View all"}
+                </button>
+              ) : null}
+            </>
           )}
 
           <div className="msd-review-card-votes">
