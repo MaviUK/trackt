@@ -17,7 +17,7 @@ const config = {
   voteIdColumn: "review_id",
   itemColumn: "show_id",
   ratingTable: "burgr_ratings",
-  sectionClass: "msd-reviews-section",
+  sectionClass: "msd-reviews-section msd-show-reviews-section",
   headingClass: "msd-section-title",
   placeholder: "Write your review...",
   rows: 5,
@@ -169,6 +169,16 @@ export default function ShowReviews({ showId, currentUserId }) {
 
   return (
     <div ref={sectionRef} style={{ position: "relative" }}>
+      <style>{`
+        .msd-show-reviews-section {
+          gap: 8px;
+        }
+
+        .msd-show-reviews-section > .msd-section-title {
+          margin-bottom: 0;
+        }
+      `}</style>
+
       <div
         ref={sortMenuRef}
         style={{
