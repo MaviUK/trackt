@@ -1,0 +1,35 @@
+/* Load last so global wildcard pill styles cannot re-box review ratings. */
+html body #root .following-page .following-card .following-show-card .following-show-title-row > span.following-rating-pill {
+  display: inline !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  line-height: inherit !important;
+}
+
+html body #root .following-page .following-rating-pill::before,
+html body #root .following-page .following-rating-pill::after {
+  content: none !important;
+  display: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
