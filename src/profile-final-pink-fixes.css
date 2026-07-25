@@ -29,7 +29,8 @@
 
 /* Save Profile and Publish Post use the standard deep-pink action style. */
 .profile-edit-page .profile-edit-actions button[type="submit"],
-.profile-edit-page .profile-edit-card section > div > button {
+.profile-edit-page .profile-edit-card section > div > button,
+.profile-edit-page > section form > button[type="submit"] {
   background: #970747 !important;
   background-image: none !important;
   color: #ffffff !important;
@@ -45,7 +46,9 @@
 .profile-edit-page .profile-edit-actions button[type="submit"]:hover,
 .profile-edit-page .profile-edit-actions button[type="submit"]:focus-visible,
 .profile-edit-page .profile-edit-card section > div > button:hover,
-.profile-edit-page .profile-edit-card section > div > button:focus-visible {
+.profile-edit-page .profile-edit-card section > div > button:focus-visible,
+.profile-edit-page > section form > button[type="submit"]:hover,
+.profile-edit-page > section form > button[type="submit"]:focus-visible {
   background: #7f063c !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
