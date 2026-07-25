@@ -41,11 +41,13 @@
     overflow: visible;
   }
 
+  /* Let the title/date content determine the row height. This keeps the gap
+     after First aired identical whether the show title uses one or two lines. */
   .msd-page .msd-mobile-top-row {
     position: relative;
     display: block !important;
-    min-height: 112px;
-    margin-bottom: 10px !important;
+    min-height: 0 !important;
+    margin-bottom: 14px !important;
     overflow: visible;
   }
 
