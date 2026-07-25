@@ -6,6 +6,7 @@ import NativePushPrompt from './components/NativePushPrompt'
 import { installShowCommunityPortal } from './components/ShowCommunityPortal'
 import { supabase } from './lib/supabase'
 import { installNativeApiBridge } from './lib/installNativeApiBridge'
+import { installNativeAuthLinks } from './lib/installNativeAuthLinks'
 import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import { installUserCacheIsolation } from './lib/installUserCacheIsolation'
 import { installDeletedUserRedirect } from './lib/installDeletedUserRedirect'
@@ -89,6 +90,7 @@ import './search-newest-first.js'
 import './following-find-creators-link.js'
 
 installNativeApiBridge()
+installNativeAuthLinks()
 installMobileOverscrollGuard()
 installUserCacheIsolation()
 installDeletedUserRedirect(supabase)
