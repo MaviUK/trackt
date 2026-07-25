@@ -85,6 +85,32 @@
     box-sizing: border-box;
   }
 
+  /* Public show stats gain a fifth Watch card after loading. Bleed the row
+     through the hero's 12px inner gutters so it matches the page width. */
+  .msd-page .msd-stats-row-top,
+  .msd-page .public-watch-stats-row {
+    width: calc(100% + (var(--msd-mobile-gutter, 12px) * 2)) !important;
+    max-width: none !important;
+    margin-left: calc(var(--msd-mobile-gutter, 12px) * -1) !important;
+    margin-right: calc(var(--msd-mobile-gutter, 12px) * -1) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .msd-page .public-watch-stats-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    overflow: visible !important;
+  }
+
+  .msd-page .public-watch-stats-row .msd-stat-box {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
   .msd-page .msd-stats-row.msd-stats-row-five {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
@@ -131,11 +157,13 @@
     height: 132px !important;
   }
 
-  .msd-page .msd-stats-row.msd-stats-row-five {
+  .msd-page .msd-stats-row.msd-stats-row-five,
+  .msd-page .public-watch-stats-row {
     gap: 5px !important;
   }
 
-  .msd-page .msd-stats-row.msd-stats-row-five .msd-stat-box {
+  .msd-page .msd-stats-row.msd-stats-row-five .msd-stat-box,
+  .msd-page .public-watch-stats-row .msd-stat-box {
     padding: 8px 4px !important;
   }
 
