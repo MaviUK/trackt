@@ -8,6 +8,7 @@ import { installNativeApiBridge } from './lib/installNativeApiBridge'
 import { installMobileOverscrollGuard } from './lib/installMobileOverscrollGuard'
 import { installUserCacheIsolation } from './lib/installUserCacheIsolation'
 import { installDeletedUserRedirect } from './lib/installDeletedUserRedirect'
+import { installSingleSessionEnforcement } from './lib/installSingleSessionEnforcement'
 import './index.css'
 import './rankd-button-fixes.css'
 import './mobile-header-consistency.css'
@@ -90,6 +91,7 @@ installNativeApiBridge()
 installMobileOverscrollGuard()
 installUserCacheIsolation()
 installDeletedUserRedirect(supabase)
+installSingleSessionEnforcement(supabase)
 installShowCommunityPortal(supabase)
 
 function BootReady() {
