@@ -1,5 +1,5 @@
 .show-data-attribution {
-  margin: 18px 16px 14px;
+  margin: 14px 16px 6px;
   padding: 0 10px;
   color: #94a3b8;
   font-size: 11px;
@@ -20,7 +20,7 @@
 
 @media (max-width: 640px) {
   .show-data-attribution {
-    margin: 20px 22px 16px;
+    margin: 14px 22px 4px;
     padding: 0;
     line-height: 1.75;
   }
