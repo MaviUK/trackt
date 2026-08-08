@@ -20,7 +20,7 @@
 
 @media (max-width: 640px) {
   .show-data-attribution {
-    margin: 20px 22px 34px;
+    margin: 20px 22px 8px;
     padding: 0;
     line-height: 1.75;
   }
