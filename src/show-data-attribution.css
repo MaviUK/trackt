@@ -1,8 +1,9 @@
 .show-data-attribution {
-  margin: -6px 2px 18px;
+  margin: 18px 16px 30px;
+  padding: 0 10px;
   color: #94a3b8;
   font-size: 11px;
-  line-height: 1.55;
+  line-height: 1.7;
   text-align: center;
 }
 
@@ -15,4 +16,12 @@
 .show-data-attribution a:hover {
   color: #e9d5ff;
   text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .show-data-attribution {
+    margin: 20px 22px 34px;
+    padding: 0;
+    line-height: 1.75;
+  }
 }
