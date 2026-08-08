@@ -21,6 +21,19 @@ function addShowDataAttribution() {
       'TV metadata from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB</a> and <a href="https://thetvdb.com/" target="_blank" rel="noopener noreferrer">TheTVDB</a>. Streaming availability powered by <a href="https://www.justwatch.com/uk" target="_blank" rel="noopener noreferrer">JustWatch</a>. <a href="/credits/">Credits</a>';
   }
 
+  // Keep the attribution near the bottom of the show content, but above the
+  // fixed/action controls on My Shows detail pages.
+  const actionBar = shell.querySelector(
+    ".msd-bottom-actions, .msd-actions, .msd-action-bar, .msd-sticky-actions"
+  );
+
+  if (actionBar) {
+    if (attribution.nextElementSibling !== actionBar) {
+      shell.insertBefore(attribution, actionBar);
+    }
+    return;
+  }
+
   if (attribution.parentElement === shell && shell.lastElementChild === attribution) {
     return;
   }
